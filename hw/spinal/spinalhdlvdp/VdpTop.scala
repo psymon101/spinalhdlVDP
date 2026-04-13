@@ -51,8 +51,21 @@ case class VdpTop() extends Component {
     //     raster owner decides the scroll/line/pixelAddr so the fetch contract
     //     stays at the VdpTop boundary.
     val layer0UseSdram        = in Bool()
-    val layer0SdramPixel      = in Bits(3 bits)
+    // R4: widened SDRAM-backed L0 interface.
+    //   - pixel index widens from 3bpp (Task-15) to 4bpp
+    //   - paletteBank[3] picks one of 8 palette banks (drives top bits of
+    //     palette address)
+    //   - priority=1 means this L0 pixel wins over L1 (priority-aware composite)
+    val layer0SdramPixel      = in Bits(4 bits)
+    val layer0SdramBank       = in UInt(3 bits)
+    val layer0SdramPriority   = in Bool()
+    // R4: scheduler outputs exposed so the top-level can wire them into the
+    // new SdramTileAttributeFetch engine (which accepts grant / slotValid /
+    // preAnnounce instead of the legacy level-based fetchStart).
     val layer0FetchStart      = out Bool()
+    val layer0FetchGrant      = out Bool()
+    val layer0FetchSlotValid  = out Bool()
+    val layer0FetchPreAnnounce = out Bool()
     val layer0FetchLine       = out UInt(10 bits)
     val layer0FetchScrollX    = out UInt(10 bits)
     val layer0FetchScrollY    = out UInt(10 bits)
@@ -183,11 +196,17 @@ case class VdpTop() extends Component {
                                     fetchStartStrobe) init 0
   val fetchScrollYReg = RegNextWhen(io.layer0ScrollY, fetchStartStrobe) init 0
 
-  io.layer0FetchStart     := fetchStartCount =/= 0
-  io.layer0FetchLine      := fetchLineReg
-  io.layer0FetchScrollX   := fetchScrollXReg
-  io.layer0FetchScrollY   := fetchScrollYReg
-  io.layer0FetchPixelAddr := hCounter.resize(10)
+  io.layer0FetchStart       := fetchStartCount =/= 0
+  // R4: raw scheduler signals for the new SdramTileAttributeFetch engine.
+  // preAnnounce is passed through untransformed so the fetch engine can
+  // prefetch addresses one cycle ahead of grant.
+  io.layer0FetchGrant       := scheduler.io.grant
+  io.layer0FetchSlotValid   := scheduler.io.slotValid
+  io.layer0FetchPreAnnounce := scheduler.io.preAnnounce
+  io.layer0FetchLine        := fetchLineReg
+  io.layer0FetchScrollX     := fetchScrollXReg
+  io.layer0FetchScrollY     := fetchScrollYReg
+  io.layer0FetchPixelAddr   := hCounter.resize(10)
 
   // Layer 1 (higher priority background).
   val layer1 = BasicPatternSource()
@@ -200,12 +219,37 @@ case class VdpTop() extends Component {
   // SDRAM-backed pixel from the external fetch engine feeds L0. The on-chip
   // BasicPatternSource is kept instantiated and reading as the comparison
   // baseline so A/B can happen on the same hardware image.
-  val layer0Source = Mux(io.layer0UseSdram, io.layer0SdramPixel, layer0.io.pixelIndex)
+  // R4: L0 carries {index[4], bank[3], priority[1]} when driven by the R4
+  // fetch engine; when fed by the on-chip 3bpp source we zero-extend the index
+  // and force bank=0 / priority=0 to keep the legacy-path rendering identical.
+  val onChipIdx4   = layer0.io.pixelIndex.resize(4)
+  val layer0Index  = Mux(io.layer0UseSdram, io.layer0SdramPixel, onChipIdx4)
+  val layer0Bank   = Mux(io.layer0UseSdram, io.layer0SdramBank,  U(0, 3 bits))
+  val layer0Prio   = Mux(io.layer0UseSdram, io.layer0SdramPriority, False)
 
-  // Multi-layer composition with linestate enables.
-  val layer0Pixel = Mux(linestate.io.layer0Enable, layer0Source.resize(4), B(0, 4 bits))
+  val layer0Pixel = Mux(linestate.io.layer0Enable, layer0Index, B(0, 4 bits))
+  val layer0PrioGated = linestate.io.layer0Enable && layer0Prio
   val layer1Pixel = Mux(linestate.io.layer1Enable, layer1.io.pixelIndex.resize(4), B(0, 4 bits))
-  val composedBg = Mux(layer1Pixel =/= B(0, 4 bits), layer1Pixel, layer0Pixel)
+
+  // Priority-aware L0/L1 composition. Previous behavior: L1 wins over L0
+  // whenever L1 is non-transparent. With R4 per-tile priority, L0 additionally
+  // wins when its priority bit is set and the L0 pixel is non-transparent —
+  // this is what lets a foreground tile poke through L1.
+  val layer0Opaque = layer0Pixel =/= B(0, 4 bits)
+  val layer1Opaque = layer1Pixel =/= B(0, 4 bits)
+  val composedBgIdx = Bits(4 bits)
+  val composedBgBank = UInt(3 bits)
+  when(layer0PrioGated && layer0Opaque) {
+    composedBgIdx  := layer0Pixel
+    composedBgBank := layer0Bank
+  }.elsewhen(layer1Opaque) {
+    composedBgIdx  := layer1Pixel
+    composedBgBank := U(0, 3 bits)  // L1 is legacy-bank-0 only
+  }.otherwise {
+    composedBgIdx  := layer0Pixel
+    composedBgBank := layer0Bank
+  }
+  val composedBg = composedBgIdx
 
   // R2: two-pass sprite evaluator over 4 descriptors, 2 visible per line.
   // Descriptors come directly from the top-level sprite* inputs. Evaluator
@@ -269,18 +313,36 @@ case class VdpTop() extends Component {
   // front of "lowest" — matches the previous s1>s0 demo). This can flip once
   // a later adapter defines a different priority rule; for R2's bounded scope
   // the important property is that the order is DETERMINISTIC AND STABLE.
-  val fillPixel = Bits(4 bits)
+  // R4: line buffer now carries 8 bits per pixel — {priority[7], bank[6:4],
+  // index[3:0]}. Sprites render from legacy bank 0 with priority=0 so they
+  // stay bit-compatible with R2. BG pixels carry composedBgBank and — for
+  // non-priority cases — priority=0 (priority is a BG-only concept; once
+  // composition chose L0 over L1 we've already consumed the priority info).
+  val fillIdx  = Bits(4 bits)
+  val fillBank = UInt(3 bits)
   when(slotVisible(1)) {
-    fillPixel := slotPixel(1)
+    fillIdx  := slotPixel(1)
+    fillBank := U(0, 3 bits)
   }.elsewhen(slotVisible(0)) {
-    fillPixel := slotPixel(0)
+    fillIdx  := slotPixel(0)
+    fillBank := U(0, 3 bits)
   }.otherwise {
-    fillPixel := composedBg
+    fillIdx  := composedBgIdx
+    fillBank := composedBgBank
   }
+  // Priority bit stored in the line buffer is reserved for future consumers
+  // (e.g. sprite-vs-BG priority). For the R4 proof scene it is driven by the
+  // L0 priority bit only when the BG source was L0 (sprite-path forces 0).
+  val fillPrio = Bool()
+  when(slotVisible(1) || slotVisible(0)) {
+    fillPrio := False
+  }.otherwise {
+    fillPrio := layer0PrioGated && layer0Opaque && !layer1Opaque
+  }
+  val fillPixel = (fillPrio ## fillBank.asBits ## fillIdx).asBits  // 8 bits
 
-  // Double-buffered scanline buffer: 4-bit padded pixel index, 640 pixels wide.
-  // Uses readSync for BSRAM inference — address presented 1 cycle before data needed.
-  val lineBuf = LineBuffer(pixelWidth = 4, lineWidth = hActive)
+  // Double-buffered scanline buffer: 8-bit packed {priority, bank, index}.
+  val lineBuf = LineBuffer(pixelWidth = 8, lineWidth = hActive)
   lineBuf.io.writeEnable := hCounter < hActive
   lineBuf.io.writeAddr := hCounter.resized
   lineBuf.io.writeData := fillPixel
@@ -299,12 +361,20 @@ case class VdpTop() extends Component {
   }
   lineBuf.io.readAddr := drainAddr
 
-  // Drain: readSync output is the 4-bit padded index, available 1 cycle after address.
-  val pixelIndex = lineBuf.io.readData.asUInt
+  // Drain: readSync output is the 8-bit packed {priority, bank[3], idx[4]},
+  // available 1 cycle after address. The palette is addressed by the full
+  // {bank[3], idx[4]} = 7 bits; the stored priority bit is carried for future
+  // consumers but not used for palette selection.
+  val drainWord   = lineBuf.io.readData
+  val drainIdx    = drainWord(3 downto 0).asUInt
+  val drainBank   = drainWord(6 downto 4).asUInt
+  val paletteAddr = (drainBank @@ drainIdx).resize(log2Up(TileAttributeAssets.PaletteDepth))
 
-  // Palette: 16-entry × 24-bit RGB lookup, initialized to match previous switch-case.
-  val palette = Mem(Bits(24 bits), initialContent = VdpTop.paletteInit)
-  val paletteRgb = palette.readAsync(pixelIndex)
+  // Palette: 128-entry × 24-bit banked RGB lookup from TileAttributeAssets.
+  // Bank 0 reproduces the pre-R4 16-color palette so the legacy L1 path and
+  // sprite rendering are unchanged.
+  val palette = Mem(Bits(24 bits), initialContent = TileAttributeAssets.paletteInit)
+  val paletteRgb = palette.readAsync(paletteAddr)
 
   // R1 Raster Trigger Unit. Pending status is used below as a visible split
   // indicator (inverts the red channel after the trigger fires), which is the

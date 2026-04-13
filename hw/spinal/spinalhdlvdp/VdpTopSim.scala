@@ -57,6 +57,8 @@ object VdpTopSim extends App {
     // Task 15 L0 mux: stay on the on-chip source for the existing sim coverage.
     dut.io.layer0UseSdram #= false
     dut.io.layer0SdramPixel #= 0
+    dut.io.layer0SdramBank #= 0
+    dut.io.layer0SdramPriority #= false
     // R1 raster trigger defaults: disabled so VdpTopSim keeps its existing
     // pixel-level baseline behavior (no red-channel inversion).
     dut.io.rasterTriggerLine     #= 0

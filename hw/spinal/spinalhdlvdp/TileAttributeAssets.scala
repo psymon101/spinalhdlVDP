@@ -106,13 +106,20 @@ object TileAttributeAssets {
     }
   }
 
+  // Map ROMs are padded to the next power-of-two depth (2048) per GT-022. The
+  // padding entries are unused at runtime since address math stays in
+  // [0, MapEntries). Identical fix pattern to BasicPatternSource.tileMapInit.
+  val MapRomDepth = 2048
+  require(isPow2(MapRomDepth))
+
   /** Tile map for the palette-bank checkerboard proof scene.
     *
     * All 1200 tiles reference tile 0 (gradient). The visible differentiation
     * comes from the attribute map's paletteBank field.
     */
   def tileMapBytesInit: Seq[Bits] =
-    Seq.fill(MapEntries)(B(0, 8 bits))
+    Seq.fill(MapEntries)(B(0, 8 bits)) ++
+    Seq.fill(MapRomDepth - MapEntries)(B(0, 8 bits))
 
   /** Attribute map: 2×2 quadrants (20×15 tiles each) pick palette banks 0/1/2/3.
     * Priority bit set on the bottom-right quadrant only, so the optional
@@ -134,7 +141,9 @@ object TileAttributeAssets {
       val priority = !top && !left
       out += B(packAttr(bank, priority), 8 bits)
     }
-    out.toSeq
+    // Pad to MapRomDepth (2048) for GT-022.
+    val padded = out.toSeq ++ Seq.fill(MapRomDepth - MapEntries)(B(0, 8 bits))
+    padded
   }
 
   // --- Palette ----------------------------------------------------------------
@@ -144,8 +153,10 @@ object TileAttributeAssets {
   // Bank layout for banks used by the proof scene (0..3). Higher banks are
   // populated with placeholder ramps so every index in the 128-entry Mem has a
   // defined value (GT-022 safety + clean Verilog init).
+  // VdpTop unpacks palette bits as [red(23:16), green(15:8), blue(7:0)], so
+  // red must be the MSByte.
   private def rgb(r: Int, g: Int, b: Int): BigInt =
-    (BigInt(b & 0xFF) << 16) | (BigInt(g & 0xFF) << 8) | BigInt(r & 0xFF)
+    (BigInt(r & 0xFF) << 16) | (BigInt(g & 0xFF) << 8) | BigInt(b & 0xFF)
 
   // Bank 0 preserves the legacy VdpTop 16-color palette so L1 (still 3bpp +
   // implicit bank 0) renders bit-identical to pre-R4 hardware. Only the low 8
@@ -155,7 +166,7 @@ object TileAttributeAssets {
     rgb(0x00, 0x00, 0x00), // 0 black
     rgb(0xFF, 0xFF, 0xFF), // 1 white
     rgb(0xFF, 0x00, 0x00), // 2 red
-    rgb(0x00, 0xC0, 0x00), // 3 green
+    rgb(0x00, 0xFF, 0x00), // 3 green
     rgb(0x00, 0x00, 0xFF), // 4 blue
     rgb(0xFF, 0xFF, 0x00), // 5 yellow
     rgb(0x00, 0xFF, 0xFF), // 6 cyan
@@ -219,7 +230,7 @@ object TileAttributeAssets {
   // Sanity counts
   require(tileRowBytesInit.length == TileCount * TileHeight * TileRowBytes,
     s"tileRowBytes size mismatch: ${tileRowBytesInit.length}")
-  require(tileMapBytesInit.length == MapEntries)
-  require(attributeMapBytesInit.length == MapEntries)
+  require(tileMapBytesInit.length == MapRomDepth)
+  require(attributeMapBytesInit.length == MapRomDepth)
   require(paletteInit.length == PaletteDepth)
 }

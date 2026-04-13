@@ -149,22 +149,23 @@ case class TopTang20kHdmi() extends Component {
     video.io.sprite3Enabled := True
     video.io.sprite3PatternIdx := U(1, 1 bit)
 
-    // Task 15: SDRAM-backed tile fetch, present in the pipeline but not yet
-    // routed to VdpTop's layer-0 source. Its fetch controls are tied so the
-    // engine boots, runs memtest, and idles — the pads are live so hardware
-    // bring-up can confirm the SDRAM path is electrically alive before the
-    // VdpTop L0 mux is wired up in a follow-up turn.
-    val fetch = SdramTileFetch(sdramClockDomain)
-    fetch.io.fetchStart   := video.io.layer0FetchStart
-    fetch.io.fetchLine    := video.io.layer0FetchLine
-    fetch.io.fetchScrollX := video.io.layer0FetchScrollX
-    fetch.io.fetchScrollY := video.io.layer0FetchScrollY
-    fetch.io.pixelAddr    := video.io.layer0FetchPixelAddr
+    // R4: SDRAM tile+attribute fetch. Replaces the retired SdramTileFetch.
+    // Scheduler now gates SDRAM reads via slotValid; grant pulses start a
+    // line's fetch cycle; preAnnounce gives the engine a prefetch hint.
+    val fetch = SdramTileAttributeFetch(sdramClockDomain)
+    fetch.io.fetchGrant       := video.io.layer0FetchGrant
+    fetch.io.fetchSlotValid   := video.io.layer0FetchSlotValid
+    fetch.io.fetchPreAnnounce := video.io.layer0FetchPreAnnounce
+    fetch.io.fetchLine        := video.io.layer0FetchLine
+    fetch.io.fetchScrollX     := video.io.layer0FetchScrollX
+    fetch.io.fetchScrollY     := video.io.layer0FetchScrollY
+    fetch.io.pixelAddr        := video.io.layer0FetchPixelAddr
 
-    // Route SDRAM-fetched pixel back into VdpTop's L0 mux input.
-    video.io.layer0SdramPixel := fetch.io.pixelIndex
-    // Sequence 2: activate SDRAM-backed L0 source.
-    video.io.layer0UseSdram   := True
+    // Route R4 pixel+bank+priority into VdpTop's L0 interface.
+    video.io.layer0SdramPixel    := fetch.io.pixelIndex
+    video.io.layer0SdramBank     := fetch.io.pixelPaletteBank
+    video.io.layer0SdramPriority := fetch.io.pixelPriority
+    video.io.layer0UseSdram      := True
 
     // R1 Raster Trigger Unit: fire at line 240 (mid-visible), clear each frame
     // at start-of-frame so the trigger re-fires every frame and the screen
