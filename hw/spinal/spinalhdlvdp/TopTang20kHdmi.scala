@@ -101,9 +101,12 @@ case class TopTang20kHdmi() extends Component {
     when(vsyncRising) {
       frameCounter := frameCounter + 1
     }
-    video.io.layer0ScrollX := (frameCounter >> 1).resized
+    // R4 stage-1c diagnostic: freeze all scroll per CoralReef #6772 so the
+    // probe tiles latch deterministic (tx, ty) coordinates. Revert once the
+    // bank-uniformity bug is root-caused.
+    video.io.layer0ScrollX := U(0, 10 bits)
     video.io.layer0ScrollY := U(0, 10 bits)
-    video.io.layer1ScrollX := frameCounter
+    video.io.layer1ScrollX := U(0, 10 bits)
     video.io.layer1ScrollY := U(0, 10 bits)
 
     video.io.lsWriteAddr := U(0, log2Up(480) bits)
