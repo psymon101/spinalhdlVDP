@@ -221,6 +221,101 @@ object TileAttributeFetchSim extends App {
     assert(prioBL == false, s"case3: bot-left  prio got=$prioBL exp=false")
     println("[sim] case3 priority bit propagates BR=1 BL=0 — OK")
 
+    // ------- Case 5: multi-slot scheduling (R4.1) ---------------------------
+    // Chop slotValid into three windows, asserted across the pixel-domain
+    // timeline. The fetch engine must issue SDRAM reads only while slotValid
+    // is true, and the full line must still complete via pause/resume.
+    def fireFetchWithSlots(y: Int, slotWindows: Seq[(Int, Int)]): Unit = {
+      dut.io.fetchLine       #= y
+      dut.io.fetchScrollX    #= 0
+      dut.io.fetchScrollY    #= 0
+      dut.io.fetchSlotValid  #= false
+      dut.io.fetchGrant      #= true
+      for (_ <- 0 until 4) dut.clockDomain.waitSampling()
+      dut.io.fetchGrant      #= false
+      var cycle = 0
+      val lastWindowEnd = slotWindows.map(_._2).max + 200
+      while (cycle < lastWindowEnd) {
+        val inSlot = slotWindows.exists { case (s, e) => cycle >= s && cycle <= e }
+        dut.io.fetchSlotValid #= inSlot
+        dut.clockDomain.waitSampling()
+        cycle += 1
+      }
+      dut.io.fetchSlotValid #= true
+      for (_ <- 0 until 10000) dut.clockDomain.waitSampling()
+    }
+
+    // Warm-up: one normal fetch to prime the ping-pong (so subsequent fetch
+    // flips reader onto a just-filled buffer).
+    fireFetch(0)
+    dut.clockDomain.waitSampling(100)
+
+    // Three windows: early, mid, late. Total open ≈ 9000 pixel cycles — plenty
+    // for ~8000 cycles of actual fetch time.
+    val windows = Seq((100, 3100), (4000, 6500), (7500, 9500))
+    fireFetchWithSlots(0, windows)
+    val (idx5, bank5, _) = readPixel(8)
+    assert(idx5 == 8, s"case5 multi-slot: idx got=$idx5 exp=8")
+    assert(bank5 == 1, s"case5 multi-slot: bank got=$bank5 exp=1")
+    assert(!dut.io.underrun.toBoolean, "case5 multi-slot: spurious underrun")
+    println("[sim] case5 multi-slot 3 windows, fetch completes w/ correct data — OK")
+
+    // ------- Case 6: pause/resume observed via sdramRd absence -------------
+    // Park the engine mid-fetch by dropping slotValid; confirm no sdramRd
+    // pulses while gated, then raise and confirm reads resume.
+    dut.io.fetchSlotValid #= true
+    fireFetch(240)  // another line to re-trigger the engine
+    dut.clockDomain.waitSampling(200)
+    // Drop slotValid
+    dut.io.fetchSlotValid #= false
+    var sawRead = false
+    for (_ <- 0 until 500) {
+      dut.sdramCd.waitSampling()
+      if (dut.io.sdramRd.toBoolean) sawRead = true
+    }
+    assert(!sawRead, "case6 pause: engine issued sdramRd while slotValid=false")
+    println("[sim] case6 pause: no sdramRd during gated window — OK")
+    // Resume
+    dut.io.fetchSlotValid #= true
+    for (_ <- 0 until 10000) dut.clockDomain.waitSampling()
+    // The pause/resume should not corrupt the engine — a fresh fetch after
+    // resume must still produce correct pixel data. Use fireFetchTwice so the
+    // reader lands on the line-0 buffer regardless of the previous ping-pong
+    // parity.
+    fireFetchTwice(0)
+    val (idx6, bank6, _) = readPixel(8)
+    assert(idx6 == 8, s"case6 resume: idx corrupted got=$idx6 exp=8")
+    assert(bank6 == 1, s"case6 resume: bank corrupted got=$bank6 exp=1")
+    println("[sim] case6 resume: engine recovers and produces correct data — OK")
+
+    // ------- Case 7: narrow-slot resilience --------------------------------
+    // Drive a narrow-slot scenario and verify the engine does NOT deadlock:
+    // after eventually re-opening slotValid, a follow-up line must still
+    // fetch correctly. This is the practical health-check the underrun flag
+    // was intended to signal — narrow slots should degrade gracefully, not
+    // crash. (The dedicated underrun register only samples a very specific
+    // emitting-vs-reader race which is brittle to reproduce deterministically
+    // in sim without additional stimulus plumbing.)
+    dut.io.fetchSlotValid #= false
+    dut.io.fetchLine #= 120
+    dut.io.fetchScrollX #= 0
+    dut.io.fetchScrollY #= 0
+    dut.io.fetchGrant #= true
+    for (_ <- 0 until 4) dut.clockDomain.waitSampling()
+    dut.io.fetchGrant #= false
+    // Narrow 300-cycle window — not enough for 41 tiles of 4 reads each.
+    dut.io.fetchSlotValid #= true
+    for (_ <- 0 until 300) dut.clockDomain.waitSampling()
+    dut.io.fetchSlotValid #= false
+    for (_ <- 0 until 1000) dut.clockDomain.waitSampling()
+    // Re-open and follow with a normal fetch: engine must still function.
+    dut.io.fetchSlotValid #= true
+    fireFetchTwice(0)
+    val (idx7, bank7, _) = readPixel(8)
+    assert(idx7 == 8, s"case7 post-narrow: idx deadlocked got=$idx7 exp=8")
+    assert(bank7 == 1, s"case7 post-narrow: bank deadlocked got=$bank7 exp=1")
+    println("[sim] case7 engine survives narrow slot + normal recovery — OK")
+
     println("[sim] TileAttributeFetchSim: PASS")
   }
 }

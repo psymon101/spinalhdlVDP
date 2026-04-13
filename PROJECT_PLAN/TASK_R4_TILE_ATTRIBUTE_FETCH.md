@@ -1,6 +1,7 @@
 # TASK_R4_TILE_ATTRIBUTE_FETCH.md
 
-**Status:** OPEN  
+**Status:** CLOSED (`df7af63`)
+**Closed:** 2026-04-13  
 **Created:** 2026-04-13  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak  

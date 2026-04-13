@@ -170,15 +170,27 @@ case class VdpTop() extends Component {
   val scheduler = FetchSlotScheduler(slotCount = 8)
   scheduler.io.hCounter  := hCounter.resize(10)
   scheduler.io.lineStart := hCounter === 0
-  // R4: per CoralReef #6761 / CyanPeak #6762, roll scheduler back to the R3
-  // grant-only model for the first R4 hardware proof. Slot 0 pins a single
-  // end-of-line grant; slots 1-7 stay disabled. Multi-slot coupling moves to
-  // an R4-follow-up slice.
+  // R4.1: multi-slot schedule for clientId=0 (tile+attribute fetch). Three
+  // non-contiguous windows prove pause/resume across slot gaps:
+  //   slot 0: grant at hblank-end strobe (hTotal-1), window covers hblank
+  //           into the start of the next line — starts a fresh fetch cycle
+  //   slot 1: mid-line burst for additional SDRAM bandwidth
+  //   slot 2: late-line burst for cleanup reads
+  // Grant fires at startH of each slot; only slot 0's grant is consumed by
+  // the fetch FSM's sIdle transition, the others simply widen slotValid.
   scheduler.io.schedule(0).enabled  := True
-  scheduler.io.schedule(0).clientId := U(0, 2 bits)  // 0 = tile client
+  scheduler.io.schedule(0).clientId := U(0, 2 bits)
   scheduler.io.schedule(0).startH   := U(hTotal - 1, 10 bits)
   scheduler.io.schedule(0).endH     := U(hTotal - 1, 10 bits)
-  for (i <- 1 until 8) {
+  scheduler.io.schedule(1).enabled  := True
+  scheduler.io.schedule(1).clientId := U(0, 2 bits)
+  scheduler.io.schedule(1).startH   := U(0, 10 bits)
+  scheduler.io.schedule(1).endH     := U(319, 10 bits)      // early-line slot
+  scheduler.io.schedule(2).enabled  := True
+  scheduler.io.schedule(2).clientId := U(0, 2 bits)
+  scheduler.io.schedule(2).startH   := U(400, 10 bits)
+  scheduler.io.schedule(2).endH     := U(hTotal - 1, 10 bits) // late-line slot
+  for (i <- 3 until 8) {
     scheduler.io.schedule(i).enabled  := False
     scheduler.io.schedule(i).clientId := U(0, 2 bits)
     scheduler.io.schedule(i).startH   := U(0, 10 bits)
@@ -201,10 +213,13 @@ case class VdpTop() extends Component {
   val fetchScrollYReg = RegNextWhen(io.layer0ScrollY, fetchStartStrobe) init 0
 
   io.layer0FetchStart       := fetchStartCount =/= 0
-  // R4: raw scheduler signals for the new SdramTileAttributeFetch engine.
-  // preAnnounce is passed through untransformed so the fetch engine can
-  // prefetch addresses one cycle ahead of grant.
-  io.layer0FetchGrant       := scheduler.io.grant
+  // R4.1: only the "start-of-fetch-cycle" slot (slot 0 at hTotal-1) produces
+  // the grant edge that transitions the fetch FSM from sIdle. The scheduler's
+  // raw `grant` fires at every slot's startH, but secondary grants during a
+  // line would reset the fetch mid-flight. Gate grant to the start strobe
+  // only; let slotValid stay as the raw OR of all slot windows so reads can
+  // span all three slots.
+  io.layer0FetchGrant       := scheduler.io.grant && (hCounter === hTotal - 1)
   io.layer0FetchSlotValid   := scheduler.io.slotValid
   io.layer0FetchPreAnnounce := scheduler.io.preAnnounce
   io.layer0FetchLine        := fetchLineReg

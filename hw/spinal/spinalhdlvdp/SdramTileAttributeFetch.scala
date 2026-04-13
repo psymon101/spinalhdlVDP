@@ -166,11 +166,18 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
       refreshTimer := refreshTimer + 1
     }
 
-    // Pixel→SDRAM CDC of fetch controls
-    val fetchGrantSync     = BufferCC(io.fetchGrant,     init = False)
-    val fetchGrantD        = RegNext(fetchGrantSync) init False
-    val fetchGrantEdge     = fetchGrantSync && !fetchGrantD
-    val slotValidSync      = BufferCC(io.fetchSlotValid, init = False)
+    // Pixel→SDRAM CDC of fetch controls. Per CyanPeak #6762/#6793, bundle
+    // grant/slotValid/preAnnounce into a single multi-bit BufferCC so the
+    // three signals stay phase-coherent across the domain boundary. Separate
+    // BufferCCs previously allowed grant to cross before slotValid, causing
+    // the fetch FSM to start in a closed window and stall indefinitely.
+    val ctrlBundle  = (io.fetchGrant ## io.fetchSlotValid ## io.fetchPreAnnounce).asBits
+    val ctrlSync    = BufferCC(ctrlBundle, init = B(0, 3 bits))
+    val fetchGrantSync    = ctrlSync(2)
+    val slotValidSync     = ctrlSync(1)
+    val preAnnounceSync   = ctrlSync(0)
+    val fetchGrantD       = RegNext(fetchGrantSync) init False
+    val fetchGrantEdge    = fetchGrantSync && !fetchGrantD
 
     val fetchLineSync      = BufferCC(io.fetchLine,    init = U(0, 10 bits))
     val fetchScrollXSync   = BufferCC(io.fetchScrollX, init = U(0, 10 bits))
@@ -248,11 +255,12 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     cmdWr      := False
     cmdRefresh := False
 
-    // Per CoralReef #6761 / CyanPeak #6762, the first R4 hardware proof uses
-    // the R3 grant-only model: fetchGrant starts a fetch, and reads run
-    // continuously until the line completes. `readGate` is therefore tied
-    // True. Multi-slot slotValid gating (and its CDC) is an R4-follow-up task.
-    val readGate = True
+    // R4.1: enable slotValid gating per TASK_R4_1 §3. When slotValid drops,
+    // fetch-state Rq transitions stall and the FSM holds position; when it
+    // rises again, reads resume from the same state. The bundled CDC above
+    // keeps grant/slotValid/preAnnounce phase-coherent so the FSM never
+    // observes an "open grant, closed window" race.
+    val readGate = slotValidSync
 
     val fsm = new StateMachine {
       val sPowerWait     = new State with EntryPoint
