@@ -63,6 +63,13 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     val memtestFail  = out Bool()
     val underrun     = out Bool()
     val debugWriteBuf = out Bool()
+    // Telemetry for R4 stage-1b hardware diagnosis (#6767/#6768/#6769): latch
+    // the attribute byte's low bits at a specific probe tile so the LEDs can
+    // show what bank the engine *actually* reads on real SDRAM. Probe points
+    // cover two distinct quadrants — if the engine addresses correctly, they
+    // should differ.
+    val debugAttrTL  = out UInt(3 bits)   // top-left (tileIdx=2,  tileY=2 ) — exp 1
+    val debugAttrBR  = out UInt(3 bits)   // bot-right(tileIdx=30, tileY=25) — exp 4
   }
 
   // ==========================================================================
@@ -197,9 +204,11 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     val bootCounter   = Reg(UInt(12 bits)) init 0       // up to 4096
     val tileIdx       = Reg(UInt(6 bits))  init 0
     val tileIndexReg  = Reg(UInt(log2Up(TileCount) bits)) init 0
-    val attrByteReg   = Reg(Bits(8 bits)) init 0
-    val bankReg       = Reg(UInt(3 bits)) init 0
-    val priorityReg   = Reg(Bool()) init False
+    val attrByteReg    = Reg(Bits(8 bits)) init 0
+    val bankReg        = Reg(UInt(3 bits)) init 0
+    val priorityReg    = Reg(Bool()) init False
+    val debugAttrTLReg = Reg(UInt(3 bits)) init 7   // init to "7" so a stuck
+    val debugAttrBRReg = Reg(UInt(3 bits)) init 7   // engine is distinguishable
     val rowWord0Reg   = Reg(Bits(32 bits)) init 0
 
     // Y wrap with 2×mapH double-wrap to match BasicPatternSource.
@@ -215,15 +224,25 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     val tileYCoord   = wrappedY(8 downto 4)
     val pixelYInTile = wrappedY(3 downto 0)
 
-    def tileMapByteAddr(tx: UInt, ty: UInt): UInt =
-      (U(TileMapBase, 23 bits) + (ty * U(MapTilesX, 8 bits) + tx).resize(23)).resized
-    def attrMapByteAddr(tx: UInt, ty: UInt): UInt =
-      (U(AttributeMapBase, 23 bits) + (ty * U(MapTilesX, 8 bits) + tx).resize(23)).resized
-    def tileRowByteAddr(tIdx: UInt, py: UInt, wordIdx: UInt): UInt =
-      (U(TileRowBase, 23 bits) +
-        ((tIdx.resize(8) * U(TileHeight * TileRowBytes, 12 bits) +
-          py.resize(8)   * U(TileRowBytes, 8 bits) +
-          (wordIdx * 4).resize(8)).resize(23))).resized
+    // Explicit intermediate widths per CyanPeak #6764 / CoralReef #6767 — the
+    // pre-fix version let SpinalHDL infer narrow intermediate widths from the
+    // operand widths, which is bit-accurate in sim but may yield a different
+    // synthesis path on the Gowin inference. Forcing every intermediate to a
+    // wide-enough constant width closes that gap.
+    def tileMapByteAddr(tx: UInt, ty: UInt): UInt = {
+      val offset = (ty.resize(16) * U(MapTilesX, 16 bits) + tx.resize(16)).resize(23)
+      (U(TileMapBase, 23 bits) + offset).resize(23)
+    }
+    def attrMapByteAddr(tx: UInt, ty: UInt): UInt = {
+      val offset = (ty.resize(16) * U(MapTilesX, 16 bits) + tx.resize(16)).resize(23)
+      (U(AttributeMapBase, 23 bits) + offset).resize(23)
+    }
+    def tileRowByteAddr(tIdx: UInt, py: UInt, wordIdx: UInt): UInt = {
+      val offset = ((tIdx.resize(16) * U(TileHeight * TileRowBytes, 16 bits)) +
+                    (py.resize(16)   * U(TileRowBytes, 16 bits)) +
+                    (wordIdx.resize(16) * U(4, 16 bits))).resize(23)
+      (U(TileRowBase, 23 bits) + offset).resize(23)
+    }
 
     cmdRd      := False
     cmdWr      := False
@@ -399,6 +418,15 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
           attrByteReg := io.sdramDout
           bankReg     := io.sdramDout(2 downto 0).asUInt   // bits 2:0 = paletteBank
           priorityReg := io.sdramDout(3)                   // bit 3   = priority
+          // Telemetry: latch attr[2:0] at the two probe tile positions so
+          // the LEDs report bank-values on real SDRAM. These regs are
+          // sticky — last-sampled value holds between frames.
+          when(tileIdx === U(2, 6 bits) && tileYCoord === U(2, 5 bits)) {
+            debugAttrTLReg := io.sdramDout(2 downto 0).asUInt
+          }
+          when(tileIdx === U(30, 6 bits) && tileYCoord === U(25, 5 bits)) {
+            debugAttrBRReg := io.sdramDout(2 downto 0).asUInt
+          }
           goto(sFetchRowRq0)
         }
       }
@@ -484,6 +512,10 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
   val flipBlinkCounter = Reg(UInt(16 bits)) init 0
   when(fetchStartRise) { flipBlinkCounter := flipBlinkCounter + 1 }
   io.debugWriteBuf := flipBlinkCounter(15)
+
+  // CDC telemetry registers to pixel domain for LED display.
+  io.debugAttrTL := BufferCC(sdramArea.debugAttrTLReg, init = U(7, 3 bits))
+  io.debugAttrBR := BufferCC(sdramArea.debugAttrBRReg, init = U(7, 3 bits))
 }
 
 object SdramTileAttributeFetchVerilog extends App {

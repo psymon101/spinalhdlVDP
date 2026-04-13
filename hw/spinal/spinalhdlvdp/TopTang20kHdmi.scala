@@ -198,13 +198,22 @@ case class TopTang20kHdmi() extends Component {
 
     // LEDs expose Task 15 bring-up status so first-hardware is diagnosable.
     //   O_led is active-low on the Tang Nano 20K (0 = lit).
+    // R4 stage-1b telemetry LEDs (#6767/#6768/#6769): we know hardware is
+    // healthy (PLLs/boot/memtest all lit previously). Repurpose LEDs 2-5 to
+    // display the attr bytes sampled at two probe tile positions so we can
+    // see what the engine actually reads on real SDRAM. If the three pairs
+    // of LEDs differ between probes, addressing is working; if they match,
+    // every tile sees the same attribute and the bug is address-wide.
+    //   LED 2,3 = debugAttrTL bits 0,1  (expect 1 → 01)
+    //   LED 4,5 = debugAttrBR bits 0,1  (expect 4 → 00, with bit 2 implicit)
+    // (bit 2 omitted — only 4 LEDs to spare.)
     O_led := B"6'b111111"
-    O_led(0) := !pll.LOCK               // pixel PLL lock
-    O_led(1) := !sdramPll.lock          // SDRAM PLL lock
-    O_led(2) := !fetch.io.bootDone      // SDRAM boot-copy finished
-    O_led(3) := !fetch.io.memtestPass   // SDRAM memtest passed
-    O_led(4) := fetch.io.memtestFail    // SDRAM memtest failed (active-high fault LED)
-    O_led(5) := fetch.io.underrun       // per-line FIFO underrun (active-high fault LED)
+    O_led(0) := !pll.LOCK
+    O_led(1) := !sdramPll.lock
+    O_led(2) := !fetch.io.debugAttrTL(0)
+    O_led(3) := !fetch.io.debugAttrTL(1)
+    O_led(4) := !fetch.io.debugAttrBR(0)
+    O_led(5) := !fetch.io.debugAttrBR(1)
   }
 
   // Wire SDRAM controller's logic-side signals to the fetch engine. Both live
