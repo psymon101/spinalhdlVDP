@@ -101,9 +101,18 @@ case class TopTang20kHdmi() extends Component {
     when(vsyncRising) {
       frameCounter := frameCounter + 1
     }
-    video.io.layer0ScrollX := (frameCounter >> 1).resized
+    // R4.1 simplified proof scene (per CoralReef #6799): temporally alternate
+    // between static-quadrant mode and slow-scroll mode. Static mode lasts
+    // long enough for a still capture to confirm the 4-bank color quadrants;
+    // scroll mode demonstrates pause/resume smoothness without tearing.
+    val modeToggle = (frameCounter >> 7)(0)   // ~2.1 s at 60 Hz
+    video.io.layer0ScrollX := Mux(modeToggle,
+                                  U(0, 10 bits),
+                                  (frameCounter >> 2).resized)
     video.io.layer0ScrollY := U(0, 10 bits)
-    video.io.layer1ScrollX := frameCounter
+    video.io.layer1ScrollX := Mux(modeToggle,
+                                  U(0, 10 bits),
+                                  frameCounter)
     video.io.layer1ScrollY := U(0, 10 bits)
 
     video.io.lsWriteAddr := U(0, log2Up(480) bits)

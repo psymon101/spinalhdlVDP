@@ -183,17 +183,23 @@ object TileAttributeAssets {
     rgb(0x80, 0x00, 0x80)
   )
 
+  // R4.1 simplified proof (per CoralReef #6799): banks 1-4 render as solid
+  // colors (all 16 indices identical) so quadrants appear as uniform color
+  // blocks in a static capture — no per-pixel palette ramp means no motion-
+  // blur ambiguity and no dependency on tile index correctness when verifying
+  // bank selection. Banks 0 (legacy) and 5-7 retain their ramp forms for
+  // other paths.
   private def ramp(bank: Int): Seq[BigInt] = (0 until PaletteEntries).map { i =>
     val t = (i * 255) / 15
     bank match {
       case 0 => legacyPalette(i)
-      case 1 => rgb(t, 0, 0)             // reds
-      case 2 => rgb(0, t, 0)             // greens
-      case 3 => rgb(0, 0, t)             // blues
-      case 4 => rgb(t, t, t)             // grayscale
-      case 5 => rgb(t, t, 0)             // yellows
-      case 6 => rgb(t, 0, t)             // magentas
-      case 7 => rgb(0, t, t)             // cyans
+      case 1 => rgb(0xFF, 0x00, 0x00)    // solid red
+      case 2 => rgb(0x00, 0xC0, 0x00)    // solid green
+      case 3 => rgb(0x00, 0x00, 0xFF)    // solid blue
+      case 4 => rgb(0xC0, 0xC0, 0xC0)    // solid gray
+      case 5 => rgb(t, t, 0)             // yellows ramp
+      case 6 => rgb(t, 0, t)             // magentas ramp
+      case 7 => rgb(0, t, t)             // cyans ramp
       case _ => BigInt(0)
     }
   }
