@@ -10,9 +10,13 @@
 
 The foundational rendering substrate of this VDP. Mode0 is not a clone of any specific historical machine. It provides the raw hardware-level rendering capabilities — sprites, tiled backgrounds, planar bitmaps, scrolling, per-line state, palette lookup, priority, affine transforms, color math — that are common across many classic video systems. All platform adapter modes are built on top of Mode0, not beside it. Mode0 is always the execution layer.
 
+Mode0 is intended to be the superset hardware substrate that exposes the timing, state, fetch, composition, and control primitives that target platforms need. It should grow until it can supply the building blocks required by supported platform adapters. Platform-specific semantics do not belong inside Mode0 unless they are truly generic primitives.
+
 ### Platform Adapter Mode (or: higher mode)
 
-A control surface built on top of Mode0 that presents a programming model oriented toward a specific historical platform (e.g. ZX Spectrum, Amiga, SNES). A platform adapter mode translates the expected behavior of its target platform into Mode0 operations. It does not bypass Mode0. Adapter modes are not implemented until the relevant Mode0 primitive is proven on hardware.
+A control surface built on top of Mode0 that presents a programming model oriented toward a specific historical platform (e.g. ZX Spectrum, Commodore 64, Amiga, SNES). A platform adapter mode translates the expected behavior of its target platform into Mode0 operations. It does not bypass Mode0. Adapter modes are not implemented until the relevant Mode0 primitive is proven on hardware.
+
+A platform adapter owns platform-specific registers, command semantics, and behavioral quirks. For example, an Amiga-oriented adapter may model Copper-visible registers and Copper-style line effects, but it should do so by driving Mode0 primitives such as raster position, linestate commit, fetch scheduling, layer enable changes, palette updates, and composition control. The adapter defines the platform semantics; Mode0 supplies the machinery.
 
 ### Linestate
 

@@ -67,6 +67,13 @@ mismatch. Do not create a replacement identity.
 This repository is the dedicated SpinalHDL implementation lane for the Tang
 Nano 20K VDP effort.
 
+For current and future work sessions, treat this repository as the primary and
+authoritative project / repo for the active VDP effort.
+
+Do not treat older sibling repositories as equal peers for execution planning.
+They may exist for historical reference, but they are not the source of truth
+for the current implementation lane.
+
 Keep here:
 
 - SpinalHDL source under `hw/spinal/spinalhdlvdp/`
@@ -75,6 +82,30 @@ Keep here:
 
 Do not treat older VDP repositories as the source of truth for this repo's
 directory structure. Port only what is intentionally adopted.
+
+## Mandatory Session Start Rule
+
+When starting a new session in this repository, read the current project docs
+before proposing work, assigning work, or coding.
+
+Minimum required reading order:
+
+1. `AGENTS.md`
+2. `PROJECT_PLAN/PROJECT_PLAN.md`
+3. `PROJECT_PLAN/TASKS.md`
+
+Then read any active planning artifact needed for the current lane:
+
+- `PROJECT_PLAN/MODE0_ROADMAP.md` for roadmap-driven work
+- `PROJECT_PLAN/TASK_TEMPLATE.md` when defining a new bounded task
+- the active `PROJECT_PLAN/TASK_*.md` file for the current execution lane
+
+Working rule:
+
+- use the docs above to understand what the project is, what is already proven,
+  and where the project currently is before taking action
+- if mail, docs, and local assumptions disagree, stop and reconcile before
+  coding or assigning work
 
 ## Build Path Rules
 
@@ -93,3 +124,74 @@ For FPGA-affecting changes:
 - run a simulator-based validation step before claiming hardware-ready status
 - do not mix stale generated HDL with current Scala sources
 - regenerate outputs from the current source tree before downstream Gowin use
+
+## Memory Curation Rule
+
+This repo uses the shared workspace `memory` MCP as a queryable cache, not as
+the authoritative project log.
+
+Authority order remains:
+
+1. `mcp-agent-mail`
+2. repo task/state docs
+3. shared `memory` cache
+
+Standing ownership:
+
+- `CoralReef` owns the initial curated memory pass for `spinalhdlVDP`
+- `CyanPeak` owns ongoing memory updates for audits, important bug fixes,
+  proven hardware findings, and reusable Tang/Gowin constraints
+
+Use `memory` proactively as a research-support resource.
+
+Expected workflow for research, audit, and planning work:
+
+1. check `memory` first for concise prior findings
+2. use mail and repo docs as the authority
+3. add back only short, reusable findings worth querying later
+
+Typical good uses:
+
+- recalling Tang/Gowin gotchas before a new hardware-debug branch
+- recalling prior audit conclusions before restating architecture decisions
+- recalling root-cause/fix pairs before repeating failed experiments
+- recalling validation patterns and proven constraints before opening a new task
+
+## PDF Rule
+
+`pdf-reader` is available for this repository and should be the default tool
+for reading datasheets, manuals, app notes, and other PDF sources relevant to
+`spinalhdlVDP`.
+
+Working rule:
+
+- use `pdf-reader` to inspect or query actual PDF contents
+- use `memory` only for short distilled findings worth recalling later
+- do not treat `memory` as a full-document store for PDFs by default
+
+Typical use:
+
+1. read or query the PDF with `pdf-reader`
+2. extract the small number of reusable findings that matter
+3. store only those concise findings in `memory` with strong tags if they are
+   likely to help future work
+
+Memory entries for this repo must be concise and strongly tagged.
+
+Minimum tag:
+
+- `vdp`
+
+Add as appropriate:
+
+- `resume`
+- `planning`
+- `audit`
+- `gotcha`
+- `hardware`
+- `tang20k`
+- `gowin`
+- task/lane tags such as `task-15`, `r1`, `r2`, `roadmap`
+
+Do not dump raw mail or long project logs into memory. Store short,
+query-friendly summaries that point back to the authoritative mail/doc state.

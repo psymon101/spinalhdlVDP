@@ -49,9 +49,21 @@ object VdpTopSim extends App {
     // Init.
     dut.io.layer0ScrollX #= 0; dut.io.layer0ScrollY #= 0
     dut.io.layer1ScrollX #= 0; dut.io.layer1ScrollY #= 0
-    dut.io.sprite0X #= 1000; dut.io.sprite0Y #= 1000; dut.io.sprite0Enabled #= false
-    dut.io.sprite1X #= 1000; dut.io.sprite1Y #= 1000; dut.io.sprite1Enabled #= false
+    dut.io.sprite0X #= 1000; dut.io.sprite0Y #= 1000; dut.io.sprite0Enabled #= false; dut.io.sprite0PatternIdx #= 0
+    dut.io.sprite1X #= 1000; dut.io.sprite1Y #= 1000; dut.io.sprite1Enabled #= false; dut.io.sprite1PatternIdx #= 1
+    dut.io.sprite2X #= 1000; dut.io.sprite2Y #= 1000; dut.io.sprite2Enabled #= false; dut.io.sprite2PatternIdx #= 0
+    dut.io.sprite3X #= 1000; dut.io.sprite3Y #= 1000; dut.io.sprite3Enabled #= false; dut.io.sprite3PatternIdx #= 1
     dut.io.lsWriteAddr #= 0; dut.io.lsWriteData #= 0; dut.io.lsWriteEnable #= false
+    // Task 15 L0 mux: stay on the on-chip source for the existing sim coverage.
+    dut.io.layer0UseSdram #= false
+    dut.io.layer0SdramPixel #= 0
+    // R1 raster trigger defaults: disabled so VdpTopSim keeps its existing
+    // pixel-level baseline behavior (no red-channel inversion).
+    dut.io.rasterTriggerLine     #= 0
+    dut.io.rasterTriggerPixel    #= 0
+    dut.io.rasterTriggerPxEnable #= false
+    dut.io.rasterTriggerEnable   #= false
+    dut.io.rasterTriggerClear    #= false
 
     // --- Startup black ---
     dut.clockDomain.waitSampling()

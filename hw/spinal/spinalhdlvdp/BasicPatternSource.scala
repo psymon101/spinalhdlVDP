@@ -136,14 +136,41 @@ object BasicPatternSource {
 
   private val tilePatterns: Seq[Seq[Seq[Int]]] = Seq(tile0, tile1, tile2, tile3, tile4, tile5, tile6, tile7)
 
-  val tileRowInit: Seq[Bits] = tilePatterns.flatten.map(row)
+  def tileRowInit: Seq[Bits] = tilePatterns.flatten.map(row)
 
-  val tileMapInit: Seq[Bits] = (0 until MapTilesY).flatMap { tileY =>
-    (0 until MapTilesX).map { tileX =>
-      val tile = ((tileX >> 1) + tileY) & 0x7
-      B(tile, TileIndexBits bits)
+  // Byte-granular tile row data for SDRAM boot-copy (SdramTileFetch).
+  // Each 48-bit row is zero-extended to 64 bits and split into 8 little-endian bytes,
+  // so tile `t` row `y` byte `b` lives at offset (t*16 + y)*8 + b.
+  // `def`, not `val`, so literals are minted fresh per elaboration context.
+  def tileRowBytesInit: Seq[Bits] = tilePatterns.flatten.flatMap { rowValues =>
+    val packed = rowValues.reverse.foldLeft(BigInt(0)) {
+      case (acc, v) => (acc << PixelBits) | BigInt(v)
     }
+    (0 until 8).map(i => B((packed >> (i * 8)) & BigInt(0xFF), 8 bits))
   }
+
+  // tileMap is padded to a power-of-two depth (2048). This is the permanent
+  // Task 15 fix for the Gowin non-power-of-two BSRAM inference bug that caused
+  // the Sequence-2 red band: with 1200 entries the tool mis-decoded addresses
+  // at the 1024-entry boundary, producing a stuck-value region for tileY 10..19.
+  // Address math unchanged (tileY * 40 + tileX ∈ [0, 1199]); padding is unused.
+  val TileMapDepth = 2048
+
+  def tileMapInit: Seq[Bits] =
+    (0 until MapTilesY).flatMap { tileY =>
+      (0 until MapTilesX).map { tileX =>
+        val tile = ((tileX >> 1) + tileY) & 0x7
+        B(tile, TileIndexBits bits)
+      }
+    } ++ Seq.fill(TileMapDepth - MapTilesY * MapTilesX)(B(0, TileIndexBits bits))
+
+  def tileMapBytesInit: Seq[Bits] =
+    (0 until MapTilesY).flatMap { tileY =>
+      (0 until MapTilesX).map { tileX =>
+        val tile = ((tileX >> 1) + tileY) & 0x7
+        B(tile, 8 bits)
+      }
+    } ++ Seq.fill(TileMapDepth - MapTilesY * MapTilesX)(B(0, 8 bits))
 
   def expectedPixelIndex(x: Int, y: Int, scrollX: Int = 0, scrollY: Int = 0): Int = {
     val mapPixelW = MapTilesX * TileWidth   // 640

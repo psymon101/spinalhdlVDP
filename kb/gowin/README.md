@@ -6,6 +6,9 @@ Status:
 - `Present locally` means the PDF is already in this repo.
 - `Missing locally` means the guide is not checked into this repo as of 2026-03-14, but an official Gowin page/link was identified.
 
+Related repo-local note:
+- [GOTCHAS.md](/home/itadmin/github/spinalhdlVDP/kb/gowin/GOTCHAS.md) tracks Gowin/Tang20K implementation hazards and Task 15-relevant advisory notes. Treat imported entries there as advisory until validated in this repo.
+
 ## Use First
 
 ### Present locally

@@ -13,8 +13,22 @@ case class TopTang20kHdmi() extends Component {
   val O_tmds_data_p = out Bits(3 bits)
   val O_tmds_data_n = out Bits(3 bits)
 
-  // The Tang Nano 20K provides a 27 MHz reference clock.
-  // This PLL instance multiplies it to the TMDS serializer clock.
+  // Task 15: embedded SiP SDRAM pads. These map to Gowin's "magic" port names
+  // (O_sdram_*, IO_sdram_DQ). No `.cst` entries — Gowin auto-binds them.
+  val O_sdram_clk   = out Bool()
+  val O_sdram_cke   = out Bool()
+  val O_sdram_cs_n  = out Bool()
+  val O_sdram_cas_n = out Bool()
+  val O_sdram_ras_n = out Bool()
+  val O_sdram_wen_n = out Bool()
+  val O_sdram_addr  = out Bits(11 bits)
+  val O_sdram_ba    = out Bits(2 bits)
+  val O_sdram_dqm   = out Bits(4 bits)
+  val IO_sdram_dq   = inout(Analog(Bits(32 bits)))
+
+  // --------------------------------------------------------------------------
+  // Pixel-side PLL chain (unchanged from pre-Task-15 baseline)
+  // --------------------------------------------------------------------------
   val pll = GowinRpll()
   pll.CLKIN := I_clk
   pll.CLKFB := False
@@ -27,7 +41,6 @@ case class TopTang20kHdmi() extends Component {
   pll.RESET := False
   pll.RESET_P := False
 
-  // Divide the serializer clock by 5 to get the pixel clock used by the video core.
   val clkdiv = GowinClkdiv()
   clkdiv.HCLKIN := pll.CLKOUT
   clkdiv.CALIB := True
@@ -40,6 +53,44 @@ case class TopTang20kHdmi() extends Component {
     config = ClockDomainConfig(resetKind = ASYNC, resetActiveLevel = HIGH)
   )
 
+  // --------------------------------------------------------------------------
+  // SDRAM PLL + controller (new for Task 15)
+  // --------------------------------------------------------------------------
+  // 27 MHz → 64.8 MHz CLKOUT + 64.8 MHz 180° CLKOUTP (see tang20k_sdram_pll.v).
+  val sdramPll = Tang20kSdramPll()
+  sdramPll.clkin := I_clk
+
+  val sdramReset = !sdramPll.lock
+  val sdramClockDomain = ClockDomain(
+    clock = sdramPll.clkout,
+    reset = sdramReset,
+    config = ClockDomainConfig(resetKind = ASYNC, resetActiveLevel = HIGH)
+  )
+
+  // Controller and fetch engine share sdramClockDomain. The controller's
+  // logic-side `clk` is auto-mapped to this domain via BlackBox annotation;
+  // `clk_sdram` receives the 180° companion output.
+  val sdramArea = new ClockingArea(sdramClockDomain) {
+    val ctrl = SdramController()
+    ctrl.io.clk_sdram := sdramPll.clkoutp
+    ctrl.io.resetn    := sdramPll.lock
+  }
+
+  // Route SDRAM pads at top level (outside any area — they are physical pins).
+  O_sdram_clk   := sdramArea.ctrl.io.SDRAM_CLK
+  O_sdram_cke   := sdramArea.ctrl.io.SDRAM_CKE
+  O_sdram_cs_n  := sdramArea.ctrl.io.SDRAM_nCS
+  O_sdram_cas_n := sdramArea.ctrl.io.SDRAM_nCAS
+  O_sdram_ras_n := sdramArea.ctrl.io.SDRAM_nRAS
+  O_sdram_wen_n := sdramArea.ctrl.io.SDRAM_nWE
+  O_sdram_addr  := sdramArea.ctrl.io.SDRAM_A
+  O_sdram_ba    := sdramArea.ctrl.io.SDRAM_BA
+  O_sdram_dqm   := sdramArea.ctrl.io.SDRAM_DQM
+  IO_sdram_dq   <> sdramArea.ctrl.io.SDRAM_DQ
+
+  // --------------------------------------------------------------------------
+  // Pixel-domain logic (VdpTop + SDRAM fetch instance)
+  // --------------------------------------------------------------------------
   val pixelArea = new ClockingArea(pixelClockDomain) {
     val video = VdpTop()
 
@@ -50,49 +101,84 @@ case class TopTang20kHdmi() extends Component {
     when(vsyncRising) {
       frameCounter := frameCounter + 1
     }
-    // Dynamic background scroll to prevent constant-folding of the layer pipeline.
     video.io.layer0ScrollX := (frameCounter >> 1).resized
     video.io.layer0ScrollY := U(0, 10 bits)
     video.io.layer1ScrollX := frameCounter
     video.io.layer1ScrollY := U(0, 10 bits)
 
-    // Linestate prepare-side write: tied off (initialized contents only).
     video.io.lsWriteAddr := U(0, log2Up(480) bits)
     video.io.lsWriteData := B(0, 12 bits)
     video.io.lsWriteEnable := False
 
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100
-    val s0Y = Reg(UInt(10 bits)) init 200
-    val s0DirX = Reg(Bool()) init False
-    val s0DirY = Reg(Bool()) init False
-    when(vsyncRising) {
-      when(s0DirX) { when(s0X <= 1) { s0DirX := False } otherwise { s0X := s0X - 1 } }
-        .otherwise { when(s0X >= 623) { s0DirX := True } otherwise { s0X := s0X + 1 } }
-      when(s0DirY) { when(s0Y <= 1) { s0DirY := False } otherwise { s0Y := s0Y - 1 } }
-        .otherwise { when(s0Y >= 463) { s0DirY := True } otherwise { s0Y := s0Y + 1 } }
-    }
-    video.io.sprite0X := s0X
-    video.io.sprite0Y := s0Y
+    // Bouncing logic removed for the R2 proof — sprites are pinned at fixed
+    // positions so the per-line selection-limit effect is unambiguously
+    // observable on a single captured frame.
+
     video.io.sprite0Enabled := True
-
-    // Sprite 1: bounces at 2px/frame, different starting position.
-    val s1X = Reg(UInt(10 bits)) init 300
-    val s1Y = Reg(UInt(10 bits)) init 150
-    val s1DirX = Reg(Bool()) init True
-    val s1DirY = Reg(Bool()) init False
-    when(vsyncRising) {
-      when(s1DirX) { when(s1X <= 2) { s1DirX := False } otherwise { s1X := s1X - 2 } }
-        .otherwise { when(s1X >= 622) { s1DirX := True } otherwise { s1X := s1X + 2 } }
-      when(s1DirY) { when(s1Y <= 2) { s1DirY := False } otherwise { s1Y := s1Y - 2 } }
-        .otherwise { when(s1Y >= 462) { s1DirY := True } otherwise { s1Y := s1Y + 2 } }
-    }
-    video.io.sprite1X := s1X
-    video.io.sprite1Y := s1Y
+    video.io.sprite0PatternIdx := U(0, 1 bit)
     video.io.sprite1Enabled := True
+    video.io.sprite1PatternIdx := U(1, 1 bit)
 
-    // Keep the raster generator in SpinalHDL and hand off only TMDS encoding
-    // and serialization to the board-specific transport wrapper.
+    // R2 proof scene — deliberately forces the 2-per-line selection limit.
+    //
+    // Lines 120..135: sprites 0, 1, 2 ALL on-line (all at Y=120). The evaluator
+    // picks the two lowest-indexed on-line descriptors (0 and 1). Descriptor 2
+    // is DROPPED, so it never renders — that's the hardware-visible signature
+    // of the per-line limit.
+    // Lines 360..375: sprite 3 alone → renders as the fourth visible image.
+    // Expected on screen: FOUR enabled descriptors, only THREE visible sprites.
+    // (sprite 0 bouncing at Y≈200 is out of this Y band but still visible.)
+    //
+    // To keep the overflow band unambiguous, we override sprite 0's bounce by
+    // pinning its Y for this proof run. (The bouncing position was only for
+    // the old two-sprite demo.)
+    video.io.sprite0X := U(120, 10 bits)
+    video.io.sprite0Y := U(120, 10 bits)
+    video.io.sprite1X := U(240, 10 bits)
+    video.io.sprite1Y := U(120, 10 bits)
+
+    video.io.sprite2X := U(360, 10 bits)
+    video.io.sprite2Y := U(120, 10 bits)   // forces overflow on the 120..135 Y band
+    video.io.sprite2Enabled := True
+    video.io.sprite2PatternIdx := U(0, 1 bit)
+
+    video.io.sprite3X := U(300, 10 bits)
+    video.io.sprite3Y := U(360, 10 bits)   // separate Y band, must be visible
+    video.io.sprite3Enabled := True
+    video.io.sprite3PatternIdx := U(1, 1 bit)
+
+    // Task 15: SDRAM-backed tile fetch, present in the pipeline but not yet
+    // routed to VdpTop's layer-0 source. Its fetch controls are tied so the
+    // engine boots, runs memtest, and idles — the pads are live so hardware
+    // bring-up can confirm the SDRAM path is electrically alive before the
+    // VdpTop L0 mux is wired up in a follow-up turn.
+    val fetch = SdramTileFetch(sdramClockDomain)
+    fetch.io.fetchStart   := video.io.layer0FetchStart
+    fetch.io.fetchLine    := video.io.layer0FetchLine
+    fetch.io.fetchScrollX := video.io.layer0FetchScrollX
+    fetch.io.fetchScrollY := video.io.layer0FetchScrollY
+    fetch.io.pixelAddr    := video.io.layer0FetchPixelAddr
+
+    // Route SDRAM-fetched pixel back into VdpTop's L0 mux input.
+    video.io.layer0SdramPixel := fetch.io.pixelIndex
+    // Sequence 2: activate SDRAM-backed L0 source.
+    video.io.layer0UseSdram   := True
+
+    // R1 Raster Trigger Unit: fire at line 240 (mid-visible), clear each frame
+    // at start-of-frame so the trigger re-fires every frame and the screen
+    // split stays stable. Pulse/pending drive a red-channel inversion below
+    // the trigger line (see VdpTop), producing a crisp top/bottom split.
+    video.io.rasterTriggerLine     := U(240, 10 bits)
+    video.io.rasterTriggerPixel    := U(0, 10 bits)
+    video.io.rasterTriggerPxEnable := False
+    // R2 cleaner-BG proof: disable the R1 red-channel-inversion split so
+    // sprites on black BG are unambiguous. Revert to True after R2 accepted.
+    video.io.rasterTriggerEnable   := False
+    video.io.rasterTriggerClear    := vsyncRising
+
+    // HDMI TX pipeline
     val hdmiTx = Tang20kHdmiTx()
     hdmiTx.clk_pixel := clkdiv.CLKOUT
     hdmiTx.clk_pixel_x5 := pll.CLKOUT
@@ -109,15 +195,29 @@ case class TopTang20kHdmi() extends Component {
     O_tmds_data_p := hdmiTx.tmds_data_p
     O_tmds_data_n := hdmiTx.tmds_data_n
 
-    // LEDs provide basic board-side bring-up visibility.
+    // LEDs expose Task 15 bring-up status so first-hardware is diagnosable.
+    //   O_led is active-low on the Tang Nano 20K (0 = lit).
     O_led := B"6'b111111"
-    O_led(0) := !pll.LOCK
-    O_led(1) := !video.io.de
-    O_led(2) := !video.io.vsync
-    O_led(3) := !video.io.hsync
-    O_led(4) := pll.LOCK
-    O_led(5) := video.io.de
+    O_led(0) := !pll.LOCK               // pixel PLL lock
+    O_led(1) := !sdramPll.lock          // SDRAM PLL lock
+    O_led(2) := !fetch.io.bootDone      // SDRAM boot-copy finished
+    O_led(3) := !fetch.io.memtestPass   // SDRAM memtest passed
+    O_led(4) := fetch.io.memtestFail    // SDRAM memtest failed (active-high fault LED)
+    O_led(5) := fetch.io.underrun       // per-line FIFO underrun (active-high fault LED)
   }
+
+  // Wire SDRAM controller's logic-side signals to the fetch engine. Both live
+  // in sdramClockDomain (the BlackBox via mapCurrentClockDomain, the fetch via
+  // explicit ClockingArea inside SdramTileFetch).
+  sdramArea.ctrl.io.rd      := pixelArea.fetch.io.sdramRd
+  sdramArea.ctrl.io.wr      := pixelArea.fetch.io.sdramWr
+  sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh
+  sdramArea.ctrl.io.addr    := pixelArea.fetch.io.sdramAddr
+  sdramArea.ctrl.io.din     := pixelArea.fetch.io.sdramDin
+  pixelArea.fetch.io.sdramDout      := sdramArea.ctrl.io.dout
+  pixelArea.fetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
+  pixelArea.fetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready
+  pixelArea.fetch.io.sdramBusy      := sdramArea.ctrl.io.busy
 }
 
 object TopTang20kHdmiVerilog extends App {

@@ -62,3 +62,28 @@ fresh board-facing HDMI top that adds:
 - TMDS encoding
 - Gowin primitive wrappers for clocking and serialization
 - Tang Nano 20K HDMI pin and build integration
+
+## Mode0 direction
+
+`Mode0` in this repo is the foundational rendering substrate, not a clone of a
+single historical machine. The intended architecture is:
+
+- `Mode0` grows the generic primitives that platforms need: raster timing,
+  linestate, fetch, composition, palette, sprites, scrolling, and related
+  control hooks
+- platform-specific modes sit on top as semantic adapters
+- platform-specific registers and quirks belong in those adapters, not inside
+  `Mode0` itself
+
+So, for example, an Amiga-oriented adapter would model Copper-visible behavior
+using `Mode0` scanline/raster and state-commit primitives, rather than requiring
+a separate Amiga-only rendering engine beside `Mode0`.
+
+Candidate adapter targets mentioned in the repo now include platforms such as
+ZX Spectrum, Commodore 64, Amiga, SNES, and other systems whose video behavior
+can be expressed through `Mode0` primitives.
+
+The strategic build order for those primitives now lives in
+`PROJECT_PLAN/MODE0_ROADMAP.md`. That file describes the capability progression
+needed for `Mode0` to support the intended adapter platforms without baking
+platform-specific semantics into the substrate itself.

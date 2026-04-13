@@ -9,6 +9,10 @@ add_file ../../hw/gen/top_tang20k.v
 add_file third_party/hdl_util_hdmi/tmds_channel.sv
 add_file tang20k_hdmi_tx.sv
 
+# Task 15: SDRAM clock PLL and reused nand2mario SDRAM controller
+add_file tang20k_sdram_pll.v
+add_file third_party/sdram/sdram.v
+
 add_file tang20k_hdmi.cst
 add_file tang20k_hdmi.sdc
 

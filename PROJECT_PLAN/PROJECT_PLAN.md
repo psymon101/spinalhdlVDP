@@ -8,11 +8,13 @@
 ## Reading Order
 
 1. `PROJECT_PLAN.md` — current architecture snapshot, document precedence, and working rules
-2. `TASKS.md` — authoritative execution order and task status
-3. `CONVENTIONS.md` — coding, naming, clock/reset, and simulation rules
-4. `PLATFORM.md` — board facts and validated hardware data
-5. `REPO_STRUCTURE.md` — where code and board assets live today
-6. `GLOSSARY.md` — project-specific term definitions
+2. `MODE0_ROADMAP.md` — strategic capability build order for the `Mode0` substrate
+3. `TASK_TEMPLATE.md` — reusable planning template for turning roadmap items into bounded execution tasks
+4. `TASKS.md` — authoritative execution order and task status
+5. `CONVENTIONS.md` — coding, naming, clock/reset, and simulation rules
+6. `PLATFORM.md` — board facts and validated hardware data
+7. `REPO_STRUCTURE.md` — where code and board assets live today
+8. `GLOSSARY.md` — project-specific term definitions
 
 If these documents disagree:
 
@@ -63,6 +65,18 @@ The current hardware-proven path is intentionally small:
 
 This is a vertical slice for output bring-up, not yet a full Mode0 implementation.
 
+Architectural rule:
+
+- `Mode0` is the superset rendering substrate for this repo, not one platform-specific mode among many
+- platform-facing modes are semantic adapters over `Mode0`, not separate render engines
+- platform-specific registers, quirks, and control models belong in the adapter layer
+- generic rendering/timing/fetch/composition primitives belong in `Mode0`
+
+Example:
+
+- an Amiga-oriented adapter may implement Copper-style register semantics and raster-driven control updates
+- but it should do so by consuming `Mode0` primitives such as current scanline timing, linestate commit, layer control, palette updates, and fetch/composition hooks
+
 ---
 
 ## Validated Baseline
@@ -79,10 +93,28 @@ The following are already proven on this repository state:
 
 ## Next Practical Work
 
-The next unfinished work begins after the current direct test-pattern slice:
+The current validated baseline is now past the early on-chip pipeline tasks:
 
-- Task 7: add scroll offsets on top of the current on-chip pattern source
-- Task 9: introduce a line buffer path while preserving the current visible output
-- Task 10 and beyond: palette, composition, sprites, and more advanced Mode0 primitives
+- Task 8: wraparound / seam correctness
+- Task 9: line buffer path
+- Task 10: palette lookup
+- Task 11: single-sprite proof
+- Task 12: sprite priority / transparency
+- Task 13: two-layer background composition
+- Task 14: per-line linestate prepare / commit
 
-These tasks must be approached incrementally. The current output path is known-good and should remain the comparison baseline for future changes.
+The next unfinished mainline task is:
+
+- Task 15: memory-backed fetch path using the Tang Nano 20K embedded SDR SDRAM
+
+Task 15 must stay tightly bounded:
+
+- use the embedded 64 Mbit SDR SDRAM SiP, not PSRAM / HyperRAM
+- use the corrected 32-bit SDRAM model from `PLATFORM.md`
+- keep sprites on-chip
+- keep planar and shuffled fetch out of scope
+- preserve the current on-chip path as a comparison baseline until SDRAM fetch is proven
+
+The current visible output path is known-good and must remain the comparison reference while the SDRAM-backed fetch path is brought up.
+
+For the longer-range `Mode0` build order beyond the currently validated slice, use `MODE0_ROADMAP.md`. It defines the strategic primitive progression needed to support the target platform adapters without turning `Mode0` into a platform-specific renderer.

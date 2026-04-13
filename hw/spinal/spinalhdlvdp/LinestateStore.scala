@@ -61,14 +61,29 @@ object LinestateStore {
     BigInt(bits)
   }
 
+  /** Pad the init sequence to the next power-of-two depth. This sidesteps the
+    * Gowin BSRAM non-power-of-two inference bug (GT-022 in kb/gowin/GOTCHAS.md,
+    * reproduced on the 1200-entry tileMap in Task 15). The active lines are
+    * 0..lineCount-1; extra padding entries return 0 (all enables off, no scroll)
+    * and are never addressed at runtime since `io.*Addr` stays in range.
+    */
+  def nextPow2(n: Int): Int = {
+    var p = 1
+    while (p < n) p <<= 1
+    p
+  }
+
   def defaultInit(lineCount: Int): Seq[Bits] = {
-    (0 until lineCount).map { line =>
+    val depth = nextPow2(lineCount)
+    (0 until depth).map { line =>
       val packed = if (line < 160) {
         packRecord(l0en = true, l1en = true, l0sx = 0)
       } else if (line < 320) {
         packRecord(l0en = false, l1en = true, l0sx = 0)
-      } else {
+      } else if (line < lineCount) {
         packRecord(l0en = true, l1en = false, l0sx = 0)
+      } else {
+        BigInt(0)
       }
       B(packed, 12 bits)
     }

@@ -16,15 +16,57 @@ case class VdpTop() extends Component {
     val layer0ScrollY = in UInt(10 bits)
     val layer1ScrollX = in UInt(10 bits)
     val layer1ScrollY = in UInt(10 bits)
+    // R2 sprite descriptors. Four descriptors total; SpriteEvaluator selects up
+    // to two visible per line via priority-on-index. `patternIdx` picks pattern
+    // 0 (sprite0Pattern) or 1 (sprite1Pattern).
     val sprite0X = in UInt(10 bits)
     val sprite0Y = in UInt(10 bits)
     val sprite0Enabled = in Bool()
+    val sprite0PatternIdx = in UInt(1 bit)
     val sprite1X = in UInt(10 bits)
     val sprite1Y = in UInt(10 bits)
     val sprite1Enabled = in Bool()
+    val sprite1PatternIdx = in UInt(1 bit)
+    val sprite2X = in UInt(10 bits)
+    val sprite2Y = in UInt(10 bits)
+    val sprite2Enabled = in Bool()
+    val sprite2PatternIdx = in UInt(1 bit)
+    val sprite3X = in UInt(10 bits)
+    val sprite3Y = in UInt(10 bits)
+    val sprite3Enabled = in Bool()
+    val sprite3PatternIdx = in UInt(1 bit)
+
+    // R2 diagnostic: sprite-per-line overflow flag (sticky within line).
+    val spriteOverflow = out Bool()
     val lsWriteAddr   = in UInt(log2Up(480) bits)
     val lsWriteData   = in Bits(12 bits)
     val lsWriteEnable = in Bool()
+
+    // Task 15 Layer-0 SDRAM source interface.
+    //   - layer0UseSdram routes the external SDRAM-backed pixel into L0
+    //     instead of the on-chip BasicPatternSource (for the switchable
+    //     comparison path).
+    //   - layer0SdramPixel comes from SdramTileFetch.io.pixelIndex.
+    //   - layer0Fetch* are outputs that drive the external fetch engine. The
+    //     raster owner decides the scroll/line/pixelAddr so the fetch contract
+    //     stays at the VdpTop boundary.
+    val layer0UseSdram        = in Bool()
+    val layer0SdramPixel      = in Bits(3 bits)
+    val layer0FetchStart      = out Bool()
+    val layer0FetchLine       = out UInt(10 bits)
+    val layer0FetchScrollX    = out UInt(10 bits)
+    val layer0FetchScrollY    = out UInt(10 bits)
+    val layer0FetchPixelAddr  = out UInt(10 bits)
+
+    // R1 Raster Trigger Unit control/status. Stable naming so a later Mode0
+    // register bus can adopt these without behavior change.
+    val rasterTriggerLine      = in UInt(10 bits)
+    val rasterTriggerPixel     = in UInt(10 bits)
+    val rasterTriggerPxEnable  = in Bool()
+    val rasterTriggerEnable    = in Bool()
+    val rasterTriggerClear     = in Bool()
+    val rasterTriggerPulse     = out Bool()
+    val rasterTriggerPending   = out Bool()
   }
 
   // 640x480@60 timing uses a 25.2 MHz pixel clock.
@@ -97,6 +139,36 @@ case class VdpTop() extends Component {
   layer0.io.scrollX := io.layer0ScrollX + linestate.io.layer0ScrollX
   layer0.io.scrollY := io.layer0ScrollY
 
+  // Task 15 fetch-control outputs. Atomic CDC pattern per 6626/6628:
+  //   1) Pulse-harden fetchStart: widen to 4 pixel cycles so the SDRAM-side
+  //      BufferCC (2-stage synchronizer) reliably samples it despite routing
+  //      delay and phase alignment with the 64.8 MHz SDRAM clock.
+  //   2) Atomic latch: capture fetchLine/scrolls into registers ONCE on the
+  //      line-boundary strobe so the multi-bit CDC sees stable values between
+  //      pulses. Sampling `(vCounter+3)` combinationally through BufferCC would
+  //      let bits transition asynchronously during the sync, risking a "torn"
+  //      scanline index on specific raster positions.
+  val fetchStartStrobe = hCounter === hTotal - 1
+
+  val fetchStartCount = Reg(UInt(3 bits)) init 0
+  when(fetchStartStrobe) {
+    fetchStartCount := 4
+  }.elsewhen(fetchStartCount =/= 0) {
+    fetchStartCount := fetchStartCount - 1
+  }
+
+  val fetchLineReg    = RegNextWhen((vCounter + 3).resize(10),
+                                    fetchStartStrobe) init 0
+  val fetchScrollXReg = RegNextWhen(io.layer0ScrollX + linestate.io.layer0ScrollX,
+                                    fetchStartStrobe) init 0
+  val fetchScrollYReg = RegNextWhen(io.layer0ScrollY, fetchStartStrobe) init 0
+
+  io.layer0FetchStart     := fetchStartCount =/= 0
+  io.layer0FetchLine      := fetchLineReg
+  io.layer0FetchScrollX   := fetchScrollXReg
+  io.layer0FetchScrollY   := fetchScrollYReg
+  io.layer0FetchPixelAddr := hCounter.resize(10)
+
   // Layer 1 (higher priority background).
   val layer1 = BasicPatternSource()
   layer1.io.x := hCounter.resize(10)
@@ -104,55 +176,84 @@ case class VdpTop() extends Component {
   layer1.io.scrollX := io.layer1ScrollX
   layer1.io.scrollY := io.layer1ScrollY
 
+  // Task 15: runtime Layer-0 source mux. When layer0UseSdram is high, the
+  // SDRAM-backed pixel from the external fetch engine feeds L0. The on-chip
+  // BasicPatternSource is kept instantiated and reading as the comparison
+  // baseline so A/B can happen on the same hardware image.
+  val layer0Source = Mux(io.layer0UseSdram, io.layer0SdramPixel, layer0.io.pixelIndex)
+
   // Multi-layer composition with linestate enables.
-  val layer0Pixel = Mux(linestate.io.layer0Enable, layer0.io.pixelIndex.resize(4), B(0, 4 bits))
+  val layer0Pixel = Mux(linestate.io.layer0Enable, layer0Source.resize(4), B(0, 4 bits))
   val layer1Pixel = Mux(linestate.io.layer1Enable, layer1.io.pixelIndex.resize(4), B(0, 4 bits))
   val composedBg = Mux(layer1Pixel =/= B(0, 4 bits), layer1Pixel, layer0Pixel)
 
-  // Sprite attribute stores.
-  val spriteAttrStrobe = hCounter === hTotal - 1 && vCounter === vSyncStart
-  val sprite0Attr = SpriteAttributes()
-  sprite0Attr.io.writeX := io.sprite0X
-  sprite0Attr.io.writeY := io.sprite0Y
-  sprite0Attr.io.writeEnabled := io.sprite0Enabled
-  sprite0Attr.io.writeStrobe := spriteAttrStrobe
+  // R2: two-pass sprite evaluator over 4 descriptors, 2 visible per line.
+  // Descriptors come directly from the top-level sprite* inputs. Evaluator
+  // latches the active list at the line boundary strobe; pass 2 reads it.
+  val spriteEval = SpriteEvaluator(descCount = 4, visiblePerLine = 2, patternSelBits = 1)
+  spriteEval.io.descX(0)          := io.sprite0X
+  spriteEval.io.descY(0)          := io.sprite0Y
+  spriteEval.io.descEnabled(0)    := io.sprite0Enabled
+  spriteEval.io.descPatternIdx(0) := io.sprite0PatternIdx
+  spriteEval.io.descX(1)          := io.sprite1X
+  spriteEval.io.descY(1)          := io.sprite1Y
+  spriteEval.io.descEnabled(1)    := io.sprite1Enabled
+  spriteEval.io.descPatternIdx(1) := io.sprite1PatternIdx
+  spriteEval.io.descX(2)          := io.sprite2X
+  spriteEval.io.descY(2)          := io.sprite2Y
+  spriteEval.io.descEnabled(2)    := io.sprite2Enabled
+  spriteEval.io.descPatternIdx(2) := io.sprite2PatternIdx
+  spriteEval.io.descX(3)          := io.sprite3X
+  spriteEval.io.descY(3)          := io.sprite3Y
+  spriteEval.io.descEnabled(3)    := io.sprite3Enabled
+  spriteEval.io.descPatternIdx(3) := io.sprite3PatternIdx
+  // At end of line M (hCounter==hTotal-1), fillLine is M+1 for vCounter=M.
+  // The latched slot data is consumed during line M+1, where fillPixel is
+  // being computed for the next LineBuffer write (line M+2). So evalLine
+  // must be `fillLine + 1` = M+2 to match what layer0/1 sample during the
+  // next line's fill. Without this +1 the sprite y-offsets are off by one
+  // line relative to the composition, and sprites at their declared Y do
+  // not render.
+  spriteEval.io.evalLine  := (fillLine + 1).resize(10)
+  spriteEval.io.evalStart := hCounter === hTotal - 1
+  io.spriteOverflow := spriteEval.io.overflowFlag
 
-  val sprite1Attr = SpriteAttributes()
-  sprite1Attr.io.writeX := io.sprite1X
-  sprite1Attr.io.writeY := io.sprite1Y
-  sprite1Attr.io.writeEnabled := io.sprite1Enabled
-  sprite1Attr.io.writeStrobe := spriteAttrStrobe
-
-  // Sprite patterns: sprite 0 uses diamond pattern, sprite 1 uses cross pattern.
+  // Sprite pattern memories: 256 × 4-bit, power-of-two (GT-022 safe).
   val sprite0Pattern = Mem(Bits(4 bits), initialContent = VdpTop.sprite0PatternInit)
   val sprite1Pattern = Mem(Bits(4 bits), initialContent = VdpTop.sprite1PatternInit)
 
   val fillX = hCounter.resize(10)
 
-  // Sprite 0 evaluation.
-  val s0Row = (fillLine - sprite0Attr.io.y).resize(10)
-  val s0Col = (fillX - sprite0Attr.io.x).resize(10)
-  val s0OnLine = sprite0Attr.io.enabled && fillLine >= sprite0Attr.io.y && fillLine < (sprite0Attr.io.y + 16)
-  val s0OnPixel = fillX >= sprite0Attr.io.x && fillX < (sprite0Attr.io.x + 16)
-  val s0Active = s0OnLine && s0OnPixel
-  val s0Pixel = sprite0Pattern.readAsync((s0Row(3 downto 0) ## s0Col(3 downto 0)).asUInt)
-  val s0Visible = s0Active && s0Pixel =/= B(0, 4 bits)
+  // Per active-slot pixel resolution. Each slot picks its pattern Mem via
+  // activePatternIdx(s). Pixel is non-transparent where both the X-range
+  // covers fillX and the pattern pixel is non-zero.
+  val slotVisible = Vec(Bool(), 2)
+  val slotPixel   = Vec(Bits(4 bits), 2)
+  for (s <- 0 until 2) {
+    val x       = spriteEval.io.activeX(s)
+    val row     = spriteEval.io.activeRow(s)
+    val valid   = spriteEval.io.activeValid(s)
+    val patIdx  = spriteEval.io.activePatternIdx(s)
+    val col     = (fillX - x).resize(10)
+    val onPixel = fillX >= x && fillX < (x + 16)
+    val active  = valid && onPixel
+    val addr    = (row(3 downto 0) ## col(3 downto 0)).asUInt
+    val p0      = sprite0Pattern.readAsync(addr)
+    val p1      = sprite1Pattern.readAsync(addr)
+    val pixel   = Mux(patIdx === U(0, 1 bit), p0, p1)
+    slotPixel(s)   := pixel
+    slotVisible(s) := active && pixel =/= B(0, 4 bits)
+  }
 
-  // Sprite 1 evaluation (higher priority).
-  val s1Row = (fillLine - sprite1Attr.io.y).resize(10)
-  val s1Col = (fillX - sprite1Attr.io.x).resize(10)
-  val s1OnLine = sprite1Attr.io.enabled && fillLine >= sprite1Attr.io.y && fillLine < (sprite1Attr.io.y + 16)
-  val s1OnPixel = fillX >= sprite1Attr.io.x && fillX < (sprite1Attr.io.x + 16)
-  val s1Active = s1OnLine && s1OnPixel
-  val s1Pixel = sprite1Pattern.readAsync((s1Row(3 downto 0) ## s1Col(3 downto 0)).asUInt)
-  val s1Visible = s1Active && s1Pixel =/= B(0, 4 bits)
-
-  // Priority chain: Sprite 1 > Sprite 0 > Layer 1 > Layer 0.
+  // Priority: slot 1 over slot 0 (i.e., evaluator's "second-lowest" wins in
+  // front of "lowest" — matches the previous s1>s0 demo). This can flip once
+  // a later adapter defines a different priority rule; for R2's bounded scope
+  // the important property is that the order is DETERMINISTIC AND STABLE.
   val fillPixel = Bits(4 bits)
-  when(s1Visible) {
-    fillPixel := s1Pixel
-  }.elsewhen(s0Visible) {
-    fillPixel := s0Pixel
+  when(slotVisible(1)) {
+    fillPixel := slotPixel(1)
+  }.elsewhen(slotVisible(0)) {
+    fillPixel := slotPixel(0)
   }.otherwise {
     fillPixel := composedBg
   }
@@ -185,6 +286,20 @@ case class VdpTop() extends Component {
   val palette = Mem(Bits(24 bits), initialContent = VdpTop.paletteInit)
   val paletteRgb = palette.readAsync(pixelIndex)
 
+  // R1 Raster Trigger Unit. Pending status is used below as a visible split
+  // indicator (inverts the red channel after the trigger fires), which is the
+  // mandated hardware proof signature from TASK_R1_RASTER_TRIGGER_UNIT.md.
+  val rasterTrigger = RasterTriggerUnit()
+  rasterTrigger.io.vCounter       := vCounter.resize(10)
+  rasterTrigger.io.hCounter       := hCounter.resize(10)
+  rasterTrigger.io.triggerLine    := io.rasterTriggerLine
+  rasterTrigger.io.triggerPixel   := io.rasterTriggerPixel
+  rasterTrigger.io.pixelCmpEnable := io.rasterTriggerPxEnable
+  rasterTrigger.io.enable         := io.rasterTriggerEnable
+  rasterTrigger.io.clear          := io.rasterTriggerClear
+  io.rasterTriggerPulse           := rasterTrigger.io.triggerPulse
+  io.rasterTriggerPending         := rasterTrigger.io.pending
+
   io.hsync := !(hCounter >= hSyncStart && hCounter < hSyncEnd)
   io.vsync := !(vCounter >= vSyncStart && vCounter < vSyncEnd)
   io.de := activeVideo
@@ -192,9 +307,10 @@ case class VdpTop() extends Component {
   io.green := B(0, 8 bits)
   io.blue := B(0, 8 bits)
   when(activeVideo && primed) {
-    io.red := paletteRgb(23 downto 16)
+    val redRaw = paletteRgb(23 downto 16)
+    io.red   := Mux(rasterTrigger.io.pending, ~redRaw, redRaw)
     io.green := paletteRgb(15 downto 8)
-    io.blue := paletteRgb(7 downto 0)
+    io.blue  := paletteRgb(7 downto 0)
   }
   io.x := hCounter.resize(10)
   io.y := vCounter.resize(10)
@@ -223,7 +339,7 @@ object VdpTop {
     0x000000
   )
 
-  val paletteInit: Seq[Bits] = paletteColors.map(c => B(c, 24 bits))
+  def paletteInit: Seq[Bits] = paletteColors.map(c => B(c, 24 bits))
 
   // Sprite pattern: 16x16 pixels, 4-bit palette index. Arrow/diamond shape using palette colors.
   val spritePatternData: Seq[Seq[Int]] = Seq(
@@ -246,7 +362,7 @@ object VdpTop {
   )
 
   // Sprite 0: diamond shape (white/red/yellow)
-  val sprite0PatternInit: Seq[Bits] = spritePatternData.flatten.map(v => B(v, 4 bits))
+  def sprite0PatternInit: Seq[Bits] = spritePatternData.flatten.map(v => B(v, 4 bits))
 
   // Sprite 1: cross shape (cyan/magenta) — visually distinct from sprite 0.
   val sprite1PatternData: Seq[Seq[Int]] = Seq(
@@ -268,7 +384,7 @@ object VdpTop {
     Seq(0,0,0,0,0,0,6,6,6,6,0,0,0,0,0,0)
   )
 
-  val sprite1PatternInit: Seq[Bits] = sprite1PatternData.flatten.map(v => B(v, 4 bits))
+  def sprite1PatternInit: Seq[Bits] = sprite1PatternData.flatten.map(v => B(v, 4 bits))
 
   def paletteRgb(index: Int): (Int, Int, Int) = {
     val c = paletteColors(index & 0xF)

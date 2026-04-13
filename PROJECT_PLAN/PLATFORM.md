@@ -70,11 +70,28 @@ Known facts:
 
 | Property | Value |
 |---------|-------|
-| Bus width | 16-bit |
+| Type | embedded SDR SDRAM (SiP) |
+| Capacity | 64 Mbit (8 MB) |
+| Bus width | 32-bit |
+| Data width / banks | 4 banks of 512K x 32 |
+| Clock target from device docs | up to 166 MHz |
+| Refresh requirement | 4096 refresh cycles / 64 ms |
+| Voltage requirement | SDRAM-connected banks at 3.3V |
 | Intended use | future fetch / render data path |
 | Validation status | not yet part of the proven hardware slice |
 
-Do not invent SDRAM timing or part values here until they are brought into active implementation and validated.
+Source references for the hardware model:
+
+- `kb/fpga/tang20k-datasheet.pdf`
+- `kb/fpga/SDRAM-Datasheet.pdf`
+- `kb/fpga/tang20kfpga-chip-data.pdf`
+
+Important implementation note:
+
+- This SDRAM is integrated in the Tang Nano 20K SiP and is **not** exposed as ordinary user-routed board-header pins.
+- Task 15 planning should target the embedded SDRAM interface model from the GW2AR/Tang20K docs, not a PSRAM/HyperRAM model.
+
+Do not invent additional timing margins, phase settings, or controller behavior here until they are brought into active implementation and validated.
 
 ---
 
