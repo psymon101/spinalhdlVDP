@@ -148,7 +148,27 @@ case class VdpTop() extends Component {
   //      pulses. Sampling `(vCounter+3)` combinationally through BufferCC would
   //      let bits transition asynchronously during the sync, risking a "torn"
   //      scanline index on specific raster positions.
-  val fetchStartStrobe = hCounter === hTotal - 1
+  // R3: Static fetch-slot scheduler replaces the reactive end-of-line strobe.
+  // Reading-B scope: a single tile-client slot at hCounter==hTotal-1 preserves
+  // the pre-R3 strobe timing bit-for-bit, so the existing Task-15 fetch path
+  // is unchanged from a behavioral standpoint. Extra slots are wired disabled
+  // and remain available for future clients (e.g. sprite-to-SDRAM) without
+  // further structural change.
+  val scheduler = FetchSlotScheduler(slotCount = 8)
+  scheduler.io.hCounter  := hCounter.resize(10)
+  scheduler.io.lineStart := hCounter === 0
+  scheduler.io.schedule(0).enabled  := True
+  scheduler.io.schedule(0).clientId := U(0, 2 bits)  // 0 = tile client
+  scheduler.io.schedule(0).startH   := U(hTotal - 1, 10 bits)
+  scheduler.io.schedule(0).endH     := U(hTotal - 1, 10 bits)
+  for (i <- 1 until 8) {
+    scheduler.io.schedule(i).enabled  := False
+    scheduler.io.schedule(i).clientId := U(0, 2 bits)
+    scheduler.io.schedule(i).startH   := U(0, 10 bits)
+    scheduler.io.schedule(i).endH     := U(0, 10 bits)
+  }
+
+  val fetchStartStrobe = scheduler.io.grant
 
   val fetchStartCount = Reg(UInt(3 bits)) init 0
   when(fetchStartStrobe) {
