@@ -438,6 +438,34 @@ These are not implementation tasks. Each scenario must be run against hardware a
 
 ---
 
+## R-Roadmap Execution Tasks
+
+These tasks track the post-roadmap primitive build order defined in `MODE0_ROADMAP.md`.
+
+### R1 — Raster Trigger Unit
+
+**Status:** DONE  
+**Task doc:** `PROJECT_PLAN/TASK_R1_RASTER_TRIGGER_UNIT.md`
+
+### R2 — Two-Pass Sprite Evaluator
+
+**Status:** DONE  
+**Task doc:** `PROJECT_PLAN/TASK_R2_TWO_PASS_SPRITE_EVALUATOR.md`
+
+### R3 — Static Fetch-Slot Scheduler
+
+**Status:** DONE  
+**Task doc:** `PROJECT_PLAN/TASK_R3_FETCH_SLOT_SCHEDULER.md`
+
+### R4 — Tile + Attribute Fetch Primitive
+
+**Status:** OPEN  
+**Task doc:** `PROJECT_PLAN/TASK_R4_TILE_ATTRIBUTE_FETCH.md`  
+**Coding Owner:** BrightForge  
+**Audit Owner:** CyanPeak
+
+---
+
 ## Deferred Items
 
 | Item | Status | Notes |
