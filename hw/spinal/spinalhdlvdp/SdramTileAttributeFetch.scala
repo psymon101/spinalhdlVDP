@@ -229,10 +229,11 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     cmdWr      := False
     cmdRefresh := False
 
-    // Gate any SDRAM command issuance (except refresh) on the scheduler slot.
-    // Refresh is allowed any time the controller is idle so DRAM content stays
-    // valid even in long closed windows.
-    val readGate = slotValidSync
+    // Per CoralReef #6761 / CyanPeak #6762, the first R4 hardware proof uses
+    // the R3 grant-only model: fetchGrant starts a fetch, and reads run
+    // continuously until the line completes. `readGate` is therefore tied
+    // True. Multi-slot slotValid gating (and its CDC) is an R4-follow-up task.
+    val readGate = True
 
     val fsm = new StateMachine {
       val sPowerWait     = new State with EntryPoint

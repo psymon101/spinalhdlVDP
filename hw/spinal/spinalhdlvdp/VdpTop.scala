@@ -170,6 +170,10 @@ case class VdpTop() extends Component {
   val scheduler = FetchSlotScheduler(slotCount = 8)
   scheduler.io.hCounter  := hCounter.resize(10)
   scheduler.io.lineStart := hCounter === 0
+  // R4: per CoralReef #6761 / CyanPeak #6762, roll scheduler back to the R3
+  // grant-only model for the first R4 hardware proof. Slot 0 pins a single
+  // end-of-line grant; slots 1-7 stay disabled. Multi-slot coupling moves to
+  // an R4-follow-up slice.
   scheduler.io.schedule(0).enabled  := True
   scheduler.io.schedule(0).clientId := U(0, 2 bits)  // 0 = tile client
   scheduler.io.schedule(0).startH   := U(hTotal - 1, 10 bits)
