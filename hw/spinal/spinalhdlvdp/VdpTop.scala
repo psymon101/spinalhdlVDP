@@ -182,14 +182,19 @@ case class VdpTop() extends Component {
   scheduler.io.schedule(0).clientId := U(0, 2 bits)
   scheduler.io.schedule(0).startH   := U(hTotal - 1, 10 bits)
   scheduler.io.schedule(0).endH     := U(hTotal - 1, 10 bits)
+  // Per CyanPeak #6804: slot 1 widened to cover the full line so the fetch
+  // engine has continuous SDRAM bandwidth. slotValid gating still exercises
+  // the pause/resume path at the line/domain boundary (grant → slot 0 pulse,
+  // slotValid open for the whole line). Slot 2 disabled — the "thin lines"
+  // artifact was caused by the prior h=[320,399] bandwidth gap.
   scheduler.io.schedule(1).enabled  := True
   scheduler.io.schedule(1).clientId := U(0, 2 bits)
   scheduler.io.schedule(1).startH   := U(0, 10 bits)
-  scheduler.io.schedule(1).endH     := U(319, 10 bits)      // early-line slot
-  scheduler.io.schedule(2).enabled  := True
+  scheduler.io.schedule(1).endH     := U(hTotal - 1, 10 bits)
+  scheduler.io.schedule(2).enabled  := False
   scheduler.io.schedule(2).clientId := U(0, 2 bits)
-  scheduler.io.schedule(2).startH   := U(400, 10 bits)
-  scheduler.io.schedule(2).endH     := U(hTotal - 1, 10 bits) // late-line slot
+  scheduler.io.schedule(2).startH   := U(0, 10 bits)
+  scheduler.io.schedule(2).endH     := U(0, 10 bits)
   for (i <- 3 until 8) {
     scheduler.io.schedule(i).enabled  := False
     scheduler.io.schedule(i).clientId := U(0, 2 bits)
