@@ -101,12 +101,9 @@ case class TopTang20kHdmi() extends Component {
     when(vsyncRising) {
       frameCounter := frameCounter + 1
     }
-    // R4 stage-1c diagnostic: freeze all scroll per CoralReef #6772 so the
-    // probe tiles latch deterministic (tx, ty) coordinates. Revert once the
-    // bank-uniformity bug is root-caused.
-    video.io.layer0ScrollX := U(0, 10 bits)
+    video.io.layer0ScrollX := (frameCounter >> 1).resized
     video.io.layer0ScrollY := U(0, 10 bits)
-    video.io.layer1ScrollX := U(0, 10 bits)
+    video.io.layer1ScrollX := frameCounter
     video.io.layer1ScrollY := U(0, 10 bits)
 
     video.io.lsWriteAddr := U(0, log2Up(480) bits)
@@ -201,22 +198,16 @@ case class TopTang20kHdmi() extends Component {
 
     // LEDs expose Task 15 bring-up status so first-hardware is diagnosable.
     //   O_led is active-low on the Tang Nano 20K (0 = lit).
-    // R4 stage-1b telemetry LEDs (#6767/#6768/#6769): we know hardware is
-    // healthy (PLLs/boot/memtest all lit previously). Repurpose LEDs 2-5 to
-    // display the attr bytes sampled at two probe tile positions so we can
-    // see what the engine actually reads on real SDRAM. If the three pairs
-    // of LEDs differ between probes, addressing is working; if they match,
-    // every tile sees the same attribute and the bug is address-wide.
-    //   LED 2,3 = debugAttrTL bits 0,1  (expect 1 → 01)
-    //   LED 4,5 = debugAttrBR bits 0,1  (expect 4 → 00, with bit 2 implicit)
-    // (bit 2 omitted — only 4 LEDs to spare.)
+    // R4 production LED mapping — restored after stage-1c diagnostic closed.
+    // Debug attribute probe outputs remain exposed on the fetch engine for
+    // any future diagnostic lane but are not surfaced to LEDs.
     O_led := B"6'b111111"
     O_led(0) := !pll.LOCK
     O_led(1) := !sdramPll.lock
-    O_led(2) := !fetch.io.debugAttrTL(0)
-    O_led(3) := !fetch.io.debugAttrTL(1)
-    O_led(4) := !fetch.io.debugAttrBR(0)
-    O_led(5) := !fetch.io.debugAttrBR(1)
+    O_led(2) := !fetch.io.bootDone
+    O_led(3) := !fetch.io.memtestPass
+    O_led(4) := fetch.io.memtestFail
+    O_led(5) := fetch.io.underrun
   }
 
   // Wire SDRAM controller's logic-side signals to the fetch engine. Both live
