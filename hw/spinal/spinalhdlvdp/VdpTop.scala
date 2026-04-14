@@ -41,11 +41,16 @@ case class VdpTop() extends Component {
     // R5: unified register-write bus. Replaces the raw lsWrite* ports.
     //   0x0000-0x01DF  linestate prepare (addr low 9 bits = line; data low 12 bits = {l0en, l1en, l0scrollX[9:0]})
     //   0x0300         LAYER_ENABLE (data[0]=L0, data[1]=L1, data[2]=sprite) — global override
-    //   0x0400-0x05FF  copper program RAM (stage 4 wires to Copper.progWr)
-    //   (other ranges reserved for stages 4+)
+    //   0x0400-0x05FF  copper program RAM (host uploads program here)
+    //   (other ranges reserved for stages 5+)
     val regWriteAddr    = in UInt(15 bits)
     val regWriteData    = in Bits(16 bits)
     val regWriteEnable  = in Bool()
+
+    // R5 stage 4: direct Copper enable port for the top-level bootstrap FSM.
+    // A future stage will move this behind a 0x0310 VDP-CTRL register so the
+    // host can toggle copper via the same bus.
+    val copperEnable    = in Bool()
 
     // Task 15 Layer-0 SDRAM source interface.
     //   - layer0UseSdram routes the external SDRAM-backed pixel into L0
@@ -151,17 +156,38 @@ case class VdpTop() extends Component {
   linestate.io.commitLine := fillLine.resized
   linestate.io.commitStrobe := hCounter === hTotal - 1
   // Prepare-side write interface exposed for simulation testing.
-  // R5 RegisterMap decode. Writes to the linestate range take the low 9 bits
-  // of regWriteAddr as line index and the low 12 bits of regWriteData as the
-  // packed record. LAYER_ENABLE latches at 0x0300.
-  val lsRangeHit = io.regWriteEnable && (io.regWriteAddr < U(480, 15 bits))
-  linestate.io.writeAddr := io.regWriteAddr(log2Up(480) - 1 downto 0)
-  linestate.io.writeData := io.regWriteData(11 downto 0)
+  // R5 Copper coprocessor, fed by the regWrite bus for program uploads and by
+  // `io.copperEnable` for run control. Copper's own regWrite output is merged
+  // below with the external bus so programs can write any range the host can.
+  val copper = Copper()
+  copper.io.hCounter := hCounter.resize(10)
+  copper.io.vCounter := vCounter.resize(10)
+  copper.io.enabled  := io.copperEnable
+  val copperProgRangeHit = io.regWriteEnable &&
+    (io.regWriteAddr >= U(0x0400, 15 bits)) &&
+    (io.regWriteAddr <  U(0x0600, 15 bits))
+  copper.io.progAddr := io.regWriteAddr(8 downto 0)
+  copper.io.progData := io.regWriteData
+  copper.io.progWr   := copperProgRangeHit
+
+  // Merged regWrite bus: external host path has priority on same-cycle
+  // collision. Copper fills in otherwise.
+  val extHit   = io.regWriteEnable
+  val effWrite = extHit || copper.io.regWr
+  val effAddr  = Mux(extHit, io.regWriteAddr, copper.io.regAddr)
+  val effData  = Mux(extHit, io.regWriteData, copper.io.regData)
+
+  // R5 RegisterMap decode off the merged bus. Writes to the linestate range
+  // take the low 9 bits of effAddr as line index and the low 12 bits of
+  // effData as the packed record. LAYER_ENABLE latches at 0x0300.
+  val lsRangeHit = effWrite && (effAddr < U(480, 15 bits))
+  linestate.io.writeAddr := effAddr(log2Up(480) - 1 downto 0)
+  linestate.io.writeData := effData(11 downto 0)
   linestate.io.writeEnable := lsRangeHit
 
   val layerEnableReg = Reg(Bits(3 bits)) init B"111"  // all layers on by default
-  when(io.regWriteEnable && io.regWriteAddr === U(0x0300, 15 bits)) {
-    layerEnableReg := io.regWriteData(2 downto 0)
+  when(effWrite && effAddr === U(0x0300, 15 bits)) {
+    layerEnableReg := effData(2 downto 0)
   }
 
   // Layer 0 (lower priority background).

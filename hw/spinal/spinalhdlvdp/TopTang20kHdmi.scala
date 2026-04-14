@@ -110,11 +110,56 @@ case class TopTang20kHdmi() extends Component {
     video.io.layer1ScrollX := (frameCounter >> 2).resized
     video.io.layer1ScrollY := U(0, 10 bits)
 
-    // R5 stage 3: unified register bus tied quiet. Stage 4 wires in
-    // HostInterface + Copper as the active producers.
-    video.io.regWriteAddr   := U(0, 15 bits)
-    video.io.regWriteData   := B(0, 16 bits)
-    video.io.regWriteEnable := False
+    // R5 stage 4: bootstrap FSM uploads a copper program to 0x0400+N then
+    // enables the copper. Runs once per power-on. Copper program implements
+    // the §12 horizontal-split proof:
+    //   PC 0: WAIT  y=160
+    //   PC 1: WRITE 0x0300 (LAYER_ENABLE)
+    //   PC 2: data  0x0001 (L0 only)
+    //   PC 3: WAIT  y=320
+    //   PC 4: WRITE 0x0300
+    //   PC 5: data  0x0003 (L0 + L1)
+    //   PC 6: JUMP  0
+    // Encoding matches Copper.scala:
+    //   WAIT:  [15:14]=00, [9:0]=Y
+    //   WRITE: [15:14]=01, [13:0]=addr, next word = data
+    //   JUMP:  [15:14]=11, [8:0]=target PC
+    val copperProgram: Seq[Int] = Seq(
+      (0 << 14) | 160,              // WAIT y=160
+      (1 << 14) | 0x0300,           // WRITE addr=0x0300
+      0x0001,                       // data (L0 only)
+      (0 << 14) | 320,              // WAIT y=320
+      (1 << 14) | 0x0300,           // WRITE addr=0x0300
+      0x0003,                       // data (L0 + L1)
+      (3 << 14) | 0                 // JUMP 0
+    )
+
+    val bootIdx   = Reg(UInt(4 bits)) init 0
+    val bootDoneR = Reg(Bool())      init False
+
+    val bootWrite = !bootDoneR
+    val bootAddr  = U(0x0400, 15 bits) + bootIdx.resize(15)
+    val bootData  = copperProgram.map(v => U(v, 16 bits)).toSeq
+    val bootDataMux = Bits(16 bits)
+    bootDataMux := B(0, 16 bits)
+    for (i <- copperProgram.indices) {
+      when(bootIdx === U(i, 4 bits)) {
+        bootDataMux := bootData(i).asBits
+      }
+    }
+
+    when(bootWrite) {
+      when(bootIdx < U(copperProgram.length, 4 bits)) {
+        bootIdx := bootIdx + 1
+      }.otherwise {
+        bootDoneR := True
+      }
+    }
+
+    video.io.regWriteAddr   := bootAddr
+    video.io.regWriteData   := bootDataMux
+    video.io.regWriteEnable := bootWrite && bootIdx < U(copperProgram.length, 4 bits)
+    video.io.copperEnable   := bootDoneR
 
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100
