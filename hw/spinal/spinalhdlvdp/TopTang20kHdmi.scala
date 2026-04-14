@@ -207,6 +207,7 @@ case class TopTang20kHdmi() extends Component {
     fetch.io.fetchGrant       := video.io.layer0FetchGrant
     fetch.io.fetchSlotValid   := video.io.layer0FetchSlotValid
     fetch.io.fetchPreAnnounce := video.io.layer0FetchPreAnnounce
+    fetch.io.tileDecodeMode   := B(0, 1 bits)  // R4.1b stage 1 default: packed 4bpp; stage 3 will wire VDP_TILE_MODE
     fetch.io.fetchLine        := video.io.layer0FetchLine
     fetch.io.fetchScrollX     := video.io.layer0FetchScrollX
     fetch.io.fetchScrollY     := video.io.layer0FetchScrollY

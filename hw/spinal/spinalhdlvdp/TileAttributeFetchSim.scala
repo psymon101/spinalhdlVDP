@@ -46,6 +46,7 @@ object TileAttributeFetchSim extends App {
     dut.io.fetchGrant        #= false
     dut.io.fetchSlotValid    #= true   // rollback: readGate ties True, but drive true anyway
     dut.io.fetchPreAnnounce  #= false
+    dut.io.tileDecodeMode    #= 0      // R4.1b stage 1 default: packed mode (R4 baseline)
     dut.io.fetchLine         #= 0
     dut.io.fetchScrollX      #= 0
     dut.io.fetchScrollY      #= 0

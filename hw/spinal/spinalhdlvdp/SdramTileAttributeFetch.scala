@@ -58,6 +58,12 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     val pixelPaletteBank = out UInt(3 bits)
     val pixelPriority   = out Bool()
 
+    // R4.1b stage 1 (#7098): tile-row decode mode.
+    //   0 = packed 4bpp (R4 baseline) — 16 pixels per 64-bit row
+    //   1 = NES-style 2-plane 2bpp planar — word0[15:0] = plane 0,
+    //       word1[15:0] = plane 1. Pixel = {plane1[x], plane0[x]}, range 0..3.
+    val tileDecodeMode  = in  Bits(1 bits)
+
     val bootDone     = out Bool()
     val memtestPass  = out Bool()
     val memtestFail  = out Bool()
@@ -130,7 +136,17 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
   }
 
   when(emitting) {
-    val px4 = unpackRow.subdivideIn(4 bits)(unpackIdx)
+    // R4.1b: per-pixel decode branches on tileDecodeMode.
+    //   packed (mode=0): row = 16 × 4bpp pixels in unpackRow(63:0)
+    //   planar (mode=1): plane0 = unpackRow(15:0), plane1 = unpackRow(47:32)
+    //                    pixel x = {plane1(15-x), plane0(15-x)} (2 bits, 0..3)
+    val px4Packed = unpackRow.subdivideIn(4 bits)(unpackIdx)
+    val plane0Bits = unpackRow(15 downto 0)
+    val plane1Bits = unpackRow(47 downto 32)
+    val planarBitIdx = (U(15, 4 bits) - unpackIdx).resize(4)
+    val px2Planar = (plane1Bits(planarBitIdx) ## plane0Bits(planarBitIdx)).asBits
+    val px4Planar = px2Planar.resize(4)
+    val px4 = Mux(io.tileDecodeMode(0), px4Planar, px4Packed)
     val pxPacked = (unpackPrio ## unpackBank.asBits ## px4).asBits
     val shifted = ((tileCountReg * U(16, 6 bits)).resize(11)
                     + unpackIdx.resize(11)
