@@ -73,13 +73,17 @@ object LinestateStore {
     p
   }
 
+  // R5 stage 5: uniform L0-enabled default so copper LAYER_ENABLE toggles
+  // produce the §12 visual (L0 tiles visible wherever copper disables L1).
+  // L1 alternates every 160 lines so the 3-region structure that was useful
+  // for earlier proofs is preserved for `expectedRecord` consumers.
   def defaultInit(lineCount: Int): Seq[Bits] = {
     val depth = nextPow2(lineCount)
     (0 until depth).map { line =>
       val packed = if (line < 160) {
         packRecord(l0en = true, l1en = true, l0sx = 0)
       } else if (line < 320) {
-        packRecord(l0en = false, l1en = true, l0sx = 0)
+        packRecord(l0en = true, l1en = true, l0sx = 0)  // was: L1-only
       } else if (line < lineCount) {
         packRecord(l0en = true, l1en = false, l0sx = 0)
       } else {
@@ -91,7 +95,7 @@ object LinestateStore {
 
   def expectedRecord(line: Int): (Boolean, Boolean, Int) = {
     if (line < 160) (true, true, 0)
-    else if (line < 320) (false, true, 0)
+    else if (line < 320) (true, true, 0)
     else (true, false, 0)
   }
 }

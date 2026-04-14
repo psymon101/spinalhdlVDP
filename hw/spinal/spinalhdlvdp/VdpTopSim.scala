@@ -78,14 +78,16 @@ object VdpTopSim extends App {
 
     // --- Band checks with committed initial linestate ---
     checkFullLine(50, l0en = true, l1en = true, label = "top-band")
-    checkFullLine(200, l0en = false, l1en = true, label = "mid-band")
+    // R5 stage 5: default linestate now has both layers enabled in the
+    // middle band (was L1-only pre-R5).
+    checkFullLine(200, l0en = true, l1en = true, label = "mid-band")
     checkFullLine(400, l0en = true, l1en = false, label = "bot-band")
 
     // --- Boundary transitions ---
     waitVsync()
     checkFullLine(159, l0en = true, l1en = true, label = "bound-159")
-    checkFullLine(160, l0en = false, l1en = true, label = "bound-160")
-    checkFullLine(319, l0en = false, l1en = true, label = "bound-319")
+    checkFullLine(160, l0en = true, l1en = true, label = "bound-160")
+    checkFullLine(319, l0en = true, l1en = true, label = "bound-319")
     checkFullLine(320, l0en = true, l1en = false, label = "bound-320")
 
     // --- Prepare/commit semantic proof ---
