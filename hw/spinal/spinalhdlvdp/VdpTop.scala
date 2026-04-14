@@ -185,9 +185,23 @@ case class VdpTop() extends Component {
   linestate.io.writeData := effData(11 downto 0)
   linestate.io.writeEnable := lsRangeHit
 
-  val layerEnableReg = Reg(Bits(3 bits)) init B"111"  // all layers on by default
+  // R5.1 stutter fix (#7080): latch pending LAYER_ENABLE write into a shadow
+  // register and apply it to `layerEnableReg` only at `hCounter === 0`.
+  // Without this gate, the copper's combinational write arrives mid-line,
+  // shifts the compositor's effective enable mask mid-scanline, and shows
+  // up as 1-frame scroll skips + wrong-bank pixel flashes on hardware.
+  val layerEnableReg    = Reg(Bits(3 bits)) init B"111"
+  val layerEnablePend   = Reg(Bits(3 bits)) init B"111"
+  val layerEnablePendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x0300, 15 bits)) {
-    layerEnableReg := effData(2 downto 0)
+    layerEnablePend    := effData(2 downto 0)
+    layerEnablePendHit := True
+  }
+  when(hCounter === U(0, log2Up(hTotal) bits)) {
+    when(layerEnablePendHit) {
+      layerEnableReg     := layerEnablePend
+      layerEnablePendHit := False
+    }
   }
 
   // Layer 0 (lower priority background).
