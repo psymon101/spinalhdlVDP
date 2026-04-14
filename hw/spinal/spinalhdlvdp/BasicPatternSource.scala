@@ -13,24 +13,31 @@ case class BasicPatternSource() extends Component {
 
   import BasicPatternSource._
 
-  val scrolledXRaw = (io.x + io.scrollX).resize(10 bits)
-  val scrolledYRaw = (io.y + io.scrollY).resize(10 bits)
+  // Keep the full 11-bit sum so the subsequent wrap handles values past 1023
+  // correctly. The prior `.resize(10)` truncated sums of 1024+ to 0..255,
+  // producing wrong tile positions at large scrollX (visible as "tile layout
+  // changes" on the right edge when scrollX > MapPixelsX/2 ≈ 320).
+  val scrolledXRaw = (io.x +^ io.scrollX).resize(11 bits)
+  val scrolledYRaw = (io.y +^ io.scrollY).resize(11 bits)
 
   // Wrap to tilemap pixel dimensions (640 x 480) for seamless scrolling.
+  // Max scrolledXRaw is 639+1023 = 1662, so up to 2 wraps may be needed.
   val scrolledX = UInt(10 bits)
-  when(scrolledXRaw >= U(MapTilesX * TileWidth, 10 bits)) {
-    scrolledX := scrolledXRaw - U(MapTilesX * TileWidth, 10 bits)
+  when(scrolledXRaw >= U(2 * MapTilesX * TileWidth, 11 bits)) {
+    scrolledX := (scrolledXRaw - U(2 * MapTilesX * TileWidth, 11 bits)).resize(10)
+  }.elsewhen(scrolledXRaw >= U(MapTilesX * TileWidth, 11 bits)) {
+    scrolledX := (scrolledXRaw - U(MapTilesX * TileWidth, 11 bits)).resize(10)
   } otherwise {
-    scrolledX := scrolledXRaw
+    scrolledX := scrolledXRaw.resize(10)
   }
 
   val scrolledY = UInt(10 bits)
-  when(scrolledYRaw >= U(MapTilesY * TileHeight * 2, 10 bits)) {
-    scrolledY := scrolledYRaw - U(MapTilesY * TileHeight * 2, 10 bits)
-  }.elsewhen(scrolledYRaw >= U(MapTilesY * TileHeight, 10 bits)) {
-    scrolledY := scrolledYRaw - U(MapTilesY * TileHeight, 10 bits)
+  when(scrolledYRaw >= U(MapTilesY * TileHeight * 2, 11 bits)) {
+    scrolledY := (scrolledYRaw - U(MapTilesY * TileHeight * 2, 11 bits)).resize(10)
+  }.elsewhen(scrolledYRaw >= U(MapTilesY * TileHeight, 11 bits)) {
+    scrolledY := (scrolledYRaw - U(MapTilesY * TileHeight, 11 bits)).resize(10)
   }.otherwise {
-    scrolledY := scrolledYRaw
+    scrolledY := scrolledYRaw.resize(10)
   }
 
   val tileX = scrolledX(9 downto 4).resize(log2Up(MapTilesX) bits)
