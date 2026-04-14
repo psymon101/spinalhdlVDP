@@ -129,6 +129,25 @@ object UnifiedRegMapSim extends App {
     println("[sim] case3 copper program via 0x0400 + enable — OK (line 210 = black)")
 
     dut.io.copperEnable #= false
+    waitVsync()
+
+    // ---- Case 4 (R4.1b): VDP_TILE_MODE @ 0x0311 routes to fetch engine ----
+    // Write 0x0311 = 1 via the regWrite bus; VdpTop's tileDecodeModeReg
+    // should latch at the next hCounter=0, which then flows through the
+    // layer0TileDecodeMode output port. Writing 0 resets it.
+    busWrite(0x0311, 0x0001)
+    // Give hCounter at least one pass through 0 to commit the latch.
+    dut.clockDomain.waitSampling(hTotal + 10)
+    assert(dut.io.layer0TileDecodeMode.toInt == 1,
+      s"case4: after writing 0x0311=1, layer0TileDecodeMode should be 1, got ${dut.io.layer0TileDecodeMode.toInt}")
+    println("[sim] case4 VDP_TILE_MODE @ 0x0311 = 1 — OK (planar mode latched)")
+
+    busWrite(0x0311, 0x0000)
+    dut.clockDomain.waitSampling(hTotal + 10)
+    assert(dut.io.layer0TileDecodeMode.toInt == 0,
+      s"case4b: after writing 0x0311=0, layer0TileDecodeMode should be 0, got ${dut.io.layer0TileDecodeMode.toInt}")
+    println("[sim] case4b VDP_TILE_MODE back to packed — OK")
+
     println("[sim] UnifiedRegMapSim: PASS")
   }
 }
