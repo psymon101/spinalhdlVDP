@@ -57,6 +57,11 @@ object VdpTopSim extends App {
     dut.io.copperEnable #= false
     // Task 15 L0 mux: stay on the on-chip source for the existing sim coverage.
     dut.io.layer0UseSdram #= false
+    // Test-pattern mux added by CoralReef's TestPatternSource integration —
+    // must be explicitly disabled in sim, otherwise a floating input can
+    // route the test pattern into L0 and corrupt the band checks.
+    dut.io.layer0TestPatternEnable #= false
+    dut.io.layer0TestPatternSelect #= 0
     dut.io.layer0SdramPixel #= 0
     dut.io.layer0SdramBank #= 0
     dut.io.layer0SdramPriority #= false
