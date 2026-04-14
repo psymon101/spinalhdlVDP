@@ -306,11 +306,18 @@ case class VdpTop() extends Component {
     fetchStartCount := fetchStartCount - 1
   }
 
+  // R4.2-redo Early Latch fix (#7120 / #7121): latch fetch data ONE pixel-
+  // cycle BEFORE the grant pulse so the multi-bit BufferCC synchronizers on
+  // the SDRAM side see fully-stable operands when fetchGrantEdge fires.
+  // Previously, reg update and grant coincided at hCounter=hTotal-1,
+  // producing a classic source-domain race that manifested as systematic
+  // wrong-bank scanlines at tile-row boundaries.
+  val earlyLatchStrobe = hCounter === U(hTotal - 2, log2Up(hTotal) bits)
   val fetchLineReg    = RegNextWhen((vCounter + 3).resize(10),
-                                    fetchStartStrobe) init 0
+                                    earlyLatchStrobe) init 0
   val fetchScrollXReg = RegNextWhen(io.layer0ScrollX + linestate.io.layer0ScrollX,
-                                    fetchStartStrobe) init 0
-  val fetchScrollYReg = RegNextWhen(io.layer0ScrollY, fetchStartStrobe) init 0
+                                    earlyLatchStrobe) init 0
+  val fetchScrollYReg = RegNextWhen(io.layer0ScrollY, earlyLatchStrobe) init 0
 
   io.layer0FetchStart       := fetchStartCount =/= 0
   // R4.1: only the "start-of-fetch-cycle" slot (slot 0 at hTotal-1) produces
