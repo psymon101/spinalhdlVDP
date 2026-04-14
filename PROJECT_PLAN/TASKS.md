@@ -475,6 +475,13 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
+### R5.4 — Scroll-Wrap Component Primitive
+
+**Status:** TODO  
+**Task doc:** `PROJECT_PLAN/TASK_R5_4_SCROLL_WRAP.md`  
+**Coding Owner:** BrightForge  
+**Audit Owner:** CyanPeak
+
 ---
 
 ## Deferred Items

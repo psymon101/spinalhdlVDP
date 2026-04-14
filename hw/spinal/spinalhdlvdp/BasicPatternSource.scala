@@ -13,32 +13,19 @@ case class BasicPatternSource() extends Component {
 
   import BasicPatternSource._
 
-  // Keep the full 11-bit sum so the subsequent wrap handles values past 1023
-  // correctly. The prior `.resize(10)` truncated sums of 1024+ to 0..255,
-  // producing wrong tile positions at large scrollX (visible as "tile layout
-  // changes" on the right edge when scrollX > MapPixelsX/2 ≈ 320).
-  val scrolledXRaw = (io.x +^ io.scrollX).resize(11 bits)
-  val scrolledYRaw = (io.y +^ io.scrollY).resize(11 bits)
+  // R5.4: scroll wrap delegated to the `ScrollWrap` primitive. The primitive
+  // handles the expanding add, sums up to `(2^coordWidth-1)+(2^scrollWidth-1)`,
+  // and as many wrap subtracts as needed — same contract as the prior inline
+  // code with GT-022-free parameterization.
+  val xWrap = ScrollWrap(mapWidth = MapTilesX * TileWidth, coordWidth = 10, scrollWidth = 10)
+  xWrap.io.coord  := io.x
+  xWrap.io.scroll := io.scrollX
+  val scrolledX = xWrap.io.result
 
-  // Wrap to tilemap pixel dimensions (640 x 480) for seamless scrolling.
-  // Max scrolledXRaw is 639+1023 = 1662, so up to 2 wraps may be needed.
-  val scrolledX = UInt(10 bits)
-  when(scrolledXRaw >= U(2 * MapTilesX * TileWidth, 11 bits)) {
-    scrolledX := (scrolledXRaw - U(2 * MapTilesX * TileWidth, 11 bits)).resize(10)
-  }.elsewhen(scrolledXRaw >= U(MapTilesX * TileWidth, 11 bits)) {
-    scrolledX := (scrolledXRaw - U(MapTilesX * TileWidth, 11 bits)).resize(10)
-  } otherwise {
-    scrolledX := scrolledXRaw.resize(10)
-  }
-
-  val scrolledY = UInt(10 bits)
-  when(scrolledYRaw >= U(MapTilesY * TileHeight * 2, 11 bits)) {
-    scrolledY := (scrolledYRaw - U(MapTilesY * TileHeight * 2, 11 bits)).resize(10)
-  }.elsewhen(scrolledYRaw >= U(MapTilesY * TileHeight, 11 bits)) {
-    scrolledY := (scrolledYRaw - U(MapTilesY * TileHeight, 11 bits)).resize(10)
-  }.otherwise {
-    scrolledY := scrolledYRaw.resize(10)
-  }
+  val yWrap = ScrollWrap(mapWidth = MapTilesY * TileHeight, coordWidth = 10, scrollWidth = 10)
+  yWrap.io.coord  := io.y
+  yWrap.io.scroll := io.scrollY
+  val scrolledY = yWrap.io.result
 
   val tileX = scrolledX(9 downto 4).resize(log2Up(MapTilesX) bits)
   val tileY = scrolledY(8 downto 4).resize(log2Up(MapTilesY) bits)

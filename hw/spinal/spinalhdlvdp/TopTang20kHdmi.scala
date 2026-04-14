@@ -108,26 +108,29 @@ case class TopTang20kHdmi() extends Component {
     // Scroll rate bumped so each tile advances once per Tang frame (60 Hz).
     // Below ~30 Hz the discrete 1-px steps read as a visible staircase; at
     // 60 Hz the motion is perceptually smooth.
-    // Scroll counters derive their wrap points from the actual tile-map
-    // widths instead of the frameCounter's arbitrary 10-bit boundary.
-    // Both maps are 640 px wide today (MapTilesX * TileWidth), but pulling
-    // from the constants means any future map size change takes effect
-    // automatically.
-    val l0MapWidth = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640 (L0 on-chip ref)
-    val l1MapWidth = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640 (L1)
-    val l0StepFrames = 1                                                          // source-px per frame
+    // R5.4: scroll counters wrap via the shared `ScrollWrap` primitive so map
+    // dimensions drive the wrap point, widths are inferred at elaboration,
+    // and any future increase in step size or coord width is handled by the
+    // primitive's generated wrap-tree.
+    val l0MapWidth   = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640
+    val l1MapWidth   = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640
+    val l0StepFrames = 1
     val l1StepFrames = 2
-    val scrollL0 = Reg(UInt(10 bits)) init 0
-    val scrollL1 = Reg(UInt(10 bits)) init 0
+    val scrollL0 = Reg(UInt(log2Up(l0MapWidth) bits)) init 0
+    val scrollL1 = Reg(UInt(log2Up(l1MapWidth) bits)) init 0
+    val l0NextWrap = ScrollWrap(l0MapWidth)
+    l0NextWrap.io.coord  := scrollL0
+    l0NextWrap.io.scroll := U(l0StepFrames, log2Up(l0MapWidth + 1) bits)
+    val l1NextWrap = ScrollWrap(l1MapWidth)
+    l1NextWrap.io.coord  := scrollL1
+    l1NextWrap.io.scroll := U(l1StepFrames, log2Up(l1MapWidth + 1) bits)
     when(vsyncRising) {
-      val l0Next = scrollL0 + U(l0StepFrames, 10 bits)
-      val l1Next = scrollL1 + U(l1StepFrames, 10 bits)
-      scrollL0 := Mux(l0Next >= U(l0MapWidth, 10 bits), l0Next - U(l0MapWidth, 10 bits), l0Next)
-      scrollL1 := Mux(l1Next >= U(l1MapWidth, 10 bits), l1Next - U(l1MapWidth, 10 bits), l1Next)
+      scrollL0 := l0NextWrap.io.result
+      scrollL1 := l1NextWrap.io.result
     }
-    video.io.layer0ScrollX := scrollL0
+    video.io.layer0ScrollX := scrollL0.resize(10)
     video.io.layer0ScrollY := U(0, 10 bits)
-    video.io.layer1ScrollX := scrollL1
+    video.io.layer1ScrollX := scrollL1.resize(10)
     video.io.layer1ScrollY := U(0, 10 bits)
 
     // R5 stage 4: bootstrap FSM uploads a copper program to 0x0400+N then

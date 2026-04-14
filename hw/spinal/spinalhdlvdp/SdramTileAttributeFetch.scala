@@ -268,6 +268,14 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     val tileYCoord   = wrappedY(8 downto 4)
     val pixelYInTile = wrappedY(3 downto 0)
 
+    // R5.4: shared ScrollWrap primitive for this domain's tileIdx*16 +
+    // curScrollX wrap. Produces the current tile's wrapped X pixel coord
+    // for BOTH sFetchMapRq and sFetchAttrRq.
+    val pxXWrap = ScrollWrap(mapWidth = MapPixelsX, coordWidth = 10, scrollWidth = 10)
+    pxXWrap.io.coord  := (tileIdx.resize(10) * U(16, 6 bits)).resize(10)
+    pxXWrap.io.scroll := curScrollX
+    val pxXWrapped = pxXWrap.io.result
+
     // Explicit intermediate widths per CyanPeak #6764 / CoralReef #6767 — the
     // pre-fix version let SpinalHDL infer narrow intermediate widths from the
     // operand widths, which is bit-accurate in sim but may yield a different
@@ -443,17 +451,8 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
             // previously caused wrong-tileX attribute reads = bank-bleeding
             // stripes. Handle both single-wrap (>=640) and double-wrap
             // (>=1280) cases since max sum is 640+1023=1663.
-            val rawX = ((tileIdx * U(16, 6 bits)).resize(11)
-                         + curScrollX.resize(11)).resize(11)
-            val wrappedPxX = UInt(10 bits)
-            when(rawX >= U(2 * MapPixelsX, 11 bits)) {
-              wrappedPxX := (rawX - U(2 * MapPixelsX, 11 bits)).resize(10)
-            }.elsewhen(rawX >= U(MapPixelsX, 11 bits)) {
-              wrappedPxX := (rawX - U(MapPixelsX, 11 bits)).resize(10)
-            }.otherwise {
-              wrappedPxX := rawX.resize(10)
-            }
-            val txCoord = wrappedPxX(9 downto 4)
+            // R5.4: use the shared ScrollWrap output
+            val txCoord = pxXWrapped(log2Up(MapPixelsX) - 1 downto 4)
             cmdRd   := True
             cmdAddr := tileMapByteAddr(txCoord.resize(8), tileYCoord.resize(8))
             goto(sFetchMapWait)
@@ -477,17 +476,8 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
             // previously caused wrong-tileX attribute reads = bank-bleeding
             // stripes. Handle both single-wrap (>=640) and double-wrap
             // (>=1280) cases since max sum is 640+1023=1663.
-            val rawX = ((tileIdx * U(16, 6 bits)).resize(11)
-                         + curScrollX.resize(11)).resize(11)
-            val wrappedPxX = UInt(10 bits)
-            when(rawX >= U(2 * MapPixelsX, 11 bits)) {
-              wrappedPxX := (rawX - U(2 * MapPixelsX, 11 bits)).resize(10)
-            }.elsewhen(rawX >= U(MapPixelsX, 11 bits)) {
-              wrappedPxX := (rawX - U(MapPixelsX, 11 bits)).resize(10)
-            }.otherwise {
-              wrappedPxX := rawX.resize(10)
-            }
-            val txCoord = wrappedPxX(9 downto 4)
+            // R5.4: use the shared ScrollWrap output
+            val txCoord = pxXWrapped(log2Up(MapPixelsX) - 1 downto 4)
             cmdRd   := True
             cmdAddr := attrMapByteAddr(txCoord.resize(8), tileYCoord.resize(8))
             goto(sFetchAttrWait)
