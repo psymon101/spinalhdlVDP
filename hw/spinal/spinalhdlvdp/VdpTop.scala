@@ -170,12 +170,22 @@ case class VdpTop() extends Component {
   copper.io.progData := io.regWriteData
   copper.io.progWr   := copperProgRangeHit
 
-  // Merged regWrite bus: external host path has priority on same-cycle
-  // collision. Copper fills in otherwise.
-  val extHit   = io.regWriteEnable
-  val effWrite = extHit || copper.io.regWr
-  val effAddr  = Mux(extHit, io.regWriteAddr, copper.io.regAddr)
-  val effData  = Mux(extHit, io.regWriteData, copper.io.regData)
+  // R5.2 (#7082 target 100%): copper writes now flow through a small drain
+  // FIFO and are released only on the safe boundary (`hCounter === 0`).
+  // Previously the combinational merge let copper regWrite pulses reach the
+  // RegisterMap mid-line, producing the ~6 residual scroll skips and
+  // red-flash artifacts the R5.1 partial fix couldn't fully eliminate.
+  val copperFifo = spinal.lib.StreamFifo(dataType = Bits(31 bits), depth = 4)
+  copperFifo.io.push.valid   := copper.io.regWr
+  copperFifo.io.push.payload := (copper.io.regAddr.asBits ## copper.io.regData).asBits.resize(31)
+  val extHit     = io.regWriteEnable
+  val safeNow    = hCounter === U(0, log2Up(hTotal) bits)
+  val copperDrain = safeNow && !extHit
+  copperFifo.io.pop.ready := copperDrain
+  val copperPopped = copperFifo.io.pop.fire
+  val effWrite = extHit || copperPopped
+  val effAddr  = Mux(extHit, io.regWriteAddr, copperFifo.io.pop.payload(30 downto 16).asUInt)
+  val effData  = Mux(extHit, io.regWriteData, copperFifo.io.pop.payload(15 downto 0))
 
   // R5 RegisterMap decode off the merged bus. Writes to the linestate range
   // take the low 9 bits of effAddr as line index and the low 12 bits of
