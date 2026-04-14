@@ -64,6 +64,14 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     //       word1[15:0] = plane 1. Pixel = {plane1[x], plane0[x]}, range 0..3.
     val tileDecodeMode  = in  Bits(1 bits)
 
+    // R4.1c: attribute packing mode.
+    //   0 = linear 1:1 (R4 baseline) — one attr byte per tile
+    //   1 = NES-style 2×2 packing — one attr byte per 2×2 tile block; bits
+    //       [1:0]=TL bank, [3:2]=TR, [5:4]=BL, [7:6]=BR. Priority bit derives
+    //       from the selected 2-bit field; in packed mode palette banks are
+    //       0..3 only.
+    val attributeMode   = in  Bits(1 bits)
+
     val bootDone     = out Bool()
     val memtestPass  = out Bool()
     val memtestFail  = out Bool()
@@ -296,6 +304,9 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
                              U(PlanarTileAssets.SdramBase, 23 bits),
                              U(TileRowBase, 23 bits))
     val tileRowBaseSelSync = BufferCC(tileRowBaseSel, init = U(TileRowBase, 23 bits))
+
+    // R4.1c: packed-attribute mode select, 1-bit CDC (slow-changing register).
+    val attributeModeSync = BufferCC(io.attributeMode(0), init = False)
     def tileRowByteAddr(tIdx: UInt, py: UInt, wordIdx: UInt): UInt = {
       val offset = ((tIdx.resize(16) * U(TileHeight * TileRowBytes, 16 bits)) +
                     (py.resize(16)   * U(TileRowBytes, 16 bits)) +
@@ -478,8 +489,13 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
             // (>=1280) cases since max sum is 640+1023=1663.
             // R5.4: use the shared ScrollWrap output
             val txCoord = pxXWrapped(log2Up(MapPixelsX) - 1 downto 4)
+            // R4.1c: in packed 2×2 mode, one attr byte covers a 2×2 tile block,
+            // so the address uses block coords (tileX>>1, tileY>>1). Linear
+            // mode uses per-tile coords as before.
+            val attrTx = Mux(attributeModeSync, (txCoord    >> 1).resize(8), txCoord.resize(8))
+            val attrTy = Mux(attributeModeSync, (tileYCoord >> 1).resize(8), tileYCoord.resize(8))
             cmdRd   := True
-            cmdAddr := attrMapByteAddr(txCoord.resize(8), tileYCoord.resize(8))
+            cmdAddr := attrMapByteAddr(attrTx, attrTy)
             goto(sFetchAttrWait)
           }
         }
@@ -488,8 +504,21 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
       sFetchAttrWait.whenIsActive {
         when(io.sdramDataReady) {
           attrByteReg := io.sdramDout
-          bankReg     := io.sdramDout(2 downto 0).asUInt   // bits 2:0 = paletteBank
-          priorityReg := io.sdramDout(3)                   // bit 3   = priority
+          // R4.1c: linear mode uses bits[2:0]=bank, bit[3]=priority.
+          // Packed 2×2 mode extracts a 2-bit field selected by (subX,subY)
+          // within the 2×2 block: TL=[1:0], TR=[3:2], BL=[5:4], BR=[7:6].
+          // Priority is not encoded in packed bytes (forced False).
+          val subX = pxXWrapped(4)             // tileX(0) == bit 4 of pixel coord
+          val subY = tileYCoord(0)
+          val packedSel = (subY ## subX).asUInt   // 0=TL, 1=TR, 2=BL, 3=BR
+          val packedField = io.sdramDout.subdivideIn(2 bits)(packedSel)
+          when(attributeModeSync) {
+            bankReg     := packedField.asUInt.resize(3)
+            priorityReg := False
+          }.otherwise {
+            bankReg     := io.sdramDout(2 downto 0).asUInt
+            priorityReg := io.sdramDout(3)
+          }
           // Telemetry: latch attr[2:0] at the two probe tile positions so
           // the LEDs report bank-values on real SDRAM. These regs are
           // sticky — last-sampled value holds between frames.

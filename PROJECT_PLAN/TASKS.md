@@ -468,6 +468,13 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
+### R4.1c — Packed-Attribute Decode (NES-style)
+
+**Status:** TODO  
+**Task doc:** `PROJECT_PLAN/TASK_R4_1C_PACKED_ATTRIBUTE.md`  
+**Coding Owner:** BrightForge  
+**Audit Owner:** CyanPeak
+
 ### R5 — Host Interface + Copper Coprocessor
 
 **Status:** OPEN  

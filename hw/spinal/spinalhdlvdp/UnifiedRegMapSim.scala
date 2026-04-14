@@ -148,6 +148,19 @@ object UnifiedRegMapSim extends App {
       s"case4b: after writing 0x0311=0, layer0TileDecodeMode should be 0, got ${dut.io.layer0TileDecodeMode.toInt}")
     println("[sim] case4b VDP_TILE_MODE back to packed — OK")
 
+    // ---- Case 5 (R4.1c): VDP_ATTR_MODE @ 0x0312 routes to fetch engine ----
+    busWrite(0x0312, 0x0001)
+    dut.clockDomain.waitSampling(hTotal + 10)
+    assert(dut.io.layer0AttributeMode.toInt == 1,
+      s"case5: after writing 0x0312=1, layer0AttributeMode should be 1, got ${dut.io.layer0AttributeMode.toInt}")
+    println("[sim] case5 VDP_ATTR_MODE @ 0x0312 = 1 — OK (packed mode latched)")
+
+    busWrite(0x0312, 0x0000)
+    dut.clockDomain.waitSampling(hTotal + 10)
+    assert(dut.io.layer0AttributeMode.toInt == 0,
+      s"case5b: after writing 0x0312=0, layer0AttributeMode should be 0, got ${dut.io.layer0AttributeMode.toInt}")
+    println("[sim] case5b VDP_ATTR_MODE back to linear — OK")
+
     println("[sim] UnifiedRegMapSim: PASS")
   }
 }

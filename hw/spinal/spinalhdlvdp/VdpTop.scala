@@ -58,6 +58,12 @@ case class VdpTop() extends Component {
     // hCounter===0. TopTang routes this to SdramTileAttributeFetch.tileDecodeMode.
     val layer0TileDecodeMode = out Bits(1 bits)
 
+    // R4.1c: attribute-pack mode select (VDP_ATTR_MODE @ 0x0312).
+    //   bit 0: 0 = linear 1:1 (R4), 1 = NES-style 2×2 packing
+    // Safe-boundary-committed to hCounter===0. Routed to
+    // SdramTileAttributeFetch.attributeMode.
+    val layer0AttributeMode  = out Bits(1 bits)
+
     // Task 15 Layer-0 SDRAM source interface.
     //   - layer0UseSdram routes the external SDRAM-backed pixel into L0
     //     instead of the on-chip BasicPatternSource (for the switchable
@@ -222,6 +228,14 @@ case class VdpTop() extends Component {
     tileDecodeModePend    := effData(0 downto 0)
     tileDecodeModePendHit := True
   }
+  // R4.1c: VDP_ATTR_MODE @ 0x0312, same safe-boundary pattern.
+  val attributeModeReg      = Reg(Bits(1 bits)) init B(0, 1 bits)
+  val attributeModePend     = Reg(Bits(1 bits)) init B(0, 1 bits)
+  val attributeModePendHit  = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0312, 15 bits)) {
+    attributeModePend    := effData(0 downto 0)
+    attributeModePendHit := True
+  }
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {
       layerEnableReg     := layerEnablePend
@@ -231,8 +245,13 @@ case class VdpTop() extends Component {
       tileDecodeModeReg     := tileDecodeModePend
       tileDecodeModePendHit := False
     }
+    when(attributeModePendHit) {
+      attributeModeReg     := attributeModePend
+      attributeModePendHit := False
+    }
   }
   io.layer0TileDecodeMode := tileDecodeModeReg
+  io.layer0AttributeMode  := attributeModeReg
 
   // Layer 0 (lower priority background).
   val layer0 = BasicPatternSource()

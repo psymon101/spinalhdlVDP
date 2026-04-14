@@ -157,17 +157,22 @@ case class TopTang20kHdmi() extends Component {
       (3 << 14) | 0                 // JUMP 0
     )
 
-    // R4.1b stage 4: bootstrap FSM now has 2 phases —
-    //   Phase 0 (bootIdx 0..N-1): upload copper program to 0x0400+N
-    //   Phase 1 (bootIdx == N):   write 0x0311 = 1 (VDP_TILE_MODE = planar)
-    //   Phase 2 (bootIdx >= N+1): done, enable copper
+    // Bootstrap FSM phases:
+    //   0..copperLen-1 : upload copper program to 0x0400+idx
+    //   copperLen      : write 0x0311 = 1 (VDP_TILE_MODE = planar)  [R4.1b]
+    //   copperLen+1    : write 0x0312 = 1 (VDP_ATTR_MODE = packed) [R4.1c]
+    //   >=copperLen+2  : done, enable copper
     val copperLen = copperProgram.length                // 7
+    val tileModeIdx = U(copperLen,     4 bits)
+    val attrModeIdx = U(copperLen + 1, 4 bits)
+    val lastStepIdx = attrModeIdx
     val bootIdx   = Reg(UInt(4 bits)) init 0
     val bootDoneR = Reg(Bool())      init False
 
-    val bootWrite      = !bootDoneR
-    val inCopperPhase  = bootIdx < U(copperLen, 4 bits)
-    val isTileModeStep = bootIdx === U(copperLen, 4 bits)
+    val bootWrite     = !bootDoneR
+    val inCopperPhase = bootIdx < U(copperLen, 4 bits)
+    val isTileModeStep = bootIdx === tileModeIdx
+    val isAttrModeStep = bootIdx === attrModeIdx
 
     val copperAddr = U(0x0400, 15 bits) + bootIdx.resize(15)
     val bootData   = copperProgram.map(v => U(v, 16 bits)).toSeq
@@ -179,15 +184,18 @@ case class TopTang20kHdmi() extends Component {
       }
     }
 
-    // Stage-4 write to VDP_TILE_MODE: 0x0311 = 0x0001 → planar 2bpp.
     val tileModeAddr = U(0x0311, 15 bits)
     val tileModeData = B(0x0001, 16 bits)
+    val attrModeAddr = U(0x0312, 15 bits)
+    val attrModeData = B(0x0001, 16 bits)   // R4.1c: enable NES-style 2×2 packing
 
-    val bootAddr = Mux(inCopperPhase, copperAddr, tileModeAddr)
-    val bootDataMux = Mux(inCopperPhase, copperDataMux, tileModeData)
+    val bootAddr = Mux(inCopperPhase, copperAddr,
+                    Mux(isTileModeStep, tileModeAddr, attrModeAddr))
+    val bootDataMux = Mux(inCopperPhase, copperDataMux,
+                       Mux(isTileModeStep, tileModeData, attrModeData))
 
     when(bootWrite) {
-      when(bootIdx <= U(copperLen, 4 bits)) {
+      when(bootIdx <= lastStepIdx) {
         bootIdx := bootIdx + 1
       }.otherwise {
         bootDoneR := True
@@ -196,7 +204,7 @@ case class TopTang20kHdmi() extends Component {
 
     video.io.regWriteAddr   := bootAddr
     video.io.regWriteData   := bootDataMux
-    video.io.regWriteEnable := bootWrite && bootIdx <= U(copperLen, 4 bits)
+    video.io.regWriteEnable := bootWrite && bootIdx <= lastStepIdx
     video.io.copperEnable   := bootDoneR
 
     // Sprite 0: bounces diagonally at 1px/frame.
@@ -246,6 +254,7 @@ case class TopTang20kHdmi() extends Component {
     fetch.io.fetchSlotValid   := video.io.layer0FetchSlotValid
     fetch.io.fetchPreAnnounce := video.io.layer0FetchPreAnnounce
     fetch.io.tileDecodeMode   := video.io.layer0TileDecodeMode  // R4.1b stage 3: VDP_TILE_MODE @ 0x0311
+    fetch.io.attributeMode    := video.io.layer0AttributeMode   // R4.1c: VDP_ATTR_MODE @ 0x0312
     fetch.io.fetchLine        := video.io.layer0FetchLine
     fetch.io.fetchScrollX     := video.io.layer0FetchScrollX
     fetch.io.fetchScrollY     := video.io.layer0FetchScrollY

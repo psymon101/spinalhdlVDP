@@ -47,6 +47,7 @@ object TileAttributeFetchSim extends App {
     dut.io.fetchSlotValid    #= true   // rollback: readGate ties True, but drive true anyway
     dut.io.fetchPreAnnounce  #= false
     dut.io.tileDecodeMode    #= 0      // R4.1b stage 1 default: packed mode (R4 baseline)
+    dut.io.attributeMode     #= 0      // R4.1c default: linear 1:1 (R4 baseline)
     dut.io.fetchLine         #= 0
     dut.io.fetchScrollX      #= 0
     dut.io.fetchScrollY      #= 0
@@ -316,6 +317,49 @@ object TileAttributeFetchSim extends App {
     assert(idx7 == 8, s"case7 post-narrow: idx deadlocked got=$idx7 exp=8")
     assert(bank7 == 1, s"case7 post-narrow: bank deadlocked got=$bank7 exp=1")
     println("[sim] case7 engine survives narrow slot + normal recovery — OK")
+
+    // ------- Case 8 (R4.1c): packed 2×2 attribute decode --------------------
+    // One attribute byte covers a 2×2 tile block. Bit layout per NES spec:
+    //   [1:0]=TL, [3:2]=TR, [5:4]=BL, [7:6]=BR.
+    // We overwrite the block bytes at block-row 0 (covering tile rows 0 and 1)
+    // with 0xE4 = 0b11100100 → TL=00, TR=01, BL=10, BR=11. Then fetching
+    //   - line y=0  (tileY=0, subY=0): tileX=0→bank 0, tileX=1→bank 1
+    //   - line y=16 (tileY=1, subY=1): tileX=0→bank 2, tileX=1→bank 3
+    // demonstrates that the engine extracts the right sub-field for each
+    // position within the 2×2 block, sharing one SDRAM byte across 4 tiles.
+    dut.io.fetchSlotValid #= true
+    for (blockX <- 0 until (MapTilesX / 2 + 2)) {
+      mem(AttributeMapBase + blockX) = 0xE4
+    }
+    dut.io.attributeMode #= 1
+    dut.clockDomain.waitSampling(20)   // CDC settle
+
+    // tileY=0 row: TL/TR fields.
+    fireFetchTwice(0)
+    val (_, bank8TL, _) = readPixel(0)    // tileX=0 pixel 0 → TL
+    val (_, bank8TR, _) = readPixel(16)   // tileX=1 pixel 0 → TR
+    assert(bank8TL == 0, s"case8 TL: got=$bank8TL exp=0")
+    assert(bank8TR == 1, s"case8 TR: got=$bank8TR exp=1")
+    println(s"[sim] case8 packed y=0  TL=$bank8TL TR=$bank8TR — OK")
+
+    // tileY=1 row: BL/BR fields from the same block bytes.
+    fireFetchTwice(16)
+    val (_, bank8BL, _) = readPixel(0)
+    val (_, bank8BR, _) = readPixel(16)
+    assert(bank8BL == 2, s"case8 BL: got=$bank8BL exp=2")
+    assert(bank8BR == 3, s"case8 BR: got=$bank8BR exp=3")
+    println(s"[sim] case8 packed y=16 BL=$bank8BL BR=$bank8BR — OK")
+
+    // Sanity: a tileX=2 (block 1, subX=0) must re-read TL of the next block
+    // (also 0xE4 → TL=00), proving the address halving is in effect.
+    val (_, bank8TLnext, _) = readPixel(32)
+    assert(bank8TLnext == 2,
+      s"case8 tileX=2 on y=16 (subY=1,subX=0 = BL of block 1): got=$bank8TLnext exp=2")
+    println(s"[sim] case8 packed cross-block BL=$bank8TLnext — OK")
+
+    // Restore linear mode before exiting for cleanliness.
+    dut.io.attributeMode #= 0
+    dut.clockDomain.waitSampling(20)
 
     println("[sim] TileAttributeFetchSim: PASS")
   }
