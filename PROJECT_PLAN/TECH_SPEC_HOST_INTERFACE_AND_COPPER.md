@@ -1,0 +1,280 @@
+# Tech Spec: VDP Host Interface & Copper Coprocessor
+
+**Version:** 0.1  
+**Date:** 2026-04-13  
+**Author:** CoralReef  
+**Status:** DRAFT — pending team review
+
+---
+
+## 1. Purpose
+
+This document translates findings from an open-source FPGA GPU/graphics survey (RasterIX, icestation-32, Gameduino, Project F, f32c) into concrete architecture decisions for `spinalhdlVDP`. It covers two major areas:
+
+1. **Host Interface Architecture** — how the external host (QSPI / MCU) communicates with the VDP
+2. **Copper Coprocessor** — a minimal mid-frame register-write engine for raster effects
+
+A third section defines a **Working-Set Caching Policy** for upcoming planar/shuffled fetch modes.
+
+---
+
+## 2. Background & Motivation
+
+Our current VDP (`VdpTop`) exposes raw linestate registers directly. When Task 24 (QSPI Control Surface) is implemented, a naive memory-mapped approach creates several risks:
+
+- **Host can corrupt state mid-line** — no timing isolation
+- **Host must stall for VDP timing** — every write is synchronous
+- **No burst efficiency** — host must arbitrate per register
+
+The surveyed projects solve this with an **indirect register access model** (icestation-32, Gameduino) or a **command FIFO** (RasterIX). Both approaches decouple the host from the pixel pipeline.
+
+Additionally, every advanced 2D VDP in the survey (icestation-32, Gameduino, Sega Genesis) includes a **copper** or coprocessor for mid-frame register updates. Our R1 Raster Trigger Unit is the seed of this capability. Formalizing it now prevents a later rewrite when raster effects expand beyond simple linestate commits.
+
+---
+
+## 3. Host Interface Architecture
+
+### 3.1 Design Principle
+
+> The host **writes** VDP state through an indirect (address + data + auto-increment) interface. Reads are limited to a small status register set. The VDP applies writes at safe boundaries (line start or vblank), never mid-line.
+
+### 3.2 Register Interface
+
+The QSPI adapter presents the following MMIO registers to the host:
+
+| Offset | Name | Width | Access | Description |
+|--------|------|-------|--------|-------------|
+| 0x00 | `VDP_ADDR` | 16 | RW | Target address in VDP address space |
+| 0x02 | `VDP_DATA` | 16 | W | Write data; triggers FIFO enqueue |
+| 0x04 | `VDP_INC` | 8 | RW | Auto-increment value after each write (default = 1) |
+| 0x06 | `VDP_STATUS` | 8 | R | `{fifo_full, fifo_empty, vblank, line[9:2]}` |
+| 0x08 | `VDP_CTRL` | 8 | RW | `{irq_enable, copper_enable, flush_fifo}` |
+
+### 3.3 VDP Address Space
+
+Addresses 0x0000–0x7FFF map into the VDP's internal resources:
+
+| Range | Resource |
+|-------|----------|
+| 0x0000–0x0FFF | Linestate table (480 lines × 16-bit words) |
+| 0x1000–0x17FF | Palette RAM (128 entries × 16-bit, A1R4G4B4 or R4G4B4) |
+| 0x2000–0x27FF | Scroll table / raster config |
+| 0x3000–0x3FFF | Copper program RAM |
+| 0x4000–0x4FFF | Sprite attribute RAM |
+| 0x5000–0x5FFF | Tile map / VRAM window |
+| 0x6000–0x7FFF | Reserved |
+
+### 3.4 Command FIFO
+
+A small FIFO (8–16 entries) sits between the QSPI clock domain and the VDP pixel clock domain. This allows the host to burst multiple `(addr, data)` pairs without stalling.
+
+```
+Host (QSPI clock) → QSPI adapter → Command FIFO → VDP parser (pixel clock)
+```
+
+FIFO entry format: `{addr[14:0], data[15:0]}` = 31 bits.
+
+### 3.5 Safe-Boundary Application
+
+A `CommandParser` module in the pixel clock domain consumes the FIFO:
+
+- During **active video**: entries are buffered but NOT applied
+- At **hTotal-1** (line boundary): all buffered entries are applied atomically
+- During **vblank**: entries are applied continuously
+
+This guarantees that no host write can change linestate mid-line. It matches the icestation-32 recommendation to disable the copper during CPU VDP access; here, we enforce it structurally by delaying writes to the line boundary.
+
+### 3.6 Benefits
+
+| Concern | How this solves it |
+|---------|-------------------|
+| Mid-line corruption | Writes applied only at line boundary |
+| Host stalling | FIFO absorbs burst writes |
+| CDC safety | FIFO is the sole crossing point |
+| Code simplicity | Host uploads data with simple loops; VDP owns timing |
+
+---
+
+## 4. Copper Coprocessor
+
+### 4.1 Design Principle
+
+> A minimal 4-instruction coprocessor executes from its own program RAM and writes VDP registers at exact raster positions. It runs in the pixel clock domain and shares the same register-write path as the host CommandParser.
+
+### 4.2 Instruction Set
+
+Copper instructions are 16 bits. Four opcodes:
+
+| Opcode | Name | Description |
+|--------|------|-------------|
+| `00` | `WAIT` | Wait until `(x, y)` raster position matches target |
+| `01` | `WRITE` | Write `data` to VDP register `reg` |
+| `10` | `WRITE_SEQ` | Write a sequence of `N+1` 16-bit words starting at `reg` |
+| `11` | `JUMP` | Unconditional jump to `addr` |
+
+#### WAIT (`00`)
+```
+15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0
+ 0  0  WT  Y  |---------- TGT ----------|
+```
+- `WT`: wait bit (1 = block until match; 0 = just set target, continue)
+- `Y`: coordinate select (0 = target X, 1 = target Y)
+- `TGT`: 10-bit target value
+
+To wait for a specific `(x, y)`:
+```
+WAIT Y=1, TGT=line, WT=1   ; sets target Y and blocks
+WAIT Y=0, TGT=x,    WT=1   ; sets target X and blocks
+```
+
+#### WRITE (`01`)
+```
+15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0
+ 0  1  -  -  |--- reg ---| |--- data ---|
+```
+- `reg`: 6-bit target VDP register
+- `data`: 8-bit immediate data
+
+For 16-bit writes, use `WRITE_SEQ` with N=0.
+
+#### WRITE_SEQ (`10`)
+```
+15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0
+ 1  0  ITY | BAS | N |--- reg ---|
+```
+- `reg`: base register
+- `BAS`: increment mode (00 = repeat same reg, 01 = +1, 10 = +2, 11 = +4)
+- `N`: number of batches minus one
+- `ITY`: interlaced target-Y mode (auto-increment Y and WAIT between batches)
+
+The copper fetches the next `N+1` words from its program RAM as the data payload.
+
+#### JUMP (`11`)
+```
+15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0
+ 1  1  -  -  -  |---------- addr ----------|
+```
+- `addr`: 11-bit jump target in copper RAM
+
+### 4.3 Copper Program RAM
+
+- Size: 1 kB (512 × 16-bit words)
+- Mapped to host address space at 0x3000–0x3FFF
+- Host writes programs when `copper_enable = 0`
+- Copper reads programs when `copper_enable = 1`
+
+### 4.4 Execution Model
+
+1. When `copper_enable` rises, PC resets to 0 and execution starts
+2. The copper maintains a 10-bit target X and 10-bit target Y
+3. `WAIT` compares `(hCounter, vCounter)` against the target
+4. When matched, the copper advances to the next instruction
+5. `WRITE` / `WRITE_SEQ` enqueue into the same **safe-boundary register-write path** used by the host CommandParser
+6. `JUMP` restarts loops (e.g., for per-line palette bars)
+
+### 4.5 Typical Effects
+
+| Effect | Copper program |
+|--------|---------------|
+| Palette swap per scanline | `WAIT y=N; WRITE palette_addr, color; JUMP start` |
+| Layer mode switch mid-frame | `WAIT y=240; WRITE layer_enable, 0x02` |
+| Parallax scroll update | `WAIT y=N; WRITE_SEQ hscroll_0..hscroll_3, data...` |
+
+### 4.6 Why This Scope
+
+icestation-32's copper has exactly these 4 instructions and achieves:
+- palette-bar demos
+- affine/scroll layer switching mid-frame
+- copper polygon effects
+
+This is sufficient for Mode0 and avoids the complexity of a general-purpose CPU.
+
+---
+
+## 5. Working-Set Caching Policy (Planar / Shuffled / Affine)
+
+### 5.1 Design Principle
+
+> Never stream individual pixels from SDRAM during active rasterization. Always burst a working set into on-chip memory during a blanking window, then render from the on-chip cache.
+
+### 5.2 Justification
+
+- **RasterIX**: Each TMU has a 128KB texture buffer. Texels are read from on-chip memory, not SDRAM.
+- **icestation-32**: No external SDRAM at all; all graphics live in 64KB VDP RAM.
+- **Gameduino**: Tile graphics are entirely in block RAM.
+
+### 5.3 Proposed Cache Architecture
+
+For modes that need irregular access (planar bitplanes, shuffled layouts, affine transformations):
+
+```
+SDRAM → Burst Loader → Tile Cache (BRAM) → Raster Pipeline
+```
+
+- **Tile Cache**: 8–32 tiles × 16×16 × 4bpp = 1KB–4KB
+- **Burst Loader**: Runs during hblank or vblank, filling the cache with the tiles needed for the upcoming scanline
+- **Raster Pipeline**: Reads tiles from BRAM with single-cycle latency
+
+### 5.4 Cache Coherence Rule
+
+The cache is **read-only** during the active line. It is only updated during:
+- Horizontal blanking (for narrow working sets)
+- Vertical blanking (for full frame cache refreshes)
+- Linestate commit strobe (for scroll-triggered cache invalidation)
+
+---
+
+## 6. Impact on Existing Code
+
+### 6.1 Files to Create
+- `HostInterface.scala` — QSPI adapter + Command FIFO + CommandParser
+- `Copper.scala` — copper core + program RAM interface
+- `HostInterfaceSim.scala` / `CopperSim.scala` — simulation entries
+
+### 6.2 Files to Modify
+- `TopTang20kHdmi.scala` — instantiate `HostInterface` and `Copper`, wire to VDP
+- `VdpTop.scala` — replace raw linestate write ports with unified register-write bus from CommandParser/Copper
+- `FetchSlotScheduler.scala` — optionally widen slot windows for cache-burst loads
+
+### 6.3 Backward Compatibility
+
+- When `HostInterface` is disabled, VDP falls back to internal defaults (same behavior as today)
+- The existing `layer0TestPatternEnable` / `layer0TestPatternSelect` interface remains unchanged
+- All existing simulations continue to pass
+
+---
+
+## 7. Open Questions
+
+1. **QSPI vs. SPI bitrate**: What is the expected host clock? If the host is much slower than 25.2 MHz, the FIFO can be smaller. If it is faster, we may need a 16- or 32-entry FIFO.
+2. **Palette width**: Should we upgrade the palette from 24-bit RGB to 16-bit A1R4G4B4 (matching icestation-32) to save BRAM? Or keep 24-bit for color fidelity?
+3. **Copper RAM size**: Is 1KB (512 instructions) sufficient, or should we allocate 2KB?
+4. **Task ordering**: Should the copper be implemented **before** or **together with** the QSPI host interface? They share the same register-write path, so implementing them together is efficient.
+
+---
+
+## 8. Recommendations
+
+### Immediate (next task)
+- **Implement Host Interface + Copper as a single bounded task** (call it **R5** or fold into Task 24). They share the safe-boundary register-write path and should not be split.
+- Adopt the indirect address+data+auto-increment register model for host access.
+- Provide 8-entry Command FIFO with safe-boundary application.
+
+### Near-term (following 1–2 tasks)
+- Apply the Working-Set Caching Policy to planar/shuffled mode implementations.
+- Begin unifying sprite and background tile memory formats.
+
+### Avoid
+- Direct memory-mapped linestate without a FIFO or safe-boundary parser
+- Generic CPU/coprocessor inside the copper (4 instructions is sufficient)
+- Per-pixel SDRAM fetches for any rasterized element
+
+---
+
+## 9. References
+
+- **icestation-32** — `doc/platform.md` (copper, VDP register map, indirect access)
+- **Gameduino** — `toivoh/gameduino-fpga-mods` (line-buffer pipeline, sprite FIFO, host memory map)
+- **RasterIX** — `ToNi3141/RasterIX` (stream-centric command parser, texture buffers, deferred pipeline)
+- **Project F** — `projf/display_controller` (resolution-agnostic timing, test patterns)
+- **f32c** — `f32c/f32c` (multi-port SDRAM, async video clock domain)

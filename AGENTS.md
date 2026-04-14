@@ -124,6 +124,7 @@ For FPGA-affecting changes:
 - run a simulator-based validation step before claiming hardware-ready status
 - do not mix stale generated HDL with current Scala sources
 - regenerate outputs from the current source tree before downstream Gowin use
+- follow `PROJECT_PLAN/TEST_PATTERN_POLICY.md` for task proof scenes
 
 ## Memory Curation Rule
 

@@ -387,17 +387,14 @@ That means Tasks 1 through 5 are already complete in this repo state.
 
 ### Task 24 — QSPI Control Surface
 
-**Status:** TODO
+**Status:** RETIRED — superseded by R5 Host Interface + Copper
 **depends_on:** [14, 15]
 **scope_boundary:** Control path only. No new rendering features. QSPI interface to existing registers and linestate only.
 **delivers:**
 
-- QSPI interface in Tang20K wrapper
-- Register map accessible from external host
-- Linestate writable from external host via QSPI
-- Breadboard host can drive a scene without FPGA-internal stimulus
+- Redirected to R5. The indirect register model and command FIFO in R5 satisfy the original QSPI control-surface goal.
 
-**validation:** External host programs and updates a running scene via QSPI. No corruption from concurrent QSPI access and active rendering.
+**validation:** See R5 task doc.
 
 ---
 
@@ -459,8 +456,22 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### R4 — Tile + Attribute Fetch Primitive
 
-**Status:** OPEN  
+**Status:** CLOSED (`df7af63`)  
 **Task doc:** `PROJECT_PLAN/TASK_R4_TILE_ATTRIBUTE_FETCH.md`  
+**Coding Owner:** BrightForge  
+**Audit Owner:** CyanPeak
+
+### R4.1 — Multi-Slot Scheduler Coupling
+
+**Status:** CLOSED (`9dfeb9f`)  
+**Task doc:** `PROJECT_PLAN/TASK_R4_1_MULTI_SLOT_SCHEDULER_COUPLING.md`  
+**Coding Owner:** BrightForge  
+**Audit Owner:** CyanPeak
+
+### R5 — Host Interface + Copper Coprocessor
+
+**Status:** OPEN  
+**Task doc:** `PROJECT_PLAN/TASK_R5_HOST_INTERFACE_AND_COPPER.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 

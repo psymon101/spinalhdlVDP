@@ -59,6 +59,11 @@ case class VdpTop() extends Component {
     val layer0SdramPixel      = in Bits(4 bits)
     val layer0SdramBank       = in UInt(3 bits)
     val layer0SdramPriority   = in Bool()
+    // Test-pattern override for hardware validation (bypasses both SDRAM and
+    // on-chip BasicPatternSource so standard validation patterns are always
+    // available regardless of fetch-engine state).
+    val layer0TestPatternSelect = in UInt(3 bits)
+    val layer0TestPatternEnable = in Bool()
     // R4: scheduler outputs exposed so the top-level can wire them into the
     // new SdramTileAttributeFetch engine (which accepts grant / slotValid /
     // preAnnounce instead of the legacy level-based fetchStart).
@@ -151,6 +156,12 @@ case class VdpTop() extends Component {
   layer0.io.y := fillLine
   layer0.io.scrollX := io.layer0ScrollX + linestate.io.layer0ScrollX
   layer0.io.scrollY := io.layer0ScrollY
+
+  // Test pattern source: combinational standard patterns for task validation.
+  val testPattern = TestPatternSource()
+  testPattern.io.x := hCounter.resize(10)
+  testPattern.io.y := fillLine
+  testPattern.io.patternSelect := io.layer0TestPatternSelect
 
   // Task 15 fetch-control outputs. Atomic CDC pattern per 6626/6628:
   //   1) Pulse-harden fetchStart: widen to 4 pixel cycles so the SDRAM-side
@@ -246,10 +257,18 @@ case class VdpTop() extends Component {
   // R4: L0 carries {index[4], bank[3], priority[1]} when driven by the R4
   // fetch engine; when fed by the on-chip 3bpp source we zero-extend the index
   // and force bank=0 / priority=0 to keep the legacy-path rendering identical.
+  // Test-pattern override: when enabled, forces standard validation pattern
+  // regardless of SDRAM or on-chip path state.
   val onChipIdx4   = layer0.io.pixelIndex.resize(4)
-  val layer0Index  = Mux(io.layer0UseSdram, io.layer0SdramPixel, onChipIdx4)
-  val layer0Bank   = Mux(io.layer0UseSdram, io.layer0SdramBank,  U(0, 3 bits))
-  val layer0Prio   = Mux(io.layer0UseSdram, io.layer0SdramPriority, False)
+  val layer0Index  = Mux(io.layer0TestPatternEnable,
+                         testPattern.io.pixelIndex,
+                         Mux(io.layer0UseSdram, io.layer0SdramPixel, onChipIdx4))
+  val layer0Bank   = Mux(io.layer0TestPatternEnable,
+                         testPattern.io.paletteBank,
+                         Mux(io.layer0UseSdram, io.layer0SdramBank,  U(0, 3 bits)))
+  val layer0Prio   = Mux(io.layer0TestPatternEnable,
+                         False,
+                         Mux(io.layer0UseSdram, io.layer0SdramPriority, False))
 
   val layer0Pixel = Mux(linestate.io.layer0Enable, layer0Index, B(0, 4 bits))
   val layer0PrioGated = linestate.io.layer0Enable && layer0Prio

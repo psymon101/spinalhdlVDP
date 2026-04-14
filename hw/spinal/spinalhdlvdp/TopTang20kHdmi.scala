@@ -171,6 +171,11 @@ case class TopTang20kHdmi() extends Component {
     video.io.layer0SdramPriority := fetch.io.pixelPriority
     video.io.layer0UseSdram      := True
 
+    // Test pattern override: default disabled so normal SDRAM-backed rendering
+    // continues. Set enable=True and select a pattern (1..7) for validation.
+    video.io.layer0TestPatternEnable := False
+    video.io.layer0TestPatternSelect := U(0, 3 bits)
+
     // R1 Raster Trigger Unit: fire at line 240 (mid-visible), clear each frame
     // at start-of-frame so the trigger re-fires every frame and the screen
     // split stays stable. Pulse/pending drive a red-channel inversion below
