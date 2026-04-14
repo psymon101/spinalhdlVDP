@@ -421,12 +421,20 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
         when(readGate && !io.sdramBusy && !cmdRd && !cmdWr && !cmdRefresh) {
           when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 3; goto(sRefresh) }
           .otherwise {
-            val rawX = ((tileIdx * U(16, 6 bits)) + curScrollX.resize(11)).resize(10)
+            // R4.2-redo bug #2 fix (CyanPeak #7124): keep the full 11-bit
+            // sum so values 1024..1663 don't truncate to 0..639, which
+            // previously caused wrong-tileX attribute reads = bank-bleeding
+            // stripes. Handle both single-wrap (>=640) and double-wrap
+            // (>=1280) cases since max sum is 640+1023=1663.
+            val rawX = ((tileIdx * U(16, 6 bits)).resize(11)
+                         + curScrollX.resize(11)).resize(11)
             val wrappedPxX = UInt(10 bits)
-            when(rawX >= U(MapPixelsX, 10 bits)) {
-              wrappedPxX := (rawX - U(MapPixelsX, 10 bits)).resize(10)
+            when(rawX >= U(2 * MapPixelsX, 11 bits)) {
+              wrappedPxX := (rawX - U(2 * MapPixelsX, 11 bits)).resize(10)
+            }.elsewhen(rawX >= U(MapPixelsX, 11 bits)) {
+              wrappedPxX := (rawX - U(MapPixelsX, 11 bits)).resize(10)
             }.otherwise {
-              wrappedPxX := rawX
+              wrappedPxX := rawX.resize(10)
             }
             val txCoord = wrappedPxX(9 downto 4)
             cmdRd   := True
@@ -447,12 +455,20 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
         when(readGate && !io.sdramBusy && !cmdRd && !cmdWr && !cmdRefresh) {
           when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 9; goto(sRefresh) }
           .otherwise {
-            val rawX = ((tileIdx * U(16, 6 bits)) + curScrollX.resize(11)).resize(10)
+            // R4.2-redo bug #2 fix (CyanPeak #7124): keep the full 11-bit
+            // sum so values 1024..1663 don't truncate to 0..639, which
+            // previously caused wrong-tileX attribute reads = bank-bleeding
+            // stripes. Handle both single-wrap (>=640) and double-wrap
+            // (>=1280) cases since max sum is 640+1023=1663.
+            val rawX = ((tileIdx * U(16, 6 bits)).resize(11)
+                         + curScrollX.resize(11)).resize(11)
             val wrappedPxX = UInt(10 bits)
-            when(rawX >= U(MapPixelsX, 10 bits)) {
-              wrappedPxX := (rawX - U(MapPixelsX, 10 bits)).resize(10)
+            when(rawX >= U(2 * MapPixelsX, 11 bits)) {
+              wrappedPxX := (rawX - U(2 * MapPixelsX, 11 bits)).resize(10)
+            }.elsewhen(rawX >= U(MapPixelsX, 11 bits)) {
+              wrappedPxX := (rawX - U(MapPixelsX, 11 bits)).resize(10)
             }.otherwise {
-              wrappedPxX := rawX
+              wrappedPxX := rawX.resize(10)
             }
             val txCoord = wrappedPxX(9 downto 4)
             cmdRd   := True
