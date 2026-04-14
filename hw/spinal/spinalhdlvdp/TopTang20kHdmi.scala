@@ -108,15 +108,22 @@ case class TopTang20kHdmi() extends Component {
     // Scroll rate bumped so each tile advances once per Tang frame (60 Hz).
     // Below ~30 Hz the discrete 1-px steps read as a visible staircase; at
     // 60 Hz the motion is perceptually smooth.
-    // Scroll counters wrap at MapPixelsX=640, not at the frameCounter's
-    // 10-bit boundary of 1024. Without this, every ~17s the counter
-    // wraps 1023→0 which displays as a 383-pixel backward jump (since
-    // 1023 mod 640 = 383).
+    // Scroll counters derive their wrap points from the actual tile-map
+    // widths instead of the frameCounter's arbitrary 10-bit boundary.
+    // Both maps are 640 px wide today (MapTilesX * TileWidth), but pulling
+    // from the constants means any future map size change takes effect
+    // automatically.
+    val l0MapWidth = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640 (L0 on-chip ref)
+    val l1MapWidth = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640 (L1)
+    val l0StepFrames = 1                                                          // source-px per frame
+    val l1StepFrames = 2
     val scrollL0 = Reg(UInt(10 bits)) init 0
     val scrollL1 = Reg(UInt(10 bits)) init 0
     when(vsyncRising) {
-      scrollL0 := Mux(scrollL0 === U(639, 10 bits), U(0, 10 bits), scrollL0 + 1)
-      scrollL1 := Mux(scrollL1 >= U(638, 10 bits), scrollL1 - U(638, 10 bits), scrollL1 + 2)
+      val l0Next = scrollL0 + U(l0StepFrames, 10 bits)
+      val l1Next = scrollL1 + U(l1StepFrames, 10 bits)
+      scrollL0 := Mux(l0Next >= U(l0MapWidth, 10 bits), l0Next - U(l0MapWidth, 10 bits), l0Next)
+      scrollL1 := Mux(l1Next >= U(l1MapWidth, 10 bits), l1Next - U(l1MapWidth, 10 bits), l1Next)
     }
     video.io.layer0ScrollX := scrollL0
     video.io.layer0ScrollY := U(0, 10 bits)
