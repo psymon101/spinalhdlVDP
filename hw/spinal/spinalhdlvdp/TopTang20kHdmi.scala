@@ -137,22 +137,37 @@ case class TopTang20kHdmi() extends Component {
       (3 << 14) | 0                 // JUMP 0
     )
 
+    // R4.1b stage 4: bootstrap FSM now has 2 phases —
+    //   Phase 0 (bootIdx 0..N-1): upload copper program to 0x0400+N
+    //   Phase 1 (bootIdx == N):   write 0x0311 = 1 (VDP_TILE_MODE = planar)
+    //   Phase 2 (bootIdx >= N+1): done, enable copper
+    val copperLen = copperProgram.length                // 7
     val bootIdx   = Reg(UInt(4 bits)) init 0
     val bootDoneR = Reg(Bool())      init False
 
-    val bootWrite = !bootDoneR
-    val bootAddr  = U(0x0400, 15 bits) + bootIdx.resize(15)
-    val bootData  = copperProgram.map(v => U(v, 16 bits)).toSeq
-    val bootDataMux = Bits(16 bits)
-    bootDataMux := B(0, 16 bits)
+    val bootWrite      = !bootDoneR
+    val inCopperPhase  = bootIdx < U(copperLen, 4 bits)
+    val isTileModeStep = bootIdx === U(copperLen, 4 bits)
+
+    val copperAddr = U(0x0400, 15 bits) + bootIdx.resize(15)
+    val bootData   = copperProgram.map(v => U(v, 16 bits)).toSeq
+    val copperDataMux = Bits(16 bits)
+    copperDataMux := B(0, 16 bits)
     for (i <- copperProgram.indices) {
       when(bootIdx === U(i, 4 bits)) {
-        bootDataMux := bootData(i).asBits
+        copperDataMux := bootData(i).asBits
       }
     }
 
+    // Stage-4 write to VDP_TILE_MODE: 0x0311 = 0x0001 → planar 2bpp.
+    val tileModeAddr = U(0x0311, 15 bits)
+    val tileModeData = B(0x0001, 16 bits)
+
+    val bootAddr = Mux(inCopperPhase, copperAddr, tileModeAddr)
+    val bootDataMux = Mux(inCopperPhase, copperDataMux, tileModeData)
+
     when(bootWrite) {
-      when(bootIdx < U(copperProgram.length, 4 bits)) {
+      when(bootIdx <= U(copperLen, 4 bits)) {
         bootIdx := bootIdx + 1
       }.otherwise {
         bootDoneR := True
@@ -161,7 +176,7 @@ case class TopTang20kHdmi() extends Component {
 
     video.io.regWriteAddr   := bootAddr
     video.io.regWriteData   := bootDataMux
-    video.io.regWriteEnable := bootWrite && bootIdx < U(copperProgram.length, 4 bits)
+    video.io.regWriteEnable := bootWrite && bootIdx <= U(copperLen, 4 bits)
     video.io.copperEnable   := bootDoneR
 
     // Sprite 0: bounces diagonally at 1px/frame.
