@@ -52,6 +52,12 @@ case class VdpTop() extends Component {
     // host can toggle copper via the same bus.
     val copperEnable    = in Bool()
 
+    // R4.1b stage 3: tile decode mode select out to the SDRAM fetch engine.
+    //   bit 0: 0 = packed 4bpp (R4), 1 = NES-style 2bpp planar
+    // The latched register is inside VdpTop and safe-boundary-committed to
+    // hCounter===0. TopTang routes this to SdramTileAttributeFetch.tileDecodeMode.
+    val layer0TileDecodeMode = out Bits(1 bits)
+
     // Task 15 Layer-0 SDRAM source interface.
     //   - layer0UseSdram routes the external SDRAM-backed pixel into L0
     //     instead of the on-chip BasicPatternSource (for the switchable
@@ -207,12 +213,26 @@ case class VdpTop() extends Component {
     layerEnablePend    := effData(2 downto 0)
     layerEnablePendHit := True
   }
+  // R4.1b stage 3: VDP_TILE_MODE @ 0x0311 follows the same safe-boundary
+  // pattern as layerEnable — pending shadow + commit at hCounter===0.
+  val tileDecodeModeReg     = Reg(Bits(1 bits)) init B(0, 1 bits)
+  val tileDecodeModePend    = Reg(Bits(1 bits)) init B(0, 1 bits)
+  val tileDecodeModePendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0311, 15 bits)) {
+    tileDecodeModePend    := effData(0 downto 0)
+    tileDecodeModePendHit := True
+  }
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {
       layerEnableReg     := layerEnablePend
       layerEnablePendHit := False
     }
+    when(tileDecodeModePendHit) {
+      tileDecodeModeReg     := tileDecodeModePend
+      tileDecodeModePendHit := False
+    }
   }
+  io.layer0TileDecodeMode := tileDecodeModeReg
 
   // Layer 0 (lower priority background).
   val layer0 = BasicPatternSource()
