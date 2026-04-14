@@ -108,9 +108,19 @@ case class TopTang20kHdmi() extends Component {
     // Scroll rate bumped so each tile advances once per Tang frame (60 Hz).
     // Below ~30 Hz the discrete 1-px steps read as a visible staircase; at
     // 60 Hz the motion is perceptually smooth.
-    video.io.layer0ScrollX := frameCounter
+    // Scroll counters wrap at MapPixelsX=640, not at the frameCounter's
+    // 10-bit boundary of 1024. Without this, every ~17s the counter
+    // wraps 1023→0 which displays as a 383-pixel backward jump (since
+    // 1023 mod 640 = 383).
+    val scrollL0 = Reg(UInt(10 bits)) init 0
+    val scrollL1 = Reg(UInt(10 bits)) init 0
+    when(vsyncRising) {
+      scrollL0 := Mux(scrollL0 === U(639, 10 bits), U(0, 10 bits), scrollL0 + 1)
+      scrollL1 := Mux(scrollL1 >= U(638, 10 bits), scrollL1 - U(638, 10 bits), scrollL1 + 2)
+    }
+    video.io.layer0ScrollX := scrollL0
     video.io.layer0ScrollY := U(0, 10 bits)
-    video.io.layer1ScrollX := (frameCounter << 1).resized  // L1 twice as fast so layers are differentiable
+    video.io.layer1ScrollX := scrollL1
     video.io.layer1ScrollY := U(0, 10 bits)
 
     // R5 stage 4: bootstrap FSM uploads a copper program to 0x0400+N then
