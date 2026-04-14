@@ -195,9 +195,18 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     val fetchGrantD       = RegNext(fetchGrantSync) init False
     val fetchGrantEdge    = fetchGrantSync && !fetchGrantD
 
-    val fetchLineSync      = BufferCC(io.fetchLine,    init = U(0, 10 bits))
-    val fetchScrollXSync   = BufferCC(io.fetchScrollX, init = U(0, 10 bits))
-    val fetchScrollYSync   = BufferCC(io.fetchScrollY, init = U(0, 10 bits))
+    // R4.2-redo Stage 2 (CyanPeak #7130): bundle the 3 pixel-domain fetch
+    // parameters into a single 30-bit BufferCC so all bits resolve atomically
+    // in the same SDRAM clock cycle. Individual per-signal BufferCC chains
+    // previously let bits settle on different edges (inter-signal tearing),
+    // producing "half-239 / half-240" curLine values at tile-row boundaries.
+    val fetchBundle     = (io.fetchLine.asBits ##
+                           io.fetchScrollX.asBits ##
+                           io.fetchScrollY.asBits).asBits
+    val fetchBundleSync = BufferCC(fetchBundle, init = B(0, 30 bits))
+    val fetchLineSync    = fetchBundleSync(29 downto 20).asUInt
+    val fetchScrollXSync = fetchBundleSync(19 downto 10).asUInt
+    val fetchScrollYSync = fetchBundleSync( 9 downto  0).asUInt
 
     val curLine    = Reg(UInt(10 bits)) init 0
     val curScrollX = Reg(UInt(10 bits)) init 0

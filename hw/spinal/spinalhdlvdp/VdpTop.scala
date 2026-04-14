@@ -326,7 +326,19 @@ case class VdpTop() extends Component {
   // line would reset the fetch mid-flight. Gate grant to the start strobe
   // only; let slotValid stay as the raw OR of all slot windows so reads can
   // span all three slots.
-  io.layer0FetchGrant       := scheduler.io.grant && (hCounter === hTotal - 1)
+  // R4.2-redo Stage 2 (CyanPeak #7130): widen the grant pulse to 4 pixel
+  // cycles so the SDRAM-side BufferCC reliably samples it after the bundled
+  // fetch-data synchronizer has settled. Narrow 1-cycle pulses combined with
+  // the bundled BufferCC's 2-cycle settling window gave the grant edge too
+  // little margin on real silicon.
+  val grantRaw  = scheduler.io.grant && (hCounter === hTotal - 1)
+  val grantHold = Reg(UInt(3 bits)) init 0
+  when(grantRaw) {
+    grantHold := 4
+  }.elsewhen(grantHold =/= 0) {
+    grantHold := grantHold - 1
+  }
+  io.layer0FetchGrant       := grantHold =/= 0
   io.layer0FetchSlotValid   := scheduler.io.slotValid
   io.layer0FetchPreAnnounce := scheduler.io.preAnnounce
   io.layer0FetchLine        := fetchLineReg
