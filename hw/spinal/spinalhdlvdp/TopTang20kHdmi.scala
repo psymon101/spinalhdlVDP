@@ -105,9 +105,12 @@ case class TopTang20kHdmi() extends Component {
     // modeToggle) so visual motion is smooth. The bandwidth fix (widened
     // slot 1) means every line's fetch now completes before the buffer swap,
     // so scrolling should be jitter-free.
-    video.io.layer0ScrollX := (frameCounter >> 3).resized
+    // Scroll rate bumped so each tile advances once per Tang frame (60 Hz).
+    // Below ~30 Hz the discrete 1-px steps read as a visible staircase; at
+    // 60 Hz the motion is perceptually smooth.
+    video.io.layer0ScrollX := frameCounter
     video.io.layer0ScrollY := U(0, 10 bits)
-    video.io.layer1ScrollX := (frameCounter >> 2).resized
+    video.io.layer1ScrollX := (frameCounter << 1).resized  // L1 twice as fast so layers are differentiable
     video.io.layer1ScrollY := U(0, 10 bits)
 
     // R5 stage 4: bootstrap FSM uploads a copper program to 0x0400+N then
