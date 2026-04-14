@@ -38,9 +38,14 @@ case class VdpTop() extends Component {
 
     // R2 diagnostic: sprite-per-line overflow flag (sticky within line).
     val spriteOverflow = out Bool()
-    val lsWriteAddr   = in UInt(log2Up(480) bits)
-    val lsWriteData   = in Bits(12 bits)
-    val lsWriteEnable = in Bool()
+    // R5: unified register-write bus. Replaces the raw lsWrite* ports.
+    //   0x0000-0x01DF  linestate prepare (addr low 9 bits = line; data low 12 bits = {l0en, l1en, l0scrollX[9:0]})
+    //   0x0300         LAYER_ENABLE (data[0]=L0, data[1]=L1, data[2]=sprite) — global override
+    //   0x0400-0x05FF  copper program RAM (stage 4 wires to Copper.progWr)
+    //   (other ranges reserved for stages 4+)
+    val regWriteAddr    = in UInt(15 bits)
+    val regWriteData    = in Bits(16 bits)
+    val regWriteEnable  = in Bool()
 
     // Task 15 Layer-0 SDRAM source interface.
     //   - layer0UseSdram routes the external SDRAM-backed pixel into L0
@@ -146,9 +151,18 @@ case class VdpTop() extends Component {
   linestate.io.commitLine := fillLine.resized
   linestate.io.commitStrobe := hCounter === hTotal - 1
   // Prepare-side write interface exposed for simulation testing.
-  linestate.io.writeAddr := io.lsWriteAddr
-  linestate.io.writeData := io.lsWriteData
-  linestate.io.writeEnable := io.lsWriteEnable
+  // R5 RegisterMap decode. Writes to the linestate range take the low 9 bits
+  // of regWriteAddr as line index and the low 12 bits of regWriteData as the
+  // packed record. LAYER_ENABLE latches at 0x0300.
+  val lsRangeHit = io.regWriteEnable && (io.regWriteAddr < U(480, 15 bits))
+  linestate.io.writeAddr := io.regWriteAddr(log2Up(480) - 1 downto 0)
+  linestate.io.writeData := io.regWriteData(11 downto 0)
+  linestate.io.writeEnable := lsRangeHit
+
+  val layerEnableReg = Reg(Bits(3 bits)) init B"111"  // all layers on by default
+  when(io.regWriteEnable && io.regWriteAddr === U(0x0300, 15 bits)) {
+    layerEnableReg := io.regWriteData(2 downto 0)
+  }
 
   // Layer 0 (lower priority background).
   val layer0 = BasicPatternSource()
@@ -270,9 +284,12 @@ case class VdpTop() extends Component {
                          False,
                          Mux(io.layer0UseSdram, io.layer0SdramPriority, False))
 
-  val layer0Pixel = Mux(linestate.io.layer0Enable, layer0Index, B(0, 4 bits))
-  val layer0PrioGated = linestate.io.layer0Enable && layer0Prio
-  val layer1Pixel = Mux(linestate.io.layer1Enable, layer1.io.pixelIndex.resize(4), B(0, 4 bits))
+  // R5: fold global LAYER_ENABLE register into the per-line linestate enable.
+  val effectiveL0Enable = linestate.io.layer0Enable && layerEnableReg(0)
+  val effectiveL1Enable = linestate.io.layer1Enable && layerEnableReg(1)
+  val layer0Pixel = Mux(effectiveL0Enable, layer0Index, B(0, 4 bits))
+  val layer0PrioGated = effectiveL0Enable && layer0Prio
+  val layer1Pixel = Mux(effectiveL1Enable, layer1.io.pixelIndex.resize(4), B(0, 4 bits))
 
   // Priority-aware L0/L1 composition. Previous behavior: L1 wins over L0
   // whenever L1 is non-transparent. With R4 per-tile priority, L0 additionally

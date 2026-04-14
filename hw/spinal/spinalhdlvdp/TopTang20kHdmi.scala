@@ -110,9 +110,11 @@ case class TopTang20kHdmi() extends Component {
     video.io.layer1ScrollX := (frameCounter >> 2).resized
     video.io.layer1ScrollY := U(0, 10 bits)
 
-    video.io.lsWriteAddr := U(0, log2Up(480) bits)
-    video.io.lsWriteData := B(0, 12 bits)
-    video.io.lsWriteEnable := False
+    // R5 stage 3: unified register bus tied quiet. Stage 4 wires in
+    // HostInterface + Copper as the active producers.
+    video.io.regWriteAddr   := U(0, 15 bits)
+    video.io.regWriteData   := B(0, 16 bits)
+    video.io.regWriteEnable := False
 
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100
