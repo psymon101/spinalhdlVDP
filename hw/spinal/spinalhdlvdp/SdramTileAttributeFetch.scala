@@ -212,6 +212,10 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     val tileMapRom  = Mem(Bits(8 bits), initialContent = TileAttributeAssets.tileMapBytesInit)
     val attrMapRom  = Mem(Bits(8 bits), initialContent = TileAttributeAssets.attributeMapBytesInit)
     val tileRowRom  = Mem(Bits(8 bits), initialContent = TileAttributeAssets.tileRowBytesInit)
+    // R4.1b stage 2: planar boot ROM lives alongside the packed ROMs and is
+    // boot-copied to SDRAM at PlanarTileAssets.SdramBase (0xA000), disjoint
+    // from the R4 packed regions.
+    val planarRowRom = Mem(Bits(8 bits), initialContent = PlanarTileAssets.planarRowBytesInit)
 
     // FIFO push side
     val pushValid   = RegInit(False)
@@ -260,11 +264,18 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
       val offset = (ty.resize(16) * U(MapTilesX, 16 bits) + tx.resize(16)).resize(23)
       (U(AttributeMapBase, 23 bits) + offset).resize(23)
     }
+    // R4.1b: planar mode reads tile rows from PlanarTileAssets.SdramBase
+    // instead of TileRowBase. Tile row layout is identical (16 rows × 8 bytes
+    // per tile), so only the base address swaps.
+    val tileRowBaseSel = Mux(io.tileDecodeMode(0),
+                             U(PlanarTileAssets.SdramBase, 23 bits),
+                             U(TileRowBase, 23 bits))
+    val tileRowBaseSelSync = BufferCC(tileRowBaseSel, init = U(TileRowBase, 23 bits))
     def tileRowByteAddr(tIdx: UInt, py: UInt, wordIdx: UInt): UInt = {
       val offset = ((tIdx.resize(16) * U(TileHeight * TileRowBytes, 16 bits)) +
                     (py.resize(16)   * U(TileRowBytes, 16 bits)) +
                     (wordIdx.resize(16) * U(4, 16 bits))).resize(23)
-      (U(TileRowBase, 23 bits) + offset).resize(23)
+      (tileRowBaseSelSync + offset).resize(23)
     }
 
     cmdRd      := False
@@ -283,6 +294,7 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
       val sBootTileMap   = new State
       val sBootAttrMap   = new State
       val sBootTileRows  = new State
+      val sBootPlanar    = new State    // R4.1b stage 2
       val sMemtestWrite  = new State
       val sMemtestReadRq = new State
       val sMemtestCheck  = new State
@@ -337,6 +349,19 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
             cmdWr   := True
             cmdAddr := (U(TileRowBase, 23 bits) + bootCounter.resize(23)).resized
             cmdDin  := tileRowRom.readAsync(bootCounter.resize(log2Up(TotalRowBytes)))
+            bootCounter := bootCounter + 1
+          }.otherwise { bootCounter := 0; goto(sBootPlanar) }
+        }
+      }
+
+      // R4.1b stage 2: copy planar test rows into SDRAM at PlanarTileAssets.SdramBase.
+      sBootPlanar.whenIsActive {
+        when(!io.sdramBusy && !cmdRd && !cmdWr && !cmdRefresh) {
+          when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 10; goto(sRefresh) }
+          .elsewhen(bootCounter < PlanarTileAssets.TotalBytes) {
+            cmdWr   := True
+            cmdAddr := (U(PlanarTileAssets.SdramBase, 23 bits) + bootCounter.resize(23)).resized
+            cmdDin  := planarRowRom.readAsync(bootCounter.resize(log2Up(PlanarTileAssets.TotalBytes)))
             bootCounter := bootCounter + 1
           }.otherwise { bootCounter := 0; bootDoneR := True; goto(sMemtestWrite) }
         }
@@ -516,6 +541,7 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
             is(7) { goto(sMemtestReadRq) }
             is(8) { goto(sBootAttrMap) }
             is(9) { goto(sFetchAttrRq) }
+            is(10) { goto(sBootPlanar) }   // R4.1b stage 2
             default { goto(sIdle) }
           }
         }
