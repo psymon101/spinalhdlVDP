@@ -245,6 +245,44 @@ case class VdpTop() extends Component {
     copperCtrlPend    := effData(0 downto 0)
     copperCtrlPendHit := True
   }
+  // R6 Task 20: Color Math + Window registers (0x0330..0x0334), same
+  // safe-boundary shadow+commit pattern. Defaults are all-zero so the stage
+  // is passthrough at power-on (no output regression).
+  val winX0Reg     = Reg(UInt(10 bits)) init 0
+  val winX0Pend    = Reg(UInt(10 bits)) init 0
+  val winX0PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0330, 15 bits)) {
+    winX0Pend    := effData(9 downto 0).asUInt
+    winX0PendHit := True
+  }
+  val winX1Reg     = Reg(UInt(10 bits)) init 0
+  val winX1Pend    = Reg(UInt(10 bits)) init 0
+  val winX1PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0331, 15 bits)) {
+    winX1Pend    := effData(9 downto 0).asUInt
+    winX1PendHit := True
+  }
+  val winY0Reg     = Reg(UInt(10 bits)) init 0
+  val winY0Pend    = Reg(UInt(10 bits)) init 0
+  val winY0PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0332, 15 bits)) {
+    winY0Pend    := effData(9 downto 0).asUInt
+    winY0PendHit := True
+  }
+  val winY1Reg     = Reg(UInt(10 bits)) init 0
+  val winY1Pend    = Reg(UInt(10 bits)) init 0
+  val winY1PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0333, 15 bits)) {
+    winY1Pend    := effData(9 downto 0).asUInt
+    winY1PendHit := True
+  }
+  val colorMathReg     = Reg(Bits(16 bits)) init 0
+  val colorMathPend    = Reg(Bits(16 bits)) init 0
+  val colorMathPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0334, 15 bits)) {
+    colorMathPend    := effData
+    colorMathPendHit := True
+  }
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {
       layerEnableReg     := layerEnablePend
@@ -262,6 +300,11 @@ case class VdpTop() extends Component {
       copperCtrlReg     := copperCtrlPend
       copperCtrlPendHit := False
     }
+    when(winX0PendHit)     { winX0Reg     := winX0Pend;     winX0PendHit     := False }
+    when(winX1PendHit)     { winX1Reg     := winX1Pend;     winX1PendHit     := False }
+    when(winY0PendHit)     { winY0Reg     := winY0Pend;     winY0PendHit     := False }
+    when(winY1PendHit)     { winY1Reg     := winY1Pend;     winY1PendHit     := False }
+    when(colorMathPendHit) { colorMathReg := colorMathPend; colorMathPendHit := False }
   }
   io.layer0TileDecodeMode := tileDecodeModeReg
   io.layer0AttributeMode  := attributeModeReg
@@ -571,6 +614,24 @@ case class VdpTop() extends Component {
   io.rasterTriggerPulse           := rasterTrigger.io.triggerPulse
   io.rasterTriggerPending         := rasterTrigger.io.pending
 
+  // R6 Task 20: post-palette color-math + window stage. Mux on `paletteRgb`
+  // controlled by the window comparator and the colorMath op/constant fields.
+  val windowUnit = WindowUnit()
+  windowUnit.io.hCounter := hCounter.resize(10)
+  windowUnit.io.vCounter := vCounter.resize(10)
+  windowUnit.io.winX0    := winX0Reg
+  windowUnit.io.winX1    := winX1Reg
+  windowUnit.io.winY0    := winY0Reg
+  windowUnit.io.winY1    := winY1Reg
+  windowUnit.io.invert   := colorMathReg(13)
+
+  val colorMath = ColorMath()
+  colorMath.io.rgbIn    := paletteRgb
+  colorMath.io.op       := colorMathReg(15 downto 14).asUInt
+  colorMath.io.constant := colorMathReg(7  downto 0).asUInt
+  colorMath.io.enable   := windowUnit.io.effect
+  val mathRgb = colorMath.io.rgbOut
+
   io.hsync := !(hCounter >= hSyncStart && hCounter < hSyncEnd)
   io.vsync := !(vCounter >= vSyncStart && vCounter < vSyncEnd)
   io.de := activeVideo
@@ -578,10 +639,10 @@ case class VdpTop() extends Component {
   io.green := B(0, 8 bits)
   io.blue := B(0, 8 bits)
   when(activeVideo && primed) {
-    val redRaw = paletteRgb(23 downto 16)
+    val redRaw = mathRgb(23 downto 16)
     io.red   := Mux(rasterTrigger.io.pending, ~redRaw, redRaw)
-    io.green := paletteRgb(15 downto 8)
-    io.blue  := paletteRgb(7 downto 0)
+    io.green := mathRgb(15 downto 8)
+    io.blue  := mathRgb(7 downto 0)
   }
   io.x := hCounter.resize(10)
   io.y := vCounter.resize(10)

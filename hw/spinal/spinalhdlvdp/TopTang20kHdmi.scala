@@ -163,29 +163,44 @@ case class TopTang20kHdmi() extends Component {
     //   copperLen+1    : write 0x0312 = 0 (VDP_ATTR_MODE = linear)      [R4.1d]
     //   copperLen+2    : write 0x0310 = 0 (VDP_CTRL copper disabled)    [R4.1d]
     //   copperLen+3    : write 0x0300 = 1 (LAYER_ENABLE = L0 only)      [R4.1d]
-    //   >=copperLen+4  : done
-    val copperLen   = copperProgram.length              // 7
-    val tileModeIdx = U(copperLen,     4 bits)
-    val attrModeIdx = U(copperLen + 1, 4 bits)
-    val ctrlIdx     = U(copperLen + 2, 4 bits)
-    val layerIdx    = U(copperLen + 3, 4 bits)
-    val lastStepIdx = layerIdx
-    val bootIdx     = Reg(UInt(4 bits)) init 0
+    //   copperLen+4    : write 0x0330 = 160 (VDP_WIN_X0)                [Task 20]
+    //   copperLen+5    : write 0x0331 = 480 (VDP_WIN_X1)                [Task 20]
+    //   copperLen+6    : write 0x0332 = 120 (VDP_WIN_Y0)                [Task 20]
+    //   copperLen+7    : write 0x0333 = 360 (VDP_WIN_Y1)                [Task 20]
+    //   copperLen+8    : write 0x0334 = 0x4000 (op=01 shadow, no invert) [Task 20]
+    //   >=copperLen+9  : done
+    val copperLen     = copperProgram.length              // 7
+    val tileModeIdx   = U(copperLen,     5 bits)
+    val attrModeIdx   = U(copperLen + 1, 5 bits)
+    val ctrlIdx       = U(copperLen + 2, 5 bits)
+    val layerIdx      = U(copperLen + 3, 5 bits)
+    val winX0Idx      = U(copperLen + 4, 5 bits)
+    val winX1Idx      = U(copperLen + 5, 5 bits)
+    val winY0Idx      = U(copperLen + 6, 5 bits)
+    val winY1Idx      = U(copperLen + 7, 5 bits)
+    val colorMathIdx  = U(copperLen + 8, 5 bits)
+    val lastStepIdx   = colorMathIdx
+    val bootIdx     = Reg(UInt(5 bits)) init 0
     val bootDoneR   = Reg(Bool())      init False
 
     val bootWrite      = !bootDoneR
-    val inCopperPhase  = bootIdx < U(copperLen, 4 bits)
+    val inCopperPhase  = bootIdx < U(copperLen, 5 bits)
     val isTileModeStep = bootIdx === tileModeIdx
     val isAttrModeStep = bootIdx === attrModeIdx
     val isCtrlStep     = bootIdx === ctrlIdx
     val isLayerStep    = bootIdx === layerIdx
+    val isWinX0Step    = bootIdx === winX0Idx
+    val isWinX1Step    = bootIdx === winX1Idx
+    val isWinY0Step    = bootIdx === winY0Idx
+    val isWinY1Step    = bootIdx === winY1Idx
+    val isColorMathStep= bootIdx === colorMathIdx
 
     val copperAddr = U(0x0400, 15 bits) + bootIdx.resize(15)
     val bootData   = copperProgram.map(v => U(v, 16 bits)).toSeq
     val copperDataMux = Bits(16 bits)
     copperDataMux := B(0, 16 bits)
     for (i <- copperProgram.indices) {
-      when(bootIdx === U(i, 4 bits)) {
+      when(bootIdx === U(i, 5 bits)) {
         copperDataMux := bootData(i).asBits
       }
     }
@@ -203,15 +218,39 @@ case class TopTang20kHdmi() extends Component {
     val ctrlData     = B(0x0000, 16 bits)   // R4.1d Checkpoint C: copper disabled
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(0x0001, 16 bits)   // R4.1d Checkpoint C: LAYER_ENABLE = L0 only
+    // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
+    // covering the middle of the 640×480 screen. Color-math op=01 (shadow,
+    // RGB>>1) applies inside the window; outside renders unchanged. This
+    // gives an unambiguous OpenCV intensity ratio across the boundary.
+    val winX0Addr     = U(0x0330, 15 bits)
+    val winX0Data     = B(160, 16 bits)
+    val winX1Addr     = U(0x0331, 15 bits)
+    val winX1Data     = B(480, 16 bits)
+    val winY0Addr     = U(0x0332, 15 bits)
+    val winY0Data     = B(120, 16 bits)
+    val winY1Addr     = U(0x0333, 15 bits)
+    val winY1Data     = B(360, 16 bits)
+    val colorMathAddr = U(0x0334, 15 bits)
+    val colorMathData = B(0x4000, 16 bits)  // op=01 shadow, invert=0, constant=0
 
     val bootAddr = Mux(inCopperPhase,  copperAddr,
                     Mux(isTileModeStep, tileModeAddr,
                     Mux(isAttrModeStep, attrModeAddr,
-                    Mux(isCtrlStep,     ctrlAddr, layerAddr))))
+                    Mux(isCtrlStep,     ctrlAddr,
+                    Mux(isLayerStep,    layerAddr,
+                    Mux(isWinX0Step,    winX0Addr,
+                    Mux(isWinX1Step,    winX1Addr,
+                    Mux(isWinY0Step,    winY0Addr,
+                    Mux(isWinY1Step,    winY1Addr, colorMathAddr)))))))))
     val bootDataMux = Mux(inCopperPhase,  copperDataMux,
                        Mux(isTileModeStep, tileModeData,
                        Mux(isAttrModeStep, attrModeData,
-                       Mux(isCtrlStep,     ctrlData, layerData))))
+                       Mux(isCtrlStep,     ctrlData,
+                       Mux(isLayerStep,    layerData,
+                       Mux(isWinX0Step,    winX0Data,
+                       Mux(isWinX1Step,    winX1Data,
+                       Mux(isWinY0Step,    winY0Data,
+                       Mux(isWinY1Step,    winY1Data, colorMathData)))))))))
 
     when(bootWrite) {
       when(bootIdx <= lastStepIdx) {
