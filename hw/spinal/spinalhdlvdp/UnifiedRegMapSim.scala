@@ -146,6 +146,23 @@ object UnifiedRegMapSim extends App {
       s"case4b: after writing 0x0311=0, layer0TileDecodeMode should be 0, got ${dut.io.layer0TileDecodeMode.toInt}")
     println("[sim] case4b VDP_TILE_MODE back to packed — OK")
 
+    // ---- Case 4c (R4.1d Checkpoint A): VDP_TILE_MODE @ 0x0311 = 0x02 ----
+    // Widened 1→2 bit field: 0x02 encodes Amiga-style shuffled/bitplane mode.
+    // Checkpoint A proves the register widening and safe-boundary propagation;
+    // fetch-path behavior for 0x02 lands in Checkpoint B.
+    busWrite(0x0311, 0x0002)
+    dut.clockDomain.waitSampling(hTotal + 10)
+    assert(dut.io.layer0TileDecodeMode.toInt == 2,
+      s"case4c: after writing 0x0311=2, layer0TileDecodeMode should be 2, got ${dut.io.layer0TileDecodeMode.toInt}")
+    println("[sim] case4c VDP_TILE_MODE @ 0x0311 = 2 — OK (shuffled mode latched)")
+
+    // Reset to packed before the next case so subsequent sims start from baseline.
+    busWrite(0x0311, 0x0000)
+    dut.clockDomain.waitSampling(hTotal + 10)
+    assert(dut.io.layer0TileDecodeMode.toInt == 0,
+      s"case4d: after writing 0x0311=0, layer0TileDecodeMode should be 0, got ${dut.io.layer0TileDecodeMode.toInt}")
+    println("[sim] case4d VDP_TILE_MODE back to packed after shuffled — OK")
+
     // ---- Case 5 (R4.1c): VDP_ATTR_MODE @ 0x0312 routes to fetch engine ----
     busWrite(0x0312, 0x0001)
     dut.clockDomain.waitSampling(hTotal + 10)

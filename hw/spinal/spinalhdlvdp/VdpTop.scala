@@ -47,11 +47,15 @@ case class VdpTop() extends Component {
     val regWriteData    = in Bits(16 bits)
     val regWriteEnable  = in Bool()
 
-    // R4.1b stage 3: tile decode mode select out to the SDRAM fetch engine.
-    //   bit 0: 0 = packed 4bpp (R4), 1 = NES-style 2bpp planar
+    // R4.1b stage 3 / R4.1d Checkpoint A: tile decode mode select out to the
+    // SDRAM fetch engine. 2-bit field encoding:
+    //   0x00 = packed 4bpp (R4 baseline)
+    //   0x01 = NES-style 2bpp planar (R4.1b)
+    //   0x02 = Amiga-style shuffled/bitplane (R4.1d)
+    //   0x03 = reserved
     // The latched register is inside VdpTop and safe-boundary-committed to
     // hCounter===0. TopTang routes this to SdramTileAttributeFetch.tileDecodeMode.
-    val layer0TileDecodeMode = out Bits(1 bits)
+    val layer0TileDecodeMode = out Bits(2 bits)
 
     // R4.1c: attribute-pack mode select (VDP_ATTR_MODE @ 0x0312).
     //   bit 0: 0 = linear 1:1 (R4), 1 = NES-style 2×2 packing
@@ -217,13 +221,15 @@ case class VdpTop() extends Component {
     layerEnablePend    := effData(2 downto 0)
     layerEnablePendHit := True
   }
-  // R4.1b stage 3: VDP_TILE_MODE @ 0x0311 follows the same safe-boundary
-  // pattern as layerEnable — pending shadow + commit at hCounter===0.
-  val tileDecodeModeReg     = Reg(Bits(1 bits)) init B(0, 1 bits)
-  val tileDecodeModePend    = Reg(Bits(1 bits)) init B(0, 1 bits)
+  // R4.1b stage 3 / R4.1d Checkpoint A: VDP_TILE_MODE @ 0x0311 follows the
+  // same safe-boundary pattern as layerEnable — pending shadow + commit at
+  // hCounter===0. Widened from 1→2 bits to encode shuffled mode (0x02)
+  // alongside packed (0x00) and planar (0x01). See layer0TileDecodeMode.
+  val tileDecodeModeReg     = Reg(Bits(2 bits)) init B(0, 2 bits)
+  val tileDecodeModePend    = Reg(Bits(2 bits)) init B(0, 2 bits)
   val tileDecodeModePendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x0311, 15 bits)) {
-    tileDecodeModePend    := effData(0 downto 0)
+    tileDecodeModePend    := effData(1 downto 0)
     tileDecodeModePendHit := True
   }
   // R4.1c: VDP_ATTR_MODE @ 0x0312, same safe-boundary pattern.

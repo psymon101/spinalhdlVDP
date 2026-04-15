@@ -58,11 +58,18 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     val pixelPaletteBank = out UInt(3 bits)
     val pixelPriority   = out Bool()
 
-    // R4.1b stage 1 (#7098): tile-row decode mode.
-    //   0 = packed 4bpp (R4 baseline) — 16 pixels per 64-bit row
-    //   1 = NES-style 2-plane 2bpp planar — word0[15:0] = plane 0,
-    //       word1[15:0] = plane 1. Pixel = {plane1[x], plane0[x]}, range 0..3.
-    val tileDecodeMode  = in  Bits(1 bits)
+    // R4.1b stage 1 (#7098) / R4.1d Checkpoint A: tile-row decode mode.
+    // 2-bit encoding (VDP_TILE_MODE @ 0x0311 bits[1:0]):
+    //   0x00 = packed 4bpp (R4 baseline) — 16 pixels per 64-bit row
+    //   0x01 = NES-style 2-plane 2bpp planar (R4.1b) — word0[15:0] = plane 0,
+    //          word1[15:0] = plane 1. Pixel = {plane1[x], plane0[x]}, range 0..3.
+    //   0x02 = Amiga-style shuffled/bitplane (R4.1d) — plane 0 at SDRAM base
+    //          0xA000, plane 1 at 0xB000. Pixel reconstruction identical to
+    //          planar but with separate-base fetches (wired up in Checkpoint B).
+    //   0x03 = reserved
+    // Checkpoint A only widens the port and register; fetch-path behavior for
+    // mode==0x02 is introduced in Checkpoint B.
+    val tileDecodeMode  = in  Bits(2 bits)
 
     // R4.1c: attribute packing mode.
     //   0 = linear 1:1 (R4 baseline) — one attr byte per tile
