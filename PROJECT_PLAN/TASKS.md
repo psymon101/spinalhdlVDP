@@ -283,6 +283,7 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 **Status:** TODO
 **depends_on:** [15]
 **scope_boundary:** Shuffled background fetch only. No planar changes.
+**note:** Planned as **R4.1d — Shuffled Fetch Path**.
 **delivers:**
 
 - Shuffled fetch engine reading non-linear pixel/attribute layout from SDRAM
@@ -484,6 +485,13 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 **Audit Owner:** CyanPeak
 
 **Note:** Stages 1-4 audited and passed (`4290b86`). Stage 5 re-delivered with a packed-friendly diagnostic attribute map (`0xE4`/`0xEC`) producing an unambiguous 2×2 bank-checkerboard (banks 0/1/2/3 from a single shared SDRAM byte) on Tang Nano 20K HDMI capture. All 11 sims pass. 100% verification rule satisfied.
+
+### R4.1d — Shuffled Fetch Path (Amiga-style)
+
+**Status:** TODO  
+**Task doc:** `PROJECT_PLAN/TASK_R4_1D_SHUFFLED_FETCH.md`  
+**Coding Owner:** BrightForge  
+**Audit Owner:** CyanPeak
 
 ### R5 — Host Interface + Copper Coprocessor
 
