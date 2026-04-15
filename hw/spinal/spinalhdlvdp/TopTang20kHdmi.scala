@@ -159,20 +159,23 @@ case class TopTang20kHdmi() extends Component {
 
     // Bootstrap FSM phases:
     //   0..copperLen-1 : upload copper program to 0x0400+idx
-    //   copperLen      : write 0x0311 = 1 (VDP_TILE_MODE = planar)  [R4.1b]
-    //   copperLen+1    : write 0x0312 = 1 (VDP_ATTR_MODE = packed) [R4.1c]
-    //   >=copperLen+2  : done, enable copper
-    val copperLen = copperProgram.length                // 7
+    //   copperLen      : write 0x0311 = 0 (VDP_TILE_MODE = packed 4bpp) [R4.1b]
+    //   copperLen+1    : write 0x0312 = 1 (VDP_ATTR_MODE = packed 2×2)  [R4.1c]
+    //   copperLen+2    : write 0x0310 = 1 (VDP_CTRL = copper enable)    [R5.3]
+    //   >=copperLen+3  : done
+    val copperLen   = copperProgram.length              // 7
     val tileModeIdx = U(copperLen,     4 bits)
     val attrModeIdx = U(copperLen + 1, 4 bits)
-    val lastStepIdx = attrModeIdx
-    val bootIdx   = Reg(UInt(4 bits)) init 0
-    val bootDoneR = Reg(Bool())      init False
+    val ctrlIdx     = U(copperLen + 2, 4 bits)
+    val lastStepIdx = ctrlIdx
+    val bootIdx     = Reg(UInt(4 bits)) init 0
+    val bootDoneR   = Reg(Bool())      init False
 
-    val bootWrite     = !bootDoneR
-    val inCopperPhase = bootIdx < U(copperLen, 4 bits)
+    val bootWrite      = !bootDoneR
+    val inCopperPhase  = bootIdx < U(copperLen, 4 bits)
     val isTileModeStep = bootIdx === tileModeIdx
     val isAttrModeStep = bootIdx === attrModeIdx
+    val isCtrlStep     = bootIdx === ctrlIdx
 
     val copperAddr = U(0x0400, 15 bits) + bootIdx.resize(15)
     val bootData   = copperProgram.map(v => U(v, 16 bits)).toSeq
@@ -184,18 +187,22 @@ case class TopTang20kHdmi() extends Component {
       }
     }
 
-    // R4.1c HW proof: use packed 4bpp tile decode (0x0311=0) so tile 0's
-    // full 0..15 gradient lights every palette slot, making the 2×2 bank
-    // checkerboard visually unambiguous when packed attribute mode is on.
+    // R4.1c HW proof: packed 4bpp tile decode (0x0311=0) so tile 0's 0..15
+    // gradient lights every palette slot, making the 2×2 bank checkerboard
+    // visually unambiguous when packed attribute mode is on.
     val tileModeAddr = U(0x0311, 15 bits)
     val tileModeData = B(0x0000, 16 bits)
     val attrModeAddr = U(0x0312, 15 bits)
     val attrModeData = B(0x0001, 16 bits)   // R4.1c: enable NES-style 2×2 packing
+    val ctrlAddr     = U(0x0310, 15 bits)
+    val ctrlData     = B(0x0001, 16 bits)   // R5.3: enable copper
 
-    val bootAddr = Mux(inCopperPhase, copperAddr,
-                    Mux(isTileModeStep, tileModeAddr, attrModeAddr))
-    val bootDataMux = Mux(inCopperPhase, copperDataMux,
-                       Mux(isTileModeStep, tileModeData, attrModeData))
+    val bootAddr = Mux(inCopperPhase,  copperAddr,
+                    Mux(isTileModeStep, tileModeAddr,
+                    Mux(isAttrModeStep, attrModeAddr, ctrlAddr)))
+    val bootDataMux = Mux(inCopperPhase,  copperDataMux,
+                       Mux(isTileModeStep, tileModeData,
+                       Mux(isAttrModeStep, attrModeData, ctrlData)))
 
     when(bootWrite) {
       when(bootIdx <= lastStepIdx) {
@@ -208,7 +215,6 @@ case class TopTang20kHdmi() extends Component {
     video.io.regWriteAddr   := bootAddr
     video.io.regWriteData   := bootDataMux
     video.io.regWriteEnable := bootWrite && bootIdx <= lastStepIdx
-    video.io.copperEnable   := bootDoneR
 
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100

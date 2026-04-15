@@ -54,7 +54,6 @@ object VdpTopSim extends App {
     dut.io.sprite2X #= 1000; dut.io.sprite2Y #= 1000; dut.io.sprite2Enabled #= false; dut.io.sprite2PatternIdx #= 0
     dut.io.sprite3X #= 1000; dut.io.sprite3Y #= 1000; dut.io.sprite3Enabled #= false; dut.io.sprite3PatternIdx #= 1
     dut.io.regWriteAddr #= 0; dut.io.regWriteData #= 0; dut.io.regWriteEnable #= false
-    dut.io.copperEnable #= false
     // Task 15 L0 mux: stay on the on-chip source for the existing sim coverage.
     dut.io.layer0UseSdram #= false
     // Test-pattern mux added by CoralReef's TestPatternSource integration —

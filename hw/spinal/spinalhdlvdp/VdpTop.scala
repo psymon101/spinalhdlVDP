@@ -47,11 +47,6 @@ case class VdpTop() extends Component {
     val regWriteData    = in Bits(16 bits)
     val regWriteEnable  = in Bool()
 
-    // R5 stage 4: direct Copper enable port for the top-level bootstrap FSM.
-    // A future stage will move this behind a 0x0310 VDP-CTRL register so the
-    // host can toggle copper via the same bus.
-    val copperEnable    = in Bool()
-
     // R4.1b stage 3: tile decode mode select out to the SDRAM fetch engine.
     //   bit 0: 0 = packed 4bpp (R4), 1 = NES-style 2bpp planar
     // The latched register is inside VdpTop and safe-boundary-committed to
@@ -169,12 +164,15 @@ case class VdpTop() extends Component {
   linestate.io.commitStrobe := hCounter === hTotal - 1
   // Prepare-side write interface exposed for simulation testing.
   // R5 Copper coprocessor, fed by the regWrite bus for program uploads and by
-  // `io.copperEnable` for run control. Copper's own regWrite output is merged
-  // below with the external bus so programs can write any range the host can.
+  // `copperCtrlReg(0)` (VDP_CTRL @ 0x0310) for run control — R5.3 unifies the
+  // previously-standalone `io.copperEnable` port with the register bus.
+  val copperCtrlReg     = Reg(Bits(1 bits)) init B(0, 1 bits)
+  val copperCtrlPend    = Reg(Bits(1 bits)) init B(0, 1 bits)
+  val copperCtrlPendHit = Reg(Bool()) init False
   val copper = Copper()
   copper.io.hCounter := hCounter.resize(10)
   copper.io.vCounter := vCounter.resize(10)
-  copper.io.enabled  := io.copperEnable
+  copper.io.enabled  := copperCtrlReg(0)
   val copperProgRangeHit = io.regWriteEnable &&
     (io.regWriteAddr >= U(0x0400, 15 bits)) &&
     (io.regWriteAddr <  U(0x0600, 15 bits))
@@ -236,6 +234,11 @@ case class VdpTop() extends Component {
     attributeModePend    := effData(0 downto 0)
     attributeModePendHit := True
   }
+  // R5.3: VDP_CTRL @ 0x0310, safe-boundary shadow + commit for copper enable.
+  when(effWrite && effAddr === U(0x0310, 15 bits)) {
+    copperCtrlPend    := effData(0 downto 0)
+    copperCtrlPendHit := True
+  }
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {
       layerEnableReg     := layerEnablePend
@@ -248,6 +251,10 @@ case class VdpTop() extends Component {
     when(attributeModePendHit) {
       attributeModeReg     := attributeModePend
       attributeModePendHit := False
+    }
+    when(copperCtrlPendHit) {
+      copperCtrlReg     := copperCtrlPend
+      copperCtrlPendHit := False
     }
   }
   io.layer0TileDecodeMode := tileDecodeModeReg

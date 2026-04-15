@@ -41,7 +41,6 @@ object UnifiedRegMapSim extends App {
     dut.io.regWriteAddr #= 0
     dut.io.regWriteData #= 0
     dut.io.regWriteEnable #= false
-    dut.io.copperEnable #= false
     dut.clockDomain.waitSampling(5)
 
     def busWrite(addr: Int, data: Int): Unit = {
@@ -97,10 +96,9 @@ object UnifiedRegMapSim extends App {
     busWrite(0x0300, 0x0007)
     waitVsync()
 
-    // ---- Case 3: copper program write via 0x0400 + enable ----
+    // ---- Case 3: copper program write via 0x0400 + VDP_CTRL enable ----
     // Upload a tiny program: WAIT y=200, WRITE 0x0300=0x0000, JUMP 0.
-    // Once copperEnable=true, line 200 onward should render black (L0+L1
-    // both disabled by copper).
+    // R5.3: copper is enabled via 0x0310 bit[0] instead of the old io port.
     def WAIT(y: Int): Int = (0 << 14) | (y & 0x3FF)
     def WRITE_OP(addr: Int): Int = (1 << 14) | (addr & 0x3FFF)
     def JUMP(pc: Int): Int = (3 << 14) | (pc & 0x1FF)
@@ -116,7 +114,7 @@ object UnifiedRegMapSim extends App {
     // Reset LAYER_ENABLE to all-on so only copper can disable it.
     busWrite(0x0300, 0x0007)
     waitVsync()
-    dut.io.copperEnable #= true
+    busWrite(0x0310, 0x0001)   // R5.3: VDP_CTRL bit[0] = copper enable
     waitVsync(); waitVsync()
 
     // Sample line 210 (after copper WAIT y=200 fires).
@@ -128,7 +126,7 @@ object UnifiedRegMapSim extends App {
       s"case3 copper write via 0x0400+: line 210 should be black after WAIT+WRITE, got $rgb3")
     println("[sim] case3 copper program via 0x0400 + enable — OK (line 210 = black)")
 
-    dut.io.copperEnable #= false
+    busWrite(0x0310, 0x0000)   // disable copper again
     waitVsync()
 
     // ---- Case 4 (R4.1b): VDP_TILE_MODE @ 0x0311 routes to fetch engine ----
