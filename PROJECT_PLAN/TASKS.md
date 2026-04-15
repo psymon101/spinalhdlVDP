@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-11
+**Updated:** 2026-04-14
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,15 +22,20 @@ If a dependency is not `DONE`, do not start the task.
 
 ## Current Baseline
 
-The repository has already completed the initial output bring-up slice:
+The repository has closed the Mode0 substrate backlog through baseline **`32a87ff`**:
 
-- SBT generation is working
-- Gowin build is working
-- HDMI output is working
-- Hardware flash and verify are working
-- Direct capture confirms the intended current test pattern
+- **R1** — Raster Trigger Unit (`df7af63`)
+- **R2** — Two-Pass Sprite Evaluator
+- **R3** — Static Fetch-Slot Scheduler
+- **R4** — Tile + Attribute Fetch Primitive (`df7af63`)
+- **R4.1** — Multi-Slot Scheduler Coupling (`9dfeb9f`)
+- **R4.1b** — Planar Fetch Path
+- **R4.1c** — Packed-Attribute Decode (`0e4d9dc`)
+- **R5** — Host Interface + Copper Coprocessor
+- **R5.3** — Copper Control Unification (`32a87ff`)
+- **R5.4** — Scroll-Wrap Component Primitive (`d580dcb`)
 
-That means Tasks 1 through 5 are already complete in this repo state.
+That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete in this repo state.
 
 ---
 
@@ -242,9 +247,10 @@ That means Tasks 1 through 5 are already complete in this repo state.
 
 ### Task 15 — Memory-Backed Fetch Path
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [6, 14]
 **scope_boundary:** Tile fetch from SDRAM only. No planar. No shuffled. No sprite SDRAM fetch yet.
+**note:** Delivered by **R4 — Tile + Attribute Fetch Primitive** (`df7af63`).
 **delivers:**
 
 - SDRAM controller in Tang20K wrapper
@@ -258,9 +264,10 @@ That means Tasks 1 through 5 are already complete in this repo state.
 
 ### Task 16 — Planar Fetch Path
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [15]
 **scope_boundary:** Planar background fetch only. No shuffled. No sprite path changes.
+**note:** Delivered by **R4.1b — Planar Fetch** (closed).
 **delivers:**
 
 - Planar fetch engine reading multi-bitplane data from SDRAM
@@ -288,9 +295,10 @@ That means Tasks 1 through 5 are already complete in this repo state.
 
 ### Task 18 — Per-Line Raster Control
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [14]
 **scope_boundary:** Raster effects driven by linestate only. No affine. No color math yet.
+**note:** Delivered by **R1 — Raster Trigger Unit** (`df7af63`).
 **delivers:**
 
 - Per-line scroll variation (different scroll offset per scanline)
@@ -470,21 +478,30 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### R4.1c — Packed-Attribute Decode (NES-style)
 
-**Status:** TODO  
+**Status:** CLOSED (`0e4d9dc`)  
 **Task doc:** `PROJECT_PLAN/TASK_R4_1C_PACKED_ATTRIBUTE.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
+**Note:** Stages 1-4 audited and passed (`4290b86`). Stage 5 re-delivered with a packed-friendly diagnostic attribute map (`0xE4`/`0xEC`) producing an unambiguous 2×2 bank-checkerboard (banks 0/1/2/3 from a single shared SDRAM byte) on Tang Nano 20K HDMI capture. All 11 sims pass. 100% verification rule satisfied.
+
 ### R5 — Host Interface + Copper Coprocessor
 
-**Status:** OPEN  
+**Status:** CLOSED (`32a87ff`)  
 **Task doc:** `PROJECT_PLAN/TASK_R5_HOST_INTERFACE_AND_COPPER.md`  
+**Coding Owner:** BrightForge  
+**Audit Owner:** CyanPeak
+
+### R5.3 — Copper Control Unification (`VDP_CTRL` register)
+
+**Status:** CLOSED (`32a87ff`)  
+**Task doc:** `PROJECT_PLAN/TASK_R5_3_COPPER_CTRL_UNIFICATION.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
 ### R5.4 — Scroll-Wrap Component Primitive
 
-**Status:** TODO  
+**Status:** CLOSED (`d580dcb`)  
 **Task doc:** `PROJECT_PLAN/TASK_R5_4_SCROLL_WRAP.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak

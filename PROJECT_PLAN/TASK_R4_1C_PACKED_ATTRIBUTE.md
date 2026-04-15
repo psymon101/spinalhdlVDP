@@ -132,4 +132,11 @@ The current R4.1 baseline assumes a **linear 1:1 attribute map** (one byte per 8
 
 ## 15. Exit Condition
 
-- This task is done when packed-attribute decode is verified in simulation and shown on hardware using a 2x2 attribute-sharing pattern.
+- This task is done when packed-attribute decode is verified in simulation **and** proven unambiguously on hardware using a dedicated diagnostic attribute map that renders four distinct palette banks from a single 2×2 shared byte.
+
+## 100% Verification Rule (Mandatory)
+
+**This task must be proven 100% before closeout. No exceptions.**
+- Simulator proof (`TileAttributeFetchSim` case 8) is required but not sufficient.
+- An unambiguous hardware proof with a packed-friendly diagnostic attribute map is required.
+- The legacy linear-mode attribute ROM does not satisfy the hardware proof because it produces an ambiguous visual pattern.

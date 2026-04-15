@@ -266,3 +266,12 @@ Instead:
 - split the task
 - add a prerequisite task
 - or clarify the architecture first
+
+## 100% Verification Rule (Mandatory)
+
+**Every task must be proven 100% before closeout. No exceptions.**
+
+- Ambiguous or "probably correct" states are not acceptable because any uncertainty forces a future backtrack to this exact point.
+- Simulator proof alone is not sufficient for hardware-facing primitives; an unambiguous hardware proof is also required.
+- If visual proof is noisy or ambiguous, a dedicated diagnostic asset/probe must be created to resolve the ambiguity.
+- A task is not closed until the final evidence is definitive and reproducible.

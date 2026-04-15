@@ -126,6 +126,15 @@ For FPGA-affecting changes:
 - regenerate outputs from the current source tree before downstream Gowin use
 - follow `PROJECT_PLAN/TEST_PATTERN_POLICY.md` for task proof scenes
 
+### 100% Verification Rule (Mandatory)
+
+**Every task must be proven 100% before closeout. No exceptions.**
+
+- Ambiguous or "probably correct" states are not acceptable.
+- Simulator proof alone is not sufficient for hardware-facing primitives; an unambiguous hardware proof is also required.
+- If visual proof is noisy or ambiguous, a dedicated diagnostic asset/probe must be created to resolve the ambiguity.
+- A task is not closed until the final evidence is definitive and reproducible.
+
 ## Memory Curation Rule
 
 This repo uses the shared workspace `memory` MCP as a queryable cache, not as
