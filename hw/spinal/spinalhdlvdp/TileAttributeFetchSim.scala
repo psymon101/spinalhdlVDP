@@ -140,10 +140,13 @@ object TileAttributeFetchSim extends App {
     // Attribute map boot-copy: verify per-quadrant bank values landed in SDRAM.
     // This isolates "init/ROM bug" from "address/math bug".
     def expectedAttr(tx: Int, ty: Int): Int = attrByteAt(tx, ty)
+    // R4.1c asset: non-BR bytes are 0xE4 (bank=4, priority=0 in linear mode);
+    // BR quadrant is 0xEC (bank=4, priority=1). Packed-mode proof lives in
+    // case 8 which seeds its own block byte.
     val probeQuads = Seq(
-      (0, 0,   1, false),       // top-left     → bank 1, no priority
-      (25, 0,  2, false),       // top-right    → bank 2, no priority
-      (0, 20,  3, false),       // bottom-left  → bank 3, no priority
+      (0, 0,   4, false),       // top-left     → bank 4, no priority
+      (25, 0,  4, false),       // top-right    → bank 4, no priority
+      (0, 20,  4, false),       // bottom-left  → bank 4, no priority
       (25, 20, 4, true)         // bottom-right → bank 4, priority SET
     )
     for ((tx, ty, expBank, expPrio) <- probeQuads) {
@@ -187,24 +190,24 @@ object TileAttributeFetchSim extends App {
     dut.io.pixelAddr #= 0
 
     // ------- Case 1: known tile + known attribute @ (x=8, y=0) --------------
-    // At y=0, tileY=0, the top-left quadrant. tx=0 → bank=1 (reds), prio=0.
+    // R4.1c asset: TL quadrant byte is 0xE4 → linear bank=4, priority=0.
     // Tile 0 is the gradient 0..15, so pixel at x=8 is index=8.
     fireFetchTwice(0)
     val (idx0, bank0, prio0) = readPixel(8)
     assert(idx0 == 8,     s"case1: pixelIndex got=$idx0 exp=8")
-    assert(bank0 == 1,    s"case1: pixelBank got=$bank0 exp=1 (top-left reds)")
+    assert(bank0 == 4,    s"case1: pixelBank got=$bank0 exp=4 (linear 0xE4)")
     assert(prio0 == false, s"case1: pixelPriority got=$prio0 exp=false")
-    println("[sim] case1 known (x=8, y=0) top-left → idx=8 bank=1 prio=0 — OK")
+    println("[sim] case1 known (x=8, y=0) top-left → idx=8 bank=4 prio=0 — OK")
 
-    // ------- Case 2: four-quadrant palette-bank checker ---------------------
-    // Pick a tile x,y from each macro-quadrant and assert the returned bank
-    // matches the attribute map. This is the authoritative test for the
-    // bank-uniformity bug observed on hardware (#6763).
+    // ------- Case 2: four-quadrant spatial addressing ----------------------
+    // R4.1c asset makes all non-BR quadrants share 0xE4 (bank 4) and BR
+    // share 0xEC (bank 4 + priority). Discrimination check is now about
+    // address math reading the correct byte, not about distinct banks.
     val cases2 = Seq(
-      (8,   0,   1, "top-left (reds)"),
-      (328, 0,   2, "top-right (greens)"),
-      (8,   240, 3, "bottom-left (blues)"),
-      (328, 240, 4, "bottom-right (grayscale)")
+      (8,   0,   4, "top-left"),
+      (328, 0,   4, "top-right"),
+      (8,   240, 4, "bottom-left"),
+      (328, 240, 4, "bottom-right")
     )
     for ((px, py, expBank, label) <- cases2) {
       fireFetchTwice(py)
@@ -258,7 +261,7 @@ object TileAttributeFetchSim extends App {
     fireFetchWithSlots(0, windows)
     val (idx5, bank5, _) = readPixel(8)
     assert(idx5 == 8, s"case5 multi-slot: idx got=$idx5 exp=8")
-    assert(bank5 == 1, s"case5 multi-slot: bank got=$bank5 exp=1")
+    assert(bank5 == 4, s"case5 multi-slot: bank got=$bank5 exp=4")
     assert(!dut.io.underrun.toBoolean, "case5 multi-slot: spurious underrun")
     println("[sim] case5 multi-slot 3 windows, fetch completes w/ correct data — OK")
 
@@ -287,7 +290,7 @@ object TileAttributeFetchSim extends App {
     fireFetchTwice(0)
     val (idx6, bank6, _) = readPixel(8)
     assert(idx6 == 8, s"case6 resume: idx corrupted got=$idx6 exp=8")
-    assert(bank6 == 1, s"case6 resume: bank corrupted got=$bank6 exp=1")
+    assert(bank6 == 4, s"case6 resume: bank corrupted got=$bank6 exp=4")
     println("[sim] case6 resume: engine recovers and produces correct data — OK")
 
     // ------- Case 7: narrow-slot resilience --------------------------------
@@ -315,7 +318,7 @@ object TileAttributeFetchSim extends App {
     fireFetchTwice(0)
     val (idx7, bank7, _) = readPixel(8)
     assert(idx7 == 8, s"case7 post-narrow: idx deadlocked got=$idx7 exp=8")
-    assert(bank7 == 1, s"case7 post-narrow: bank deadlocked got=$bank7 exp=1")
+    assert(bank7 == 4, s"case7 post-narrow: bank deadlocked got=$bank7 exp=4")
     println("[sim] case7 engine survives narrow slot + normal recovery — OK")
 
     // ------- Case 8 (R4.1c): packed 2×2 attribute decode --------------------

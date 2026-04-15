@@ -121,27 +121,37 @@ object TileAttributeAssets {
     Seq.fill(MapEntries)(B(0, 8 bits)) ++
     Seq.fill(MapRomDepth - MapEntries)(B(0, 8 bits))
 
-  /** Attribute map: 2×2 quadrants (20×15 tiles each) pick palette banks 0/1/2/3.
-    * Priority bit set on the bottom-right quadrant only, so the optional
-    * metadata proof can tell priority from non-priority at a glance.
+  /** R4.1c-ready attribute map: packed-friendly byte pattern so both linear
+    * and packed-2×2 decode modes produce unambiguous, testable output.
+    *
+    * Byte layout chosen: `0xE4` for all non-BR tiles, `0xEC` for the bottom-
+    * right quadrant (priority bit set for linear-mode priority proof).
+    *
+    *   0xE4 = 0b11100100 → packed fields TL=00, TR=01, BL=10, BR=11
+    *                       → banks 0, 1, 2, 3 per 2×2 block
+    *                       linear: bank=4 (grayscale), priority=0
+    *   0xEC = 0b11101100 → packed fields TL=00, TR=11, BL=10, BR=11
+    *                       linear: bank=4, priority=1
+    *
+    * Linear-mode R4 appearance: a uniform grayscale bank-4 field with
+    * priority-1 in the BR quadrant (bank assignment is uniform, but the mode
+    * is still exercised; the four-way quadrant demo was swapped for a
+    * packed-compatible asset per R4.1c Stage 5 hardware-proof mandate).
+    * Packed-mode R4.1c appearance: every 2×2 tile block renders with four
+    * distinct palette banks (0,1,2,3), producing the bank-checkerboard the
+    * hardware proof was designed to make visible.
     */
+  val NonBrAttrByte = 0xE4
+  val BrAttrByte    = 0xEC
+
   def attributeMapBytesInit: Seq[Bits] = {
     val out = new scala.collection.mutable.ArrayBuffer[Bits]()
     for (ty <- 0 until MapTilesY; tx <- 0 until MapTilesX) {
       val left = tx < (MapTilesX / 2)
       val top  = ty < (MapTilesY / 2)
-      // Banks 1-4 (not 0) so bank 0 remains reserved for the legacy L1 16-color
-      // palette; the checkerboard quadrants render from the R4 color ramps.
-      val bank = (top, left) match {
-        case (true,  true)  => 1  // top-left:     reds
-        case (true,  false) => 2  // top-right:    greens
-        case (false, true)  => 3  // bottom-left:  blues
-        case (false, false) => 4  // bottom-right: grayscale
-      }
-      val priority = !top && !left
-      out += B(packAttr(bank, priority), 8 bits)
+      val byte = if (!top && !left) BrAttrByte else NonBrAttrByte
+      out += B(byte, 8 bits)
     }
-    // Pad to MapRomDepth (2048) for GT-022.
     val padded = out.toSeq ++ Seq.fill(MapRomDepth - MapEntries)(B(0, 8 bits))
     padded
   }
@@ -223,13 +233,7 @@ object TileAttributeAssets {
   def attrByteAt(tx: Int, ty: Int): Int = {
     val left = tx < (MapTilesX / 2)
     val top  = ty < (MapTilesY / 2)
-    val bank = (top, left) match {
-      case (true,  true)  => 1
-      case (true,  false) => 2
-      case (false, true)  => 3
-      case (false, false) => 4
-    }
-    packAttr(bank, priority = !top && !left)
+    if (!top && !left) BrAttrByte else NonBrAttrByte
   }
 
   // Sanity counts

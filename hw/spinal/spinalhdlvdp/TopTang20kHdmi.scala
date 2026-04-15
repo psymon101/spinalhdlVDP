@@ -184,8 +184,11 @@ case class TopTang20kHdmi() extends Component {
       }
     }
 
+    // R4.1c HW proof: use packed 4bpp tile decode (0x0311=0) so tile 0's
+    // full 0..15 gradient lights every palette slot, making the 2×2 bank
+    // checkerboard visually unambiguous when packed attribute mode is on.
     val tileModeAddr = U(0x0311, 15 bits)
-    val tileModeData = B(0x0001, 16 bits)
+    val tileModeData = B(0x0000, 16 bits)
     val attrModeAddr = U(0x0312, 15 bits)
     val attrModeData = B(0x0001, 16 bits)   // R4.1c: enable NES-style 2×2 packing
 

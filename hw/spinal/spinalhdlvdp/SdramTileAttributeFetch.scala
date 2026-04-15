@@ -82,8 +82,8 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     // show what bank the engine *actually* reads on real SDRAM. Probe points
     // cover two distinct quadrants — if the engine addresses correctly, they
     // should differ.
-    val debugAttrTL  = out UInt(3 bits)   // top-left (tileIdx=2,  tileY=2 ) — exp 1
-    val debugAttrBR  = out UInt(3 bits)   // bot-right(tileIdx=30, tileY=25) — exp 4
+    val debugAttrTL  = out UInt(3 bits)   // top-left (tileIdx=2,  tileY=2 ) — exp 4 (R4.1c 0xE4)
+    val debugAttrBR  = out UInt(3 bits)   // bot-right(tileIdx=30, tileY=25) — exp 4 (R4.1c 0xEC)
   }
 
   // ==========================================================================
