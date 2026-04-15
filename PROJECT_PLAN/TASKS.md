@@ -331,7 +331,7 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 
 ### Task 20 — Color Math / Window Effects
 
-**Status:** TODO
+**Status:** IN-PROGRESS
 **depends_on:** [13, 14]
 **scope_boundary:** Post-compositor effects only. No changes to upstream pipeline.
 **delivers:**
@@ -515,6 +515,13 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 **Status:** CLOSED (`d580dcb`)  
 **Task doc:** `PROJECT_PLAN/TASK_R5_4_SCROLL_WRAP.md`  
+**Coding Owner:** BrightForge  
+**Audit Owner:** CyanPeak
+
+### R6 — Color Math / Window Effects
+
+**Status:** IN-PROGRESS  
+**Task doc:** `PROJECT_PLAN/TASK_20_COLOR_MATH_WINDOW.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
