@@ -112,14 +112,28 @@ object TileAttributeAssets {
   val MapRomDepth = 2048
   require(isPow2(MapRomDepth))
 
-  /** Tile map for the palette-bank checkerboard proof scene.
+  /** Tile map. R4.1d Checkpoint C: 2×2 repeating pattern of tile indices
+    * 0/1/2/3 so the bitplane-checkerboard diagnostic exposes every dual-plane
+    * sub-field across the full screen. The pattern is:
     *
-    * All 1200 tiles reference tile 0 (gradient). The visible differentiation
-    * comes from the attribute map's paletteBank field.
+    *     tx even, ty even → tile 0  (pixel value 0b00)
+    *     tx odd,  ty even → tile 1  (pixel value 0b01)
+    *     tx even, ty odd  → tile 2  (pixel value 0b10)
+    *     tx odd,  ty odd  → tile 3  (pixel value 0b11)
+    *
+    * Packed 4bpp mode still renders meaningfully (gradient/diagonal/rings/
+    * checker tiles selected per quadrant) — only the planar/shuffled mode
+    * needs the diagnostic semantics this layout supports.
     */
-  def tileMapBytesInit: Seq[Bits] =
-    Seq.fill(MapEntries)(B(0, 8 bits)) ++
-    Seq.fill(MapRomDepth - MapEntries)(B(0, 8 bits))
+  def tileMapBytesInit: Seq[Bits] = {
+    val out = new scala.collection.mutable.ArrayBuffer[Bits]()
+    for (ty <- 0 until MapTilesY; tx <- 0 until MapTilesX) {
+      val tileIdx = (ty & 1) * 2 + (tx & 1)
+      out += B(tileIdx, 8 bits)
+    }
+    val padded = out.toSeq ++ Seq.fill(MapRomDepth - MapEntries)(B(0, 8 bits))
+    padded
+  }
 
   /** R4.1c-ready attribute map: packed-friendly byte pattern so both linear
     * and packed-2×2 decode modes produce unambiguous, testable output.
@@ -224,7 +238,7 @@ object TileAttributeAssets {
     val tileY = y / TileHeight
     val pixelX = x % TileWidth
     val pixelY = y % TileHeight
-    val tileIdx = 0  // all tiles are Tile 0 in the proof scene
+    val tileIdx = (tileY & 1) * 2 + (tileX & 1)  // R4.1d Checkpoint C 2×2 map
     val attr = attrByteAt(tileX, tileY)
     val idx = tilePatterns(tileIdx)(pixelY)(pixelX)
     (idx, attrBank(attr), attrPriority(attr))

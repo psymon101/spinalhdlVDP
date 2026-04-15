@@ -159,15 +159,17 @@ case class TopTang20kHdmi() extends Component {
 
     // Bootstrap FSM phases:
     //   0..copperLen-1 : upload copper program to 0x0400+idx
-    //   copperLen      : write 0x0311 = 0 (VDP_TILE_MODE = packed 4bpp) [R4.1b]
-    //   copperLen+1    : write 0x0312 = 1 (VDP_ATTR_MODE = packed 2×2)  [R4.1c]
-    //   copperLen+2    : write 0x0310 = 1 (VDP_CTRL = copper enable)    [R5.3]
-    //   >=copperLen+3  : done
+    //   copperLen      : write 0x0311 = 2 (VDP_TILE_MODE = shuffled)    [R4.1d]
+    //   copperLen+1    : write 0x0312 = 0 (VDP_ATTR_MODE = linear)      [R4.1d]
+    //   copperLen+2    : write 0x0310 = 0 (VDP_CTRL copper disabled)    [R4.1d]
+    //   copperLen+3    : write 0x0300 = 1 (LAYER_ENABLE = L0 only)      [R4.1d]
+    //   >=copperLen+4  : done
     val copperLen   = copperProgram.length              // 7
     val tileModeIdx = U(copperLen,     4 bits)
     val attrModeIdx = U(copperLen + 1, 4 bits)
     val ctrlIdx     = U(copperLen + 2, 4 bits)
-    val lastStepIdx = ctrlIdx
+    val layerIdx    = U(copperLen + 3, 4 bits)
+    val lastStepIdx = layerIdx
     val bootIdx     = Reg(UInt(4 bits)) init 0
     val bootDoneR   = Reg(Bool())      init False
 
@@ -176,6 +178,7 @@ case class TopTang20kHdmi() extends Component {
     val isTileModeStep = bootIdx === tileModeIdx
     val isAttrModeStep = bootIdx === attrModeIdx
     val isCtrlStep     = bootIdx === ctrlIdx
+    val isLayerStep    = bootIdx === layerIdx
 
     val copperAddr = U(0x0400, 15 bits) + bootIdx.resize(15)
     val bootData   = copperProgram.map(v => U(v, 16 bits)).toSeq
@@ -187,22 +190,28 @@ case class TopTang20kHdmi() extends Component {
       }
     }
 
-    // R4.1c HW proof: packed 4bpp tile decode (0x0311=0) so tile 0's 0..15
-    // gradient lights every palette slot, making the 2×2 bank checkerboard
-    // visually unambiguous when packed attribute mode is on.
+    // R4.1d Checkpoint C HW proof: shuffled/bitplane tile decode (0x0311=2)
+    // with linear attribute mode (0x0312=0), copper disabled (0x0310=0), and
+    // L1 disabled (0x0300=1, L0 only). The static 2×2 tile-index map combined
+    // with uniform-pixel-value tiles produces a clean bitplane-checkerboard
+    // exposing all four dual-plane sub-fields {plane1[bit], plane0[bit]}.
     val tileModeAddr = U(0x0311, 15 bits)
-    val tileModeData = B(0x0000, 16 bits)
+    val tileModeData = B(0x0002, 16 bits)   // R4.1d Checkpoint C: shuffled/bitplane mode
     val attrModeAddr = U(0x0312, 15 bits)
-    val attrModeData = B(0x0001, 16 bits)   // R4.1c: enable NES-style 2×2 packing
+    val attrModeData = B(0x0000, 16 bits)   // R4.1d Checkpoint C: linear attribute mode
     val ctrlAddr     = U(0x0310, 15 bits)
-    val ctrlData     = B(0x0001, 16 bits)   // R5.3: enable copper
+    val ctrlData     = B(0x0000, 16 bits)   // R4.1d Checkpoint C: copper disabled
+    val layerAddr    = U(0x0300, 15 bits)
+    val layerData    = B(0x0001, 16 bits)   // R4.1d Checkpoint C: LAYER_ENABLE = L0 only
 
     val bootAddr = Mux(inCopperPhase,  copperAddr,
                     Mux(isTileModeStep, tileModeAddr,
-                    Mux(isAttrModeStep, attrModeAddr, ctrlAddr)))
+                    Mux(isAttrModeStep, attrModeAddr,
+                    Mux(isCtrlStep,     ctrlAddr, layerAddr))))
     val bootDataMux = Mux(inCopperPhase,  copperDataMux,
                        Mux(isTileModeStep, tileModeData,
-                       Mux(isAttrModeStep, attrModeData, ctrlData)))
+                       Mux(isAttrModeStep, attrModeData,
+                       Mux(isCtrlStep,     ctrlData, layerData))))
 
     when(bootWrite) {
       when(bootIdx <= lastStepIdx) {
@@ -222,9 +231,13 @@ case class TopTang20kHdmi() extends Component {
     // positions so the per-line selection-limit effect is unambiguously
     // observable on a single captured frame.
 
-    video.io.sprite0Enabled := True
+    // R4.1d Checkpoint C: disable all sprites for clean static bitplane
+    // checkerboard. The R2 sprite proof scene (overflow band, etc.) is not
+    // part of this lane; sprites overlay the diagnostic and confound the
+    // bit-observable OpenCV verification.
+    video.io.sprite0Enabled := False
     video.io.sprite0PatternIdx := U(0, 1 bit)
-    video.io.sprite1Enabled := True
+    video.io.sprite1Enabled := False
     video.io.sprite1PatternIdx := U(1, 1 bit)
 
     // R2 proof scene — deliberately forces the 2-per-line selection limit.
@@ -246,13 +259,13 @@ case class TopTang20kHdmi() extends Component {
     video.io.sprite1Y := U(120, 10 bits)
 
     video.io.sprite2X := U(360, 10 bits)
-    video.io.sprite2Y := U(120, 10 bits)   // forces overflow on the 120..135 Y band
-    video.io.sprite2Enabled := True
+    video.io.sprite2Y := U(120, 10 bits)
+    video.io.sprite2Enabled := False        // R4.1d Checkpoint C: sprites off
     video.io.sprite2PatternIdx := U(0, 1 bit)
 
     video.io.sprite3X := U(300, 10 bits)
-    video.io.sprite3Y := U(360, 10 bits)   // separate Y band, must be visible
-    video.io.sprite3Enabled := True
+    video.io.sprite3Y := U(360, 10 bits)
+    video.io.sprite3Enabled := False        // R4.1d Checkpoint C: sprites off
     video.io.sprite3PatternIdx := U(1, 1 bit)
 
     // R4: SDRAM tile+attribute fetch. Replaces the retired SdramTileFetch.

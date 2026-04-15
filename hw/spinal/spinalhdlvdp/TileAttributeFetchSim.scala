@@ -131,11 +131,24 @@ object TileAttributeFetchSim extends App {
     println("[sim] memtestPass")
 
     // ------- Boot-copy spot-checks ------------------------------------------
-    // Every tile map byte should be 0 (all tiles are tile 0 in the proof scene).
-    for (i <- Seq(0, 1, 799, 800, 1199)) {
-      assert(readByte(TileMapBase + i) == 0, s"tileMap[$i] nonzero")
+    // R4.1d Checkpoint C: tile map is 2×2 repeating tile indices 0/1/2/3
+    // computed as (ty&1)*2 + (tx&1). Verify spot positions match.
+    val mapChecks = Seq(
+      (0,   0, 0),  // (tx=0,ty=0)
+      (1,   0, 1),  // (tx=1,ty=0)
+      (40,  0, 0),  // (tx=0,ty=1) — index 40 = MapTilesX+0
+      (41,  0, 1),  // tx=1,ty=1 → wait this is wrong
+      (1199, 0, 0)  // last entry: tx=39, ty=29 → (1)*2+(1)=3 — placeholder, fix below
+    )
+    // Compute expected per offset directly.
+    for (i <- Seq(0, 1, 40, 41, 80, 81, 1199)) {
+      val tx = i % MapTilesX
+      val ty = i / MapTilesX
+      val exp = (ty & 1) * 2 + (tx & 1)
+      assert(readByte(TileMapBase + i) == exp,
+        s"tileMap[$i] (tx=$tx,ty=$ty) got=${readByte(TileMapBase + i)} exp=$exp")
     }
-    println("[sim] boot: tileMap all-zero OK")
+    println("[sim] boot: tileMap 2×2 repeating OK")
 
     // Attribute map boot-copy: verify per-quadrant bank values landed in SDRAM.
     // This isolates "init/ROM bug" from "address/math bug".
@@ -313,8 +326,15 @@ object TileAttributeFetchSim extends App {
     for (_ <- 0 until 300) dut.clockDomain.waitSampling()
     dut.io.fetchSlotValid #= false
     for (_ <- 0 until 1000) dut.clockDomain.waitSampling()
-    // Re-open and follow with a normal fetch: engine must still function.
+    // Re-open and follow with normal fetches: engine must still function.
+    // R4.1d Checkpoint C note: with the new 2×2 repeating tile map (vs. the
+    // prior all-zero map) the narrow-slot scenario can leave one ping-pong
+    // buffer with partial data from the interrupted line=120 fetch (which
+    // hits tiles 2/3 in odd ty rows). One additional fireFetchTwice(0) cycle
+    // ensures both buffers are refreshed with line=0 content (tiles 0/1)
+    // before the assertion.
     dut.io.fetchSlotValid #= true
+    fireFetchTwice(0)
     fireFetchTwice(0)
     val (idx7, bank7, _) = readPixel(8)
     assert(idx7 == 8, s"case7 post-narrow: idx deadlocked got=$idx7 exp=8")
@@ -364,38 +384,40 @@ object TileAttributeFetchSim extends App {
     dut.io.attributeMode #= 0
     dut.clockDomain.waitSampling(20)
 
-    // ------- Case 9 (R4.1d Checkpoint B): Amiga-style shuffled/bitplane mode -
-    // Verifies the dual-base fetch path: plane 0 from PlanarTileAssets.SdramBase
-    // (0xA000), plane 1 from PlanarTileAssets.Plane1SdramBase (0xB000), with
-    // pixel reconstruction {plane1[bit], plane0[bit]} == the same pattern the
-    // R4.1b vstripe4 tile-0 asset encodes (0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3).
+    // ------- Case 9 (R4.1d Checkpoint B+C): Amiga-style shuffled/bitplane ----
+    // Verifies the dual-base fetch path AND the Checkpoint C diagnostic asset:
+    //   * plane 0 from PlanarTileAssets.SdramBase (0xA000)
+    //   * plane 1 from PlanarTileAssets.Plane1SdramBase (0xB000)
+    //   * pixel reconstruction {plane1[bit], plane0[bit]}
+    //   * tile patterns are uniform-per-tile (Checkpoint C diagnostic):
+    //       tile 0 → idx 0, tile 1 → idx 1, tile 2 → idx 2, tile 3 → idx 3
+    //   * tile map is 2×2 repeating: (tx&1, ty&1) → tile (tx&1)+(ty&1)*2
     //
-    // Bootstrap has already copied plane 0 ROM → 0xA000 and plane 1 ROM →
-    // 0xB000, so this case only exercises the fetch-path mode switch and
-    // reconstruction.
+    // Reading line y=0 (ty=0) hits tiles 0 and 1 across alternating tileX.
+    // Reading line y=16 (ty=1) hits tiles 2 and 3.
     dut.io.tileDecodeMode #= 2     // shuffled/bitplane
-    dut.clockDomain.waitSampling(20)   // CDC settle (tileDecodeMode sync via BufferCC)
+    dut.clockDomain.waitSampling(20)   // CDC settle
 
     fireFetchTwice(0)
-    // Tile 0 (vstripe4) indices: x=0..3→0, x=4..7→1, x=8..11→2, x=12..15→3
-    val expectShuffled = Seq((0, 0), (4, 1), (8, 2), (12, 3))
-    for ((px, expIdx) <- expectShuffled) {
-      val (idx, _, _) = readPixel(px)
-      assert(idx == expIdx,
-        s"case9 shuffled tile-0 pixel @ x=$px: idx got=$idx exp=$expIdx " +
-        s"(plane0@0xA000, plane1@0xB000)")
-      println(s"[sim] case9 shuffled x=$px idx=$idx — OK")
-    }
+    // y=0 → ty=0; tile (tx=0)=tile 0 → idx 0; tile (tx=1)=tile 1 → idx 1
+    val (idx9_t0, _, _) = readPixel(0)    // tx=0, tile 0 → uniform idx 0
+    val (idx9_t1, _, _) = readPixel(16)   // tx=1, tile 1 → uniform idx 1
+    val (idx9_t0b, _, _) = readPixel(8)   // tx=0, mid tile, still tile 0
+    assert(idx9_t0  == 0, s"case9 ty=0 tx=0 (tile 0): idx got=$idx9_t0 exp=0")
+    assert(idx9_t0b == 0, s"case9 ty=0 tx=0 mid: idx got=$idx9_t0b exp=0")
+    assert(idx9_t1  == 1, s"case9 ty=0 tx=1 (tile 1): idx got=$idx9_t1 exp=1")
+    println(s"[sim] case9 ty=0 tx=0 idx=0, tx=1 idx=1 — OK (Checkpoint C plane0 bit visible)")
 
-    // Cross-plane sanity: at x=8 plane 0 bit = 0, plane 1 bit = 1 → idx=2.
-    // This specifically proves plane 1 came from the SECOND base; if both
-    // reads had hit plane 0 (0xA000) the reconstruction would read 0 for
-    // both bits at x=8 and give idx=0.
-    val (idxProof, _, _) = readPixel(8)
-    assert(idxProof == 2,
-      s"case9 dual-base proof @ x=8: idx got=$idxProof exp=2 " +
-      s"(would be 0 if plane 1 read from wrong base)")
-    println(s"[sim] case9 dual-base proof: x=8 idx=2 — plane 1 fetched from 0xB000 OK")
+    fireFetchTwice(16)
+    // y=16 → ty=1; tile (tx=0)=tile 2 → idx 2; tile (tx=1)=tile 3 → idx 3
+    val (idx9_t2, _, _) = readPixel(0)
+    val (idx9_t3, _, _) = readPixel(16)
+    assert(idx9_t2 == 2,
+      s"case9 ty=1 tx=0 (tile 2): idx got=$idx9_t2 exp=2 " +
+      s"(would be 0 if plane 1 read from wrong base — DUAL-BASE PROOF)")
+    assert(idx9_t3 == 3,
+      s"case9 ty=1 tx=1 (tile 3): idx got=$idx9_t3 exp=3")
+    println(s"[sim] case9 ty=1 tx=0 idx=2, tx=1 idx=3 — OK (Checkpoint C plane1 bit visible, dual-base proof)")
 
     // Restore packed mode before exiting for cleanliness.
     dut.io.tileDecodeMode #= 0

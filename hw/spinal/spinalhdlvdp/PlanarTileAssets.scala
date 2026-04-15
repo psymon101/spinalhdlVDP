@@ -29,22 +29,24 @@ object PlanarTileAssets {
   val TileBytes    = TileHeight * RowBytes        // 128
   val TotalBytes   = TileCount * TileBytes        // 512 — power of two
 
-  // Tile patterns — each is a function from pixelY → 16-pixel row of 2-bit
-  // indices.  Indices 0..3 map through the active palette bank.
-  private def vstripe4(y: Int): Seq[Int] =
-    (0 until 16).map(x => x / 4)              // 0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3
-  private def hstripe4(y: Int): Seq[Int] =
-    (0 until 16).map(_ => y / 4)              // each row uniform 0/1/2/3
+  // R4.1d Checkpoint C: bitplane-checkerboard diagnostic patterns.
+  // Each tile is uniform in pixel value so the four sub-fields produced by
+  // {plane1[bit], plane0[bit]} are bit-observable on HDMI.
+  //   tile 0: plane0=0, plane1=0 → uniform pixel value 0b00 (idx 0)
+  //   tile 1: plane0=1, plane1=0 → uniform pixel value 0b01 (idx 1)
+  //   tile 2: plane0=0, plane1=1 → uniform pixel value 0b10 (idx 2)
+  //   tile 3: plane0=1, plane1=1 → uniform pixel value 0b11 (idx 3)
+  // Combined with TileAttributeAssets's 2×2 repeating tile map this produces
+  // a clean 2×2 tile checkerboard where every quadrant exposes one specific
+  // sub-field of the dual-plane reconstruction.
   private def solid(c: Int)(y: Int): Seq[Int] =
     (0 until 16).map(_ => c)
-  private def diag(y: Int): Seq[Int] =
-    (0 until 16).map(x => (x + y) & 0x3)      // 4-color diagonal stripes
 
   private val tilePatterns: Seq[Int => Seq[Int]] = Seq(
-    vstripe4 _,           // 0: vertical 4-color stripes
-    hstripe4 _,           // 1: horizontal 4-color stripes
-    diag _,               // 2: diagonal stripes
-    solid(3) _            // 3: solid index 3
+    solid(0) _,           // 0: uniform pixel value 0b00
+    solid(1) _,           // 1: uniform pixel value 0b01
+    solid(2) _,           // 2: uniform pixel value 0b10
+    solid(3) _            // 3: uniform pixel value 0b11
   )
   require(tilePatterns.length == TileCount)
 
