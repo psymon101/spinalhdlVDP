@@ -20,7 +20,8 @@ import spinal.core._
   * Per asset set (4 tiles): 4 × 128 = 512 bytes (power-of-two — GT-022 ✓)
   */
 object PlanarTileAssets {
-  val SdramBase = 0x0A000
+  val SdramBase        = 0x0A000        // Plane 0 base (R4.1b + R4.1d plane 0)
+  val Plane1SdramBase  = 0x0B000        // Plane 1 base (R4.1d shuffled/bitplane)
 
   val TileCount    = 4
   val TileHeight   = 16
@@ -89,6 +90,38 @@ object PlanarTileAssets {
     }
     require(out.length == TotalBytes,
       s"planar bytes length ${out.length} != expected $TotalBytes")
+    out.toSeq.map(b => B(b, 8 bits))
+  }
+
+  /** R4.1d shuffled-mode boot ROM: plane 1 only, laid out at the SAME per-tile
+    * per-row offset as `planarRowBytesInit` but containing only plane 1 bytes
+    * at word0's low 16 bits. This lets `SdramTileAttributeFetch` fetch plane 1
+    * from a SEPARATE base address (0xB000) using the same tileIdx*128+py*8
+    * stride. Unpack reads `unpackRow(47:32)` as plane 1 — for shuffled mode the
+    * word1-side 32-bit fetch lands here, and its low 16 bits feed that slice.
+    *
+    * Per row layout (8 bytes):
+    *   bytes[0..1] = plane1[15:0] little-endian (same encoding as planarRow)
+    *   bytes[2..7] = 0 (unused; wastes 6B/row but keeps stride identical)
+    */
+  def plane1RowBytesInit: Seq[Bits] = {
+    val out = scala.collection.mutable.ArrayBuffer[Int]()
+    for (t <- 0 until TileCount; r <- 0 until TileHeight) {
+      val pixels = tilePatterns(t)(r)
+      require(pixels.length == 16)
+      var plane1 = 0
+      for ((p, x) <- pixels.zipWithIndex) {
+        val bit = 15 - x
+        if ((p & 2) != 0) plane1 |= (1 << bit)
+      }
+      out ++= Seq(
+        plane1       & 0xFF,
+        (plane1 >> 8) & 0xFF,
+        0, 0, 0, 0, 0, 0
+      )
+    }
+    require(out.length == TotalBytes,
+      s"plane1 bytes length ${out.length} != expected $TotalBytes")
     out.toSeq.map(b => B(b, 8 bits))
   }
 

@@ -364,6 +364,43 @@ object TileAttributeFetchSim extends App {
     dut.io.attributeMode #= 0
     dut.clockDomain.waitSampling(20)
 
+    // ------- Case 9 (R4.1d Checkpoint B): Amiga-style shuffled/bitplane mode -
+    // Verifies the dual-base fetch path: plane 0 from PlanarTileAssets.SdramBase
+    // (0xA000), plane 1 from PlanarTileAssets.Plane1SdramBase (0xB000), with
+    // pixel reconstruction {plane1[bit], plane0[bit]} == the same pattern the
+    // R4.1b vstripe4 tile-0 asset encodes (0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3).
+    //
+    // Bootstrap has already copied plane 0 ROM → 0xA000 and plane 1 ROM →
+    // 0xB000, so this case only exercises the fetch-path mode switch and
+    // reconstruction.
+    dut.io.tileDecodeMode #= 2     // shuffled/bitplane
+    dut.clockDomain.waitSampling(20)   // CDC settle (tileDecodeMode sync via BufferCC)
+
+    fireFetchTwice(0)
+    // Tile 0 (vstripe4) indices: x=0..3→0, x=4..7→1, x=8..11→2, x=12..15→3
+    val expectShuffled = Seq((0, 0), (4, 1), (8, 2), (12, 3))
+    for ((px, expIdx) <- expectShuffled) {
+      val (idx, _, _) = readPixel(px)
+      assert(idx == expIdx,
+        s"case9 shuffled tile-0 pixel @ x=$px: idx got=$idx exp=$expIdx " +
+        s"(plane0@0xA000, plane1@0xB000)")
+      println(s"[sim] case9 shuffled x=$px idx=$idx — OK")
+    }
+
+    // Cross-plane sanity: at x=8 plane 0 bit = 0, plane 1 bit = 1 → idx=2.
+    // This specifically proves plane 1 came from the SECOND base; if both
+    // reads had hit plane 0 (0xA000) the reconstruction would read 0 for
+    // both bits at x=8 and give idx=0.
+    val (idxProof, _, _) = readPixel(8)
+    assert(idxProof == 2,
+      s"case9 dual-base proof @ x=8: idx got=$idxProof exp=2 " +
+      s"(would be 0 if plane 1 read from wrong base)")
+    println(s"[sim] case9 dual-base proof: x=8 idx=2 — plane 1 fetched from 0xB000 OK")
+
+    // Restore packed mode before exiting for cleanliness.
+    dut.io.tileDecodeMode #= 0
+    dut.clockDomain.waitSampling(20)
+
     println("[sim] TileAttributeFetchSim: PASS")
   }
 }

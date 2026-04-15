@@ -161,7 +161,12 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     val planarBitIdx = (U(15, 4 bits) - unpackIdx).resize(4)
     val px2Planar = (plane1Bits(planarBitIdx) ## plane0Bits(planarBitIdx)).asBits
     val px4Planar = px2Planar.resize(4)
-    val px4 = Mux(io.tileDecodeMode(0), px4Planar, px4Packed)
+    // R4.1d Checkpoint B: shuffled mode uses the same pixel reconstruction as
+    // planar (plane1[bit] ## plane0[bit]) — the difference is only at the
+    // fetch layer (plane 1 read redirected to Plane1SdramBase). Bit[1] OR
+    // bit[0] selects the 2bpp decode path.
+    val useTwoPlane = io.tileDecodeMode(0) || io.tileDecodeMode(1)
+    val px4 = Mux(useTwoPlane, px4Planar, px4Packed)
     val pxPacked = (unpackPrio ## unpackBank.asBits ## px4).asBits
     val shifted = ((tileCountReg * U(16, 6 bits)).resize(11)
                     + unpackIdx.resize(11)
@@ -248,6 +253,11 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     // boot-copied to SDRAM at PlanarTileAssets.SdramBase (0xA000), disjoint
     // from the R4 packed regions.
     val planarRowRom = Mem(Bits(8 bits), initialContent = PlanarTileAssets.planarRowBytesInit)
+    // R4.1d Checkpoint B: plane-1 boot ROM for Amiga-style shuffled mode. Copied
+    // to SDRAM at PlanarTileAssets.Plane1SdramBase (0xB000). Same stride as
+    // plane0; per row bytes[0..1] carry plane1 data at the low 16 bits of the
+    // 32-bit fetch word, feeding unpackRow(47:32) via the second word fetch.
+    val plane1RowRom = Mem(Bits(8 bits), initialContent = PlanarTileAssets.plane1RowBytesInit)
 
     // FIFO push side
     val pushValid   = RegInit(False)
@@ -307,18 +317,32 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     // R4.1b: planar mode reads tile rows from PlanarTileAssets.SdramBase
     // instead of TileRowBase. Tile row layout is identical (16 rows × 8 bytes
     // per tile), so only the base address swaps.
-    val tileRowBaseSel = Mux(io.tileDecodeMode(0),
+    // R4.1d Checkpoint B: shuffled mode also uses PlanarTileAssets.SdramBase
+    // for plane 0 reads (word 0); word 1 is redirected to Plane1SdramBase
+    // inside tileRowByteAddr when shuffled mode is active.
+    val planarSel    = io.tileDecodeMode(0)
+    val shuffledSel  = io.tileDecodeMode(1)
+    val tileRowBaseSel = Mux(planarSel || shuffledSel,
                              U(PlanarTileAssets.SdramBase, 23 bits),
                              U(TileRowBase, 23 bits))
     val tileRowBaseSelSync = BufferCC(tileRowBaseSel, init = U(TileRowBase, 23 bits))
+    val shuffledSync       = BufferCC(shuffledSel,    init = False)
 
     // R4.1c: packed-attribute mode select, 1-bit CDC (slow-changing register).
     val attributeModeSync = BufferCC(io.attributeMode(0), init = False)
     def tileRowByteAddr(tIdx: UInt, py: UInt, wordIdx: UInt): UInt = {
-      val offset = ((tIdx.resize(16) * U(TileHeight * TileRowBytes, 16 bits)) +
-                    (py.resize(16)   * U(TileRowBytes, 16 bits)) +
-                    (wordIdx.resize(16) * U(4, 16 bits))).resize(23)
-      (tileRowBaseSelSync + offset).resize(23)
+      // Per-row offset within a plane buffer: tIdx*128 + py*8. In shuffled mode
+      // the wordIdx*4 byte offset is dropped because each plane lives in its
+      // own buffer (word 0 = plane0 buffer; word 1 = plane1 buffer).
+      val rowOffset = ((tIdx.resize(16) * U(TileHeight * TileRowBytes, 16 bits)) +
+                       (py.resize(16)   * U(TileRowBytes, 16 bits))).resize(23)
+      val linearOffset = (rowOffset + (wordIdx.resize(16) * U(4, 16 bits)).resize(23)).resize(23)
+      val effOffset = Mux(shuffledSync, rowOffset, linearOffset)
+      // In shuffled mode, word 1 comes from the plane-1 base (0xB000); word 0
+      // uses the normal planar base (0xA000) via tileRowBaseSelSync.
+      val plane1Addr = (U(PlanarTileAssets.Plane1SdramBase, 23 bits) + effOffset).resize(23)
+      val baseAddr   = (tileRowBaseSelSync + effOffset).resize(23)
+      Mux(shuffledSync && wordIdx(0), plane1Addr, baseAddr)
     }
 
     cmdRd      := False
@@ -338,6 +362,7 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
       val sBootAttrMap   = new State
       val sBootTileRows  = new State
       val sBootPlanar    = new State    // R4.1b stage 2
+      val sBootPlane1    = new State    // R4.1d Checkpoint B
       val sMemtestWrite  = new State
       val sMemtestReadRq = new State
       val sMemtestCheck  = new State
@@ -405,6 +430,22 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
             cmdWr   := True
             cmdAddr := (U(PlanarTileAssets.SdramBase, 23 bits) + bootCounter.resize(23)).resized
             cmdDin  := planarRowRom.readAsync(bootCounter.resize(log2Up(PlanarTileAssets.TotalBytes)))
+            bootCounter := bootCounter + 1
+          }.otherwise { bootCounter := 0; goto(sBootPlane1) }
+        }
+      }
+
+      // R4.1d Checkpoint B: copy plane-1 ROM into SDRAM at Plane1SdramBase
+      // (0xB000). Same stride as plane 0, carries plane 1 bits at byte[0..1]
+      // of each row so the word-1 32-bit fetch in shuffled mode lands plane 1
+      // data in the low 16 bits of the second row word.
+      sBootPlane1.whenIsActive {
+        when(!io.sdramBusy && !cmdRd && !cmdWr && !cmdRefresh) {
+          when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 11; goto(sRefresh) }
+          .elsewhen(bootCounter < PlanarTileAssets.TotalBytes) {
+            cmdWr   := True
+            cmdAddr := (U(PlanarTileAssets.Plane1SdramBase, 23 bits) + bootCounter.resize(23)).resized
+            cmdDin  := plane1RowRom.readAsync(bootCounter.resize(log2Up(PlanarTileAssets.TotalBytes)))
             bootCounter := bootCounter + 1
           }.otherwise { bootCounter := 0; bootDoneR := True; goto(sMemtestWrite) }
         }
@@ -601,6 +642,7 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
             is(8) { goto(sBootAttrMap) }
             is(9) { goto(sFetchAttrRq) }
             is(10) { goto(sBootPlanar) }   // R4.1b stage 2
+            is(11) { goto(sBootPlane1) }   // R4.1d Checkpoint B
             default { goto(sIdle) }
           }
         }
