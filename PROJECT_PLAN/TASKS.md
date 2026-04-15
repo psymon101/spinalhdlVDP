@@ -280,7 +280,7 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 
 ### Task 17 — Shuffled Fetch Path
 
-**Status:** IN-PROGRESS
+**Status:** DONE
 **depends_on:** [15]
 **scope_boundary:** Shuffled background fetch only. No planar changes.
 **note:** Planned as **R4.1d — Shuffled Fetch Path**.
@@ -488,14 +488,14 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### R4.1d — Shuffled Fetch Path (Amiga-style)
 
-**Status:** IN-PROGRESS  
+**Status:** CLOSED (`0087920`)  
 **Task doc:** `PROJECT_PLAN/TASK_R4_1D_SHUFFLED_FETCH.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
 **Checkpoint A:** COMPLETE / AUDIT-PASSED (`8a86f31`) — `VDP_TILE_MODE @ 0x0311` widened 1→2 bits, `UnifiedRegMapSim` case 4c/4d proves safe-boundary commit.  
 **Checkpoint B:** COMPLETE / AUDIT-PASSED (`db6b933`) — dual-base fetch path implemented, `TileAttributeFetchSim` case 9 proves bit-accurate reconstruction, all 11 sims PASS.  
-**Checkpoint C:** IN-PROGRESS — bitplane-checkerboard diagnostic scene + Tang Nano 20K HDMI capture + mandatory 30s OpenCV analysis.
+**Checkpoint C:** COMPLETE (`0087920`) — bitplane-checkerboard diagnostic scene rendered on Tang Nano 20K; 30s OpenCV analysis shows four distinct intensity bands (~25% each) with 0 spikes / 0 freezes; all 11 sims PASS.
 
 ### R5 — Host Interface + Copper Coprocessor
 

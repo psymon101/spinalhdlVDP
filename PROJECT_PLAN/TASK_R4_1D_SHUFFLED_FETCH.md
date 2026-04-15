@@ -1,6 +1,6 @@
 # TASK_R4_1D_SHUFFLED_FETCH.md
 
-**Status:** OPEN (PM-approved post-backlog extension)
+**Status:** CLOSED (`0087920`)
 **Classification:** New post-backlog extension — not part of the previously closed Mode0 substrate backlog.
 **Created:** 2026-04-15
 **Coding Owner:** BrightForge
@@ -161,17 +161,15 @@ To avoid an open-ended implementation stall, BrightForge will deliver R4.1d thro
 - Full 11-sim regression green.
 
 ### Checkpoint C — Hardware diagnostic proof
-**Status:** IN-PROGRESS
+**Status:** COMPLETE (`0087920`)
 
-**Deliver:**
+**Delivered:**
 - Bootstrap path loads the bitplane-checkerboard diagnostic scene (Plane 0 + Plane 1 copied to SDRAM).
-- Tang Nano 20K HDMI proof capture.
-- Mandatory 30s OpenCV analysis.
+- Tang Nano 20K HDMI proof capture (`r41d_hw_proof.png`).
+- Mandatory 30s OpenCV analysis: 1500 frames captured, four distinct intensity bands (black / dark gray / light gray / white) each covering ~25% of pixels, 0 spikes / 0 freezes / 0 isolated jumps.
 - Final closeout packet addressing CyanPeak’s three audit points.
 
 **Exit packet:**
 - Hardware capture path/reference
 - OpenCV summary
 - Final closeout note
-
-**Next step now:** BrightForge proceeds to **Checkpoint C** and reports back upon completion.
