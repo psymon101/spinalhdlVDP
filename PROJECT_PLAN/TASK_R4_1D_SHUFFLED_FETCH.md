@@ -32,11 +32,15 @@ Extend the R4.1 fetch engine to support **shuffled (interleaved) layouts**, wher
 
 ### In Scope
 
-- **`shuffledMode` select**: A new mode bit in `VDP_TILE_MODE` or a new register.
+- **`shuffledMode` select**: A dedicated mode value in the **existing `VDP_TILE_MODE @ 0x0311` register**. The field expands from 1 bit to 2 bits with the following encoding:
+  - `0x00` = packed 4bpp (R4 default)
+  - `0x01` = planar 2bpp (R4.1b)
+  - `0x02` = **shuffled (Amiga-style bitplane) 2bpp (R4.1d)**
+  - `0x03` = reserved
 - **Interleaved Fetch Logic**:
-  - The FSM must be able to fetch "shuffled" words where bitplanes or attribute fields are interleaved within the SDRAM burst.
+  - Amiga-style bitplane shuffle: two separately-based plane buffers in SDRAM. For each tile row, the FSM issues one read from Plane 0 base, then one read from Plane 1 base. Pixel reconstruction is `{plane1[bit] ## plane0[bit]}` producing a 2bpp index.
 - **Coordinate Transformation**:
-  - Logic to remap `tileX/tileY` to a shuffled SDRAM address space if the layout is non-linear.
+  - No non-linear `tileX/tileY` remap. Address math remains identical to R4; only the **SDRAM base address** changes per plane. Plane 0 base = existing planar base (`0xA000`). Plane 1 base = new offset (`0xB000`).
 - **Sim Coverage**:
   - New test cases in `TileAttributeFetchSim` verifying data reconstruction from a shuffled SDRAM buffer.
 - **Hardware Proof**:
@@ -62,13 +66,13 @@ Extend the R4.1 fetch engine to support **shuffled (interleaved) layouts**, wher
 
 | Addr | Name | Width | Description |
 |------|------|------:|-------------|
-| `0x0311` | `VDP_TILE_MODE` | 16 | bit[1]=1 Shuffled Mode (R4.1d) |
+| `0x0311` | `VDP_TILE_MODE` | 16 | bit[1:0] tile decode mode. `0`=packed 4bpp, `1`=planar 2bpp, `2`=shuffled/bitplane 2bpp, `3`=reserved. |
 
 ---
 
 ## 6. Data Model
 
-- **`shuffleRemapReg`**: Optional register if the shuffle pattern is configurable.
+- **No configurable remap register** for this lane. The shuffle pattern is fixed to the Amiga-style separate-base bitplane layout described above. Future generalization (e.g., `shuffleRemapReg`) is explicitly out of scope.
 
 ---
 
@@ -80,42 +84,46 @@ Extend the R4.1 fetch engine to support **shuffled (interleaved) layouts**, wher
 
 ## 8. Memory / Bandwidth Impact
 
-- Dependent on the specific shuffle pattern; goal is to maintain R4.1 bandwidth efficiency.
+- Two reads per tile row (Plane 0 + Plane 1) from distinct SDRAM regions. Bandwidth remains comparable to planar mode because each read is still a single contiguous burst.
 
 ---
 
 ## 9. Platform Reuse
 
-- Amiga (Primary)
-- Arcade hardware (Secondary)
+- Amiga bitplane DMA (Primary)
+- Arcade hardware (Secondary — explicitly out of scope for this first delivery)
 
 ---
 
 ## 10. Failure Modes / Risks
 
-- **Burst fragmentation**: If the shuffle requires many small reads, bandwidth will collapse.
-- **Logic complexity**: High gate count for the barrel shifters/shufflers.
+- **Burst fragmentation**: Avoided by design — each plane is a single contiguous burst per tile row.
+- **Logic complexity**: Low; the only new logic is a base-address mux (Plane 0 vs Plane 1) and a 2-bit pixel reconstruction `{plane1, plane0}`.
 
 ---
 
 ## 11. Validation Plan
 
-- **`TileAttributeFetchSim`**: Verify bit-accurate reconstruction from a shuffled memory seed.
+- **`TileAttributeFetchSim`**:
+  - **Case 9**: Seed Plane 0 and Plane 1 SDRAM buffers with known patterns, verify the reconstructed 2bpp pixel stream matches `{plane1, plane0}` for every pixel in the tile row.
+  - Cross-check that switching `0x0311 = 2` at `hCounter === 0` activates the new base-address path.
+- **`UnifiedRegMapSim`**: Verify `0x0311 = 2` propagates through the safe-boundary shadow+commit path.
 - **Full regression**: All 11 project sims pass.
 
 ---
 
 ## 12. Hardware Proof
 
-- A bitmap scene stored in shuffled format in SDRAM, rendered without artifacts.
+- **Diagnostic scene**: "Bitplane Checkerboard". A synthetic 2×2 tile pattern where adjacent tiles map to the four possible 2bpp values (`00`, `01`, `10`, `11`), each routed to a distinct palette bank. This makes the two-plane reconstruction bit-observable on HDMI with zero visual ambiguity.
+- The scene uses the same `PlanarTileAssets` ROM source, but plane 0 is copied to SDRAM `0xA000` and plane 1 to `0xB000` during bootstrap.
 
 ---
 
 ## 13. Audit Questions
 
-- Is the shuffle logic efficient (low gate count)?
-- Does it correctly handle the safe-boundary commit pattern?
-- Is there an unambiguous hardware proof?
+- Is the separate base-address fetch logic gate-efficient (no barrel shifter / no remap table)?
+- Does `VDP_TILE_MODE` correctly expand to 2 bits with the same safe-boundary shadow+commit pattern?
+- Is the bitplane-checkerboard hardware proof unambiguous and backed by 30s OpenCV analysis?
 
 ---
 
