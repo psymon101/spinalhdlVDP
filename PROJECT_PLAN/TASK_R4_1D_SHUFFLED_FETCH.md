@@ -136,3 +136,46 @@ Extend the R4.1 fetch engine to support **shuffled (interleaved) layouts**, wher
 ## 15. Exit Condition
 
 - This task is done when shuffled-mode fetch is verified in simulation and shown on hardware with a stable bitmap render.
+
+---
+
+## 16. Implementation Checkpoints
+
+To avoid an open-ended implementation stall, BrightForge will deliver R4.1d through three bounded checkpoints. Each checkpoint ends with a commit and a brief evidence packet.
+
+### Checkpoint A — Control-path widening only
+**Deliver:**
+- `VDP_TILE_MODE @ 0x0311` widened from 1 bit to 2 bits in the safe-boundary shadow+commit path (`VdpTop`).
+- `UnifiedRegMapSim` proves `0x0311 = 2` latches and propagates correctly at the safe boundary.
+- No fetch-path behavior change required yet.
+
+**Exit packet:**
+- Commit hash
+- Changed files list
+- `UnifiedRegMapSim` result for the new mode value
+
+### Checkpoint B — Fetch-path reconstruction in simulation
+**Deliver:**
+- Shuffled-mode fetch path using Plane 0 @ `0xA000`, Plane 1 @ `0xB000`.
+- Pixel reconstruction `{plane1[bit], plane0[bit]}`.
+- `TileAttributeFetchSim` case 9 proving bit-accurate reconstruction.
+- Full 11-sim regression green.
+
+**Exit packet:**
+- Commit hash
+- Case 9 evidence (assertion pass log)
+- Full sim summary
+
+### Checkpoint C — Hardware diagnostic proof
+**Deliver:**
+- Bootstrap path loads the bitplane-checkerboard diagnostic scene (Plane 0 + Plane 1 copied to SDRAM).
+- Tang Nano 20K HDMI proof capture.
+- Mandatory 30s OpenCV analysis.
+- Final closeout packet addressing CyanPeak’s three audit points.
+
+**Exit packet:**
+- Hardware capture path/reference
+- OpenCV summary
+- Final closeout note
+
+**Next step now:** BrightForge proceeds to **Checkpoint A** and reports back upon completion.
