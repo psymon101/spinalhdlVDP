@@ -17,7 +17,7 @@ R4.1d Shuffled Fetch Path (Amiga-style / Interleaved)
 
 ## 2. Purpose
 
-Extend the R4.1 fetch engine to support **shuffled (interleaved) layouts**, where pixel data and attribute data for a tile are stored in a non-linear sequence or a different memory arrangement compared to the standard packed/planar modes. This is common in platforms like the Amiga or certain arcade hardware to optimize bandwidth or hardware layout.
+Extend the R4.1 fetch engine to support **Amiga-style dual-base bitplane fetch**. In this mode, two separate plane buffers live in SDRAM at distinct base addresses. For each tile row, the FSM reads one burst from Plane 0 and one burst from Plane 1, reconstructing a 2bpp pixel index as `{plane1[bit], plane0[bit]}`. This completes the legacy background-layer fetch primitive superset.
 
 **Classification note:** This lane is a deliberate **post-backlog extension**. The Mode0 substrate backlog (R1–R5.4, R4.1b/c, R5.3) remains closed at baseline `32a87ff` / `86934d0`. R4.1d is an optional next-phase expansion that completes the legacy fetch primitive superset.
 
@@ -144,29 +144,25 @@ Extend the R4.1 fetch engine to support **shuffled (interleaved) layouts**, wher
 To avoid an open-ended implementation stall, BrightForge will deliver R4.1d through three bounded checkpoints. Each checkpoint ends with a commit and a brief evidence packet.
 
 ### Checkpoint A — Control-path widening only
-**Deliver:**
-- `VDP_TILE_MODE @ 0x0311` widened from 1 bit to 2 bits in the safe-boundary shadow+commit path (`VdpTop`).
-- `UnifiedRegMapSim` proves `0x0311 = 2` latches and propagates correctly at the safe boundary.
-- No fetch-path behavior change required yet.
+**Status:** COMPLETE / AUDIT-PASSED (`8a86f31`)
 
-**Exit packet:**
-- Commit hash
-- Changed files list
-- `UnifiedRegMapSim` result for the new mode value
+**Delivered:**
+- `VDP_TILE_MODE @ 0x0311` widened from 1 bit to 2 bits in the safe-boundary shadow+commit path (`VdpTop`).
+- `UnifiedRegMapSim` case 4c/4d proves `0x0311 = 2` latches and propagates correctly at the safe boundary.
+- No fetch-path behavior change.
 
 ### Checkpoint B — Fetch-path reconstruction in simulation
-**Deliver:**
+**Status:** COMPLETE / AUDIT-PASSED (`db6b933`)
+
+**Delivered:**
 - Shuffled-mode fetch path using Plane 0 @ `0xA000`, Plane 1 @ `0xB000`.
 - Pixel reconstruction `{plane1[bit], plane0[bit]}`.
-- `TileAttributeFetchSim` case 9 proving bit-accurate reconstruction.
+- `TileAttributeFetchSim` case 9 proving bit-accurate reconstruction (dual-base proof at `x=8 idx=2`).
 - Full 11-sim regression green.
 
-**Exit packet:**
-- Commit hash
-- Case 9 evidence (assertion pass log)
-- Full sim summary
-
 ### Checkpoint C — Hardware diagnostic proof
+**Status:** IN-PROGRESS
+
 **Deliver:**
 - Bootstrap path loads the bitplane-checkerboard diagnostic scene (Plane 0 + Plane 1 copied to SDRAM).
 - Tang Nano 20K HDMI proof capture.
@@ -178,4 +174,4 @@ To avoid an open-ended implementation stall, BrightForge will deliver R4.1d thro
 - OpenCV summary
 - Final closeout note
 
-**Next step now:** BrightForge proceeds to **Checkpoint A** and reports back upon completion.
+**Next step now:** BrightForge proceeds to **Checkpoint C** and reports back upon completion.

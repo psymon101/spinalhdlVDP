@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-14
+**Updated:** 2026-04-15
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -280,17 +280,17 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 
 ### Task 17 — Shuffled Fetch Path
 
-**Status:** TODO
+**Status:** IN-PROGRESS
 **depends_on:** [15]
 **scope_boundary:** Shuffled background fetch only. No planar changes.
 **note:** Planned as **R4.1d — Shuffled Fetch Path**.
 **delivers:**
 
-- Shuffled fetch engine reading non-linear pixel/attribute layout from SDRAM
-- Pixel and attribute combined correctly
-- Shuffled scene rendered on hardware
+- Amiga-style dual-base 2bpp bitplane fetch path (Plane 0 @ `0xA000`, Plane 1 @ `0xB000`)
+- Pixel reconstruction `{plane1[bit], plane0[bit]}` from separate SDRAM bases
+- Bitplane-checkerboard diagnostic scene rendered on hardware
 
-**validation:** Shuffled bitmap scene (Scenario 10) passes on hardware.
+**validation:** Shuffled bitmap scene (Scenario 10) passes on hardware with 30s OpenCV stability analysis.
 
 ---
 
@@ -488,10 +488,14 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### R4.1d — Shuffled Fetch Path (Amiga-style)
 
-**Status:** TODO  
+**Status:** IN-PROGRESS  
 **Task doc:** `PROJECT_PLAN/TASK_R4_1D_SHUFFLED_FETCH.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
+
+**Checkpoint A:** COMPLETE / AUDIT-PASSED (`8a86f31`) — `VDP_TILE_MODE @ 0x0311` widened 1→2 bits, `UnifiedRegMapSim` case 4c/4d proves safe-boundary commit.  
+**Checkpoint B:** COMPLETE / AUDIT-PASSED (`db6b933`) — dual-base fetch path implemented, `TileAttributeFetchSim` case 9 proves bit-accurate reconstruction, all 11 sims PASS.  
+**Checkpoint C:** IN-PROGRESS — bitplane-checkerboard diagnostic scene + Tang Nano 20K HDMI capture + mandatory 30s OpenCV analysis.
 
 ### R5 — Host Interface + Copper Coprocessor
 
