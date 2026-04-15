@@ -32,7 +32,7 @@ Provide a **safe, host-programmable control surface** for the VDP and a **minima
 - **HostInterface component**
   - QSPI clock-domain adapter + **16-entry command FIFO**
   - Indirect register access: `VDP_ADDR`, `VDP_DATA`, `VDP_INC`, `VDP_STATUS`, `VDP_CTRL`
-  - CommandParser in pixel domain that applies writes at the **line boundary** (`hCounter === 0` or `hTotal - 1`, see §7)
+  - CommandParser in pixel domain that applies writes at the **safe boundary** (`hCounter === 0`, see §7)
 - **Copper component**
   - 4-instruction engine: `WAIT`, `WRITE`, `WRITE_SEQ`, `JUMP`
   - **1KB program RAM** (512 × 16-bit words), host-writable when disabled
@@ -142,13 +142,13 @@ val regWriteData   = in Bits(16 bits)
 val regWriteEnable = in Bool()
 ```
 
-Inside `VdpTop`, a small `RegisterMap` decoder routes writes to:
+Inside `VdpTop`, the unified register-write bus is decoded directly (already delivered in the current codebase):
 - `0x0000–0x01DF` → `LinestateStore` prepare side
 - `0x0200–0x027F` → palette RAM (128 entries, banked)
 - `0x0300–0x030F` → scroll / layer-enable / raster control registers
 - `0x0400–0x07FF` → copper program RAM (mirror of copper `progWr` path)
 
-*(Exact decode ranges are illustrative; implementer may adjust for alignment simplicity.)*
+*(Exact decode ranges are illustrative; alignment was adjusted for simplicity in implementation.)*
 
 ---
 
@@ -164,6 +164,16 @@ Inside `VdpTop`, a small `RegisterMap` decoder routes writes to:
 
 - **CommandParser buffer**: Up to 16 deferred `(addr, data)` pairs; all applied atomically at the safe boundary.
 - **Copper state**: 10-bit target X, 10-bit target Y, 9-bit PC.
+
+### FIFO / CommandParser Contract
+
+The following behavior contract is enforced by `HostInterface` and relied upon by firmware:
+
+1. **Queue contents**: The FIFO holds only **register-write queue entries** (`{addr[14:0], data[15:0]}`), not a generic command stream.
+2. **Ordering**: Host writes preserve strict FIFO order. A `VDP_DATA` write enqueues the current `VDP_ADDR` value paired with the data word.
+3. **Drain rate**: The pixel-domain `CommandParser` emits **one write per cycle** while the drain window is open (`hCounter === 0` or during vblank).
+4. **Vblank behavior**: During vertical blanking, writes may drain continuously without buffering.
+5. **`flush_fifo`**: The bit is named in the `HOST_CTRL` / `VDP_CTRL` register map but is **not yet implemented** in the current codebase. When implemented, the intended semantics are host-domain FIFO reset (discard all queued entries). Until then, hosts must avoid overflow by monitoring `fifo_full`.
 
 ### GT-022 Checklist
 

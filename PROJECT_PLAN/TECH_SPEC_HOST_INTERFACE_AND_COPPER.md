@@ -48,11 +48,13 @@ The QSPI adapter presents the following MMIO registers to the host:
 | 0x02 | `VDP_DATA` | 16 | W | Write data; triggers FIFO enqueue |
 | 0x04 | `VDP_INC` | 8 | RW | Auto-increment value after each write (default = 1) |
 | 0x06 | `VDP_STATUS` | 8 | R | `{fifo_full, fifo_empty, vblank, line[9:2]}` |
-| 0x08 | `VDP_CTRL` | 8 | RW | `{irq_enable, copper_enable, flush_fifo}` |
+| 0x08 | `HOST_CTRL` (`VDP_CTRL` in current code) | 8 | RW | `{irq_enable, copper_enable, flush_fifo}` — host-side control shadow register |
+
+> **Layering clarification:** `hostAddr` selects **host-side shadow/status registers** (`VDP_ADDR`, `VDP_DATA`, `VDP_INC`, `VDP_STATUS`, `HOST_CTRL`). Only writes to `VDP_DATA` enqueue entries into the internal VDP register-space FIFO. The target address for those queued writes is the value held in the host-side `VDP_ADDR` shadow register. The internal VDP register space (accessed by the pixel-domain `CommandParser`) is a separate 15-bit address map; `0x0310` inside that map is the VDP register-space control register consumed by `VdpTop`.
 
 ### 3.3 VDP Address Space
 
-Addresses 0x0000–0x7FFF map into the VDP's internal resources:
+Addresses 0x0000–0x7FFF map into the VDP's internal register space (the destination of queued FIFO writes):
 
 | Range | Resource |
 |-------|----------|
@@ -79,10 +81,10 @@ FIFO entry format: `{addr[14:0], data[15:0]}` = 31 bits.
 A `CommandParser` module in the pixel clock domain consumes the FIFO:
 
 - During **active video**: entries are buffered but NOT applied
-- At **hTotal-1** (line boundary): all buffered entries are applied atomically
+- At **`hCounter === 0`** (start of visible line, immediately after the line-buffer swap): all buffered entries are applied atomically
 - During **vblank**: entries are applied continuously
 
-This guarantees that no host write can change linestate mid-line. It matches the icestation-32 recommendation to disable the copper during CPU VDP access; here, we enforce it structurally by delaying writes to the line boundary.
+This guarantees that no host write can change linestate mid-line. The boundary was moved from `hTotal-1` to `hCounter === 0` to avoid a race with the R4.1 fetch-slot scheduler grant, which fires at `hTotal-1`.
 
 ### 3.6 Benefits
 
