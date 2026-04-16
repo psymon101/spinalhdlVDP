@@ -703,6 +703,17 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     O_led(3) := !fetch.io.memtestPass
     O_led(4) := fetch.io.memtestFail
     O_led(5) := fetch.io.underrun
+    // Task 21 debug Step 2 (Sc15 only): override LEDs 3+4 to expose
+    // tileDecodeModeReg so we can visually confirm on hardware whether the
+    // copper-driven mode switch is reaching the pixel-domain register.
+    //   mode 0x0 (packed) :  LED3=off LED4=off
+    //   mode 0x1 (planar) :  LED3=on  LED4=off
+    //   mode 0x2 (shuffled): LED3=off LED4=on
+    // LEDs are active-low (0 = lit). Remove this block once Task 21 closes.
+    if (scenarioId == 15) {
+      O_led(3) := !video.io.layer0TileDecodeMode(0)
+      O_led(4) := !video.io.layer0TileDecodeMode(1)
+    }
   }
 
   // Wire SDRAM controller's logic-side signals to the fetch engine. Both live
