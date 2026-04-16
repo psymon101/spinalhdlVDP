@@ -11,6 +11,12 @@ import spinal.core._
   *   3 = Wave 1 Scenario 3 — Scenario 1 + per-frame layer1ScrollX +8 px/frame (frequent wrap)
   *   4 = Wave 1 Scenario 4 — Scenario 1 + sprite 0 enabled at fixed (320, 240)
   *   5 = Wave 1 Scenario 5 — Scenario 1 + 4 sprites enabled, bouncing motion
+  *   6..11 = Wave 2 scenarios (see `PROJECT_PLAN/scenarios/SCENARIO_*.md`)
+  *  13 = Palette animation during motion — L0 packed-mode rich tiles + L1
+  *       1 px/frame scroll + copper-driven `VDP_ATTR_MODE` toggle across 7 bands
+  *       (linear ↔ packed 2×2). Palette is ROM-only, so this proves
+  *       palette-cycle-like color animation via attribute-mode switching rather
+  *       than literal palette rewrites. See `SCENARIO_13.md`.
   */
 case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   setDefinitionName("top_tang20k")
@@ -142,6 +148,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 3 => 8
       case 6 => 1     // Sc6 sprites over scrolling bg
       case 8 => 3     // Sc8 parallax: L1 fast (3× L0)
+      case 13 => 1    // Sc13 palette-animation-during-motion: L1 @ 1 px/frame
       case _ => 0
     }
     val scrollL0 = Reg(UInt(log2Up(l0MapWidth) bits)) init 0
@@ -175,15 +182,32 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     //   WAIT:  [15:14]=00, [9:0]=Y
     //   WRITE: [15:14]=01, [13:0]=addr, next word = data
     //   JUMP:  [15:14]=11, [8:0]=target PC
-    val copperProgram: Seq[Int] = Seq(
-      (0 << 14) | 160,              // WAIT y=160
-      (1 << 14) | 0x0300,           // WRITE addr=0x0300
-      0x0001,                       // data (L0 only)
-      (0 << 14) | 320,              // WAIT y=320
-      (1 << 14) | 0x0300,           // WRITE addr=0x0300
-      0x0003,                       // data (L0 + L1)
-      (3 << 14) | 0                 // JUMP 0
-    )
+    val copperProgram: Seq[Int] = scenarioId match {
+      case 13 =>
+        // Sc13: toggle VDP_ATTR_MODE @ 0x0312 every 60 lines across 7 bands.
+        // Safe-boundary commit (hCounter===0) already handled in VdpTop.scala
+        // so each toggle lands cleanly at line start.
+        Seq(
+          (0 << 14) |  60, (1 << 14) | 0x0312, 0x0001,
+          (0 << 14) | 120, (1 << 14) | 0x0312, 0x0000,
+          (0 << 14) | 180, (1 << 14) | 0x0312, 0x0001,
+          (0 << 14) | 240, (1 << 14) | 0x0312, 0x0000,
+          (0 << 14) | 300, (1 << 14) | 0x0312, 0x0001,
+          (0 << 14) | 360, (1 << 14) | 0x0312, 0x0000,
+          (0 << 14) | 420, (1 << 14) | 0x0312, 0x0001,
+          (3 << 14) | 0
+        )
+      case _ =>
+        Seq(
+          (0 << 14) | 160,              // WAIT y=160
+          (1 << 14) | 0x0300,           // WRITE addr=0x0300
+          0x0001,                       // data (L0 only)
+          (0 << 14) | 320,              // WAIT y=320
+          (1 << 14) | 0x0300,           // WRITE addr=0x0300
+          0x0003,                       // data (L0 + L1)
+          (3 << 14) | 0                 // JUMP 0
+        )
+    }
 
     // Bootstrap FSM phases:
     //   0..copperLen-1 : upload copper program to 0x0400+idx
@@ -257,7 +281,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case _      => 0x0000    // linear (all other scenarios)
     }, 16 bits)
     val ctrlAddr     = U(0x0310, 15 bits)
-    val ctrlData     = B(0x0000, 16 bits)   // copper disabled (all scenarios)
+    // Copper enabled ONLY for Sc13 (copper drives ATTR_MODE toggle animation).
+    // All other scenarios leave copper disabled even though the program is
+    // uploaded to 0x0400+.
+    val ctrlData     = B(if (scenarioId == 13) 0x0001 else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
       case 0           => 0x0001  // R4.1d Checkpoint C: L0 only
@@ -267,6 +294,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 8           => 0x0003  // L0 + L1 (parallax, no sprites)
       case 9 | 10      => 0x0001  // L0 only (planar/shuffled bitmap)
       case 11          => 0x0003  // L0 + L1 default; per-line linestate overrides
+      case 13          => 0x0003  // L0 + L1 (palette-animation-during-motion)
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
@@ -561,4 +589,8 @@ object TopTang20kHdmiScenario10Verilog extends App {
 }
 object TopTang20kHdmiScenario11Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 11))
+}
+// Wave 3 scenario.
+object TopTang20kHdmiScenario13Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 13))
 }
