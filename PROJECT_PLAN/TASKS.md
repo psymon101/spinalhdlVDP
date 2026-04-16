@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | audit → implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `074ddd0` |
-| **Latest Auth Mail** | #7322 (CyanPeak: Task 19 GO) |
-| **Next Deliverable** | Checkpoint A — control/register contract (BrightForge) |
+| **Latest Commit** | `5f4370b` |
+| **Latest Auth Mail** | #7326 (BrightForge: Checkpoint A exit) |
+| **Next Deliverable** | Checkpoint A audit — CyanPeak sign-off |
 | **Coding Authorized** | **YES** — CyanPeak signed off at #7322 |
 
 Rules:
