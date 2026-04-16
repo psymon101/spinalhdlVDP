@@ -131,11 +131,17 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     //   3 = +8 px/frame on L1 (Scenario 3 frequent wrap)
     //   4 = static (single sprite)
     //   5 = static (4 bouncing sprites, motion is on sprite X/Y not on scroll)
-    val l0StepFrames = scenarioId match { case 0 => 1; case _ => 0 }
+    val l0StepFrames = scenarioId match {
+      case 0 => 1
+      case 8 => 1     // Sc8 parallax: L0 slow
+      case _ => 0
+    }
     val l1StepFrames = scenarioId match {
       case 0 => 2
       case 2 => 1
       case 3 => 8
+      case 6 => 1     // Sc6 sprites over scrolling bg
+      case 8 => 3     // Sc8 parallax: L1 fast (3× L0)
       case _ => 0
     }
     val scrollL0 = Reg(UInt(log2Up(l0MapWidth) bits)) init 0
@@ -192,21 +198,27 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     //   copperLen+8    : write 0x0334 = 0x4000 (op=01 shadow, no invert) [Task 20]
     //   >=copperLen+9  : done
     val copperLen     = copperProgram.length              // 7
-    val tileModeIdx   = U(copperLen,     5 bits)
-    val attrModeIdx   = U(copperLen + 1, 5 bits)
-    val ctrlIdx       = U(copperLen + 2, 5 bits)
-    val layerIdx      = U(copperLen + 3, 5 bits)
-    val winX0Idx      = U(copperLen + 4, 5 bits)
-    val winX1Idx      = U(copperLen + 5, 5 bits)
-    val winY0Idx      = U(copperLen + 6, 5 bits)
-    val winY1Idx      = U(copperLen + 7, 5 bits)
-    val colorMathIdx  = U(copperLen + 8, 5 bits)
-    val lastStepIdx   = colorMathIdx
-    val bootIdx     = Reg(UInt(5 bits)) init 0
+    val tileModeIdx   = U(copperLen,     7 bits)
+    val attrModeIdx   = U(copperLen + 1, 7 bits)
+    val ctrlIdx       = U(copperLen + 2, 7 bits)
+    val layerIdx      = U(copperLen + 3, 7 bits)
+    val winX0Idx      = U(copperLen + 4, 7 bits)
+    val winX1Idx      = U(copperLen + 5, 7 bits)
+    val winY0Idx      = U(copperLen + 6, 7 bits)
+    val winY1Idx      = U(copperLen + 7, 7 bits)
+    val colorMathIdx  = U(copperLen + 8, 7 bits)
+    // Sc 11 only: 60 additional linestate writes (every 8th line, lines 0..472).
+    val LinestateCount = 60
+    val linestateBase  = colorMathIdx + 1   // first linestate step
+    val lastStepIdx    = scenarioId match {
+      case 11 => U(copperLen + 8 + LinestateCount, 7 bits)   // = 75
+      case _  => colorMathIdx
+    }
+    val bootIdx     = Reg(UInt(7 bits)) init 0
     val bootDoneR   = Reg(Bool())      init False
 
     val bootWrite      = !bootDoneR
-    val inCopperPhase  = bootIdx < U(copperLen, 5 bits)
+    val inCopperPhase  = bootIdx < U(copperLen, 7 bits)
     val isTileModeStep = bootIdx === tileModeIdx
     val isAttrModeStep = bootIdx === attrModeIdx
     val isCtrlStep     = bootIdx === ctrlIdx
@@ -222,7 +234,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val copperDataMux = Bits(16 bits)
     copperDataMux := B(0, 16 bits)
     for (i <- copperProgram.indices) {
-      when(bootIdx === U(i, 5 bits)) {
+      when(bootIdx === U(i, 7 bits)) {
         copperDataMux := bootData(i).asBits
       }
     }
@@ -234,11 +246,16 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // exposing all four dual-plane sub-fields {plane1[bit], plane0[bit]}.
     val tileModeAddr = U(0x0311, 15 bits)
     val tileModeData = B(scenarioId match {
-      case 0 => 0x0002         // R4.1d Checkpoint C: shuffled
-      case _ => 0x0000         // Scenarios 1-5: packed (default; L0 not used anyway)
+      case 0      => 0x0002    // R4.1d Checkpoint C: shuffled
+      case 9      => 0x0001    // Sc9: planar
+      case 10     => 0x0002    // Sc10: shuffled
+      case _      => 0x0000    // packed default
     }, 16 bits)
     val attrModeAddr = U(0x0312, 15 bits)
-    val attrModeData = B(0x0000, 16 bits)   // linear attribute mode (all scenarios)
+    val attrModeData = B(scenarioId match {
+      case 8 | 11 => 0x0001    // Sc8/Sc11: packed 2×2 attr for L0 visual richness
+      case _      => 0x0000    // linear (all other scenarios)
+    }, 16 bits)
     val ctrlAddr     = U(0x0310, 15 bits)
     val ctrlData     = B(0x0000, 16 bits)   // copper disabled (all scenarios)
     val layerAddr    = U(0x0300, 15 bits)
@@ -246,6 +263,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 0           => 0x0001  // R4.1d Checkpoint C: L0 only
       case 1 | 2 | 3   => 0x0002  // L1 only
       case 4 | 5       => 0x0006  // L1 + sprite layer
+      case 6 | 7       => 0x0006  // L1 + sprite layer (sprites over bg)
+      case 8           => 0x0003  // L0 + L1 (parallax, no sprites)
+      case 9 | 10      => 0x0001  // L0 only (planar/shuffled bitmap)
+      case 11          => 0x0003  // L0 + L1 default; per-line linestate overrides
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
@@ -266,6 +287,19 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val colorMathAddr = U(0x0334, 15 bits)
     val colorMathData = B(if (scWindow) 0x0000 else 0x4000, 16 bits)
 
+    // Sc 11 linestate write computation (only used when scenarioId == 11):
+    // bootIdx in [colorMathIdx+1 .. lastStepIdx], k = bootIdx - linestateBase.
+    // address = k * 8 (line index 0..472).
+    // Per LinestateStore: bit[11]=l0en, bit[10]=l1en, bit[9:0]=l0scrollX.
+    // data = 0x0400 (L1 only, l1en bit 10) when k even,
+    //   else 0x0800 (L0 only, l0en bit 11). Produces 8-line bands alternating
+    //   L0/L1 down the screen. ONLY the explicitly-written line indices get
+    //   their enable bits set; lines between writes keep their default-init
+    //   value (both layers enabled per LinestateStore.defaultInit).
+    val linestateK    = (bootIdx - linestateBase).resize(7)
+    val linestateAddr = (linestateK.resize(15) << 3).resize(15)   // line = k * 8
+    val linestateData = Mux(linestateK(0), B(0x0800, 16 bits), B(0x0400, 16 bits))
+
     val bootAddr = Mux(inCopperPhase,  copperAddr,
                     Mux(isTileModeStep, tileModeAddr,
                     Mux(isAttrModeStep, attrModeAddr,
@@ -274,7 +308,8 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
                     Mux(isWinX0Step,    winX0Addr,
                     Mux(isWinX1Step,    winX1Addr,
                     Mux(isWinY0Step,    winY0Addr,
-                    Mux(isWinY1Step,    winY1Addr, colorMathAddr)))))))))
+                    Mux(isWinY1Step,    winY1Addr,
+                    Mux(isColorMathStep, colorMathAddr, linestateAddr))))))))))
     val bootDataMux = Mux(inCopperPhase,  copperDataMux,
                        Mux(isTileModeStep, tileModeData,
                        Mux(isAttrModeStep, attrModeData,
@@ -283,7 +318,8 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
                        Mux(isWinX0Step,    winX0Data,
                        Mux(isWinX1Step,    winX1Data,
                        Mux(isWinY0Step,    winY0Data,
-                       Mux(isWinY1Step,    winY1Data, colorMathData)))))))))
+                       Mux(isWinY1Step,    winY1Data,
+                       Mux(isColorMathStep, colorMathData, linestateData))))))))))
 
     when(bootWrite) {
       when(bootIdx <= lastStepIdx) {
@@ -303,16 +339,13 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // positions so the per-line selection-limit effect is unambiguously
     // observable on a single captured frame.
 
-    // Sprite enables vary per scenario:
-    //   scenario 0 = R4.1d Checkpoint C (all off)
-    //   scenarios 1, 2, 3 = all off (background-only validation)
-    //   scenario 4 = sprite 0 only, pinned at (320, 240)
-    //   scenario 5 = all 4 sprites enabled with bouncing motion
-    val scSpritesAny  = scenarioId == 4 || scenarioId == 5
-    val scSpriteAll4  = scenarioId == 5
-    video.io.sprite0Enabled    := Bool(scSpritesAny)
+    // Sprite enables vary per scenario.
+    val scSprite0 = Set(4, 5, 6, 7).contains(scenarioId)
+    val scSprite1 = Set(5, 6, 7).contains(scenarioId)
+    val scSprite23 = Set(5, 6).contains(scenarioId)    // Sc5/Sc6 use all 4
+    video.io.sprite0Enabled    := Bool(scSprite0)
     video.io.sprite0PatternIdx := U(0, 1 bit)
-    video.io.sprite1Enabled    := Bool(scSpriteAll4)
+    video.io.sprite1Enabled    := Bool(scSprite1)
     video.io.sprite1PatternIdx := U(1, 1 bit)
 
     // R2 proof scene — deliberately forces the 2-per-line selection limit.
@@ -342,7 +375,21 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       video.io.sprite3Enabled := False
       video.io.sprite2PatternIdx := U(0, 1 bit)
       video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (scenarioId == 5) {
+    } else if (scenarioId == 7) {
+      // Sc7 priority overlap: BOTH sprites at the SAME (320,240). Slot-1
+      // (sprite 1) wins everywhere — the entire visible footprint should
+      // show pattern 1, not pattern 0. Cleanest test of slot-priority.
+      video.io.sprite0X := U(320, 10 bits)
+      video.io.sprite0Y := U(240, 10 bits)
+      video.io.sprite1X := U(320, 10 bits)
+      video.io.sprite1Y := U(240, 10 bits)
+      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
+      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
+      video.io.sprite2Enabled := False
+      video.io.sprite3Enabled := False
+      video.io.sprite2PatternIdx := U(0, 1 bit)
+      video.io.sprite3PatternIdx := U(1, 1 bit)
+    } else if (scenarioId == 5 || scenarioId == 6) {
       // Per-sprite bounce: each sprite has its own X/Y reg + sign bit. Step
       // sizes spread out so the 4 sprites move at different rates.
       val xMin = 16; val xMax = 624     // 16 ≤ x ≤ 624 keeps 16×16 sprite on-screen
@@ -495,4 +542,23 @@ object TopTang20kHdmiScenario4Verilog extends App {
 }
 object TopTang20kHdmiScenario5Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 5))
+}
+// Wave 2 scenarios.
+object TopTang20kHdmiScenario6Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 6))
+}
+object TopTang20kHdmiScenario7Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 7))
+}
+object TopTang20kHdmiScenario8Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 8))
+}
+object TopTang20kHdmiScenario9Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 9))
+}
+object TopTang20kHdmiScenario10Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 10))
+}
+object TopTang20kHdmiScenario11Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 11))
 }
