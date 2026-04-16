@@ -2,7 +2,17 @@ package spinalhdlvdp
 
 import spinal.core._
 
-case class TopTang20kHdmi() extends Component {
+/** Tang Nano 20K top.
+  *
+  * `scenarioId` selects the bootstrap configuration:
+  *   0 = default (Task 20 + R4.1d Checkpoint C: shuffled diagnostic + shadow window)
+  *   1 = Wave 1 Scenario 1 — static L1 background, no sprites, no scroll, color math passthrough
+  *   2 = Wave 1 Scenario 2 — Scenario 1 + per-frame layer1ScrollX +1 px/frame
+  *   3 = Wave 1 Scenario 3 — Scenario 1 + per-frame layer1ScrollX +8 px/frame (frequent wrap)
+  *   4 = Wave 1 Scenario 4 — Scenario 1 + sprite 0 enabled at fixed (320, 240)
+  *   5 = Wave 1 Scenario 5 — Scenario 1 + 4 sprites enabled, bouncing motion
+  */
+case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   setDefinitionName("top_tang20k")
   noIoPrefix()
 
@@ -114,8 +124,20 @@ case class TopTang20kHdmi() extends Component {
     // primitive's generated wrap-tree.
     val l0MapWidth   = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640
     val l1MapWidth   = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640
-    val l0StepFrames = 1
-    val l1StepFrames = 2
+    // Scroll step rates differ per scenario:
+    //   scenarioId 0 = R4.1d Checkpoint C / Task 20 default (existing rates)
+    //   1 = static (no scroll)
+    //   2 = +1 px/frame on L1 (Scenario 2 single-axis scroll)
+    //   3 = +8 px/frame on L1 (Scenario 3 frequent wrap)
+    //   4 = static (single sprite)
+    //   5 = static (4 bouncing sprites, motion is on sprite X/Y not on scroll)
+    val l0StepFrames = scenarioId match { case 0 => 1; case _ => 0 }
+    val l1StepFrames = scenarioId match {
+      case 0 => 2
+      case 2 => 1
+      case 3 => 8
+      case _ => 0
+    }
     val scrollL0 = Reg(UInt(log2Up(l0MapWidth) bits)) init 0
     val scrollL1 = Reg(UInt(log2Up(l1MapWidth) bits)) init 0
     val l0NextWrap = ScrollWrap(l0MapWidth)
@@ -211,27 +233,38 @@ case class TopTang20kHdmi() extends Component {
     // with uniform-pixel-value tiles produces a clean bitplane-checkerboard
     // exposing all four dual-plane sub-fields {plane1[bit], plane0[bit]}.
     val tileModeAddr = U(0x0311, 15 bits)
-    val tileModeData = B(0x0002, 16 bits)   // R4.1d Checkpoint C: shuffled/bitplane mode
+    val tileModeData = B(scenarioId match {
+      case 0 => 0x0002         // R4.1d Checkpoint C: shuffled
+      case _ => 0x0000         // Scenarios 1-5: packed (default; L0 not used anyway)
+    }, 16 bits)
     val attrModeAddr = U(0x0312, 15 bits)
-    val attrModeData = B(0x0000, 16 bits)   // R4.1d Checkpoint C: linear attribute mode
+    val attrModeData = B(0x0000, 16 bits)   // linear attribute mode (all scenarios)
     val ctrlAddr     = U(0x0310, 15 bits)
-    val ctrlData     = B(0x0000, 16 bits)   // R4.1d Checkpoint C: copper disabled
+    val ctrlData     = B(0x0000, 16 bits)   // copper disabled (all scenarios)
     val layerAddr    = U(0x0300, 15 bits)
-    val layerData    = B(0x0001, 16 bits)   // R4.1d Checkpoint C: LAYER_ENABLE = L0 only
+    val layerData    = B(scenarioId match {
+      case 0           => 0x0001  // R4.1d Checkpoint C: L0 only
+      case 1 | 2 | 3   => 0x0002  // L1 only
+      case 4 | 5       => 0x0006  // L1 + sprite layer
+      case _           => 0x0001
+    }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
     // covering the middle of the 640×480 screen. Color-math op=01 (shadow,
     // RGB>>1) applies inside the window; outside renders unchanged. This
     // gives an unambiguous OpenCV intensity ratio across the boundary.
     val winX0Addr     = U(0x0330, 15 bits)
-    val winX0Data     = B(160, 16 bits)
+    // Scenarios 1-5: window all-zero + color math passthrough so the new
+    // R6 stage doesn't accidentally mask scenario validation.
+    val scWindow = scenarioId != 0
+    val winX0Data     = B(if (scWindow) 0   else 160, 16 bits)
     val winX1Addr     = U(0x0331, 15 bits)
-    val winX1Data     = B(480, 16 bits)
+    val winX1Data     = B(if (scWindow) 0   else 480, 16 bits)
     val winY0Addr     = U(0x0332, 15 bits)
-    val winY0Data     = B(120, 16 bits)
+    val winY0Data     = B(if (scWindow) 0   else 120, 16 bits)
     val winY1Addr     = U(0x0333, 15 bits)
-    val winY1Data     = B(360, 16 bits)
+    val winY1Data     = B(if (scWindow) 0   else 360, 16 bits)
     val colorMathAddr = U(0x0334, 15 bits)
-    val colorMathData = B(0x4000, 16 bits)  // op=01 shadow, invert=0, constant=0
+    val colorMathData = B(if (scWindow) 0x0000 else 0x4000, 16 bits)
 
     val bootAddr = Mux(inCopperPhase,  copperAddr,
                     Mux(isTileModeStep, tileModeAddr,
@@ -270,13 +303,16 @@ case class TopTang20kHdmi() extends Component {
     // positions so the per-line selection-limit effect is unambiguously
     // observable on a single captured frame.
 
-    // R4.1d Checkpoint C: disable all sprites for clean static bitplane
-    // checkerboard. The R2 sprite proof scene (overflow band, etc.) is not
-    // part of this lane; sprites overlay the diagnostic and confound the
-    // bit-observable OpenCV verification.
-    video.io.sprite0Enabled := False
+    // Sprite enables vary per scenario:
+    //   scenario 0 = R4.1d Checkpoint C (all off)
+    //   scenarios 1, 2, 3 = all off (background-only validation)
+    //   scenario 4 = sprite 0 only, pinned at (320, 240)
+    //   scenario 5 = all 4 sprites enabled with bouncing motion
+    val scSpritesAny  = scenarioId == 4 || scenarioId == 5
+    val scSpriteAll4  = scenarioId == 5
+    video.io.sprite0Enabled    := Bool(scSpritesAny)
     video.io.sprite0PatternIdx := U(0, 1 bit)
-    video.io.sprite1Enabled := False
+    video.io.sprite1Enabled    := Bool(scSpriteAll4)
     video.io.sprite1PatternIdx := U(1, 1 bit)
 
     // R2 proof scene — deliberately forces the 2-per-line selection limit.
@@ -292,20 +328,71 @@ case class TopTang20kHdmi() extends Component {
     // To keep the overflow band unambiguous, we override sprite 0's bounce by
     // pinning its Y for this proof run. (The bouncing position was only for
     // the old two-sprite demo.)
-    video.io.sprite0X := U(120, 10 bits)
-    video.io.sprite0Y := U(120, 10 bits)
-    video.io.sprite1X := U(240, 10 bits)
-    video.io.sprite1Y := U(120, 10 bits)
-
-    video.io.sprite2X := U(360, 10 bits)
-    video.io.sprite2Y := U(120, 10 bits)
-    video.io.sprite2Enabled := False        // R4.1d Checkpoint C: sprites off
-    video.io.sprite2PatternIdx := U(0, 1 bit)
-
-    video.io.sprite3X := U(300, 10 bits)
-    video.io.sprite3Y := U(360, 10 bits)
-    video.io.sprite3Enabled := False        // R4.1d Checkpoint C: sprites off
-    video.io.sprite3PatternIdx := U(1, 1 bit)
+    // Sprite positions: scenario 4 pins sprite 0 at (320,240); scenario 5
+    // bounces all 4 sprites with simple counters. Scenarios 0-3 use the
+    // legacy R2 proof positions (sprites off in Checkpoint C anyway).
+    if (scenarioId == 4) {
+      video.io.sprite0X := U(320, 10 bits)
+      video.io.sprite0Y := U(240, 10 bits)
+      video.io.sprite1X := U(0, 10 bits)
+      video.io.sprite1Y := U(0, 10 bits)
+      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
+      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
+      video.io.sprite2Enabled := False
+      video.io.sprite3Enabled := False
+      video.io.sprite2PatternIdx := U(0, 1 bit)
+      video.io.sprite3PatternIdx := U(1, 1 bit)
+    } else if (scenarioId == 5) {
+      // Per-sprite bounce: each sprite has its own X/Y reg + sign bit. Step
+      // sizes spread out so the 4 sprites move at different rates.
+      val xMin = 16; val xMax = 624     // 16 ≤ x ≤ 624 keeps 16×16 sprite on-screen
+      val yMin = 16; val yMax = 464
+      def bouncer(initX: Int, initY: Int, stepX: Int, stepY: Int) = {
+        val rx = Reg(UInt(10 bits)) init initX
+        val ry = Reg(UInt(10 bits)) init initY
+        val dx = Reg(Bool()) init False     // false = +stepX
+        val dy = Reg(Bool()) init False
+        when(vsyncRising) {
+          when(dx) {
+            when(rx <= U(xMin + stepX, 10 bits)) { dx := False; rx := U(xMin, 10 bits) }
+              .otherwise                            { rx := rx - U(stepX, 10 bits) }
+          }.otherwise {
+            when(rx >= U(xMax - stepX, 10 bits)) { dx := True;  rx := U(xMax, 10 bits) }
+              .otherwise                            { rx := rx + U(stepX, 10 bits) }
+          }
+          when(dy) {
+            when(ry <= U(yMin + stepY, 10 bits)) { dy := False; ry := U(yMin, 10 bits) }
+              .otherwise                            { ry := ry - U(stepY, 10 bits) }
+          }.otherwise {
+            when(ry >= U(yMax - stepY, 10 bits)) { dy := True;  ry := U(yMax, 10 bits) }
+              .otherwise                            { ry := ry + U(stepY, 10 bits) }
+          }
+        }
+        (rx, ry)
+      }
+      val (s0x, s0y) = bouncer(120, 100, 1, 1)
+      val (s1x, s1y) = bouncer(400, 100, 2, 1)
+      val (s2x, s2y) = bouncer(120, 300, 1, 2)
+      val (s3x, s3y) = bouncer(400, 300, 2, 2)
+      video.io.sprite0X := s0x; video.io.sprite0Y := s0y
+      video.io.sprite1X := s1x; video.io.sprite1Y := s1y
+      video.io.sprite2X := s2x; video.io.sprite2Y := s2y
+      video.io.sprite3X := s3x; video.io.sprite3Y := s3y
+      video.io.sprite2Enabled := True
+      video.io.sprite3Enabled := True
+      video.io.sprite2PatternIdx := U(0, 1 bit)
+      video.io.sprite3PatternIdx := U(1, 1 bit)
+    } else {
+      // scenarios 0/1/2/3: legacy R2 proof positions; sprites disabled
+      video.io.sprite0X := U(120, 10 bits); video.io.sprite0Y := U(120, 10 bits)
+      video.io.sprite1X := U(240, 10 bits); video.io.sprite1Y := U(120, 10 bits)
+      video.io.sprite2X := U(360, 10 bits); video.io.sprite2Y := U(120, 10 bits)
+      video.io.sprite3X := U(300, 10 bits); video.io.sprite3Y := U(360, 10 bits)
+      video.io.sprite2Enabled := False
+      video.io.sprite3Enabled := False
+      video.io.sprite2PatternIdx := U(0, 1 bit)
+      video.io.sprite3PatternIdx := U(1, 1 bit)
+    }
 
     // R4: SDRAM tile+attribute fetch. Replaces the retired SdramTileFetch.
     // Scheduler now gates SDRAM reads via slotValid; grant pulses start a
@@ -391,4 +478,21 @@ case class TopTang20kHdmi() extends Component {
 
 object TopTang20kHdmiVerilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi())
+}
+
+// Wave 1 scenario top-level objects. Each generates its own top_tang20k_scN.v.
+object TopTang20kHdmiScenario1Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 1))
+}
+object TopTang20kHdmiScenario2Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 2))
+}
+object TopTang20kHdmiScenario3Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 3))
+}
+object TopTang20kHdmiScenario4Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 4))
+}
+object TopTang20kHdmiScenario5Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 5))
 }

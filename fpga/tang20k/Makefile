@@ -19,8 +19,15 @@ GW_ENV ?= QT_QPA_PLATFORM=minimal QT_OPENGL=software LIBGL_ALWAYS_SOFTWARE=1
 
 all: $(BITSTREAM)
 
+SCENARIO ?=
+ifeq ($(SCENARIO),)
+GEN_TARGET := spinalhdlvdp.TopTang20kHdmiVerilog
+else
+GEN_TARGET := spinalhdlvdp.TopTang20kHdmiScenario$(SCENARIO)Verilog
+endif
+
 gen:
-	$(SBT) "runMain spinalhdlvdp.TopTang20kHdmiVerilog"
+	$(SBT) "runMain $(GEN_TARGET)"
 
 $(BITSTREAM): gen $(TCL_FILE) tang20k_hdmi.cst tang20k_hdmi.sdc
 	$(GW_ENV) $(GW_SH) $(TCL_FILE)

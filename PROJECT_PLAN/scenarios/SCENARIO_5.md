@@ -42,8 +42,8 @@ Capture: 30 s, 720×480 YUYV 50 fps lossless.
 
 | Check | Condition | Reason |
 |---|---|---|
-| **C1 motion present (4-sprite density)** | mean inter-frame diff ≥ 5.0 | Confirms sprites are actually moving |
-| **C2 motion bounded** | mean inter-frame diff ≤ 30.0; std ≤ 8 | Small relative to a full scroll, since only ~4 × 256 = 1024 pixels (≈0.3 % of frame) change per frame |
+| **C1 motion present (4-sprite density)** | mean inter-frame diff ≥ 0.1 | Confirms sprites are actually moving above noise floor. Calibrated to physics: 4 sprites × 16×16 = 1024 px / (720×480) ≈ 0.06 % of pixels change per frame, giving expected mean diff ~0.2 — the original ≥5 threshold was unrealistic for sprite-only motion |
+| **C2 motion bounded** | mean inter-frame diff ≤ 1.0; std ≤ 0.5 | Confirms motion is sprite-scope (small footprint) and not a full-frame change indicating a runaway |
 | **C3 stability** | 0 freezes; 0 isolated jumps > 5σ above mean over 30 s | No drop / overflow / flicker |
 | **C4 sprite-pattern footprint count** | At any given sample frame, segment by per-pixel diff vs Scenario 1's static baseline; expect 4 connected components of ≥ 64 px and ≤ 400 px each | Confirms 4 simultaneously-visible sprites |
 | **C5 background unchanged** | Pixels outside the union of the 4 sprite-footprint bounding boxes match Scenario 1's histogram within ±5 % per band | Sprites don't bleed into the background |
