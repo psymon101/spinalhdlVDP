@@ -11,21 +11,21 @@
 
 ## 1. Purpose
 
-Validate that the closed Mode0 fetch primitives (tile, planar, shuffled) can coexist in one integrated scene with concurrent L1 scroll and sprite motion. This is the integration gate before soak/stress validation.
+Validate that the closed Mode0 fetch primitives (tile, planar, shuffled) can coexist in one integrated scene with concurrent L0 scroll and sprite motion. This is the integration gate before soak/stress validation.
 
 ---
 
 ## 2. Bootstrap register sequence — `scenarioId=15`
 
 The bootstrap configures:
-- `LAYER_ENABLE = 0x0007` (L0 + L1 + sprites enabled)
+- `LAYER_ENABLE = 0x0005` (L0 + sprites enabled) — L1 disabled so the three L0 mode bands are fully visible
 - `VDP_TILE_MODE = 0x0000` (tile mode) as the initial state
 - `VDP_ATTR_MODE = 0x0000` (linear attributes)
 - `VDP_COPPER_CTRL = 0x0001` (copper enabled)
 - Copper program (2 triggers):
   - `y = 160`: write `0x0311 = 0x0001` (switch L0 to planar mode)
   - `y = 320`: write `0x0311 = 0x0002` (switch L0 to shuffled mode)
-- L1 scroll: 1 px/frame
+- L0 scroll: 1 px/frame
 - Sprite 0: bouncing horizontally at 2 px/frame, `y = 100`
 - Sprite 1: bouncing horizontally at 2 px/frame (opposite phase), `y = 300`
 - All other sprites disabled
@@ -41,7 +41,7 @@ The screen is divided into three horizontal bands:
 - **Middle 160 lines:** planar-mode background (NES-style 2-plane 2bpp, 4 grayscale shades)
 - **Bottom 160 lines:** shuffled-mode background (Amiga-style bitplanes)
 
-L1 scrolls continuously behind all bands. Two sprites move horizontally across the full height, crossing mode boundaries.
+L0 scrolls continuously across all bands. Two sprites move horizontally across the full height, crossing mode boundaries.
 
 ---
 
@@ -50,7 +50,7 @@ L1 scrolls continuously behind all bands. Two sprites move horizontally across t
 | Check | Condition | Reason |
 |---|---|---|
 | **C1 three-band presence** | Per-frame mean intensity of top 1/3, middle 1/3, and bottom 1/3 are pairwise distinct by ≥ 15 units in at least one BGR channel for ≥ 95 % of sampled frames | Tile, planar, and shuffled modes have visually distinct mean signatures |
-| **C2 L1 scroll motion** | Mean absolute frame-difference across the full 30 s ≥ 5.0 | Proves L1 scroll is active and coherent across mode boundaries |
+| **C2 L0 scroll motion** | Mean absolute frame-difference across the full 30 s ≥ 5.0 | Proves L0 scroll is active and coherent across mode boundaries |
 | **C3 sprite presence** | Sprite detection fraction ≥ 95 % across 30 s; x-range ≥ 100 px | Proves sprite path remains stable under mode switching |
 | **C4 stability** | Band-structure outlier rate ≤ 5 % (frames where the three-cluster distinctness collapses) | Proves no corruption or glitching from copper-driven mode switches |
 

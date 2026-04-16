@@ -149,6 +149,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val l0StepFrames = scenarioId match {
       case 0 => 1
       case 8 => 1     // Sc8 parallax: L0 slow
+      case 15 => 1    // Sc15 mixed-scene integration: L0 @ 1 px/frame
       case _ => 0
     }
     val l1StepFrames = scenarioId match {
@@ -158,7 +159,6 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 6 => 1     // Sc6 sprites over scrolling bg
       case 8 => 3     // Sc8 parallax: L1 fast (3× L0)
       case 13 => 1    // Sc13 palette-animation-during-motion: L1 @ 1 px/frame
-      case 15 => 1    // Sc15 mixed-scene integration: L1 @ 1 px/frame
       case _ => 0
     }
     val scrollL0 = Reg(UInt(log2Up(l0MapWidth) bits)) init 0
@@ -317,7 +317,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 11          => 0x0003  // L0 + L1 default; per-line linestate overrides
       case 12          => 0x0005  // L0 + sprite (affine background under sprite)
       case 13          => 0x0003  // L0 + L1 (palette-animation-during-motion)
-      case 15          => 0x0007  // L0 + L1 + sprite (mixed-scene integration)
+      case 15          => 0x0005  // L0 + sprite (mixed-scene integration)
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region

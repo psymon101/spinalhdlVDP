@@ -32,7 +32,7 @@ Prove that the closed Mode0 primitives can operate coherently in a single integr
 
 - **Scenario 15 bootstrap** in `TopTang20kHdmi.scala` that activates multiple closed primitives simultaneously.
 - **Copper-driven L0 mode switching** per horizontal band (tile → planar → shuffled).
-- **L1 scroll** running concurrently with the L0 band switching.
+- **L0 scroll** running concurrently with the L0 band switching.
 - **Sprites** moving across the mode boundaries.
 - **30-second YUYV hardware capture** with OpenCV proof of stability and distinct band presence.
 
@@ -67,7 +67,7 @@ Summary:
   - **Lines 0–159:** tile mode (packed 4bpp)
   - **Lines 160–319:** planar mode (2-plane 2bpp)
   - **Lines 320–479:** shuffled mode (Amiga-style bitplane)
-- L1 scroll at 1 px/frame.
+- L0 scroll at 1 px/frame.
 - Two sprites bouncing horizontally.
 - 30 s YUYV capture + OpenCV analysis.
 
@@ -77,7 +77,7 @@ Summary:
 
 No new registers. The scenario reuses:
 - `VDP_TILE_MODE @ 0x0311` (switched by copper)
-- `VDP_LAYER_ENABLE @ 0x0300` (L0 + L1 + sprites)
+- `VDP_LAYER_ENABLE @ 0x0300` (L0 + sprites)
 - `VDP_COPPER_CTRL @ 0x0310` (copper enable)
 - Linestate / scroll registers (existing)
 - Sprite position registers (existing)
@@ -94,7 +94,7 @@ No new registers. The scenario reuses:
 
 Pass criteria:
 - C1: three distinct horizontal bands are present and stable
-- C2: L1 scroll motion is detectable
+- C2: L0 scroll motion is detectable
 - C3: sprites are detected and moving
 - C4: no corruption frames (band structure stable across ≥ 95 % of sampled frames)
 
