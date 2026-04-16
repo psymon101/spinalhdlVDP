@@ -20,6 +20,28 @@ If a dependency is not `DONE`, do not start the task.
 
 ---
 
+## Live Lane State
+
+This section tracks the single active lane so the team does not infer state from scattered mail threads.
+
+| Field | Value |
+|-------|-------|
+| **Task** | Task 19 — Affine Layer |
+| **Status** | IN-PROGRESS |
+| **Phase** | audit → implement |
+| **Owner** | BrightForge (coding), CyanPeak (audit) |
+| **Latest Commit** | `074ddd0` |
+| **Latest Auth Mail** | #7322 (CyanPeak: Task 19 GO) |
+| **Next Deliverable** | Checkpoint A — control/register contract (BrightForge) |
+| **Coding Authorized** | **YES** — CyanPeak signed off at #7322 |
+
+Rules:
+- Only **one** lane may be live at a time.
+- When the lane changes, update this block in the **same commit** as the artifact/state change.
+- Phase values: `artifact`, `audit`, `implement`, `capture`, `closeout`.
+
+---
+
 ## Current Baseline
 
 The repository has closed the Mode0 substrate backlog through baseline **`32a87ff`**:
@@ -546,3 +568,39 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - A task is only `DONE` when its `validation` criteria are met on hardware (or simulation, for tasks not yet at hardware stage).
 - When marking a task `IN-PROGRESS` or `DONE`, update the status field in this file.
 - Do not modify `depends_on` or `scope_boundary` fields without explicit instruction.
+
+---
+
+## Lane-Open Packet Template
+
+Every new implementation lane must open with one authoritative packet. Copy this template into the kick-off mail or doc update.
+
+```markdown
+## Lane Open: [Task Name]
+
+### Scope Boundary
+- in scope: ...
+- in scope: ...
+- out of scope: ...
+- out of scope: ...
+
+### Required Proof
+- sim: ...
+- hardware: ...
+
+### Audit Focus
+- ...
+
+### Checkpoints
+- A: control/register contract
+- B: simulation proof
+- C: hardware proof
+
+### Expected Next Deliverable
+- [checkpoint name] by [owner]
+
+### Coding Authorized
+- YES / NO — [mail id]
+```
+
+Apply this template starting with Task 19 immediately.
