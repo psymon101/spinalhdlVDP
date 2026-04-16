@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 21 — Mixed-Scene Integration |
 | **Status** | IN-PROGRESS |
-| **Phase** | capture (Checkpoint C) |
+| **Phase** | capture (Checkpoint C) — bounded debug |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `f110f8b` |
-| **Latest Auth Mail** | #7375 (CyanPeak: Checkpoint B PASSED) |
-| **Next Deliverable** | Checkpoint C exit packet (BrightForge) |
-| **Coding Authorized** | **YES** — CyanPeak signed off at #7364 |
+| **Latest Commit** | `3f3842e` |
+| **Latest Auth Mail** | #7396 (BronzeGate: debug plan GO) |
+| **Next Deliverable** | Bounded debug packet — Steps 1-3 data + root-cause hypothesis (BrightForge) |
+| **Coding Authorized** | **YES** — debug Steps 1+2+3 GO at #7390 / #7393 |
 
 Rules:
 - Only **one** lane may be live at a time.
