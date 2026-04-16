@@ -177,7 +177,7 @@ pixel = texture[(v_int mod 128) * 128 + (u_int mod 128)]
 - The background grid is visibly rotated and slightly shrunk compared to a normal tile map.
 - The sprite moves cleanly over the rotating background without tearing or priority glitches.
 
-**Capture protocol:** 720×480 YUYV, 5-second clip.
+**Capture protocol:** 720×480 YUYV, **30-second clip** (same full-stream standard as Wave 1/2 and Scenario 13).
 
 **OpenCV checks:**
 1. **Edge orientation histogram:** dominant peaks are offset from 0°/90° by the rotation angle (proves the transform is not just scroll).
