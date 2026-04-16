@@ -1,6 +1,7 @@
 package spinalhdlvdp
 
 import spinal.core._
+import spinal.core.sim._
 
 case class VdpTop() extends Component {
   val io = new Bundle {
@@ -283,6 +284,67 @@ case class VdpTop() extends Component {
     colorMathPend    := effData
     colorMathPendHit := True
   }
+  // Task 19 Checkpoint A: Affine Layer matrix + control registers.
+  // Addresses 0x0340..0x0346, same safe-boundary shadow + commit pattern.
+  //   0x0340 AFFINE_A    16b  signed 8.8 fixed point
+  //   0x0341 AFFINE_B    16b  signed 8.8
+  //   0x0342 AFFINE_C    16b  signed 8.8
+  //   0x0343 AFFINE_D    16b  signed 8.8
+  //   0x0344 AFFINE_X    16b  signed 10.6 translation
+  //   0x0345 AFFINE_Y    16b  signed 10.6 translation
+  //   0x0346 AFFINE_CTRL 16b  bit 0 = affineEnable, others reserved
+  // Defaults are all-zero so AFFINE_CTRL[0]=0 at power-on — the L0 source mux
+  // (landed in Checkpoint B) keeps the existing SDRAM/on-chip path unchanged.
+  val affineAReg     = (Reg(Bits(16 bits)) init 0).simPublic()
+  val affineAPend    = Reg(Bits(16 bits)) init 0
+  val affineAPendHit = (Reg(Bool()) init False).simPublic()
+  when(effWrite && effAddr === U(0x0340, 15 bits)) {
+    affineAPend    := effData
+    affineAPendHit := True
+  }
+  val affineBReg     = (Reg(Bits(16 bits)) init 0).simPublic()
+  val affineBPend    = Reg(Bits(16 bits)) init 0
+  val affineBPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0341, 15 bits)) {
+    affineBPend    := effData
+    affineBPendHit := True
+  }
+  val affineCReg     = (Reg(Bits(16 bits)) init 0).simPublic()
+  val affineCPend    = Reg(Bits(16 bits)) init 0
+  val affineCPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0342, 15 bits)) {
+    affineCPend    := effData
+    affineCPendHit := True
+  }
+  val affineDReg     = (Reg(Bits(16 bits)) init 0).simPublic()
+  val affineDPend    = Reg(Bits(16 bits)) init 0
+  val affineDPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0343, 15 bits)) {
+    affineDPend    := effData
+    affineDPendHit := True
+  }
+  val affineXReg     = (Reg(Bits(16 bits)) init 0).simPublic()
+  val affineXPend    = Reg(Bits(16 bits)) init 0
+  val affineXPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0344, 15 bits)) {
+    affineXPend    := effData
+    affineXPendHit := True
+  }
+  val affineYReg     = (Reg(Bits(16 bits)) init 0).simPublic()
+  val affineYPend    = Reg(Bits(16 bits)) init 0
+  val affineYPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0345, 15 bits)) {
+    affineYPend    := effData
+    affineYPendHit := True
+  }
+  val affineCtrlReg     = (Reg(Bits(16 bits)) init 0).simPublic()
+  val affineCtrlPend    = Reg(Bits(16 bits)) init 0
+  val affineCtrlPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0346, 15 bits)) {
+    affineCtrlPend    := effData
+    affineCtrlPendHit := True
+  }
+  val affineEnable = affineCtrlReg(0)
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {
       layerEnableReg     := layerEnablePend
@@ -305,6 +367,14 @@ case class VdpTop() extends Component {
     when(winY0PendHit)     { winY0Reg     := winY0Pend;     winY0PendHit     := False }
     when(winY1PendHit)     { winY1Reg     := winY1Pend;     winY1PendHit     := False }
     when(colorMathPendHit) { colorMathReg := colorMathPend; colorMathPendHit := False }
+    // Task 19 affine registers (safe-boundary commit).
+    when(affineAPendHit)    { affineAReg    := affineAPend;    affineAPendHit    := False }
+    when(affineBPendHit)    { affineBReg    := affineBPend;    affineBPendHit    := False }
+    when(affineCPendHit)    { affineCReg    := affineCPend;    affineCPendHit    := False }
+    when(affineDPendHit)    { affineDReg    := affineDPend;    affineDPendHit    := False }
+    when(affineXPendHit)    { affineXReg    := affineXPend;    affineXPendHit    := False }
+    when(affineYPendHit)    { affineYReg    := affineYPend;    affineYPendHit    := False }
+    when(affineCtrlPendHit) { affineCtrlReg := affineCtrlPend; affineCtrlPendHit := False }
   }
   io.layer0TileDecodeMode := tileDecodeModeReg
   io.layer0AttributeMode  := attributeModeReg
