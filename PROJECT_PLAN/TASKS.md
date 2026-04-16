@@ -424,11 +424,11 @@ These are not implementation tasks. Each scenario must be run against hardware a
 
 | # | Scenario | Depends on Tasks | Status |
 |---|----------|-----------------|--------|
-| 26 | Scenario 1 — Static background fill | 5, 6, 10 | TODO |
-| 27 | Scenario 2 — Single-axis scroll | 7, 26 | TODO |
-| 28 | Scenario 3 — Scroll wraparound / seam test | 8, 27 | TODO |
-| 29 | Scenario 4 — Single sprite over static background | 11, 26 | TODO |
-| 30 | Scenario 5 — Ten bouncing sprites over static background | 11, 29 | TODO |
+| 26 | Scenario 1 — Static background fill | 5, 6, 10 | DONE |
+| 27 | Scenario 2 — Single-axis scroll | 7, 26 | DONE |
+| 28 | Scenario 3 — Scroll wraparound / seam test | 8, 27 | DONE |
+| 29 | Scenario 4 — Single sprite over static background | 11, 26 | DONE |
+| 30 | Scenario 5 — Four bouncing sprites over static background | 11, 29 | DONE |
 | 31 | Scenario 6 — Sprites over scrolling background | 12, 13, 27, 30 | TODO |
 | 32 | Scenario 7 — Sprite priority / overlap test | 12, 31 | TODO |
 | 33 | Scenario 8 — Multi-layer parallax scroll | 13, 27 | TODO |
