@@ -12,6 +12,10 @@ import spinal.core._
   *   4 = Wave 1 Scenario 4 — Scenario 1 + sprite 0 enabled at fixed (320, 240)
   *   5 = Wave 1 Scenario 5 — Scenario 1 + 4 sprites enabled, bouncing motion
   *   6..11 = Wave 2 scenarios (see `PROJECT_PLAN/scenarios/SCENARIO_*.md`)
+  *  12 = Task 19 Checkpoint C — affine background with sprite. L0 driven by
+  *       AffineStepper + 128×128 diagnostic texture. Per-frame matrix animator
+  *       rotates the texture ~2°/frame around the screen center at scale 0.9×.
+  *       One sprite moves horizontally across the rotating background.
   *  13 = Palette animation during motion — L0 packed-mode rich tiles + L1
   *       1 px/frame scroll + copper-driven `VDP_ATTR_MODE` toggle across 7 bands
   *       (linear ↔ packed 2×2). Palette is ROM-only, so this proves
@@ -236,6 +240,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val linestateBase  = colorMathIdx + 1   // first linestate step
     val lastStepIdx    = scenarioId match {
       case 11 => U(copperLen + 8 + LinestateCount, 7 bits)   // = 75
+      case 12 => U(copperLen + 9, 7 bits)                    // + AFFINE_CTRL step
       case _  => colorMathIdx
     }
     val bootIdx     = Reg(UInt(7 bits)) init 0
@@ -294,6 +299,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 8           => 0x0003  // L0 + L1 (parallax, no sprites)
       case 9 | 10      => 0x0001  // L0 only (planar/shuffled bitmap)
       case 11          => 0x0003  // L0 + L1 default; per-line linestate overrides
+      case 12          => 0x0005  // L0 + sprite (affine background under sprite)
       case 13          => 0x0003  // L0 + L1 (palette-animation-during-motion)
       case _           => 0x0001
     }, 16 bits)
@@ -314,6 +320,16 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val winY1Data     = B(if (scWindow) 0   else 360, 16 bits)
     val colorMathAddr = U(0x0334, 15 bits)
     val colorMathData = B(if (scWindow) 0x0000 else 0x4000, 16 bits)
+
+    // Sc12 only: last bootstrap step writes AFFINE_CTRL = 1 to enable affine.
+    // The matrix regs (0x0340..0x0345) stay at their zero init until the first
+    // vsync kicks off the animator below; between affineEnable rising and the
+    // first animator write there's a sub-frame window where L0 sees u=v=0
+    // (solid texel (0,0)) — harmless under the 100-frame capture warmup skip.
+    val affineCtrlAddrReg = U(0x0346, 15 bits)
+    val affineCtrlDataReg = B(0x0001, 16 bits)
+    val isAffineCtrlStep  =
+      if (scenarioId == 12) bootIdx === U(copperLen + 9, 7 bits) else False
 
     // Sc 11 linestate write computation (only used when scenarioId == 11):
     // bootIdx in [colorMathIdx+1 .. lastStepIdx], k = bootIdx - linestateBase.
@@ -337,7 +353,8 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
                     Mux(isWinX1Step,    winX1Addr,
                     Mux(isWinY0Step,    winY0Addr,
                     Mux(isWinY1Step,    winY1Addr,
-                    Mux(isColorMathStep, colorMathAddr, linestateAddr))))))))))
+                    Mux(isColorMathStep, colorMathAddr,
+                    Mux(isAffineCtrlStep, affineCtrlAddrReg, linestateAddr)))))))))))
     val bootDataMux = Mux(inCopperPhase,  copperDataMux,
                        Mux(isTileModeStep, tileModeData,
                        Mux(isAttrModeStep, attrModeData,
@@ -347,7 +364,8 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
                        Mux(isWinX1Step,    winX1Data,
                        Mux(isWinY0Step,    winY0Data,
                        Mux(isWinY1Step,    winY1Data,
-                       Mux(isColorMathStep, colorMathData, linestateData))))))))))
+                       Mux(isColorMathStep, colorMathData,
+                       Mux(isAffineCtrlStep, affineCtrlDataReg, linestateData)))))))))))
 
     when(bootWrite) {
       when(bootIdx <= lastStepIdx) {
@@ -357,9 +375,77 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       }
     }
 
-    video.io.regWriteAddr   := bootAddr
-    video.io.regWriteData   := bootDataMux
-    video.io.regWriteEnable := bootWrite && bootIdx <= lastStepIdx
+    // Task 19 Checkpoint C — Sc12 affine matrix animator. Compute a 180-entry
+    // LUT of (A, B, C, D, X, Y) at 2°/frame rotation around screen center
+    // (320, 240) mapped to texture center (64, 64), scale 0.9×. After the
+    // bootstrap finishes, each vsyncRising kicks off a 6-cycle sequence that
+    // rewrites the affine matrix registers via the regWriteBus.
+    val sc12Lut: Seq[(Int, Int, Int, Int, Int, Int)] = (0 until 180).map { i =>
+      val theta = i.toDouble * 2.0 * math.Pi / 180.0
+      val cos = math.cos(theta)
+      val sin = math.sin(theta)
+      val scale = 0.9
+      val A = scale * cos
+      val B = -scale * sin
+      val C = scale * sin
+      val D = scale * cos
+      val cx = 320.0; val cy = 240.0
+      val tcx = 64.0; val tcy = 64.0
+      val X = tcx - cx * A - cy * B
+      val Y = tcy - cx * C - cy * D
+      val aFix = (A * 256.0).round.toInt & 0xFFFF
+      val bFix = (B * 256.0).round.toInt & 0xFFFF
+      val cFix = (C * 256.0).round.toInt & 0xFFFF
+      val dFix = (D * 256.0).round.toInt & 0xFFFF
+      val xFix = (X * 64.0).round.toInt & 0xFFFF
+      val yFix = (Y * 64.0).round.toInt & 0xFFFF
+      (aFix, bFix, cFix, dFix, xFix, yFix)
+    }
+
+    val (animWriteAddr, animWriteData, animWriteActive): (UInt, Bits, Bool) =
+      if (scenarioId == 12) {
+        val frameIdx     = Reg(UInt(8 bits)) init 0
+        val animWriteIdx = Reg(UInt(3 bits)) init 7   // 7 = idle, 0..5 = writing
+        when(bootDoneR && vsyncRising) {
+          frameIdx := Mux(frameIdx === U(179, 8 bits), U(0, 8 bits), frameIdx + 1)
+          animWriteIdx := 0
+        }
+        when(animWriteIdx < U(6, 3 bits)) {
+          animWriteIdx := animWriteIdx + 1
+        }
+
+        def seqToBits(extract: ((Int, Int, Int, Int, Int, Int)) => Int): Seq[Bits] =
+          sc12Lut.map(t => B(extract(t), 16 bits))
+        val matA = Mem(Bits(16 bits), 180).init(seqToBits(_._1))
+        val matB = Mem(Bits(16 bits), 180).init(seqToBits(_._2))
+        val matC = Mem(Bits(16 bits), 180).init(seqToBits(_._3))
+        val matD = Mem(Bits(16 bits), 180).init(seqToBits(_._4))
+        val matX = Mem(Bits(16 bits), 180).init(seqToBits(_._5))
+        val matY = Mem(Bits(16 bits), 180).init(seqToBits(_._6))
+
+        val a = UInt(15 bits)
+        val d = Bits(16 bits)
+        a := U(0, 15 bits)
+        d := B(0, 16 bits)
+        switch(animWriteIdx) {
+          is(U(0, 3 bits)) { a := U(0x0340, 15 bits); d := matA.readAsync(frameIdx) }
+          is(U(1, 3 bits)) { a := U(0x0341, 15 bits); d := matB.readAsync(frameIdx) }
+          is(U(2, 3 bits)) { a := U(0x0342, 15 bits); d := matC.readAsync(frameIdx) }
+          is(U(3, 3 bits)) { a := U(0x0343, 15 bits); d := matD.readAsync(frameIdx) }
+          is(U(4, 3 bits)) { a := U(0x0344, 15 bits); d := matX.readAsync(frameIdx) }
+          is(U(5, 3 bits)) { a := U(0x0345, 15 bits); d := matY.readAsync(frameIdx) }
+          default          { a := U(0, 15 bits);      d := B(0, 16 bits) }
+        }
+        val active = animWriteIdx < U(6, 3 bits)
+        (a, d, active)
+      } else {
+        (U(0, 15 bits), B(0, 16 bits), False)
+      }
+
+    val regWriteFromBoot = bootWrite && bootIdx <= lastStepIdx
+    video.io.regWriteAddr   := Mux(regWriteFromBoot, bootAddr, animWriteAddr)
+    video.io.regWriteData   := Mux(regWriteFromBoot, bootDataMux, animWriteData)
+    video.io.regWriteEnable := regWriteFromBoot || animWriteActive
 
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100
@@ -368,7 +454,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // observable on a single captured frame.
 
     // Sprite enables vary per scenario.
-    val scSprite0 = Set(4, 5, 6, 7).contains(scenarioId)
+    val scSprite0 = Set(4, 5, 6, 7, 12).contains(scenarioId)
     val scSprite1 = Set(5, 6, 7).contains(scenarioId)
     val scSprite23 = Set(5, 6).contains(scenarioId)    // Sc5/Sc6 use all 4
     video.io.sprite0Enabled    := Bool(scSprite0)
@@ -411,6 +497,30 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       video.io.sprite0Y := U(240, 10 bits)
       video.io.sprite1X := U(320, 10 bits)
       video.io.sprite1Y := U(240, 10 bits)
+      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
+      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
+      video.io.sprite2Enabled := False
+      video.io.sprite3Enabled := False
+      video.io.sprite2PatternIdx := U(0, 1 bit)
+      video.io.sprite3PatternIdx := U(1, 1 bit)
+    } else if (scenarioId == 12) {
+      // Sc12: one sprite moves horizontally across the affine background at
+      // 2 px/frame, pinned at Y=200. Other sprites disabled.
+      val xMin = 16; val xMax = 624
+      val s0x = Reg(UInt(10 bits)) init xMin
+      val s0dir = Reg(Bool()) init False  // false = +2
+      when(vsyncRising) {
+        when(s0dir) {
+          when(s0x <= U(xMin + 2, 10 bits)) { s0dir := False; s0x := U(xMin, 10 bits) }
+            .otherwise                        { s0x := s0x - 2 }
+        }.otherwise {
+          when(s0x >= U(xMax - 2, 10 bits)) { s0dir := True;  s0x := U(xMax, 10 bits) }
+            .otherwise                        { s0x := s0x + 2 }
+        }
+      }
+      video.io.sprite0X := s0x
+      video.io.sprite0Y := U(200, 10 bits)
+      video.io.sprite1X := U(0, 10 bits); video.io.sprite1Y := U(0, 10 bits)
       video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
       video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
       video.io.sprite2Enabled := False
@@ -589,6 +699,10 @@ object TopTang20kHdmiScenario10Verilog extends App {
 }
 object TopTang20kHdmiScenario11Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 11))
+}
+// Task 19 Checkpoint C — affine background with sprite.
+object TopTang20kHdmiScenario12Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 12))
 }
 // Wave 3 scenario.
 object TopTang20kHdmiScenario13Verilog extends App {
