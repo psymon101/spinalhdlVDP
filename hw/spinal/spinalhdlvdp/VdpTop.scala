@@ -498,6 +498,28 @@ case class VdpTop() extends Component {
   layer1.io.scrollX := io.layer1ScrollX
   layer1.io.scrollY := io.layer1ScrollY
 
+  // Task 19 Checkpoint B: affine coordinate generator + texture BRAM. The
+  // stepper runs combinationally against the current (hCounter, fillLine) so
+  // its output is available in the same cycle as the existing layer0/layer1
+  // sources. The texture is a 128×128 ROM-initialised Mem with async read.
+  val affineStepper = AffineStepper()
+  affineStepper.io.x := hCounter.resize(10)
+  affineStepper.io.y := fillLine
+  affineStepper.io.matrixA := affineAReg
+  affineStepper.io.matrixB := affineBReg
+  affineStepper.io.matrixC := affineCReg
+  affineStepper.io.matrixD := affineDReg
+  affineStepper.io.transX  := affineXReg
+  affineStepper.io.transY  := affineYReg
+
+  val affineTexture = Mem(Bits(8 bits), AffineAssets.Width * AffineAssets.Height)
+    .init(AffineAssets.textureInit)
+  val affineAddr  = (affineStepper.io.vInt ## affineStepper.io.uInt).asUInt
+  val affinePixel = affineTexture.readAsync(affineAddr)
+  val affineIndex = affinePixel(3 downto 0)
+  val affineBank  = affinePixel(6 downto 4).asUInt
+  val affinePrio  = affinePixel(7)
+
   // Task 15: runtime Layer-0 source mux. When layer0UseSdram is high, the
   // SDRAM-backed pixel from the external fetch engine feeds L0. The on-chip
   // BasicPatternSource is kept instantiated and reading as the comparison
@@ -508,15 +530,22 @@ case class VdpTop() extends Component {
   // Test-pattern override: when enabled, forces standard validation pattern
   // regardless of SDRAM or on-chip path state.
   val onChipIdx4   = layer0.io.pixelIndex.resize(4)
-  val layer0Index  = Mux(io.layer0TestPatternEnable,
-                         testPattern.io.pixelIndex,
-                         Mux(io.layer0UseSdram, io.layer0SdramPixel, onChipIdx4))
-  val layer0Bank   = Mux(io.layer0TestPatternEnable,
-                         testPattern.io.paletteBank,
-                         Mux(io.layer0UseSdram, io.layer0SdramBank,  U(0, 3 bits)))
-  val layer0Prio   = Mux(io.layer0TestPatternEnable,
-                         False,
-                         Mux(io.layer0UseSdram, io.layer0SdramPriority, False))
+  // Task 19: when affineEnable is high, the affine-texture lookup wins over
+  // every other L0 source (test-pattern / SDRAM / on-chip). This keeps the
+  // affine primitive observable without disturbing the existing mux ordering
+  // when affineEnable=0 (default — Checkpoint A proven backward-compat).
+  val layer0Index = (Mux(affineEnable, affineIndex,
+                         Mux(io.layer0TestPatternEnable,
+                             testPattern.io.pixelIndex,
+                             Mux(io.layer0UseSdram, io.layer0SdramPixel, onChipIdx4)))).simPublic()
+  val layer0Bank  = (Mux(affineEnable, affineBank,
+                         Mux(io.layer0TestPatternEnable,
+                             testPattern.io.paletteBank,
+                             Mux(io.layer0UseSdram, io.layer0SdramBank,  U(0, 3 bits))))).simPublic()
+  val layer0Prio  = (Mux(affineEnable, affinePrio,
+                         Mux(io.layer0TestPatternEnable,
+                             False,
+                             Mux(io.layer0UseSdram, io.layer0SdramPriority, False)))).simPublic()
 
   // R5: fold global LAYER_ENABLE register into the per-line linestate enable.
   val effectiveL0Enable = linestate.io.layer0Enable && layerEnableReg(0)
