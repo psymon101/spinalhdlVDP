@@ -28,7 +28,7 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 19 — Affine Layer |
 | **Status** | IN-PROGRESS |
-| **Phase** | implement (Checkpoint B) |
+| **Phase** | capture (Checkpoint C) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
 | **Latest Commit** | `5f4370b` |
 | **Latest Auth Mail** | #7327 (CyanPeak: Checkpoint A PASSED, GO for Checkpoint B) |
