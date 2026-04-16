@@ -76,6 +76,14 @@ Host (QSPI clock) → QSPI adapter → Command FIFO → VDP parser (pixel clock)
 
 FIFO entry format: `{addr[14:0], data[15:0]}` = 31 bits.
 
+**FIFO / CommandParser Contract:**
+
+1. **Queue contents**: The FIFO holds only **register-write queue entries** (`{addr[14:0], data[15:0]}`), not a generic command stream.
+2. **Ordering**: Host writes preserve strict FIFO order. A `VDP_DATA` write enqueues the current `VDP_ADDR` value paired with the data word.
+3. **Drain rate**: The pixel-domain `CommandParser` emits **one write per cycle** while the drain window is open (`hCounter === 0` or during vblank).
+4. **Vblank behavior**: During vertical blanking, writes may drain continuously without buffering.
+5. **`flush_fifo`**: The bit is named in the `HOST_CTRL` register map but is **not yet implemented** in the current codebase. When implemented, the intended semantics are host-domain FIFO reset (discard all queued entries). Until then, hosts must avoid overflow by monitoring `fifo_full`.
+
 ### 3.5 Safe-Boundary Application
 
 A `CommandParser` module in the pixel clock domain consumes the FIFO:

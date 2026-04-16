@@ -102,7 +102,7 @@ case class HostInterface() extends Component {
 | 1 | `VDP_DATA` | Write data; triggers FIFO enqueue |
 | 2 | `VDP_INC` | Auto-increment after write (default = 1) |
 | 3 | `VDP_STATUS` | `{fifo_full, fifo_empty, vblank, line[9:2]}` |
-| 4 | `VDP_CTRL` | `{irq_enable, copper_enable, flush_fifo}` |
+| 4 | `HOST_CTRL` (`VDP_CTRL` in current code) | `{irq_enable, copper_enable, flush_fifo}` — host-side control shadow register |
 
 ### Copper
 
@@ -128,21 +128,17 @@ case class Copper() extends Component {
 
 ### Modified VdpTop Interface
 
-Replace the raw linestate write ports with a single unified register-write port:
+The raw linestate write ports have been replaced with a single unified register-write port (already delivered in the current codebase):
 
 ```scala
-// Old:
-// val lsWriteAddr   = in UInt(log2Up(480) bits)
-// val lsWriteData   = in Bits(12 bits)
-// val lsWriteEnable = in Bool()
-
-// New:
 val regWriteAddr   = in UInt(15 bits)
 val regWriteData   = in Bits(16 bits)
 val regWriteEnable = in Bool()
 ```
 
-Inside `VdpTop`, the unified register-write bus is decoded directly (already delivered in the current codebase):
+**Layering clarification:** `hostAddr` selects **host-side shadow/status registers** (`VDP_ADDR`, `VDP_DATA`, `VDP_INC`, `VDP_STATUS`, `HOST_CTRL`). Only writes to `VDP_DATA` enqueue entries into the internal VDP register-space FIFO. The target address for those queued writes is the value held in the host-side `VDP_ADDR` shadow register. The internal VDP register space (accessed by the pixel-domain `CommandParser`) is a separate 15-bit address map; `0x0310` inside that map is the VDP register-space control register consumed by `VdpTop`.
+
+Inside `VdpTop`, the unified register-write bus is decoded directly:
 - `0x0000–0x01DF` → `LinestateStore` prepare side
 - `0x0200–0x027F` → palette RAM (128 entries, banked)
 - `0x0300–0x030F` → scroll / layer-enable / raster control registers
