@@ -28,7 +28,7 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 21 — Mixed-Scene Integration |
 | **Status** | IN-PROGRESS |
-| **Phase** | capture (Checkpoint C) |
+| **Phase** | implement (Checkpoint B) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
 | **Latest Commit** | `f110f8b` |
 | **Latest Auth Mail** | #7370 (BrightForge: Checkpoint B exit) |
