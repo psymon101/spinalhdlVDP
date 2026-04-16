@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-15
+**Updated:** 2026-04-16
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -429,15 +429,15 @@ These are not implementation tasks. Each scenario must be run against hardware a
 | 28 | Scenario 3 — Scroll wraparound / seam test | 8, 27 | DONE |
 | 29 | Scenario 4 — Single sprite over static background | 11, 26 | DONE |
 | 30 | Scenario 5 — Four bouncing sprites over static background | 11, 29 | DONE |
-| 31 | Scenario 6 — Sprites over scrolling background | 12, 13, 27, 30 | TODO |
-| 32 | Scenario 7 — Sprite priority / overlap test | 12, 31 | TODO |
-| 33 | Scenario 8 — Multi-layer parallax scroll | 13, 27 | TODO |
-| 34 | Scenario 9 — Planar bitmap scene | 16 | TODO |
-| 35 | Scenario 10 — Shuffled bitmap scene | 17 | TODO |
-| 36 | Scenario 11 — Per-line raster effects | 18 | TODO |
+| 31 | Scenario 6 — Sprites over scrolling background | 12, 13, 27, 30 | DONE |
+| 32 | Scenario 7 — Sprite priority / overlap test | 12, 31 | DONE |
+| 33 | Scenario 8 — Multi-layer parallax scroll | 13, 27 | DONE |
+| 34 | Scenario 9 — Planar bitmap scene | 16 | DONE |
+| 35 | Scenario 10 — Shuffled bitmap scene | 17 | DONE |
+| 36 | Scenario 11 — Per-line raster effects | 18 | DONE |
 | 37 | Scenario 12 — Affine background with sprites | 19, 12 | TODO |
 | 38 | Scenario 13 — Palette animation during motion | 10, 14, 27 | TODO |
-| 39 | Scenario 14 — Color math / window scene | 20 | TODO |
+| 39 | Scenario 14 — Color math / window scene | 20 | DONE |
 | 40 | Scenario 15 — Mixed fetch-mode integration scene | 21 | TODO |
 | 41 | Scenario 16 — Long soak scene | 22 | TODO |
 | 42 | Scenario 17 — Stress scene | 23 | TODO |
