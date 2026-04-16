@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | capture (Checkpoint C) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `a083608` |
-| **Latest Auth Mail** | #7332 (BrightForge: Checkpoint B exit) |
-| **Next Deliverable** | Checkpoint B audit — CyanPeak sign-off |
+| **Latest Commit** | `f5b1edc` |
+| **Latest Auth Mail** | #7337 (BrightForge: Checkpoint C exit), #7340 (BronzeGate: approve Option 1 zoom) |
+| **Next Deliverable** | Proof-scene zoom adjustment commit + re-capture (BrightForge) |
 | **Coding Authorized** | **YES** — CyanPeak signed off at #7322 |
 
 Rules:

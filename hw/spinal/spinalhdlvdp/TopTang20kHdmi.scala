@@ -380,11 +380,15 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // (320, 240) mapped to texture center (64, 64), scale 0.9×. After the
     // bootstrap finishes, each vsyncRising kicks off a 6-cycle sequence that
     // rewrites the affine matrix registers via the regWriteBus.
+    // Per BronzeGate #7340 / CyanPeak #7341: proof-scene zoom so ONE texture
+    // tile spans the 640-px screen width (128 texel / 640 px ≈ 0.2). This is
+    // a local proof-scene parameter change — the AffineStepper contract,
+    // register map, and modulo-128 wrap logic are untouched.
     val sc12Lut: Seq[(Int, Int, Int, Int, Int, Int)] = (0 until 180).map { i =>
       val theta = i.toDouble * 2.0 * math.Pi / 180.0
       val cos = math.cos(theta)
       val sin = math.sin(theta)
-      val scale = 0.9
+      val scale = 0.2
       val A = scale * cos
       val B = -scale * sin
       val C = scale * sin
