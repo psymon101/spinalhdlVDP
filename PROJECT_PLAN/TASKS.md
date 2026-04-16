@@ -28,11 +28,11 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 21 — Mixed-Scene Integration |
 | **Status** | IN-PROGRESS |
-| **Phase** | implement (Checkpoint B) |
+| **Phase** | capture (Checkpoint C) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
 | **Latest Commit** | `f110f8b` |
-| **Latest Auth Mail** | #7370 (BrightForge: Checkpoint B exit) |
-| **Next Deliverable** | Checkpoint B audit — CyanPeak sign-off |
+| **Latest Auth Mail** | #7375 (CyanPeak: Checkpoint B PASSED) |
+| **Next Deliverable** | Checkpoint C exit packet (BrightForge) |
 | **Coding Authorized** | **YES** — CyanPeak signed off at #7364 |
 
 Rules:
