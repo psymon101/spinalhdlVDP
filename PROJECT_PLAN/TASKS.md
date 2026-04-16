@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 19 — Affine Layer |
-| **Status** | IN-PROGRESS |
-| **Phase** | capture (Checkpoint C) |
+| **Task** | *(none — last closed Task 19)* |
+| **Status** | CLOSED |
+| **Phase** | closeout |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `f5b1edc` |
-| **Latest Auth Mail** | #7337 (BrightForge: Checkpoint C exit), #7340 (BronzeGate: approve Option 1 zoom) |
-| **Next Deliverable** | Proof-scene zoom adjustment commit + re-capture (BrightForge) |
-| **Coding Authorized** | **YES** — CyanPeak signed off at #7322 |
+| **Latest Commit** | `0c90773` |
+| **Latest Auth Mail** | #7348 (CyanPeak: Task 19 CLOSED) |
+| **Next Deliverable** | PM directive for next lane |
+| **Coding Authorized** | NO — waiting for next lane opening |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -338,7 +338,7 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 
 ### Task 19 — Affine Layer
 
-**Status:** IN-PROGRESS
+**Status:** DONE
 **depends_on:** [15, 18]
 **scope_boundary:** Affine background only. No affine sprites. No scaling beyond what the affine matrix provides.
 **delivers:**
@@ -457,7 +457,7 @@ These are not implementation tasks. Each scenario must be run against hardware a
 | 34 | Scenario 9 — Planar bitmap scene | 16 | DONE |
 | 35 | Scenario 10 — Shuffled bitmap scene | 17 | DONE |
 | 36 | Scenario 11 — Per-line raster effects | 18 | DONE |
-| 37 | Scenario 12 — Affine background with sprites | 19, 12 | TODO |
+| 37 | Scenario 12 — Affine background with sprites | 19, 12 | DONE |
 | 38 | Scenario 13 — Palette animation during motion | 10, 14, 27 | DONE |
 | 39 | Scenario 14 — Color math / window scene | 20 | DONE |
 | 40 | Scenario 15 — Mixed fetch-mode integration scene | 21 | TODO |
