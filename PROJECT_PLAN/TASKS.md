@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(none — last closed Task 19)* |
-| **Status** | CLOSED |
-| **Phase** | closeout |
+| **Task** | Task 21 — Mixed-Scene Integration |
+| **Status** | IN-PROGRESS |
+| **Phase** | artifact |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
 | **Latest Commit** | `0c90773` |
-| **Latest Auth Mail** | #7348 (CyanPeak: Task 19 CLOSED) |
-| **Next Deliverable** | PM directive for next lane |
-| **Coding Authorized** | NO — waiting for next lane opening |
+| **Latest Auth Mail** | #7357 (BronzeGate: open Task 21) |
+| **Next Deliverable** | CyanPeak artifact audit |
+| **Coding Authorized** | NO — hold for audit GO |
 
 Rules:
 - Only **one** lane may be live at a time.
