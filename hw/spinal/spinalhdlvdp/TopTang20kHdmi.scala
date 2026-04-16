@@ -23,9 +23,17 @@ import spinal.core._
   *       than literal palette rewrites. See `SCENARIO_13.md`.
   *  15 = Task 21 Mixed-Scene Integration — three horizontal L0 bands (tile /
   *       planar / shuffled) driven by copper-commanded `VDP_TILE_MODE`
-  *       switches at y=160 and y=320, concurrent L1 scroll, and two
+  *       switches at y=160 and y=320, concurrent L0 scroll, and two
   *       horizontally-bouncing sprites crossing the mode boundaries. Pure
   *       integration, no new primitives/registers. See `SCENARIO_15.md`.
+  *  16 = Task 21 debug Step 3 — Sc15 scene with copper disabled and
+  *       `tileMode=0x0000` (packed) static. Reference baseline for the
+  *       packed-mode L0 row-mean signature. Throwaway; remove when Task 21
+  *       closes.
+  *  17 = Task 21 debug Step 3 — Sc15 scene with copper disabled and
+  *       `tileMode=0x0001` (planar) static. Throwaway.
+  *  18 = Task 21 debug Step 3 — Sc15 scene with copper disabled and
+  *       `tileMode=0x0002` (shuffled) static. Throwaway.
   */
 case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   setDefinitionName("top_tang20k")
@@ -150,6 +158,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 0 => 1
       case 8 => 1     // Sc8 parallax: L0 slow
       case 15 => 1    // Sc15 mixed-scene integration: L0 @ 1 px/frame
+      case 16 | 17 | 18 => 1   // Sc15-style debug refs: same L0 scroll
       case _ => 0
     }
     val l1StepFrames = scenarioId match {
@@ -294,7 +303,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 0      => 0x0002    // R4.1d Checkpoint C: shuffled
       case 9      => 0x0001    // Sc9: planar
       case 10     => 0x0002    // Sc10: shuffled
-      case _      => 0x0000    // packed default
+      case 17     => 0x0001    // Sc17 debug ref: planar static
+      case 18     => 0x0002    // Sc18 debug ref: shuffled static
+      case _      => 0x0000    // packed default (Sc16 also takes this)
     }, 16 bits)
     val attrModeAddr = U(0x0312, 15 bits)
     val attrModeData = B(scenarioId match {
@@ -318,6 +329,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 12          => 0x0005  // L0 + sprite (affine background under sprite)
       case 13          => 0x0003  // L0 + L1 (palette-animation-during-motion)
       case 15          => 0x0005  // L0 + sprite (mixed-scene integration)
+      case 16 | 17 | 18 => 0x0005 // L0 + sprite (Sc15-style debug refs)
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
@@ -475,8 +487,8 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // observable on a single captured frame.
 
     // Sprite enables vary per scenario.
-    val scSprite0 = Set(4, 5, 6, 7, 12, 15).contains(scenarioId)
-    val scSprite1 = Set(5, 6, 7, 15).contains(scenarioId)
+    val scSprite0 = Set(4, 5, 6, 7, 12, 15, 16, 17, 18).contains(scenarioId)
+    val scSprite1 = Set(5, 6, 7, 15, 16, 17, 18).contains(scenarioId)
     val scSprite23 = Set(5, 6).contains(scenarioId)    // Sc5/Sc6 use all 4
     video.io.sprite0Enabled    := Bool(scSprite0)
     video.io.sprite0PatternIdx := U(0, 1 bit)
@@ -524,7 +536,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       video.io.sprite3Enabled := False
       video.io.sprite2PatternIdx := U(0, 1 bit)
       video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (scenarioId == 15) {
+    } else if (Set(15, 16, 17, 18).contains(scenarioId)) {
       // Sc15 (Task 21 Mixed-Scene Integration): two sprites bouncing
       // horizontally at 2 px/frame at y=100 (top band / tile mode) and
       // y=300 (middle band / planar mode), opposite phase so they sweep
@@ -776,6 +788,16 @@ object TopTang20kHdmiScenario12Verilog extends App {
 // Task 21 Mixed-Scene Integration.
 object TopTang20kHdmiScenario15Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 15))
+}
+// Task 21 debug Step 3 — single-mode reference scenarios (throwaway).
+object TopTang20kHdmiScenario16Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 16))   // packed-static
+}
+object TopTang20kHdmiScenario17Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 17))   // planar-static
+}
+object TopTang20kHdmiScenario18Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 18))   // shuffled-static
 }
 // Wave 3 scenario.
 object TopTang20kHdmiScenario13Verilog extends App {
