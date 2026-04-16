@@ -316,7 +316,7 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 
 ### Task 19 — Affine Layer
 
-**Status:** TODO
+**Status:** IN-PROGRESS
 **depends_on:** [15, 18]
 **scope_boundary:** Affine background only. No affine sprites. No scaling beyond what the affine matrix provides.
 **delivers:**
