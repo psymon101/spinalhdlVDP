@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | implement (Checkpoint B) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `5f4370b` |
-| **Latest Auth Mail** | #7327 (CyanPeak: Checkpoint A PASSED, GO for Checkpoint B) |
-| **Next Deliverable** | Checkpoint B — AffineStepper + texture BRAM + L0 mux + sim proof (BrightForge) |
+| **Latest Commit** | `a083608` |
+| **Latest Auth Mail** | #7332 (BrightForge: Checkpoint B exit) |
+| **Next Deliverable** | Checkpoint B audit — CyanPeak sign-off |
 | **Coding Authorized** | **YES** — CyanPeak signed off at #7322 |
 
 Rules:
