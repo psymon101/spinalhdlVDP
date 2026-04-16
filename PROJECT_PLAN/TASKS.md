@@ -28,11 +28,11 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 19 — Affine Layer |
 | **Status** | IN-PROGRESS |
-| **Phase** | audit → implement |
+| **Phase** | implement (Checkpoint B) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
 | **Latest Commit** | `5f4370b` |
-| **Latest Auth Mail** | #7326 (BrightForge: Checkpoint A exit) |
-| **Next Deliverable** | Checkpoint A audit — CyanPeak sign-off |
+| **Latest Auth Mail** | #7327 (CyanPeak: Checkpoint A PASSED, GO for Checkpoint B) |
+| **Next Deliverable** | Checkpoint B — AffineStepper + texture BRAM + L0 mux + sim proof (BrightForge) |
 | **Coding Authorized** | **YES** — CyanPeak signed off at #7322 |
 
 Rules:
