@@ -436,7 +436,7 @@ These are not implementation tasks. Each scenario must be run against hardware a
 | 35 | Scenario 10 — Shuffled bitmap scene | 17 | DONE |
 | 36 | Scenario 11 — Per-line raster effects | 18 | DONE |
 | 37 | Scenario 12 — Affine background with sprites | 19, 12 | TODO |
-| 38 | Scenario 13 — Palette animation during motion | 10, 14, 27 | TODO |
+| 38 | Scenario 13 — Palette animation during motion | 10, 14, 27 | DONE |
 | 39 | Scenario 14 — Color math / window scene | 20 | DONE |
 | 40 | Scenario 15 — Mixed fetch-mode integration scene | 21 | TODO |
 | 41 | Scenario 16 — Long soak scene | 22 | TODO |
