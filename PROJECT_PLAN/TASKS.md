@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *none* |
-| **Status** | CLOSED |
-| **Phase** | closeout |
-| **Owner** | — |
-| **Latest Commit** | — |
-| **Latest Auth Mail** | #7410 (CyanPeak: Task 21 CLOSED) |
-| **Next Deliverable** | Task 22 / Task 23 validation lanes |
-| **Coding Authorized** | **NO** — pending next lane assignment |
+| **Task** | Task 22 — Long Soak Validation |
+| **Status** | IN_REVIEW |
+| **Phase** | artifact — awaiting audit |
+| **Owner** | BrightForge (coding), CyanPeak (audit) |
+| **Latest Commit** | *pending* |
+| **Latest Auth Mail** | #7413 (BronzeGate: open Task 22) |
+| **Next Deliverable** | CyanPeak audit of Task 22 / Sc16 artifact |
+| **Coding Authorized** | **NO** — await audit GO before HDL or build changes |
 
 Rules:
 - Only **one** lane may be live at a time.

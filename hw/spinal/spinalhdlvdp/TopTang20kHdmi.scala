@@ -158,7 +158,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 0 => 1
       case 8 => 1     // Sc8 parallax: L0 slow
       case 15 => 1    // Sc15 mixed-scene integration: L0 @ 1 px/frame
-      case 16 | 17 | 18 => 1   // Sc15-style debug refs: same L0 scroll
+      case 16 => 1    // Sc16 long-soak baseline: same L0 scroll as Sc15
       case _ => 0
     }
     val l1StepFrames = scenarioId match {
@@ -216,12 +216,13 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (0 << 14) | 420, (1 << 14) | 0x0312, 0x0001,
           (3 << 14) | 0
         )
-      case 15 =>
+      case 15 | 16 =>
         // Sc15 (Task 21): switch L0 VDP_TILE_MODE from packed (0) → planar (1)
         // at y=160, then planar → shuffled (2) at y=320. Three horizontal L0
         // bands of distinct fetch modes. Safe-boundary commit guarantees clean
         // band edges.
         // Fix: add WAIT y=0 reset to packed so frame start is deterministic.
+        // Sc16 (Task 22) reuses the identical bootstrap for the 1-hour soak test.
         Seq(
           (0 << 14) |   0, (1 << 14) | 0x0311, 0x0000,
           (0 << 14) | 160, (1 << 14) | 0x0311, 0x0001,
@@ -305,8 +306,6 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 0      => 0x0002    // R4.1d Checkpoint C: shuffled
       case 9      => 0x0001    // Sc9: planar
       case 10     => 0x0002    // Sc10: shuffled
-      case 17     => 0x0001    // Sc17 debug ref: planar static
-      case 18     => 0x0002    // Sc18 debug ref: shuffled static
       case _      => 0x0000    // packed default (Sc16 also takes this)
     }, 16 bits)
     val attrModeAddr = U(0x0312, 15 bits)
@@ -318,7 +317,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // Copper enabled ONLY for Sc13 (copper drives ATTR_MODE toggle animation).
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
-    val ctrlData     = B(if (scenarioId == 13 || scenarioId == 15) 0x0001 else 0x0000, 16 bits)
+    val ctrlData     = B(if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16) 0x0001 else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
       case 0           => 0x0001  // R4.1d Checkpoint C: L0 only
@@ -331,7 +330,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 12          => 0x0005  // L0 + sprite (affine background under sprite)
       case 13          => 0x0003  // L0 + L1 (palette-animation-during-motion)
       case 15          => 0x0005  // L0 + sprite (mixed-scene integration)
-      case 16 | 17 | 18 => 0x0005 // L0 + sprite (Sc15-style debug refs)
+      case 16          => 0x0005  // Sc16 long-soak baseline: same layer config as Sc15
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
