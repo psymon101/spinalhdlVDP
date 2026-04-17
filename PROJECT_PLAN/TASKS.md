@@ -390,7 +390,7 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 
 ### Task 22 — Long Soak Validation
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [21]
 **scope_boundary:** No new features. Runtime stability testing only.
 **delivers:**
