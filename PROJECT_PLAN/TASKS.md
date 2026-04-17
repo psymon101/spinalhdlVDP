@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 21 — Mixed-Scene Integration |
-| **Status** | IN-PROGRESS |
-| **Phase** | capture (Checkpoint C) — bounded debug |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `3f3842e` |
-| **Latest Auth Mail** | #7396 (BronzeGate: debug plan GO) |
-| **Next Deliverable** | Bounded debug packet — Steps 1-3 data + root-cause hypothesis (BrightForge) |
-| **Coding Authorized** | **YES** — debug Steps 1+2+3 GO at #7390 / #7393 |
+| **Task** | *none* |
+| **Status** | CLOSED |
+| **Phase** | closeout |
+| **Owner** | — |
+| **Latest Commit** | — |
+| **Latest Auth Mail** | #7410 (CyanPeak: Task 21 CLOSED) |
+| **Next Deliverable** | Task 22 / Task 23 validation lanes |
+| **Coding Authorized** | **NO** — pending next lane assignment |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -372,7 +372,7 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 
 ### Task 21 — Mixed-Scene Integration
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [15, 16, 17, 18, 19, 20]
 **scope_boundary:** Integration of existing Mode0 primitives only. No new primitives.
 **delivers:**

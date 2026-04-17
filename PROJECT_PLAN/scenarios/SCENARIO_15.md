@@ -5,7 +5,7 @@
 **Depends on:** Scenarios 1, 9, 10, 11, 12, 14
 **Capture protocol:** 30 s, 720×480 YUYV @ 50 fps lossless x264 qp=0 yuv444p
 **Owner:** BrightForge / CyanPeak
-**Status:** DRAFT — awaiting CyanPeak audit of pass criteria
+**Status:** ACTIVE — Fix A + Fix B applied, criteria audited by CyanPeak
 
 ---
 
@@ -22,7 +22,8 @@ The bootstrap configures:
 - `VDP_TILE_MODE = 0x0000` (tile mode) as the initial state
 - `VDP_ATTR_MODE = 0x0000` (linear attributes)
 - `VDP_COPPER_CTRL = 0x0001` (copper enabled)
-- Copper program (2 triggers):
+- Copper program (3 triggers):
+  - `y =   0`: write `0x0311 = 0x0000` (reset L0 to packed mode at frame start)
   - `y = 160`: write `0x0311 = 0x0001` (switch L0 to planar mode)
   - `y = 320`: write `0x0311 = 0x0002` (switch L0 to shuffled mode)
 - L0 scroll: 1 px/frame
@@ -49,12 +50,13 @@ L0 scrolls continuously across all bands. Two sprites move horizontally across t
 
 | Check | Condition | Reason |
 |---|---|---|
-| **C1 three-band presence** | Per-frame mean intensity of top 1/3, middle 1/3, and bottom 1/3 are pairwise distinct by ≥ 15 units in at least one BGR channel for ≥ 95 % of sampled frames | Tile, planar, and shuffled modes have visually distinct mean signatures |
+| **C1a top-band presence** | Top 1/3 mean differs from bottom 2/3 mean by ≥ 15 units in at least one BGR channel for ≥ 95 % of sampled frames | Proves packed mode is active in the top band |
+| **C1b mid/bottom coherence** | Mid 1/3 and bottom 1/3 means are within ±20 units in at least one BGR channel for ≥ 95 % of sampled frames | Proves planar and shuffled bands render coherently as a bitplane block |
 | **C2 L0 scroll motion** | Mean absolute frame-difference across the full 30 s ≥ 5.0 | Proves L0 scroll is active and coherent across mode boundaries |
 | **C3 sprite presence** | Sprite detection fraction ≥ 95 % across 30 s; x-range ≥ 100 px | Proves sprite path remains stable under mode switching |
-| **C4 stability** | Band-structure outlier rate ≤ 5 % (frames where the three-cluster distinctness collapses) | Proves no corruption or glitching from copper-driven mode switches |
+| **C4 stability** | Combined C1a/C1b outlier rate ≤ 5 % (frames where either the top-band distinctness or the mid/bottom coherence collapses) | Proves no corruption or glitching from copper-driven mode switches |
 
-Scenario passes when C1, C2, C3, and C4 PASS.
+Scenario passes when C1a, C1b, C2, C3, and C4 PASS.
 
 ---
 

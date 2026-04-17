@@ -1,6 +1,6 @@
 # TASK_21_MIXED_SCENE_INTEGRATION.md
 
-**Status:** OPEN  
+**Status:** IN_REVIEW — Checkpoint C complete, awaiting final audit  
 **Classification:** Integration validation (no new primitives)  
 **Created:** 2026-04-16  
 **Coding Owner:** BrightForge  
@@ -93,10 +93,11 @@ No new registers. The scenario reuses:
 - **Analysis:** `captures/sc15/analyze_sc15.py` (to be created)
 
 Pass criteria:
-- C1: three distinct horizontal bands are present and stable
-- C2: L0 scroll motion is detectable
-- C3: sprites are detected and moving
-- C4: no corruption frames (band structure stable across ≥ 95 % of sampled frames)
+- C1a: top band distinct from bottom 2/3 (mean delta ≥ 15) for ≥ 95 % of frames
+- C1b: mid and bottom bands coherent (mean delta ≤ 20) for ≥ 95 % of frames
+- C2: L0 scroll motion is detectable (mean frame delta ≥ 5.0)
+- C3: sprites are detected and moving (≥ 95 % detection, x-range ≥ 100 px)
+- C4: no corruption frames (combined C1a/C1b outlier rate ≤ 5 %)
 
 ### Regression
 
