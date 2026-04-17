@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-16
+**Updated:** 2026-04-17
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 23 — Stress-Scene Validation |
-| **Status** | IN_REVIEW |
-| **Phase** | artifact — awaiting audit |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | *pending* |
-| **Latest Auth Mail** | #7433 (BronzeGate: open Task 23) |
-| **Next Deliverable** | CyanPeak audit of Task 23 / Sc17 artifact |
-| **Coding Authorized** | **NO** — await audit GO before HDL or build changes |
+| **Task** | *(none — lane clear)* |
+| **Status** | — |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | — |
+| **Latest Auth Mail** | — |
+| **Next Deliverable** | — |
+| **Coding Authorized** | — |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -404,7 +404,7 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 
 ### Task 23 — Stress-Scene Validation
 
-**Status:** OPEN
+**Status:** DONE
 **depends_on:** [21]
 **scope_boundary:** No new features. Maximum-load scenario only.
 **delivers:**
@@ -460,9 +460,9 @@ These are not implementation tasks. Each scenario must be run against hardware a
 | 37 | Scenario 12 — Affine background with sprites | 19, 12 | DONE |
 | 38 | Scenario 13 — Palette animation during motion | 10, 14, 27 | DONE |
 | 39 | Scenario 14 — Color math / window scene | 20 | DONE |
-| 40 | Scenario 15 — Mixed fetch-mode integration scene | 21 | TODO |
-| 41 | Scenario 16 — Long soak scene | 22 | TODO |
-| 42 | Scenario 17 — Stress scene | 23 | TODO |
+| 40 | Scenario 15 — Mixed fetch-mode integration scene | 21 | DONE |
+| 41 | Scenario 16 — Long soak scene | 22 | DONE |
+| 42 | Scenario 17 — Stress scene | 23 | DONE |
 
 ---
 
