@@ -43,6 +43,16 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   val O_tmds_data_p = out Bits(3 bits)
   val O_tmds_data_n = out Bits(3 bits)
 
+  // QSPI host-control pins (phase 1 — CS=9, SCK=10, IO0=11, IO1=8 per plan §2).
+  // Checkpoint A wires IO0/IO1 as inputs only; the tristate-buffer path for
+  // READ_STATUS response lands in a later checkpoint. IO2/IO3 are not brought
+  // out on Tang for lane 1 — the slave internally accepts a 4-bit bus and the
+  // upper two bits are tied low here.
+  val I_qspi_cs  = in Bool()
+  val I_qspi_sck = in Bool()
+  val I_qspi_io0 = in Bool()
+  val I_qspi_io1 = in Bool()
+
   // Task 15: embedded SiP SDRAM pads. These map to Gowin's "magic" port names
   // (O_sdram_*, IO_sdram_DQ). No `.cst` entries — Gowin auto-binds them.
   val O_sdram_clk   = out Bool()
@@ -479,10 +489,35 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
         (U(0, 15 bits), B(0, 16 bits), False)
       }
 
+    // QSPI host-control frontend (phase 1 — Checkpoint A control contract).
+    // The QspiSlave lives in the pixel clock domain and oversamples the async
+    // CS/SCK/IO inputs.  After bootstrap completes it may assert regWriteEnable
+    // via the QspiDecoder; bootstrap always takes priority while active.
+    val qspi = QspiSlave()
+    qspi.io.spi_cs_n  := I_qspi_cs
+    qspi.io.spi_sck   := I_qspi_sck
+    qspi.io.spi_io_in := (B"00" ## I_qspi_io1 ## I_qspi_io0)   // IO2/IO3 tied low
+    val qspiDec = QspiDecoder()
+    qspiDec.io.cmd_opcode    := qspi.io.cmd_opcode
+    qspiDec.io.cmd_addr      := qspi.io.cmd_addr
+    qspiDec.io.cmd_len       := qspi.io.cmd_len
+    qspiDec.io.cmd_valid     := qspi.io.cmd_valid
+    qspiDec.io.payload_byte  := qspi.io.payload_byte
+    qspiDec.io.payload_valid := qspi.io.payload_valid
+    qspiDec.io.tx_byte_sent  := qspi.io.tx_byte_sent
+    qspiDec.io.active        := qspi.io.active
+    qspi.io.tx_byte := qspiDec.io.tx_byte
+    qspi.io.tx_load := qspiDec.io.tx_load
+
     val regWriteFromBoot = bootWrite && bootIdx <= lastStepIdx
-    video.io.regWriteAddr   := Mux(regWriteFromBoot, bootAddr, animWriteAddr)
-    video.io.regWriteData   := Mux(regWriteFromBoot, bootDataMux, animWriteData)
-    video.io.regWriteEnable := regWriteFromBoot || animWriteActive
+    // QSPI can only assert after bootstrap completes, preventing any
+    // bus contention during the power-on register-write sequence.
+    val qspiActive = bootDoneR && qspiDec.io.regWriteEnable
+    video.io.regWriteAddr := Mux(regWriteFromBoot, bootAddr,
+                              Mux(qspiActive, qspiDec.io.regWriteAddr, animWriteAddr))
+    video.io.regWriteData := Mux(regWriteFromBoot, bootDataMux,
+                              Mux(qspiActive, qspiDec.io.regWriteData, animWriteData))
+    video.io.regWriteEnable := regWriteFromBoot || qspiActive || animWriteActive
 
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100
