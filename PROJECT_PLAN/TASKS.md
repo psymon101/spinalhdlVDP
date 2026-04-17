@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(none — lane clear)* |
-| **Status** | — |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | — |
-| **Latest Auth Mail** | — |
-| **Next Deliverable** | — |
-| **Coding Authorized** | — |
+| **Task** | Task 26 — QSPI Host-Control Frontend |
+| **Status** | IN-PROGRESS |
+| **Phase** | capture (Checkpoint C hardware proof) |
+| **Owner** | BrightForge (coding), CyanPeak (audit) |
+| **Latest Commit** | `8c4f165` (Checkpoint B: sims + READ_STATUS mux) |
+| **Latest Auth Mail** | #7480 (CyanPeak: Checkpoint B PASSED, GO Checkpoint C) |
+| **Next Deliverable** | Checkpoint C exit packet: Pico 2 smoke test + hardware register live-update |
+| **Coding Authorized** | **YES** — CyanPeak #7480 |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -546,6 +546,33 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 **Task doc:** `PROJECT_PLAN/TASK_20_COLOR_MATH_WINDOW.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
+
+---
+
+## Phase 9 — Host Control
+
+---
+
+### Task 26 — QSPI Host-Control Frontend
+
+**Status:** IN-PROGRESS
+**depends_on:** [23]
+**scope_boundary:** Transport shim and decoder only. No bulk asset streaming, no protocol expansion, no new rendering primitives, no FIFO model redesign.
+**delivers:**
+
+- QSPI slave transport shim (SpinalHDL port of proven `m0_qspi_slave.v`)
+- QSPI command decoder mapping register writes into existing `VdpTop.io.regWrite*` contract
+- READ_STATUS response mux for host bring-up diagnostics
+- Pico 2 smoke firmware proving the path
+- Hardware proof: QSPI-driven register write visibly toggles output
+
+**validation:**
+
+- Checkpoint A: control contract + clean Verilog + pin mapping (PASSED at `df0b75b`)
+- Checkpoint B: simulation proofs + READ_STATUS mux (PASSED at `8c4f165`)
+- Checkpoint C: Pico 2 smoke test + `LAYER_ENABLE` live-update on hardware
+
+**Task doc:** `PROJECT_PLAN/QSPI_HOST_CONTROL_PLAN.md`
 
 ---
 
