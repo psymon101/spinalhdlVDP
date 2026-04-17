@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *none* |
-| **Status** | IDLE |
-| **Phase** | *none* |
-| **Owner** | *none* |
-| **Latest Commit** | `33e396b` |
-| **Latest Auth Mail** | #7423 (CyanPeak: Task 22 CLOSED) |
-| **Next Deliverable** | *none* |
-| **Coding Authorized** | **NO** |
+| **Task** | Task 23 — Stress-Scene Validation |
+| **Status** | IN_REVIEW |
+| **Phase** | artifact — awaiting audit |
+| **Owner** | BrightForge (coding), CyanPeak (audit) |
+| **Latest Commit** | *pending* |
+| **Latest Auth Mail** | #7433 (BronzeGate: open Task 23) |
+| **Next Deliverable** | CyanPeak audit of Task 23 / Sc17 artifact |
+| **Coding Authorized** | **NO** — await audit GO before HDL or build changes |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -404,7 +404,7 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 
 ### Task 23 — Stress-Scene Validation
 
-**Status:** TODO
+**Status:** OPEN
 **depends_on:** [21]
 **scope_boundary:** No new features. Maximum-load scenario only.
 **delivers:**
