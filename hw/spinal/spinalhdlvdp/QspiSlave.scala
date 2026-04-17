@@ -161,7 +161,10 @@ case class QspiSlave() extends Component {
                 val lenFull = (byteAssembled ## hdr(4)).asUInt
                 cmd_len    := lenFull
                 cmd_valid  := True
-                payload_remaining := lenFull
+                // Plan §3.1: LEN is the number of 16-bit words.  Each word
+                // consumes 2 payload bytes, so the byte-level remaining
+                // counter is `len << 1`.
+                payload_remaining := (lenFull << 1).resize(16)
                 when(lenFull === U(0, 16 bits)) {
                   state          := State.Turnaround
                   turnaround_cnt := 0

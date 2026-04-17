@@ -90,8 +90,6 @@ case class QspiDecoder() extends Component {
         last_addr  := writeAddr.resize(16)
         last_data  := word
         haveLo     := False
-        // Advance address for next word (auto-increment register addressing).
-        writeAddr  := writeAddr + 1
         when(wordsLeft > U(0, 16 bits)) {
           wordsLeft := wordsLeft - 1
         }
@@ -100,6 +98,12 @@ case class QspiDecoder() extends Component {
       // Unknown opcode — record error but drop the byte.
       last_error := opcodeReg
     }
+  }
+
+  // Auto-increment writeAddr one cycle AFTER the pulse fires, so the pulse
+  // itself carries the pre-increment address on the regWrite bus.
+  when(writePulse) {
+    writeAddr := writeAddr + 1
   }
 
   io.regWriteAddr   := writeAddr
@@ -111,8 +115,51 @@ case class QspiDecoder() extends Component {
   io.last_error := last_error
   io.rx_cmd_cnt := rx_cmd_cnt
 
-  // Response channel — Checkpoint A placeholder; real status mux lands in
-  // Checkpoint B sim once READ_STATUS is exercised end-to-end.
-  io.tx_byte := B(0, 8 bits)
-  io.tx_load := False
+  // -------------------------------------------------------------------
+  // READ_STATUS response FSM (Checkpoint B).
+  //
+  // Plan §3.3 — on CMD=0x04 LEN=0, drive 4 bytes back to the host after
+  // the slave's 2-edge turnaround.  `sel` = low byte of cmd_addr; for
+  // Checkpoint B we serve the magic on sel=0 and a zeroed word on other
+  // sel values.  Richer status (last_addr/last_data echo, error counter
+  // snapshot) can be layered in later without touching the slave.
+  // -------------------------------------------------------------------
+  object RxState extends SpinalEnum { val Idle, Load, Wait = newElement() }
+  val rxState = Reg(RxState()) init RxState.Idle
+  val rxByteIdx = Reg(UInt(2 bits)) init 0
+  val rxWord    = Reg(Bits(32 bits)) init 0
+  val rxLoad    = Reg(Bool()) init False
+  val rxTxByte  = Reg(Bits(8 bits)) init 0
+  rxLoad := False
+
+  // Kick off READ_STATUS on header pulse.
+  when(io.cmd_valid && io.cmd_opcode === Op.READ_STATUS && io.cmd_len === U(0, 16 bits)) {
+    val sel = io.cmd_addr(7 downto 0)
+    when(sel === U(0, 8 bits)) { rxWord := B"32'h51560002" }
+      .otherwise               { rxWord := B(0, 32 bits) }
+    rxByteIdx := 0
+    rxState   := RxState.Load
+  }
+
+  switch(rxState) {
+    is(RxState.Idle) { /* no-op */ }
+    is(RxState.Load) {
+      rxTxByte := rxWord.subdivideIn(8 bits)(rxByteIdx)
+      rxLoad   := True
+      rxState  := RxState.Wait
+    }
+    is(RxState.Wait) {
+      when(io.tx_byte_sent) {
+        when(rxByteIdx === U(3, 2 bits)) {
+          rxState := RxState.Idle
+        } otherwise {
+          rxByteIdx := rxByteIdx + 1
+          rxState   := RxState.Load
+        }
+      }
+    }
+  }
+
+  io.tx_byte := rxTxByte
+  io.tx_load := rxLoad
 }
