@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 22 — Long Soak Validation |
-| **Status** | IN-PROGRESS |
-| **Phase** | capture (Checkpoint C) |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `5f882c3` |
-| **Latest Auth Mail** | #7417 (CyanPeak: Task 22 GO) |
-| **Next Deliverable** | Triple-snapshot soak evidence packet (T=0, T=30, T=60) |
-| **Coding Authorized** | **YES** — CyanPeak signed off at #7417 |
+| **Task** | *none* |
+| **Status** | IDLE |
+| **Phase** | *none* |
+| **Owner** | *none* |
+| **Latest Commit** | `33e396b` |
+| **Latest Auth Mail** | #7423 (CyanPeak: Task 22 CLOSED) |
+| **Next Deliverable** | *none* |
+| **Coding Authorized** | **NO** |
 
 Rules:
 - Only **one** lane may be live at a time.
