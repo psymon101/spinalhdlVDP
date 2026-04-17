@@ -221,7 +221,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
         // at y=160, then planar → shuffled (2) at y=320. Three horizontal L0
         // bands of distinct fetch modes. Safe-boundary commit guarantees clean
         // band edges.
+        // Fix: add WAIT y=0 reset to packed so frame start is deterministic.
         Seq(
+          (0 << 14) |   0, (1 << 14) | 0x0311, 0x0000,
           (0 << 14) | 160, (1 << 14) | 0x0311, 0x0001,
           (0 << 14) | 320, (1 << 14) | 0x0311, 0x0002,
           (3 << 14) | 0
