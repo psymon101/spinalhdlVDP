@@ -26,14 +26,11 @@ import spinal.core._
   *       switches at y=160 and y=320, concurrent L0 scroll, and two
   *       horizontally-bouncing sprites crossing the mode boundaries. Pure
   *       integration, no new primitives/registers. See `SCENARIO_15.md`.
-  *  16 = Task 21 debug Step 3 — Sc15 scene with copper disabled and
-  *       `tileMode=0x0000` (packed) static. Reference baseline for the
-  *       packed-mode L0 row-mean signature. Throwaway; remove when Task 21
-  *       closes.
-  *  17 = Task 21 debug Step 3 — Sc15 scene with copper disabled and
-  *       `tileMode=0x0001` (planar) static. Throwaway.
-  *  18 = Task 21 debug Step 3 — Sc15 scene with copper disabled and
-  *       `tileMode=0x0002` (shuffled) static. Throwaway.
+  *  16 = Task 22 Long-Soak baseline — identical to Sc15 integration scene.
+  *  17 = Task 23 Stress-Scene — maximum concurrent load: L0 mixed-mode
+  *       bands + L0 scroll 2 px/frame + L1 packed scroll 4 px/frame +
+  *       4 sprites bouncing 4 px/frame + copper 3 triggers/frame.
+  *       No new primitives. See `SCENARIO_17.md`.
   */
 case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   setDefinitionName("top_tang20k")
@@ -159,6 +156,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 8 => 1     // Sc8 parallax: L0 slow
       case 15 => 1    // Sc15 mixed-scene integration: L0 @ 1 px/frame
       case 16 => 1    // Sc16 long-soak baseline: same L0 scroll as Sc15
+      case 17 => 2    // Sc17 stress: L0 @ 2 px/frame
       case _ => 0
     }
     val l1StepFrames = scenarioId match {
@@ -168,6 +166,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 6 => 1     // Sc6 sprites over scrolling bg
       case 8 => 3     // Sc8 parallax: L1 fast (3× L0)
       case 13 => 1    // Sc13 palette-animation-during-motion: L1 @ 1 px/frame
+      case 17 => 4    // Sc17 stress: L1 @ 4 px/frame (parallax 2× L0)
       case _ => 0
     }
     val scrollL0 = Reg(UInt(log2Up(l0MapWidth) bits)) init 0
@@ -216,13 +215,14 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (0 << 14) | 420, (1 << 14) | 0x0312, 0x0001,
           (3 << 14) | 0
         )
-      case 15 | 16 =>
+      case 15 | 16 | 17 =>
         // Sc15 (Task 21): switch L0 VDP_TILE_MODE from packed (0) → planar (1)
         // at y=160, then planar → shuffled (2) at y=320. Three horizontal L0
         // bands of distinct fetch modes. Safe-boundary commit guarantees clean
         // band edges.
         // Fix: add WAIT y=0 reset to packed so frame start is deterministic.
         // Sc16 (Task 22) reuses the identical bootstrap for the 1-hour soak test.
+        // Sc17 (Task 23) also reuses this copper cadence under maximum load.
         Seq(
           (0 << 14) |   0, (1 << 14) | 0x0311, 0x0000,
           (0 << 14) | 160, (1 << 14) | 0x0311, 0x0001,
@@ -317,7 +317,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // Copper enabled ONLY for Sc13 (copper drives ATTR_MODE toggle animation).
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
-    val ctrlData     = B(if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16) 0x0001 else 0x0000, 16 bits)
+    val ctrlData     = B(
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17) 0x0001
+      else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
       case 0           => 0x0001  // R4.1d Checkpoint C: L0 only
@@ -331,6 +333,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 13          => 0x0003  // L0 + L1 (palette-animation-during-motion)
       case 15          => 0x0005  // L0 + sprite (mixed-scene integration)
       case 16          => 0x0005  // Sc16 long-soak baseline: same layer config as Sc15
+      case 17          => 0x0007  // Sc17 stress: L0 + L1 + sprite (maximum load)
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
@@ -488,9 +491,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // observable on a single captured frame.
 
     // Sprite enables vary per scenario.
-    val scSprite0 = Set(4, 5, 6, 7, 12, 15, 16, 17, 18).contains(scenarioId)
-    val scSprite1 = Set(5, 6, 7, 15, 16, 17, 18).contains(scenarioId)
-    val scSprite23 = Set(5, 6).contains(scenarioId)    // Sc5/Sc6 use all 4
+    val scSprite0 = Set(4, 5, 6, 7, 12, 15, 16, 17).contains(scenarioId)
+    val scSprite1 = Set(5, 6, 7, 15, 16, 17).contains(scenarioId)
+    val scSprite23 = Set(5, 6, 17).contains(scenarioId)    // Sc5/Sc6/Sc17 use all 4
     video.io.sprite0Enabled    := Bool(scSprite0)
     video.io.sprite0PatternIdx := U(0, 1 bit)
     video.io.sprite1Enabled    := Bool(scSprite1)
@@ -537,7 +540,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       video.io.sprite3Enabled := False
       video.io.sprite2PatternIdx := U(0, 1 bit)
       video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (Set(15, 16, 17, 18).contains(scenarioId)) {
+    } else if (Set(15, 16, 18).contains(scenarioId)) {
       // Sc15 (Task 21 Mixed-Scene Integration): two sprites bouncing
       // horizontally at 2 px/frame at y=100 (top band / tile mode) and
       // y=300 (middle band / planar mode), opposite phase so they sweep
@@ -572,6 +575,37 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
       video.io.sprite2Enabled := False
       video.io.sprite3Enabled := False
+      video.io.sprite2PatternIdx := U(0, 1 bit)
+      video.io.sprite3PatternIdx := U(1, 1 bit)
+    } else if (scenarioId == 17) {
+      // Sc17 (Task 23 Stress-Scene Validation): all 4 sprites bouncing
+      // horizontally at 4 px/frame between x=16..624, at y=80, 200, 320, 400.
+      // Alternating phase so the per-line evaluator sees overlap often.
+      val xMin = 16; val xMax = 624
+      def bouncer(initX: Int, reverse: Boolean) = {
+        val rx  = Reg(UInt(10 bits)) init (if (reverse) xMax else initX)
+        val dir = Reg(Bool()) init (if (reverse) True else False)  // false = +4
+        when(vsyncRising) {
+          when(dir) {
+            when(rx <= U(xMin + 4, 10 bits)) { dir := False; rx := U(xMin, 10 bits) }
+              .otherwise                      { rx := rx - 4 }
+          }.otherwise {
+            when(rx >= U(xMax - 4, 10 bits)) { dir := True;  rx := U(xMax, 10 bits) }
+              .otherwise                      { rx := rx + 4 }
+          }
+        }
+        rx
+      }
+      val s0x = bouncer(xMin,        reverse = false)
+      val s1x = bouncer(xMax,        reverse = true)
+      val s2x = bouncer(xMin + 200,  reverse = false)
+      val s3x = bouncer(xMax - 200,  reverse = true)
+      video.io.sprite0X := s0x; video.io.sprite0Y := U( 80, 10 bits)
+      video.io.sprite1X := s1x; video.io.sprite1Y := U(200, 10 bits)
+      video.io.sprite2X := s2x; video.io.sprite2Y := U(320, 10 bits)
+      video.io.sprite3X := s3x; video.io.sprite3Y := U(400, 10 bits)
+      video.io.sprite2Enabled := True
+      video.io.sprite3Enabled := True
       video.io.sprite2PatternIdx := U(0, 1 bit)
       video.io.sprite3PatternIdx := U(1, 1 bit)
     } else if (scenarioId == 12) {
@@ -790,15 +824,15 @@ object TopTang20kHdmiScenario12Verilog extends App {
 object TopTang20kHdmiScenario15Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 15))
 }
-// Task 21 debug Step 3 — single-mode reference scenarios (throwaway).
+// Task 22 Long Soak baseline (Sc16) + Task 23 Stress-Scene Validation (Sc17).
 object TopTang20kHdmiScenario16Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 16))   // packed-static
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 16))   // long-soak baseline
 }
 object TopTang20kHdmiScenario17Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 17))   // planar-static
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 17))   // stress scene
 }
 object TopTang20kHdmiScenario18Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 18))   // shuffled-static
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 18))   // leftover throwaway
 }
 // Wave 3 scenario.
 object TopTang20kHdmiScenario13Verilog extends App {
