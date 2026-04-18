@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | debug (write-path isolation) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
 | **Latest Commit** | `1541615` (wire-test reverse: FPGA drives, Pico reads — all 4 wires PASS) |
-| **Latest Auth Mail** | #7513 (BronzeGate: Option B APPROVED — LED write-direction probe first) |
-| **Next Deliverable** | Option B evidence: LED probe commit, observability signals, conclusion (transport vs downstream) |
+| **Latest Auth Mail** | #7520 (BronzeGate: HDMI HUD direction) / CoralReef root cause finding pending |
+| **Next Deliverable** | Fix proposal decision + implementation (IO2/IO3 pin add vs dual-mode PIO vs firmware packing) |
 | **Coding Authorized** | **YES** — CyanPeak #7480 |
 
 Rules:
@@ -580,7 +580,10 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - `1541615`: 2 MHz retest — FAIL (same flat signature). SCK rate ruled out.
 - `7512`: Architectural gap identified — top-level QSPI IO pins are input-only; `IOBUF` bidirectional work deferred.
 - `7513`: BronzeGate direction — execute **Option B** (LED write-direction probe) first. Bounded scope, no `IOBUF`.
-- **current blocker:** Write-path transport vs downstream decode/commit failure. Pending Option B evidence.
+- `7516`–`7518`: Option B/B2 executed — `active` and `cmd_valid` pulse, but `regWriteEnable` NEVER pulses.
+- `7517`–`7519`: BronzeGate authorized iterations B2, B3.
+- `7520`: BronzeGate direction — HDMI debug HUD preferred over LED-only.
+- **current blocker (CoralReef finding):** spinalhdlVDP CST only wires IO0+IO1 (pins 48/49). Proven VDP project used IO0..IO3 (pins 48/49/51/54). Quad-mode PIO sends 4 bits/nibble; FPGA ties IO2/IO3 to 0. `cmd_opcode=0x01` low-nibble bit 0 maps to IO3 → FPGA receives `0x00` → `activeWrite=false` → `regWriteEnable` dark. **Sim verified:** `Qspi2WireSim` reproduces zero-write failure with current packing; corrected packing restores one write pulse. Fix options: (A) add pins 51/54 to CST, (B) dual-mode PIO, (C) firmware packing hack.
 
 **Task doc:** `PROJECT_PLAN/QSPI_HOST_CONTROL_PLAN.md`
 
