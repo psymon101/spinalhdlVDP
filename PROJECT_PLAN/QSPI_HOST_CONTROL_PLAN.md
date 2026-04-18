@@ -22,7 +22,7 @@ From the previous VDP project (`VDP/src/mode0/fpga/rtl/m0_qspi_slave.v`):
 | Byte order | High-nibble first | One byte = 2 SCK edges |
 | Multi-byte fields | Little-endian | Address and length fields |
 | Turnaround | 2 dummy SCK edges | Between header and read response |
-| Pin mapping (Tang) | `CS=9`, `SCK=10`, `IO0=11`, `IO1=8` | Runbook baseline |
+| Pin mapping (Tang) | `CS=42`, `SCK=41`, `IO0=48`, `IO1=49` | Proven VDP project tang20k.cst |
 | Pin mapping (Pico PIO) | `GP8=SCK`, `GP9=CS`, `GP10=IO0`, `GP11=IO1`, `GP12=IO2`, `GP13=IO3` | `qspi_quad.pio` |
 | Max SCK | ~12.5 MHz | `clkdiv=5` @ 125 MHz sys_clk |
 

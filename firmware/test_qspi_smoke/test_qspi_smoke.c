@@ -8,10 +8,10 @@
  * pass criterion for Checkpoint C.
  *
  * Pin map (Pico GPn → Tang pin, per QSPI_HOST_CONTROL_PLAN.md §2):
- *   GP8  = SCK  → Tang pin 10
- *   GP9  = CS_N → Tang pin  9
- *   GP10 = IO0  → Tang pin 11
- *   GP11 = IO1  → Tang pin  8
+ *   GP8  = SCK  → Tang pin 41
+ *   GP9  = CS_N → Tang pin 42
+ *   GP10 = IO0  → Tang pin 48
+ *   GP11 = IO1  → Tang pin 49
  *   (GP12/GP13 = IO2/IO3 — unused, Tang ties them low internally)
  *
  * Packet format (plan §3.1): 6-byte header [CMD:1][ADDR:3][LEN:2] +
