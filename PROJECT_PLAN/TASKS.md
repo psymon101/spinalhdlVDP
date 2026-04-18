@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-17
+**Updated:** 2026-04-18
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -614,13 +614,219 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ---
 
+### Task 28 — Two-Pass Sprite Evaluator
+
+**Status:** TODO
+**depends_on:** [12, 15]
+**scope_boundary:** Sprite evaluation pipeline only. No new compositor changes, no collision logic (Task 29), no attribute extension (Task 37).
+**delivers:**
+
+- Per-line active-sprite scan with bounded visible-sprite selection
+- Sprite-per-scanline limit enforcement
+- Secondary sprite buffer for fetched attributes
+- Stronger overlap/priority behavior
+
+**validation:**
+
+- Sim: mixed scene with >8 sprites on a line proves correct selection and limit enforcement
+- Hardware: visual proof on Tang Nano 20K that sprite drop behavior matches expected limits
+
+**Task doc:** `PROJECT_PLAN/TASK_R2_TWO_PASS_SPRITE_EVALUATOR.md`
+
+---
+
+### Task 29 — Sprite Flags and Collision Hooks
+
+**Status:** TODO
+**depends_on:** [28]
+**scope_boundary:** Sprite-side status flags only. No new compositor, no new fetch formats.
+**delivers:**
+
+- Sprite-0-hit style flag (first non-transparent sprite pixel vs background)
+- Per-line sprite overflow/limit status register
+- Sprite/background collision latches
+- Clearer priority-vs-layer hooks
+
+**validation:**
+
+- Sim: collision scenarios produce correct latch values
+- Hardware: raster-IRQ or status-read path proves flags are visible to host
+
+---
+
+### Task 30 — Pre-Announced Arbiter Grant
+
+**Status:** TODO
+**depends_on:** [15]
+**scope_boundary:** SDRAM arbitration lookahead only. No new fetch engines, no new memory types.
+**delivers:**
+
+- BA-style lookahead so fetch clients can prepare before the exact memory-use slot
+- More deterministic multi-fetch scenes
+- Latency-tolerant SDRAM arbitration
+
+**validation:**
+
+- Sim: mixed scene with tile + sprite + Copper fetch proves no arbitration glitches under lookahead
+- Hardware: long-soak validation (Task 22 class) with arbiter active
+
+---
+
+### Task 31 — Scroll Table Primitive
+
+**Status:** TODO
+**depends_on:** [7, 15]
+**scope_boundary:** Scroll tables only. No new tile fetch formats, no new compositor math.
+**delivers:**
+
+- Separate small dual-port RAM/table primitive for per-column or per-band scroll
+- Explicit distinction between line state and scroll lookup state
+- Interface for Genesis VSRAM-style patterns and SNES offset-per-tile
+
+**validation:**
+
+- Sim: scene with per-column scroll offsets proves correct addressing
+- Hardware: visible parallax effect on Tang Nano 20K
+
+---
+
+### Task 32 — Mode0 Register Bus
+
+**Status:** TODO
+**depends_on:** [18, 26]
+**scope_boundary:** Internal register/control bus definition only. No new primitives, no adapter-specific registers.
+**delivers:**
+
+- Clean internal register/control bus over all Mode0 primitives
+- Uniform naming and ownership pattern for control/status surfaces
+- Semantics sketch that earlier primitives (R1-R4) can absorb without breakage
+
+**validation:**
+
+- Doc review: bus spec covers all existing primitives plus planned R5-R8
+- Sim: register writes via QSPI correctly propagate through the bus to all targets
+
+---
+
+### Task 33 — Copper-lite / HDMA Automator
+
+**Status:** TODO
+**depends_on:** [32]
+**scope_boundary:** Beam-synchronous micro-engine only. No new fetch engines, no new output stages.
+**delivers:**
+
+- Wait-for-beam-position + write-selected-register engine
+- Optional table-driven value reload
+- Palette-bank or palette-entry reload actions
+- Amiga Copper-style wait/move and SNES HDMA-style per-line updates
+
+**validation:**
+
+- Sim: copper script produces expected raster splits and color bars
+- Hardware: visible raster effects on Tang Nano 20K
+
+---
+
+### Task 34 — QSPI Host-Driven Asset Upload
+
+**Status:** TODO
+**depends_on:** [27]
+**scope_boundary:** Bulk SDRAM write via QSPI only. No new rendering primitives, no protocol redesign.
+**delivers:**
+
+- QSPI command path for writing SDRAM directly (textures, tilemaps, tile rows)
+- Addressed burst write protocol with progress/status
+- Hardware proof: upload a small texture/tileset via QSPI and render it
+
+**validation:**
+
+- Sim: QSPI burst write lands in SDRAM model, fetched data matches
+- Hardware: uploaded asset renders correctly on Tang Nano 20K
+
+---
+
+### Task 35 — Host-Facing IRQ and Status Registers
+
+**Status:** TODO
+**depends_on:** [18, 32]
+**scope_boundary:** IRQ line + readable status register surface only. No new automation engines.
+**delivers:**
+
+- Host-visible raster match / IRQ line
+- Sticky status registers (sprite overflow, raster match, QSPI ready, etc.)
+- Clear-on-read or write-to-clear semantics
+
+**validation:**
+
+- Sim: raster trigger asserts IRQ, host readback sees correct status
+- Hardware: Pico reads status register over QSPI (or GPIO) and prints expected values
+
+---
+
+### Task 36 — Register Write Concurrency Stress Test
+
+**Status:** TODO
+**depends_on:** [26, 33]
+**scope_boundary:** Validation-only task. No new HDL, no new firmware features.
+**delivers:**
+
+- Sim scenario with QSPI + Copper + Animator all writing registers on the same frame
+- Proof that safe-boundary commit absorbs concurrent writes without glitches
+- Explicit bandwidth analysis under maximum write traffic
+
+**validation:**
+
+- Sim: 10k-frame randomized stress with all three masters → zero commit glitches
+- Hardware: rapid alternating writes from QSPI and Copper → visual stability
+
+---
+
+### Task 37 — Affine Sprite Path
+
+**Status:** TODO
+**depends_on:** [19, 28]
+**scope_boundary:** Affine-transformed sprites only. No new background affine features.
+**delivers:**
+
+- Matrix-stepped texture address generation for sprite source data
+- Rotation/scaling support for individual sprites
+- Integration with existing sprite evaluator and compositor
+
+**validation:**
+
+- Sim: affine sprite renders with correct transformed pixels
+- Hardware: visible rotated/scaled sprite on Tang Nano 20K
+
+---
+
+### Task 38 — Bidirectional QSPI Readback
+
+**Status:** TODO
+**depends_on:** [27]
+**scope_boundary:** READ_STATUS + register readback only. No bulk readback, no protocol redesign.
+**delivers:**
+
+- Gowin `IOBUF` primitive on IO0/IO1 (and IO2/IO3 after Task 27)
+- `QspiSlave` Respond state drives valid data back to host
+- Pico firmware reads magic `0x51560002` and status registers
+- Hardware proof: Pico prints correct READ_STATUS response over serial
+
+**validation:**
+
+- Sim: `READ_STATUS` command returns expected magic word
+- Hardware: Pico receives `0x51560002` on Tang Nano 20K
+
+---
+
 ## Deferred Items
+
+The following items remain intentionally coarse or out of Mode0 scope. Where possible they have been decomposed into numbered tasks above.
 
 | Item | Status | Notes |
 |------|--------|-------|
 | Additional output modes | DEFERRED | Not required for baseline bring-up |
-| Deep-angle affine tuning | DEFERRED | Only after affine base path is proven |
-| Platform adapter modes | DEFERRED | Only after stable Mode0 completion |
+| Deep-angle affine tuning | DEFERRED | Only after affine base path is proven (Task 19, Task 37) |
+| Platform adapter modes | DEFERRED | Decomposed into Tasks 28–38; adapter-specific register semantics remain platform-local |
 | Alternate memory strategies | DEFERRED | Only if baseline memory path becomes a blocker |
 | Parallel bus implementation | DEFERRED | After QSPI path is stable (Task 25) |
 
