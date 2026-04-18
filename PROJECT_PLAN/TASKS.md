@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | debug (write-path isolation) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
 | **Latest Commit** | `1541615` (wire-test reverse: FPGA drives, Pico reads — all 4 wires PASS) |
-| **Latest Auth Mail** | #7520 (BronzeGate: HDMI HUD direction) / CoralReef root cause finding pending |
-| **Next Deliverable** | Fix proposal decision + implementation (IO2/IO3 pin add vs dual-mode PIO vs firmware packing) |
+| **Latest Auth Mail** | #7527 (BrightForge: PRIMARY root cause = early CS deassert in Pico firmware) |
+| **Next Deliverable** | Firmware CS hold fix + re-run Checkpoint C smoke test |
 | **Coding Authorized** | **YES** — CyanPeak #7480 |
 
 Rules:
@@ -583,7 +583,8 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - `7516`–`7518`: Option B/B2 executed — `active` and `cmd_valid` pulse, but `regWriteEnable` NEVER pulses.
 - `7517`–`7519`: BronzeGate authorized iterations B2, B3.
 - `7520`: BronzeGate direction — HDMI debug HUD preferred over LED-only.
-- **current blocker (CoralReef finding):** spinalhdlVDP CST only wires IO0+IO1 (pins 48/49). Proven VDP project used IO0..IO3 (pins 48/49/51/54). Quad-mode PIO sends 4 bits/nibble; FPGA ties IO2/IO3 to 0. `cmd_opcode=0x01` low-nibble bit 0 maps to IO3 → FPGA receives `0x00` → `activeWrite=false` → `regWriteEnable` dark. **Sim verified:** `Qspi2WireSim` reproduces zero-write failure with current packing; corrected packing restores one write pulse. Fix options: (A) add pins 51/54 to CST, (B) dual-mode PIO, (C) firmware packing hack.
+- **`7527` (BrightForge PRIMARY root cause):** HUD-v2 shows `payload_cnt / cmd_cnt = 1.000` — only 1 payload byte arrives per command instead of 2. Pico firmware `qspi_tx_bytes` polls `tx_fifo_empty` then `sleep_us(2)`, but CS is deasserted before the SM finishes shifting the last word from OSR. **Fix:** lengthen CS hold after FIFO empty (`sleep_us(10)` or poll SM idle).
+- **`7526` (CoralReef SECONDARY issue):** spinalhdlVDP CST only wires IO0+IO1. PIO quad-mode sends 4 bits/nibble; FPGA ties IO2/IO3 to 0. Data bytes with bits 2/3 set in any nibble are corrupted (e.g. `0x05` → `0x01`). Verified by corrected `Qspi2WireSimV2`. Does NOT explain zero-write failure (opcode `0x01` is received correctly, and 2-wire simulation with 2 payload bytes produces `regWriteEnable=1`). Fix deferred until primary issue is resolved.
 
 **Task doc:** `PROJECT_PLAN/QSPI_HOST_CONTROL_PLAN.md`
 
