@@ -40,6 +40,8 @@ case class QspiDecoder() extends Component {
     val last_data  = out Bits (16 bits)
     val last_error = out Bits (8 bits)
     val rx_cmd_cnt = out UInt (8 bits)
+    // Task 26 HUD-v2 (BronzeGate #7523): total payload_valid pulses observed.
+    val rx_payload_cnt = out UInt (8 bits)
   }
 
   object Op {
@@ -65,6 +67,8 @@ case class QspiDecoder() extends Component {
   val last_data  = Reg(Bits(16 bits)) init 0
   val last_error = Reg(Bits(8 bits))  init 0
   val rx_cmd_cnt = Reg(UInt(8 bits))  init 0
+  val rx_payload_cnt = Reg(UInt(8 bits)) init 0
+  when(io.payload_valid) { rx_payload_cnt := rx_payload_cnt + 1 }
 
   // On a new header, latch opcode/len and reset the word-assembly state.
   when(io.cmd_valid) {
@@ -114,6 +118,7 @@ case class QspiDecoder() extends Component {
   io.last_data  := last_data
   io.last_error := last_error
   io.rx_cmd_cnt := rx_cmd_cnt
+  io.rx_payload_cnt := rx_payload_cnt
 
   // -------------------------------------------------------------------
   // READ_STATUS response FSM (Checkpoint B).

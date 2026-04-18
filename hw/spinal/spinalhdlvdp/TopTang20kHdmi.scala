@@ -756,23 +756,20 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     video.io.rasterTriggerEnable   := False
     video.io.rasterTriggerClear    := vsyncRising
 
-    // Task 26 HDMI debug HUD (BronzeGate #7520, throwaway).
-    // On Sc16 only, overlay a 32-row HUD at the top of the visible frame so
-    // the capture card records durable evidence of QSPI pipeline activity:
+    // Task 26 HDMI debug HUD-v2 (BronzeGate #7520, #7523, throwaway).
+    // Sc16 only — 64-row HUD at top of visible frame captures durable QSPI
+    // pipeline evidence. Bands (each 16 rows tall):
     //
-    //   y in [0, 16)   — 5 indicator blocks (128 px each), green = asserted
-    //     block 0 : stretched qspi.io.active
-    //     block 1 : stretched qspi.io.cmd_valid
-    //     block 2 : stretched (qspi.io.cmd_valid && cmd_opcode === 0x01)
-    //     block 3 : stretched qspi.io.payload_valid
-    //     block 4 : stretched qspiDec.io.regWriteEnable
-    //   y in [16, 32)  — 8 blocks of 64 px showing last latched cmd_opcode,
-    //                    MSB on left. White = 1, dark grey = 0.
-    //   y in [32, 480) — normal Sc16 scene.
+    //   y in [0, 16)   band 0 — 5 indicator blocks (128 px each), bright green = asserted
+    //     blocks: active, cmd_valid, (cmd_valid && opcode==0x01), payload_valid, regWriteEnable
+    //   y in [16, 32)  band 1 — last latched cmd_opcode, 8 bit-blocks of 64 px, MSB left
+    //   y in [32, 48)  band 2 — rx_payload_cnt[7:0], 8 bit-blocks of 64 px, MSB left  (HUD-v2)
+    //   y in [48, 64)  band 3 — rx_cmd_cnt[7:0],     8 bit-blocks of 64 px, MSB left  (HUD-v2)
+    //   y >= 64        normal Sc16 scene.
     //
-    // Rest of screen is untouched; smoke-test's LAYER_ENABLE toggle (if it
-    // commits) would still flip the backdrop visible below row 32.
-    val hudRows       = 32
+    // Counter bands answer BronzeGate #7523: does payload_cnt advance at 2×
+    // cmd_cnt (both bytes arrive) or 1× cmd_cnt (only one byte per command)?
+    val hudRows       = 64
     val stretchTicks  = 2_500_000 - 1   // ~100 ms at 25 MHz
     val activeStr     = Reg(UInt(22 bits)) init 0
     val cmdValidStr   = Reg(UInt(22 bits)) init 0
@@ -795,31 +792,36 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val hudBlue  = Bits(8 bits); hudBlue  := video.io.blue
     if (scenarioId == 16) {
       val inHud  = video.io.y < U(hudRows, 10 bits)
-      val band   = video.io.y(4)                    // 0: indicators, 1: opcode
+      val band   = video.io.y(5 downto 4)           // 0..3 covers four 16-row bands
       val blk5   = video.io.x(9 downto 7)           // 0..4 valid for indicators (128 px blocks)
-      val blk8   = video.io.x(9 downto 6)           // 0..9 — first 8 map to opcode bits MSB→LSB
-      when(inHud) {
-        when(band === False) {
-          val lit = blk5.mux(
-            U"3'd0" -> (activeStr       =/= 0),
-            U"3'd1" -> (cmdValidStr     =/= 0),
-            U"3'd2" -> (opcodeMatchStr  =/= 0),
-            U"3'd3" -> (payloadStr      =/= 0),
-            U"3'd4" -> (regWriteStr     =/= 0),
-            default -> False
-          )
-          when(lit) { hudRed := B"8'h00"; hudGreen := B"8'hFF"; hudBlue := B"8'h00" }
-           .otherwise{ hudRed := B"8'h00"; hudGreen := B"8'h20"; hudBlue := B"8'h00" }
+      val blk8   = video.io.x(9 downto 6)           // 0..9 — first 8 map to bit blocks MSB→LSB
+      val bitIdx = (U(7, 3 bits) - blk8.resize(3))
+      def renderBits(value: Bits) = new Area {
+        val bit = value(bitIdx)
+        when(blk8 < U(8, 4 bits)) {
+          when(bit) { hudRed := B"8'hFF"; hudGreen := B"8'hFF"; hudBlue := B"8'hFF" }
+           .otherwise{ hudRed := B"8'h20"; hudGreen := B"8'h20"; hudBlue := B"8'h20" }
         } otherwise {
-          // Map block 0..7 to opcode bit 7..0 (MSB on the left). Block 8..9 black.
-          val bitIdx = (U(7, 3 bits) - blk8.resize(3))
-          val bit = lastOpcode(bitIdx)
-          when(blk8 < U(8, 4 bits)) {
-            when(bit) { hudRed := B"8'hFF"; hudGreen := B"8'hFF"; hudBlue := B"8'hFF" }
-             .otherwise{ hudRed := B"8'h20"; hudGreen := B"8'h20"; hudBlue := B"8'h20" }
-          } otherwise {
-            hudRed := B"8'h00"; hudGreen := B"8'h00"; hudBlue := B"8'h00"
+          hudRed := B"8'h00"; hudGreen := B"8'h00"; hudBlue := B"8'h00"
+        }
+      }
+      when(inHud) {
+        switch(band) {
+          is(U"2'd0") {
+            val lit = blk5.mux(
+              U"3'd0" -> (activeStr       =/= 0),
+              U"3'd1" -> (cmdValidStr     =/= 0),
+              U"3'd2" -> (opcodeMatchStr  =/= 0),
+              U"3'd3" -> (payloadStr      =/= 0),
+              U"3'd4" -> (regWriteStr     =/= 0),
+              default -> False
+            )
+            when(lit) { hudRed := B"8'h00"; hudGreen := B"8'hFF"; hudBlue := B"8'h00" }
+             .otherwise{ hudRed := B"8'h00"; hudGreen := B"8'h20"; hudBlue := B"8'h00" }
           }
+          is(U"2'd1") { renderBits(lastOpcode) }
+          is(U"2'd2") { renderBits(qspiDec.io.rx_payload_cnt.asBits) }
+          is(U"2'd3") { renderBits(qspiDec.io.rx_cmd_cnt.asBits) }
         }
       }
     }
