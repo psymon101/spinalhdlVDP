@@ -186,6 +186,24 @@ Prefer one bounded paragraph plus a short evidence list over a long recap.
 Routine lane mechanics stay with `CoralReef`.
 `BronzeGate` steps in only for drift, ambiguity, stalls, or lane transitions.
 
+### Mutual Coverage Check
+
+`CoralReef` and `CyanPeak` must explicitly cross-check each other's coverage so
+planning, ledger, and validation gaps do not slip through.
+
+- `CoralReef` must flag omissions in `CyanPeak`'s audit coverage, including:
+  - missing follow-on tasks or missing scope coverage
+  - stale ledger state that was not called out
+  - planning decomposition gaps that affect execution coverage
+- `CyanPeak` must flag omissions in `CoralReef`'s planning / ledger work,
+  including:
+  - missing validation gates or proof requirements
+  - incomplete task decomposition
+  - stale or internally inconsistent task state
+
+Neither lane should assume the other already caught everything. If either sees
+a coverage gap, it must be called out explicitly in mail.
+
 ### Live-lane hygiene
 
 When the active lane changes materially, update the `TASKS.md` live-lane block

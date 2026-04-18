@@ -28,11 +28,11 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 27 — Full-QSPI Hardening (IO2/IO3) |
 | **Status** | IN-PROGRESS |
-| **Phase** | implement |
+| **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `1794c9c` (Checkpoint A: wire IO2/IO3 at top + CST per VDP pinout) |
-| **Latest Auth Mail** | #7548 (CyanPeak: Task 27 GO) / #7549 (BrightForge: Checkpoint A landed) |
-| **Next Deliverable** | Checkpoint B sim proof (4-bit payload bytes with bits 2/3 set) |
+| **Latest Commit** | `494e037` (Checkpoint B: 4-bit payload fidelity sim proof) |
+| **Latest Auth Mail** | #7557 (BrightForge: Checkpoint B landed — 7 cases PASS) |
+| **Next Deliverable** | Checkpoint C hardware proof (user wiring + visible toggle) |
 | **Coding Authorized** | **YES** — CyanPeak #7548 |
 
 Rules:
@@ -606,9 +606,9 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 **validation:**
 
-- Checkpoint A: HDL + CST update, clean Verilog generation, P&R passes
-- Checkpoint B: simulation proof with payload bytes containing bits 2/3 set
-- Checkpoint C: hardware proof on Tang Nano 20K with full 4-bit QSPI data fidelity
+- Checkpoint A: HDL + CST update, clean Verilog generation, P&R passes — **LANDED `1794c9c`, regression verified**
+- Checkpoint B: simulation proof with payload bytes containing bits 2/3 set — **LANDED `494e037`, 7 cases PASS (0xFFFF, 0xAAAA, 0x5555, 0xBEEF, 0x00F3)**
+- Checkpoint C: hardware proof on Tang Nano 20K with full 4-bit QSPI data fidelity — **pending user wiring GP12↔Tang 51, GP13↔Tang 54**
 
 **Task doc:** `PROJECT_PLAN/TASK27_FULL_QSPI_HARDENING.md` (artifact doc opened in `cc7ec82`, CyanPeak audit PASS in #7548)
 
