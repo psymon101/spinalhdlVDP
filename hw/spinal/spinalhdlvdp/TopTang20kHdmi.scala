@@ -756,76 +756,6 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     video.io.rasterTriggerEnable   := False
     video.io.rasterTriggerClear    := vsyncRising
 
-    // Task 26 HDMI debug HUD-v2 (BronzeGate #7520, #7523, throwaway).
-    // Sc16 only — 64-row HUD at top of visible frame captures durable QSPI
-    // pipeline evidence. Bands (each 16 rows tall):
-    //
-    //   y in [0, 16)   band 0 — 5 indicator blocks (128 px each), bright green = asserted
-    //     blocks: active, cmd_valid, (cmd_valid && opcode==0x01), payload_valid, regWriteEnable
-    //   y in [16, 32)  band 1 — last latched cmd_opcode, 8 bit-blocks of 64 px, MSB left
-    //   y in [32, 48)  band 2 — rx_payload_cnt[7:0], 8 bit-blocks of 64 px, MSB left  (HUD-v2)
-    //   y in [48, 64)  band 3 — rx_cmd_cnt[7:0],     8 bit-blocks of 64 px, MSB left  (HUD-v2)
-    //   y >= 64        normal Sc16 scene.
-    //
-    // Counter bands answer BronzeGate #7523: does payload_cnt advance at 2×
-    // cmd_cnt (both bytes arrive) or 1× cmd_cnt (only one byte per command)?
-    val hudRows       = 64
-    val stretchTicks  = 2_500_000 - 1   // ~100 ms at 25 MHz
-    val activeStr     = Reg(UInt(22 bits)) init 0
-    val cmdValidStr   = Reg(UInt(22 bits)) init 0
-    val opcodeMatchStr= Reg(UInt(22 bits)) init 0
-    val payloadStr    = Reg(UInt(22 bits)) init 0
-    val regWriteStr   = Reg(UInt(22 bits)) init 0
-    when(qspi.io.active)            { activeStr      := U(stretchTicks, 22 bits) }.elsewhen(activeStr      =/= 0) { activeStr      := activeStr      - 1 }
-    when(qspi.io.cmd_valid)         { cmdValidStr    := U(stretchTicks, 22 bits) }.elsewhen(cmdValidStr    =/= 0) { cmdValidStr    := cmdValidStr    - 1 }
-    when(qspi.io.cmd_valid && qspi.io.cmd_opcode === B"8'h01") {
-                                      opcodeMatchStr := U(stretchTicks, 22 bits)
-    }.elsewhen(opcodeMatchStr =/= 0){ opcodeMatchStr := opcodeMatchStr - 1 }
-    when(qspi.io.payload_valid)     { payloadStr     := U(stretchTicks, 22 bits) }.elsewhen(payloadStr     =/= 0) { payloadStr     := payloadStr     - 1 }
-    when(qspiDec.io.regWriteEnable) { regWriteStr    := U(stretchTicks, 22 bits) }.elsewhen(regWriteStr    =/= 0) { regWriteStr    := regWriteStr    - 1 }
-    val lastOpcode = Reg(Bits(8 bits)) init 0
-    when(qspi.io.cmd_valid) { lastOpcode := qspi.io.cmd_opcode }
-
-    // Build HUD red/green/blue. Defaults fall through to normal video.
-    val hudRed   = Bits(8 bits); hudRed   := video.io.red
-    val hudGreen = Bits(8 bits); hudGreen := video.io.green
-    val hudBlue  = Bits(8 bits); hudBlue  := video.io.blue
-    if (scenarioId == 16) {
-      val inHud  = video.io.y < U(hudRows, 10 bits)
-      val band   = video.io.y(5 downto 4)           // 0..3 covers four 16-row bands
-      val blk5   = video.io.x(9 downto 7)           // 0..4 valid for indicators (128 px blocks)
-      val blk8   = video.io.x(9 downto 6)           // 0..9 — first 8 map to bit blocks MSB→LSB
-      val bitIdx = (U(7, 3 bits) - blk8.resize(3))
-      def renderBits(value: Bits) = new Area {
-        val bit = value(bitIdx)
-        when(blk8 < U(8, 4 bits)) {
-          when(bit) { hudRed := B"8'hFF"; hudGreen := B"8'hFF"; hudBlue := B"8'hFF" }
-           .otherwise{ hudRed := B"8'h20"; hudGreen := B"8'h20"; hudBlue := B"8'h20" }
-        } otherwise {
-          hudRed := B"8'h00"; hudGreen := B"8'h00"; hudBlue := B"8'h00"
-        }
-      }
-      when(inHud) {
-        switch(band) {
-          is(U"2'd0") {
-            val lit = blk5.mux(
-              U"3'd0" -> (activeStr       =/= 0),
-              U"3'd1" -> (cmdValidStr     =/= 0),
-              U"3'd2" -> (opcodeMatchStr  =/= 0),
-              U"3'd3" -> (payloadStr      =/= 0),
-              U"3'd4" -> (regWriteStr     =/= 0),
-              default -> False
-            )
-            when(lit) { hudRed := B"8'h00"; hudGreen := B"8'hFF"; hudBlue := B"8'h00" }
-             .otherwise{ hudRed := B"8'h00"; hudGreen := B"8'h20"; hudBlue := B"8'h00" }
-          }
-          is(U"2'd1") { renderBits(lastOpcode) }
-          is(U"2'd2") { renderBits(qspiDec.io.rx_payload_cnt.asBits) }
-          is(U"2'd3") { renderBits(qspiDec.io.rx_cmd_cnt.asBits) }
-        }
-      }
-    }
-
     // HDMI TX pipeline
     val hdmiTx = Tang20kHdmiTx()
     hdmiTx.clk_pixel := clkdiv.CLKOUT
@@ -834,9 +764,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     hdmiTx.hsync := video.io.hsync
     hdmiTx.vsync := video.io.vsync
     hdmiTx.de := video.io.de
-    hdmiTx.red := hudRed
-    hdmiTx.green := hudGreen
-    hdmiTx.blue := hudBlue
+    hdmiTx.red := video.io.red
+    hdmiTx.green := video.io.green
+    hdmiTx.blue := video.io.blue
 
     O_tmds_clk_p := hdmiTx.tmds_clk_p
     O_tmds_clk_n := hdmiTx.tmds_clk_n
@@ -855,66 +785,6 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     O_led(3) := !fetch.io.memtestPass
     O_led(4) := fetch.io.memtestFail
     O_led(5) := fetch.io.underrun
-    // Task 26 wire-test diagnostic (BronzeGate #7508): scenarioId=99
-    // overrides LEDs 0..3 with the 4 QSPI input pins (active-low so a HIGH
-    // input lights the LED). Pico runs test_qspi_wire.c to drive a one-hot
-    // walking pattern on GP8..GP11. Expected observation on the Tang:
-    //   LED0 = SCK, LED1 = CS, LED2 = IO0, LED3 = IO1 — exactly one LED lit
-    // per step of the Pico's 5-step walking one-hot sequence. Local 2-stage
-    // sync registers debounce the async inputs before driving the LEDs.
-    if (scenarioId == 99) {
-      val sckSync = RegNext(RegNext(I_qspi_sck))
-      val csSync  = RegNext(RegNext(I_qspi_cs))
-      val io0Sync = RegNext(RegNext(I_qspi_io0))
-      val io1Sync = RegNext(RegNext(I_qspi_io1))
-      O_led(0) := !sckSync
-      O_led(1) := !csSync
-      O_led(2) := !io0Sync
-      O_led(3) := !io1Sync
-    }
-    // Task 26 Option B2 write-commit probe (BronzeGate #7517, throwaway).
-    // Prior Option B run confirmed transport + header decode work. B2 swaps
-    // the lower two LEDs to the regWrite commit path to isolate whether the
-    // decoder is actually emitting write pulses and whether the bootDoneR
-    // gate is masking them.
-    //   LED0 = stretched qspi.io.active               (unchanged — sanity)
-    //   LED1 = stretched qspi.io.cmd_valid            (unchanged — sanity)
-    //   LED2 = stretched qspiDec.io.regWriteEnable    (decoder emits pulse)
-    //   LED3 = stretched qspiActive                   (bootDoneR-gated pulse)
-    // Expected observations at 500 ms smoke cadence:
-    //   - LED2 flashes, LED3 dark → bootDoneR=0 gating qspi writes
-    //   - LED2 dark              → decoder payload assembly failing
-    //   - LED2 + LED3 flash      → writes commit; bug is downstream (mux/anim)
-    if (scenarioId == 16) {
-      val activeHold = Reg(UInt(22 bits)) init 0
-      when(qspi.io.active) {
-        activeHold := U(2_500_000 - 1, 22 bits)          // ~100 ms @ 25 MHz
-      }.elsewhen(activeHold =/= 0) {
-        activeHold := activeHold - 1
-      }
-      val cmdHold = Reg(UInt(22 bits)) init 0
-      when(qspi.io.cmd_valid) {
-        cmdHold := U(2_500_000 - 1, 22 bits)
-      }.elsewhen(cmdHold =/= 0) {
-        cmdHold := cmdHold - 1
-      }
-      val regWriteHold = Reg(UInt(22 bits)) init 0
-      when(qspiDec.io.regWriteEnable) {
-        regWriteHold := U(2_500_000 - 1, 22 bits)
-      }.elsewhen(regWriteHold =/= 0) {
-        regWriteHold := regWriteHold - 1
-      }
-      val qspiActiveHold = Reg(UInt(22 bits)) init 0
-      when(qspiActive) {
-        qspiActiveHold := U(2_500_000 - 1, 22 bits)
-      }.elsewhen(qspiActiveHold =/= 0) {
-        qspiActiveHold := qspiActiveHold - 1
-      }
-      O_led(0) := !(activeHold      =/= 0)
-      O_led(1) := !(cmdHold         =/= 0)
-      O_led(2) := !(regWriteHold    =/= 0)
-      O_led(3) := !(qspiActiveHold  =/= 0)
-    }
   }
 
   // Wire SDRAM controller's logic-side signals to the fetch engine. Both live
