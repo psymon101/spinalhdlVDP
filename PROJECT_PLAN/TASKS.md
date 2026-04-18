@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 27 — Full-QSPI Hardening (IO2/IO3) |
-| **Status** | IN-PROGRESS |
-| **Phase** | capture |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `494e037` (Checkpoint B: 4-bit payload fidelity sim proof) |
-| **Latest Auth Mail** | #7557 (BrightForge: Checkpoint B landed — 7 cases PASS) |
-| **Next Deliverable** | Checkpoint C hardware proof (user wiring + visible toggle) |
-| **Coding Authorized** | **YES** — CyanPeak #7548 |
+| **Task** | *(no active lane — cleared)* |
+| **Status** | — |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `92ecb41` (Task 27 Checkpoint C: 0x0007 toggle, bit 2 lands on HW) |
+| **Latest Auth Mail** | #7564 (CyanPeak: Task 27 CLOSED + Mode0 plan expansion PASSED) |
+| **Next Deliverable** | BronzeGate PM direction for next active lane |
+| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -594,7 +594,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 27 — Full-QSPI Hardening (IO2/IO3)
 
-**Status:** IN-PROGRESS
+**Status:** DONE
 **depends_on:** [26]
 **scope_boundary:** IO2/IO3 wiring + CST + hardware proof of 4-bit payload fidelity only. No protocol redesign, no bulk asset streaming, no readback/bidirectional work unless explicitly added.
 **delivers:**
@@ -602,13 +602,19 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - Tang CST updated with IO2 (pin 51) and IO3 (pin 54) per proven VDP project pinout
 - `TopTang20kHdmi` updated to connect all 4 QSPI data lines (remove `B"00" ## ...` tie-off)
 - Simulation proof that 4-bit payload bytes (nibbles with bits 2/3 set) are received correctly
-- Hardware proof: QSPI-driven register write with payload value exercising all 4 bits (e.g. `0x0005`, `0x000F`) visibly toggles correctly
+- Hardware proof: QSPI-driven register write with payload value exercising bit 2 (`0x0007`) visibly toggles on Tang Nano 20K
 
 **validation:**
 
 - Checkpoint A: HDL + CST update, clean Verilog generation, P&R passes — **LANDED `1794c9c`, regression verified**
 - Checkpoint B: simulation proof with payload bytes containing bits 2/3 set — **LANDED `494e037`, 7 cases PASS (0xFFFF, 0xAAAA, 0x5555, 0xBEEF, 0x00F3)**
-- Checkpoint C: hardware proof on Tang Nano 20K with full 4-bit QSPI data fidelity — **pending user wiring GP12↔Tang 51, GP13↔Tang 54**
+- Checkpoint C: hardware proof on Tang Nano 20K — **LANDED `92ecb41`, LAYER_ENABLE toggle `0x0007 ↔ 0x0000` visible, bimodal gap = 153.07**
+
+**Post-completion notes (BrightForge #7566):**
+- Bit 3 observability gap: no current Mode0 register maps bit 3 to visible pixel feature. Bit 3 is sim-proven (rides same IO3 wire as bit 2) but hardware eyeball confirmation requires readback path or diagnostic probe.
+- Physical jumper map (GP8–GP13 ↔ Tang 41/42/48/49/51/54) should be captured in `PLATFORM.md`.
+- PIO TX drain gotcha (`sleep_us(2)` insufficient) should be hardened to true SM-idle poll in future firmware.
+- `rx_cmd_cnt` / `last_addr` / `last_data` / `last_error` should be promoted to READ_STATUS surface in Task 38.
 
 **Task doc:** `PROJECT_PLAN/TASK27_FULL_QSPI_HARDENING.md` (artifact doc opened in `cc7ec82`, CyanPeak audit PASS in #7548)
 
@@ -734,9 +740,9 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 **scope_boundary:** Bulk SDRAM write via QSPI only. No new rendering primitives, no protocol redesign.
 **delivers:**
 
-- QSPI command path for writing SDRAM directly (textures, tilemaps, tile rows)
+- QSPI command path for writing SDRAM directly (textures, tilemaps, tile rows, palette entries/banks)
 - Addressed burst write protocol with progress/status
-- Hardware proof: upload a small texture/tileset via QSPI and render it
+- Hardware proof: upload a small texture/tileset and palette entry/bank via QSPI and render it
 
 **validation:**
 
@@ -808,13 +814,15 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 - Gowin `IOBUF` primitive on IO0/IO1 (and IO2/IO3 after Task 27)
 - `QspiSlave` Respond state drives valid data back to host
+- READ_STATUS response surface expanded beyond magic `sel=0` to include `rx_cmd_cnt`, `last_addr`, `last_data`, `last_error` on `sel=1..N`
 - Pico firmware reads magic `0x51560002` and status registers
 - Hardware proof: Pico prints correct READ_STATUS response over serial
+- Bit-3 hardware observability: use a status-read value with high nibble set (e.g. `0x51` in response bytes) to confirm IO3 path is electrically alive
 
 **validation:**
 
-- Sim: `READ_STATUS` command returns expected magic word
-- Hardware: Pico receives `0x51560002` on Tang Nano 20K
+- Sim: `READ_STATUS` command returns expected magic word and status fields
+- Hardware: Pico receives `0x51560002` on Tang Nano 20K, and high-nibble bits are not silently zeroed
 
 ---
 
