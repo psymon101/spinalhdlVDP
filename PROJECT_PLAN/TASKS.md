@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | debug (write-path isolation) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
 | **Latest Commit** | `1541615` (wire-test reverse: FPGA drives, Pico reads — all 4 wires PASS) |
-| **Latest Auth Mail** | #7527 (BrightForge: PRIMARY root cause = early CS deassert in Pico firmware) |
-| **Next Deliverable** | Firmware CS hold fix + re-run Checkpoint C smoke test |
+| **Latest Auth Mail** | #7534 (CyanPeak: Checkpoint C PASSED, Task 26 GO for closeout) |
+| **Next Deliverable** | BrightForge purified commit (revert HUD/LED probes) → CoralReef marks DONE |
 | **Coding Authorized** | **YES** — CyanPeak #7480 |
 
 Rules:
@@ -555,7 +555,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 26 — QSPI Host-Control Frontend
 
-**Status:** IN-PROGRESS
+**Status:** IN-PROGRESS (Checkpoint C PASSED — closeout pending purified commit)
 **depends_on:** [23]
 **scope_boundary:** Transport shim and decoder only. No bulk asset streaming, no protocol expansion, no new rendering primitives, no FIFO model redesign.
 **delivers:**
@@ -583,8 +583,10 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - `7516`–`7518`: Option B/B2 executed — `active` and `cmd_valid` pulse, but `regWriteEnable` NEVER pulses.
 - `7517`–`7519`: BronzeGate authorized iterations B2, B3.
 - `7520`: BronzeGate direction — HDMI debug HUD preferred over LED-only.
-- **`7527` (BrightForge PRIMARY root cause):** HUD-v2 shows `payload_cnt / cmd_cnt = 1.000` — only 1 payload byte arrives per command instead of 2. Pico firmware `qspi_tx_bytes` polls `tx_fifo_empty` then `sleep_us(2)`, but CS is deasserted before the SM finishes shifting the last word from OSR. **Fix:** lengthen CS hold after FIFO empty (`sleep_us(10)` or poll SM idle).
-- **`7526` (CoralReef SECONDARY issue):** spinalhdlVDP CST only wires IO0+IO1. PIO quad-mode sends 4 bits/nibble; FPGA ties IO2/IO3 to 0. Data bytes with bits 2/3 set in any nibble are corrupted (e.g. `0x05` → `0x01`). Verified by corrected `Qspi2WireSimV2`. Does NOT explain zero-write failure (opcode `0x01` is received correctly, and 2-wire simulation with 2 payload bytes produces `regWriteEnable=1`). Fix deferred until primary issue is resolved.
+- **`7527` (BrightForge PRIMARY root cause):** HUD-v2 shows `payload_cnt / cmd_cnt = 1.000` — only 1 payload byte arrives per command instead of 2. Pico firmware `qspi_tx_bytes` polls `tx_fifo_empty` then `sleep_us(2)`, but CS is deasserted before the SM finishes shifting the last word from OSR. **Fix 1:** `sleep_us(10)` in `befcd17`.
+- **`7531` (Checkpoint C PASS):** Fix 1 applied. Post-fix evidence: `payload_cnt/cmd_cnt = 2.000`, `regWriteEnable` duty = 20.1%, luma bimodal gap = 144.01. Hardware proof complete.
+- **`7534` (CyanPeak audit):** Checkpoint C formally PASSED. Fix 2 (IO2/IO3 wiring) DEFERRED to separate hardening lane. BrightForge authorized to revert debug artifacts (HUD/LED probes).
+- **`7526` (CoralReef SECONDARY issue):** spinalhdlVDP CST only wires IO0+IO1. PIO quad-mode sends 4 bits/nibble; FPGA ties IO2/IO3 to 0. Data bytes with bits 2/3 set in any nibble are corrupted (e.g. `0x05` → `0x01`). Verified by corrected `Qspi2WireSimV2`. Does NOT block Checkpoint C (opcode `0x01` correct, 2 payload bytes arrive with Fix 1, `regWriteEnable` fires). Fix deferred.
 
 **Task doc:** `PROJECT_PLAN/QSPI_HOST_CONTROL_PLAN.md`
 
