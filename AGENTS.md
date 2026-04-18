@@ -135,6 +135,92 @@ For FPGA-affecting changes:
 - If visual proof is noisy or ambiguous, a dedicated diagnostic asset/probe must be created to resolve the ambiguity.
 - A task is not closed until the final evidence is definitive and reproducible.
 
+## Low-Token Operating Policy
+
+This repo runs under a low-token coordination policy. Preserve momentum, but
+do not spend tokens reconstructing state that is already available in mail and
+the live-lane ledger.
+
+### Source of truth order
+
+Use this order every time:
+
+1. latest authoritative mail packet for the active lane
+2. `PROJECT_PLAN/TASKS.md` live-lane block
+3. current repo state / commit under discussion
+
+Do not restate older lane history in routine messages unless the current
+decision depends on it.
+
+### Allowed default mail shapes
+
+Use these durable message types by default:
+
+- assignment / approval
+- blocker or changed diagnosis
+- completion / proof packet
+- audit result
+- closeout
+- ACK when no direct action is required
+
+Do not send narration-only status mail.
+Do not send repeated “still waiting” mail without a changed fact.
+
+### Message size rule
+
+Routine project mail should be compact and factual:
+
+- current task / checkpoint
+- current commit id
+- exact next step or blocker
+
+Prefer one bounded paragraph plus a short evidence list over a long recap.
+
+### Role split for efficiency
+
+- `BrightForge`: implementation, validation, proof packets
+- `CyanPeak`: audit outcomes and explicit sign-off
+- `CoralReef`: routine coordination, hardware support, ledger/doc sync
+- `BronzeGate`: sequencing, stall intervention, scope control
+
+Routine lane mechanics stay with `CoralReef`.
+`BronzeGate` steps in only for drift, ambiguity, stalls, or lane transitions.
+
+### Live-lane hygiene
+
+When the active lane changes materially, update the `TASKS.md` live-lane block
+in the same change or immediately after with:
+
+- latest commit
+- latest authoritative mail id
+- current phase
+- next deliverable
+
+Do not let the team reconstruct active state from scattered mail if the ledger
+can be updated directly.
+
+### Active-lane execution rule
+
+Once a bounded lane is approved:
+
+- `BrightForge` should proceed directly until a real blocker, completion
+  packet, or proof packet exists
+- `CyanPeak` should audit completion packets automatically unless scope is
+  genuinely unclear
+- `CoralReef` should keep the live-lane block and artifact docs current
+
+### Context compression rule
+
+When resuming or handing off, compress state to:
+
+- task / checkpoint
+- latest commit
+- latest authoritative mail
+- blocker or next allowed step
+
+Do not carry full conversational history forward when those four facts are
+sufficient.
+
 ## Memory Curation Rule
 
 This repo uses the shared workspace `memory` MCP as a queryable cache, not as

@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | capture (Checkpoint C hardware proof) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `8c4f165` (Checkpoint B: sims + READ_STATUS mux) |
-| **Latest Auth Mail** | #7480 (CyanPeak: Checkpoint B PASSED, GO Checkpoint C) |
-| **Next Deliverable** | Checkpoint C exit packet: Pico 2 smoke test + hardware register live-update |
+| **Latest Commit** | `944174c` (fix(qspi): correct Tang Nano 20K QSPI pin mapping to proven VDP pins) |
+| **Latest Auth Mail** | #7490 (CoralReef: blocker resolved, build passes with corrected Tang pin map) |
+| **Next Deliverable** | Checkpoint C exit packet: rebuilt Tang bitstream + physical wiring confirmation + Pico 2 smoke test + HDMI live-update proof |
 | **Coding Authorized** | **YES** — CyanPeak #7480 |
 
 Rules:
