@@ -108,6 +108,31 @@ object QspiRegWriteSim extends App {
     }
     println(f"Case 2 PASS: 3 pulses at 0x0340..0x0342 with expected data")
 
-    println("QspiRegWriteSim: all cases PASS — QspiSlave -> QspiDecoder -> regWrite* chain verified")
+    // ---- Case 3: Task 27 hardening — 4-bit payload fidelity ----
+    // Each test value is a 16-bit word whose nibbles exercise bits 2 and/or
+    // 3 specifically (the ones that were lost on 2-wire hardware pre-hardening).
+    // If any bit of any nibble is dropped silently, these cases fail. They
+    // complement the Checkpoint A HDL/CST change proving {I_qspi_io3, io2,
+    // io1, io0} reaches QspiSlave.spi_io_in correctly.
+    def fidelityCase(caseId: Int, data: Int): Unit = {
+      val lo = data & 0xFF
+      val hi = (data >> 8) & 0xFF
+      val label = f"Case 3.$caseId: REG_WRITE 0x0300 <- 0x$data%04X"
+      println(label)
+      writes.clear()
+      doTxn(Seq(0x01, 0x00, 0x03, 0x00, 0x01, 0x00), Seq(lo, hi))
+      assert(writes.size == 1, s"$label expected 1 pulse, got ${writes.size}: $writes")
+      assert(writes(0)._1 == 0x0300, f"$label addr=0x${writes(0)._1}%04X, want 0x0300")
+      assert(writes(0)._2 == data,   f"$label data=0x${writes(0)._2}%04X, want 0x$data%04X (bit-exact)")
+      println(f"$label PASS: all 4 bits of each nibble round-tripped")
+    }
+    fidelityCase(1, 0xFFFF)  // every bit set — every nibble is 0xF
+    fidelityCase(2, 0xAAAA)  // 0b1010 in each nibble — tests bits 1,3
+    fidelityCase(3, 0x5555)  // 0b0101 in each nibble — tests bits 0,2
+    fidelityCase(4, 0xBEEF)  // mixed nibbles spanning all bit positions
+    fidelityCase(5, 0x00F3)  // pathological case — bit 2/3 only in low nibble; the
+                             //                       exact value that broke on 2-wire
+
+    println("QspiRegWriteSim: all cases PASS — QspiSlave -> QspiDecoder -> regWrite* chain verified with 4-bit fidelity")
   }
 }
