@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-18
+**Updated:** 2026-04-18 (convergence applied per BronzeGate #7580)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | — |
 | **Phase** | — |
 | **Owner** | — |
-| **Latest Commit** | `92ecb41` (Task 27 Checkpoint C: 0x0007 toggle, bit 2 lands on HW) |
-| **Latest Auth Mail** | #7564 (CyanPeak: Task 27 CLOSED + Mode0 plan expansion PASSED) |
-| **Next Deliverable** | BronzeGate PM direction for next active lane |
-| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
+| **Latest Commit** | `b60469d` (AGENTS.md cleanup, convergence standby) |
+| **Latest Auth Mail** | #7580 (BronzeGate: PM convergence approved) |
+| **Next Deliverable** | CoralReef TASKS.md planning update + CyanPeak audit |
+| **Coding Authorized** | **NO** — planning update in progress |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -366,7 +366,7 @@ That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete
 
 ---
 
-## Phase 7 — Platform Adapter Modes
+## Phase 7 — Integration Proofs
 
 ---
 
@@ -477,12 +477,12 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### R2 — Two-Pass Sprite Evaluator
 
-**Status:** DONE  
+**Status:** Initial primitive closed; stronger variant pending via **Task 28**  
 **Task doc:** `PROJECT_PLAN/TASK_R2_TWO_PASS_SPRITE_EVALUATOR.md`
 
 ### R3 — Static Fetch-Slot Scheduler
 
-**Status:** DONE  
+**Status:** Initial primitive closed; stronger variant pending via **Task 30**  
 **Task doc:** `PROJECT_PLAN/TASK_R3_FETCH_SLOT_SCHEDULER.md`
 
 ### R4 — Tile + Attribute Fetch Primitive
@@ -521,10 +521,12 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### R5 — Host Interface + Copper Coprocessor
 
-**Status:** CLOSED (`32a87ff`)  
+**Status:** CLOSED (`32a87ff`) — initial host interface + Copper primitive  
 **Task doc:** `PROJECT_PLAN/TASK_R5_HOST_INTERFACE_AND_COPPER.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
+
+**Note:** Register bus spec (R5.1) and Copper-lite automation (R5.2) remain open via **Tasks 32a** and **33**.
 
 ### R5.3 — Copper Control Unification (`VDP_CTRL` register)
 
@@ -696,15 +698,16 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ---
 
-### Task 32 — Mode0 Register Bus
+### Task 32a — Mode0 Register Bus: Spec & Naming Lock
 
 **Status:** TODO
 **depends_on:** [18, 26]
-**scope_boundary:** Internal register/control bus definition only. No new primitives, no adapter-specific registers.
+**scope_boundary:** Register bus specification and naming lock only. No master refactor, no new primitives, no adapter-specific registers.
 **delivers:**
 
-- Clean internal register/control bus over all Mode0 primitives
-- Uniform naming and ownership pattern for control/status surfaces
+- Written register bus specification (address map, semantics, naming convention)
+- Uniform naming and ownership pattern for all existing control/status surfaces
+- Interface contract that bootstrap, QSPI, Copper, and Animator masters can target
 - Semantics sketch that earlier primitives (R1-R4) can absorb without breakage
 
 **validation:**
@@ -714,10 +717,27 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ---
 
+### Task 32b — Mode0 Register Bus: Master Refactor
+
+**Status:** TODO
+**depends_on:** [32a]
+**scope_boundary:** Refactor existing masters to the named bus. No new primitives.
+**delivers:**
+
+- Bootstrap write path, QSPI `regWriteEnable` mux, copper RAM writes, animator writes, linestate prepare/commit, affine register set, and all existing control surfaces refactored onto the named bus
+- All existing simulations pass after refactor
+
+**validation:**
+
+- Sim: all existing scenario simulations pass with zero behavioral change
+- Hardware: at least one existing scenario re-proven on Tang Nano 20K
+
+---
+
 ### Task 33 — Copper-lite / HDMA Automator
 
 **Status:** TODO
-**depends_on:** [32]
+**depends_on:** [32a]
 **scope_boundary:** Beam-synchronous micro-engine only. No new fetch engines, no new output stages.
 **delivers:**
 
@@ -736,7 +756,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 ### Task 34 — QSPI Host-Driven Asset Upload
 
 **Status:** TODO
-**depends_on:** [27]
+**depends_on:** [27, 38c]
 **scope_boundary:** Bulk SDRAM write via QSPI only. No new rendering primitives, no protocol redesign.
 **delivers:**
 
@@ -754,18 +774,20 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 ### Task 35 — Host-Facing IRQ and Status Registers
 
 **Status:** TODO
-**depends_on:** [18, 32]
+**depends_on:** [18, 32a]
 **scope_boundary:** IRQ line + readable status register surface only. No new automation engines.
 **delivers:**
 
 - Host-visible raster match / IRQ line
 - Sticky status registers (sprite overflow, raster match, QSPI ready, etc.)
 - Clear-on-read or write-to-clear semantics
+- Status readable under maximum fetch load (not just idle)
 
 **validation:**
 
 - Sim: raster trigger asserts IRQ, host readback sees correct status
-- Hardware: Pico reads status register over QSPI (or GPIO) and prints expected values
+- Sim: status read is stable under concurrent SDRAM fetch + sprite evaluation load
+- Hardware: Pico reads status register over QSPI and prints expected values
 
 ---
 
@@ -779,10 +801,12 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - Sim scenario with QSPI + Copper + Animator all writing registers on the same frame
 - Proof that safe-boundary commit absorbs concurrent writes without glitches
 - Explicit bandwidth analysis under maximum write traffic
+- Multi-master bus stress under maximum SDRAM fetch + sprite evaluation load
 
 **validation:**
 
 - Sim: 10k-frame randomized stress with all three masters → zero commit glitches
+- Sim: status readback is correct while masters are actively writing
 - Hardware: rapid alternating writes from QSPI and Copper → visual stability
 
 ---
@@ -805,24 +829,165 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ---
 
-### Task 38 — Bidirectional QSPI Readback
+### Task 38a — Bidirectional QSPI: HDL IOBUF + CST
 
 **Status:** TODO
 **depends_on:** [27]
-**scope_boundary:** READ_STATUS + register readback only. No bulk readback, no protocol redesign.
+**scope_boundary:** Top-level bidirectional wiring only. No decoder changes, no firmware.
 **delivers:**
 
-- Gowin `IOBUF` primitive on IO0/IO1 (and IO2/IO3 after Task 27)
+- Gowin `IOBUF` primitive on IO0/IO1/IO2/IO3 in `TopTang20kHdmi`
+- CST updated: pins 48/49/51/54 become bidirectional (pull-modes revisited)
 - `QspiSlave` Respond state drives valid data back to host
-- READ_STATUS response surface expanded beyond magic `sel=0` to include `rx_cmd_cnt`, `last_addr`, `last_data`, `last_error` on `sel=1..N`
-- Pico firmware reads magic `0x51560002` and status registers
-- Hardware proof: Pico prints correct READ_STATUS response over serial
-- Bit-3 hardware observability: use a status-read value with high nibble set (e.g. `0x51` in response bytes) to confirm IO3 path is electrically alive
+- Clean Verilog generation, P&R passes
 
 **validation:**
 
-- Sim: `READ_STATUS` command returns expected magic word and status fields
-- Hardware: Pico receives `0x51560002` on Tang Nano 20K, and high-nibble bits are not silently zeroed
+- Sim: `READ_STATUS` command drives valid response data onto IO pins
+- Hardware: synthesis and place-and-route succeed without errors
+
+---
+
+### Task 38b — Bidirectional QSPI: Status Surface Expansion
+
+**Status:** TODO
+**depends_on:** [38a]
+**scope_boundary:** Decoder status surface only. No firmware, no IOBUF changes.
+**delivers:**
+
+- READ_STATUS response surface expanded beyond magic `sel=0`
+- `sel=1`: `rx_cmd_cnt`
+- `sel=2`: `last_addr`
+- `sel=3`: `last_data`
+- `sel=4`: `last_error`
+- Sim proof that all sel values return expected fields
+
+**validation:**
+
+- Sim: `READ_STATUS` with sel=0..4 returns expected values
+- Hardware: high-nibble bits (e.g. `0x51` in response bytes) confirm IO3 path is electrically alive
+
+---
+
+### Task 38c — Bidirectional QSPI: Firmware Read Helper + Bit-3 Proof
+
+**Status:** TODO
+**depends_on:** [38b]
+**scope_boundary:** Firmware read path only. No HDL changes.
+**delivers:**
+
+- Pico firmware QSPI read helper (proven reference available in `/home/itadmin/github/VDP/src/mode0/firmware/src/qspi_bus.c`)
+- Firmware reads magic `0x51560002` and status registers (`rx_cmd_cnt`, `last_addr`, `last_data`, `last_error`)
+- `pio_wait_sm_idle()` drain helper replacing ad-hoc `sleep_us(10)` margin
+- Bit-3 hardware observability: high-nibble status bytes confirm IO3 path
+
+**validation:**
+
+- Hardware: Pico receives `0x51560002` on Tang Nano 20K over QSPI readback
+- Hardware: high-nibble bits are not silently zeroed (bit-3 alive proof)
+
+---
+
+### Task 39 — Host Driver Library
+
+**Status:** TODO
+**depends_on:** [34, 35, 38c]
+**scope_boundary:** Host-side library only. No HDL changes, no new rendering primitives.
+**delivers:**
+
+- `libvdp_mode0_host.{c,h}` — firmware-agnostic driver above QSPI transport
+- Packet framing, register map abstraction, status polling helpers
+- Asset upload protocol with burst + progress callbacks
+- IRQ handling hooks
+- Reusable `pio_wait_sm_idle()` drain helper
+
+**validation:**
+
+- Firmware builds and links against the library with zero warnings
+- Hardware: library-driven upload + register write + status read cycle proves end-to-end host control
+
+---
+
+### Task 40 — First Platform Adapter (C64 Raster+Sprite Smoke)
+
+**Status:** TODO
+**depends_on:** [28, 30, 39]
+**scope_boundary:** Single bounded adapter proof only. No cycle-accurate emulation claim. No additional platforms.
+**delivers:**
+
+- C64-class raster IRQ driving a two-bar split with sprites
+- Register semantics and control model matching C64-style behavior
+- Honest "first real adapter on top of Mode0" milestone
+- Proof that the substrate contract works in real use
+
+**validation:**
+
+- Sim: adapter register writes produce expected C64-class raster split
+- Hardware: visible two-bar split + sprite behavior on Tang Nano 20K
+- 30s capture stability analysis passes
+
+**Task doc:** To be created when lane opens.
+
+---
+
+### Task 41 — Compositor Metadata Pipe
+
+**Status:** TODO
+**depends_on:** [13]
+**scope_boundary:** Metadata pipe definition and wiring only. No new compositor math, no new fetch formats.
+**delivers:**
+
+- Per-pixel metadata flag definition (math-enable, forced-priority, layer-source)
+- Metadata carried through line-buffer boundary
+- Compositor consumes metadata flags for color-math and priority decisions
+- Explicit contract between fetch engines and post-compositor stages
+
+**validation:**
+
+- Sim: metadata flags generated by fetch engine arrive at compositor intact
+- Hardware: visible proof that metadata-driven effects (e.g. forced-priority sprite) behave correctly
+
+---
+
+### Task 42 — Firmware + Platform Docs Hardening
+
+**Status:** TODO
+**depends_on:** [27]
+**scope_boundary:** Documentation and small firmware helpers only. No HDL changes.
+**delivers:**
+
+- Six-wire Pico↔Tang jumper map captured in `PLATFORM.md`
+- Reusable `pio_wait_sm_idle()` PIO drain helper (if not delivered by Task 39)
+- Documented QSPI firmware gotchas and workarounds
+- PIO timing constraints and verified SCK rates documented
+
+**validation:**
+
+- Doc review: PLATFORM.md is complete and accurate for current hardware setup
+- Firmware: drain helper tested in isolation and integrated into smoke test
+
+---
+
+### Task 43 — Scenario Regression Harness
+
+**Status:** TODO
+**depends_on:** [21]
+**scope_boundary:** Test infrastructure only. No new HDL, no new features.
+**delivers:**
+
+- Regression script/Makefile target that rebuilds and tags scenario bitstreams 1–17
+- Capture + analysis artifact preservation policy
+- Automated stability check (OpenCV/FFT-based) for each scenario
+- CI-friendly entry point for post-substrate-change validation
+
+**validation:**
+
+- All 17 scenarios rebuild successfully from clean state
+- At least 3 representative scenarios pass automated stability analysis
+
+---
+
+## Phase 10 — Platform Adapters
 
 ---
 
@@ -834,7 +999,7 @@ The following items remain intentionally coarse or out of Mode0 scope. Where pos
 |------|--------|-------|
 | Additional output modes | DEFERRED | Not required for baseline bring-up |
 | Deep-angle affine tuning | DEFERRED | Only after affine base path is proven (Task 19, Task 37) |
-| Platform adapter modes | DEFERRED | Decomposed into Tasks 28–38; adapter-specific register semantics remain platform-local |
+| Platform adapter modes | DEFERRED | Now tracked as **Task 40** (First Platform Adapter) in Phase 10 |
 | Alternate memory strategies | DEFERRED | Only if baseline memory path becomes a blocker |
 | Parallel bus implementation | DEFERRED | After QSPI path is stable (Task 25) |
 
