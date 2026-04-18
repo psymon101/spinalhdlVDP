@@ -28,11 +28,11 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 26 — QSPI Host-Control Frontend |
 | **Status** | IN-PROGRESS |
-| **Phase** | capture (Checkpoint C hardware proof) |
+| **Phase** | debug (write-path isolation) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `944174c` (fix(qspi): correct Tang Nano 20K QSPI pin mapping to proven VDP pins) |
-| **Latest Auth Mail** | #7505 (CyanPeak: amended proof target APPROVED, GO) |
-| **Next Deliverable** | Amended Checkpoint C re-run (0x0000 <-> 0x0005 toggle) |
+| **Latest Commit** | `1541615` (wire-test reverse: FPGA drives, Pico reads — all 4 wires PASS) |
+| **Latest Auth Mail** | #7513 (BronzeGate: Option B APPROVED — LED write-direction probe first) |
+| **Next Deliverable** | Option B evidence: LED probe commit, observability signals, conclusion (transport vs downstream) |
 | **Coding Authorized** | **YES** — CyanPeak #7480 |
 
 Rules:
@@ -571,6 +571,16 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - Checkpoint A: control contract + clean Verilog + pin mapping (PASSED at `df0b75b`)
 - Checkpoint B: simulation proofs + READ_STATUS mux (PASSED at `8c4f165`)
 - Checkpoint C: Pico 2 smoke test + `LAYER_ENABLE` live-update on hardware
+
+**debug history:**
+
+- `2138a27`: Amended firmware toggle `0x0000 <-> 0x0005`; 30 s capture FAIL — no visible change.
+- `04d488b`: Forward wire-test (Pico drives, FPGA samples via LEDs) — committed, awaiting user observation.
+- `1541615`: Reverse wire-test (FPGA drives, Pico reads via serial) — **all 4 wires PASS**. Physical wiring proven correct.
+- `1541615`: 2 MHz retest — FAIL (same flat signature). SCK rate ruled out.
+- `7512`: Architectural gap identified — top-level QSPI IO pins are input-only; `IOBUF` bidirectional work deferred.
+- `7513`: BronzeGate direction — execute **Option B** (LED write-direction probe) first. Bounded scope, no `IOBUF`.
+- **current blocker:** Write-path transport vs downstream decode/commit failure. Pending Option B evidence.
 
 **Task doc:** `PROJECT_PLAN/QSPI_HOST_CONTROL_PLAN.md`
 
