@@ -135,10 +135,11 @@ int main(void)
 
     bool on = true;
     while (true) {
-        /* Toggle LAYER_ENABLE between 0x0005 (L0+sprite) and 0x0007
-         * (L0+L1+sprite). On HDMI: L1 chroma content should appear and
-         * disappear on a ~1 Hz cadence. */
-        reg_write_word(0x0300, on ? 0x0007 : 0x0005);
+        /* Toggle LAYER_ENABLE between 0x0005 (L0+sprite) and 0x0000
+         * (all layers off). On HDMI: the entire screen goes to black
+         * backdrop when off, normal Sc16 scene when on — a dramatic
+         * visible toggle that works regardless of L1 configuration. */
+        reg_write_word(0x0300, on ? 0x0005 : 0x0000);
         on = !on;
         sleep_ms(500);
     }

@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | capture (Checkpoint C hardware proof) |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
 | **Latest Commit** | `944174c` (fix(qspi): correct Tang Nano 20K QSPI pin mapping to proven VDP pins) |
-| **Latest Auth Mail** | #7490 (CoralReef: blocker resolved, build passes with corrected Tang pin map) |
-| **Next Deliverable** | Checkpoint C exit packet: rebuilt Tang bitstream + physical wiring confirmation + Pico 2 smoke test + HDMI live-update proof |
+| **Latest Auth Mail** | #7505 (CyanPeak: amended proof target APPROVED, GO) |
+| **Next Deliverable** | Amended Checkpoint C re-run (0x0000 <-> 0x0005 toggle) |
 | **Coding Authorized** | **YES** — CyanPeak #7480 |
 
 Rules:
