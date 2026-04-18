@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(no active lane — cleared)* |
-| **Status** | — |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `b60469d` (AGENTS.md cleanup, convergence standby) |
-| **Latest Auth Mail** | #7580 (BronzeGate: PM convergence approved) |
-| **Next Deliverable** | CoralReef TASKS.md planning update + CyanPeak audit |
-| **Coding Authorized** | **NO** — planning update in progress |
+| **Task** | Task 38a — Bidirectional QSPI: HDL IOBUF + CST |
+| **Status** | IN-PROGRESS |
+| **Phase** | artifact |
+| **Owner** | BrightForge (coding), CyanPeak (audit) |
+| **Latest Commit** | `39e848a` (TASKS.md convergence applied) |
+| **Latest Auth Mail** | #7591 (BronzeGate: lane open — Task 38a) |
+| **Next Deliverable** | CoralReef task artifact + live-lane block update |
+| **Coding Authorized** | **NO** — wait for artifact audit before coding |
 
 Rules:
 - Only **one** lane may be live at a time.
