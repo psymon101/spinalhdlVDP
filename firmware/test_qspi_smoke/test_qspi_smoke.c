@@ -36,7 +36,7 @@
 #define QSPI_PIO       pio0
 #define QSPI_SM_TX     0
 
-#define QSPI_SCK_HZ    8000000u    /* 8 MHz — safe margin for 74.25 MHz oversampling */
+#define QSPI_SCK_HZ    2000000u    /* 2 MHz — ~12× oversampling on the 25 MHz pixel clock */
 
 static uint tx_offset;
 
