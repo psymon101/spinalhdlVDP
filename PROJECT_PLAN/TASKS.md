@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 26 — QSPI Host-Control Frontend |
-| **Status** | IN-PROGRESS (Checkpoint C PASSED — closeout pending purified commit) |
-| **Phase** | closeout |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `befcd17` (Fix 1: extend PIO OSR drain — Checkpoint C passes) |
-| **Latest Auth Mail** | #7534 (CyanPeak: Checkpoint C PASSED, Task 26 GO for closeout) |
-| **Next Deliverable** | BrightForge purified commit (revert HUD/LED probes) → CoralReef marks DONE |
-| **Coding Authorized** | **YES** — CyanPeak #7480 |
+| **Task** | Task 27 — Full-QSPI Hardening (IO2/IO3) |
+| **Status** | TODO |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding) |
+| **Latest Commit** | `f478fcf` (Task 26 purified closeout) |
+| **Latest Auth Mail** | #7542 (BronzeGate: open bounded full-QSPI hardening lane) |
+| **Next Deliverable** | Task 27 artifact doc (scope boundary, checkpoints, proof plan) |
+| **Coding Authorized** | **NO** — wait for CyanPeak audit of artifact |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -555,7 +555,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 26 — QSPI Host-Control Frontend
 
-**Status:** IN-PROGRESS (Checkpoint C PASSED — closeout pending purified commit)
+**Status:** DONE
 **depends_on:** [23]
 **scope_boundary:** Transport shim and decoder only. No bulk asset streaming, no protocol expansion, no new rendering primitives, no FIFO model redesign.
 **delivers:**
@@ -589,6 +589,28 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - **`7526` (CoralReef SECONDARY issue):** spinalhdlVDP CST only wires IO0+IO1. PIO quad-mode sends 4 bits/nibble; FPGA ties IO2/IO3 to 0. Data bytes with bits 2/3 set in any nibble are corrupted (e.g. `0x05` → `0x01`). Verified by corrected `Qspi2WireSimV2`. Does NOT block Checkpoint C (opcode `0x01` correct, 2 payload bytes arrive with Fix 1, `regWriteEnable` fires). Fix deferred.
 
 **Task doc:** `PROJECT_PLAN/QSPI_HOST_CONTROL_PLAN.md`
+
+---
+
+### Task 27 — Full-QSPI Hardening (IO2/IO3)
+
+**Status:** TODO
+**depends_on:** [26]
+**scope_boundary:** IO2/IO3 wiring + CST + hardware proof of 4-bit payload fidelity only. No protocol redesign, no bulk asset streaming, no readback/bidirectional work unless explicitly added.
+**delivers:**
+
+- Tang CST updated with IO2 (pin 51) and IO3 (pin 54) per proven VDP project pinout
+- `TopTang20kHdmi` updated to connect all 4 QSPI data lines (remove `B"00" ## ...` tie-off)
+- Simulation proof that 4-bit payload bytes (nibbles with bits 2/3 set) are received correctly
+- Hardware proof: QSPI-driven register write with payload value exercising all 4 bits (e.g. `0x0005`, `0x000F`) visibly toggles correctly
+
+**validation:**
+
+- Checkpoint A: HDL + CST update, clean Verilog generation, P&R passes
+- Checkpoint B: simulation proof with payload bytes containing bits 2/3 set
+- Checkpoint C: hardware proof on Tang Nano 20K with full 4-bit QSPI data fidelity
+
+**Task doc:** TBD — CoralReef to open artifact
 
 ---
 
