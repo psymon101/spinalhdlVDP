@@ -27,13 +27,13 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | Task 27 — Full-QSPI Hardening (IO2/IO3) |
-| **Status** | TODO |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding) |
-| **Latest Commit** | `f478fcf` (Task 26 purified closeout) |
-| **Latest Auth Mail** | #7542 (BronzeGate: open bounded full-QSPI hardening lane) |
-| **Next Deliverable** | Task 27 artifact doc (scope boundary, checkpoints, proof plan) |
-| **Coding Authorized** | **NO** — wait for CyanPeak audit of artifact |
+| **Status** | IN-PROGRESS |
+| **Phase** | implement |
+| **Owner** | BrightForge (coding), CyanPeak (audit) |
+| **Latest Commit** | `1794c9c` (Checkpoint A: wire IO2/IO3 at top + CST per VDP pinout) |
+| **Latest Auth Mail** | #7548 (CyanPeak: Task 27 GO) / #7549 (BrightForge: Checkpoint A landed) |
+| **Next Deliverable** | Checkpoint B sim proof (4-bit payload bytes with bits 2/3 set) |
+| **Coding Authorized** | **YES** — CyanPeak #7548 |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -594,7 +594,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 27 — Full-QSPI Hardening (IO2/IO3)
 
-**Status:** TODO
+**Status:** IN-PROGRESS
 **depends_on:** [26]
 **scope_boundary:** IO2/IO3 wiring + CST + hardware proof of 4-bit payload fidelity only. No protocol redesign, no bulk asset streaming, no readback/bidirectional work unless explicitly added.
 **delivers:**
@@ -610,7 +610,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - Checkpoint B: simulation proof with payload bytes containing bits 2/3 set
 - Checkpoint C: hardware proof on Tang Nano 20K with full 4-bit QSPI data fidelity
 
-**Task doc:** TBD — CoralReef to open artifact
+**Task doc:** `PROJECT_PLAN/TASK27_FULL_QSPI_HARDENING.md` (artifact doc opened in `cc7ec82`, CyanPeak audit PASS in #7548)
 
 ---
 
