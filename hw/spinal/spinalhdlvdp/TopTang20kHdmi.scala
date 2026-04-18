@@ -785,6 +785,23 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     O_led(3) := !fetch.io.memtestPass
     O_led(4) := fetch.io.memtestFail
     O_led(5) := fetch.io.underrun
+    // Task 26 wire-test diagnostic (BronzeGate #7508): scenarioId=99
+    // overrides LEDs 0..3 with the 4 QSPI input pins (active-low so a HIGH
+    // input lights the LED). Pico runs test_qspi_wire.c to drive a one-hot
+    // walking pattern on GP8..GP11. Expected observation on the Tang:
+    //   LED0 = SCK, LED1 = CS, LED2 = IO0, LED3 = IO1 — exactly one LED lit
+    // per step of the Pico's 5-step walking one-hot sequence. Local 2-stage
+    // sync registers debounce the async inputs before driving the LEDs.
+    if (scenarioId == 99) {
+      val sckSync = RegNext(RegNext(I_qspi_sck))
+      val csSync  = RegNext(RegNext(I_qspi_cs))
+      val io0Sync = RegNext(RegNext(I_qspi_io0))
+      val io1Sync = RegNext(RegNext(I_qspi_io1))
+      O_led(0) := !sckSync
+      O_led(1) := !csSync
+      O_led(2) := !io0Sync
+      O_led(3) := !io1Sync
+    }
   }
 
   // Wire SDRAM controller's logic-side signals to the fetch engine. Both live
@@ -854,6 +871,10 @@ object TopTang20kHdmiScenario16Verilog extends App {
 }
 object TopTang20kHdmiScenario17Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 17))   // stress scene
+}
+// Task 26 QSPI wire-test diagnostic (BronzeGate #7508, throwaway).
+object TopTang20kHdmiScenario99Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 99))
 }
 // Wave 3 scenario.
 object TopTang20kHdmiScenario13Verilog extends App {
