@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 38a — Bidirectional QSPI: HDL IOBUF + CST |
-| **Status** | IN-PROGRESS |
-| **Phase** | artifact |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `39e848a` (TASKS.md convergence applied) |
-| **Latest Auth Mail** | #7591 (BronzeGate: lane open — Task 38a) |
-| **Next Deliverable** | CoralReef task artifact + live-lane block update |
-| **Coding Authorized** | **NO** — wait for artifact audit before coding |
+| **Task** | *(no active lane — cleared)* |
+| **Status** | — |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `f49880f` (Task 38a DONE: bidirectional QSPI IOBUF + CST) |
+| **Latest Auth Mail** | #7596 (CyanPeak: Task 38a PASSED and CLOSED) |
+| **Next Deliverable** | BronzeGate PM direction for next active lane (expected: Task 38b) |
+| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -831,7 +831,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 38a — Bidirectional QSPI: HDL IOBUF + CST
 
-**Status:** TODO
+**Status:** DONE (`f49880f`)
 **depends_on:** [27]
 **scope_boundary:** Top-level bidirectional wiring only. No decoder changes, no firmware.
 **delivers:**
