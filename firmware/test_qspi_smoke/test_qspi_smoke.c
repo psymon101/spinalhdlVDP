@@ -101,9 +101,16 @@ static void qspi_tx_bytes(const uint8_t *buf, size_t n)
     for (size_t i = 0; i < words; ++i) {
         qspi_tx_word(pack_bytes(buf[4*i+0], buf[4*i+1], buf[4*i+2], buf[4*i+3]));
     }
-    /* Drain: wait until TX FIFO is empty and SM is idle. */
+    /* Drain: wait until TX FIFO is empty, then hold long enough for the
+     * PIO OSR to finish shifting its last 32-bit word. At 2 MHz SCK, one
+     * full word in flight = 4 bytes × 8 SCK edges / 2 MHz ≈ 4 µs worst
+     * case. A 2 µs wait (previous value) lost the final payload byte
+     * because CS_N deasserted while byte 7/8 were still mid-shift — proven
+     * by HUD-v2 evidence (captures/sc26/sc26_hud_v2.mp4, payload_cnt:cmd_cnt
+     * ratio = 1:1 instead of 2:1). 10 µs is 2.5× the worst case — solid
+     * margin until the drain is hardened to a proper SM-idle poll. */
     while (!pio_sm_is_tx_fifo_empty(QSPI_PIO, QSPI_SM_TX)) { /* spin */ }
-    sleep_us(2);
+    sleep_us(10);
 }
 
 static void reg_write_word(uint32_t addr, uint16_t data)
