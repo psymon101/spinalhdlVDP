@@ -50,10 +50,13 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   // upper two bits are tied low here.
   val I_qspi_cs  = in Bool()
   val I_qspi_sck = in Bool()
-  val I_qspi_io0 = in Bool()
-  val I_qspi_io1 = in Bool()
-  val I_qspi_io2 = in Bool()
-  val I_qspi_io3 = in Bool()
+  // Task 38a: IO0..IO3 are bidirectional — FPGA drives during QspiSlave
+  // Respond state (READ_STATUS response), high-Z during Header/Payload so
+  // the host can drive them. Gowin IOBUF primitives live below.
+  val IO_qspi_io0 = inout(Analog(Bool()))
+  val IO_qspi_io1 = inout(Analog(Bool()))
+  val IO_qspi_io2 = inout(Analog(Bool()))
+  val IO_qspi_io3 = inout(Analog(Bool()))
 
   // Task 15: embedded SiP SDRAM pads. These map to Gowin's "magic" port names
   // (O_sdram_*, IO_sdram_DQ). No `.cst` entries — Gowin auto-binds them.
@@ -498,7 +501,22 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val qspi = QspiSlave()
     qspi.io.spi_cs_n  := I_qspi_cs
     qspi.io.spi_sck   := I_qspi_sck
-    qspi.io.spi_io_in := (I_qspi_io3 ## I_qspi_io2 ## I_qspi_io1 ## I_qspi_io0)
+    // Task 38a: bidirectional IO via Gowin IOBUF primitives. During Respond
+    // state (spi_io_oe=1), the slave drives spi_io_out onto the pad. During
+    // all other states (OEN=1), the pad is high-Z and we sense the host's
+    // drive on .O back into spi_io_in. Pin order: IO3 high bit, IO0 low bit
+    // — matches QspiSlave's {IO3,IO2,IO1,IO0} sampling expectation.
+    val qspiIobuf = Seq.tabulate(4) { i =>
+      val buf = GowinIobuf()
+      buf.I   := qspi.io.spi_io_out(i)
+      buf.OEN := !qspi.io.spi_io_oe
+      buf
+    }
+    qspiIobuf(0).IO <> IO_qspi_io0
+    qspiIobuf(1).IO <> IO_qspi_io1
+    qspiIobuf(2).IO <> IO_qspi_io2
+    qspiIobuf(3).IO <> IO_qspi_io3
+    qspi.io.spi_io_in := (qspiIobuf(3).O ## qspiIobuf(2).O ## qspiIobuf(1).O ## qspiIobuf(0).O)
     val qspiDec = QspiDecoder()
     qspiDec.io.cmd_opcode    := qspi.io.cmd_opcode
     qspiDec.io.cmd_addr      := qspi.io.cmd_addr

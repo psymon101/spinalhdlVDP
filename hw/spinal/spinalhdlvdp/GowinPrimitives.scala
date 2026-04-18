@@ -90,3 +90,18 @@ case class GowinTlvdsObuf() extends BlackBox {
   val OB = out Bool()
   val I = in Bool()
 }
+
+// Gowin IOBUF — bidirectional I/O buffer used for tri-state pads.
+//   I   : data driven onto IO when OEN=0
+//   OEN : active-low output enable (OEN=0 -> drive, OEN=1 -> high-Z / input)
+//   O   : data sensed from IO
+//   IO  : physical bidirectional pad
+case class GowinIobuf() extends BlackBox {
+  setDefinitionName("IOBUF")
+  noIoPrefix()
+
+  val O   = out Bool()
+  val IO  = inout(Analog(Bool()))
+  val I   = in Bool()
+  val OEN = in Bool()
+}
