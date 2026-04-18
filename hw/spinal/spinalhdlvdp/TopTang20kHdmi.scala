@@ -52,6 +52,8 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   val I_qspi_sck = in Bool()
   val I_qspi_io0 = in Bool()
   val I_qspi_io1 = in Bool()
+  val I_qspi_io2 = in Bool()
+  val I_qspi_io3 = in Bool()
 
   // Task 15: embedded SiP SDRAM pads. These map to Gowin's "magic" port names
   // (O_sdram_*, IO_sdram_DQ). No `.cst` entries — Gowin auto-binds them.
@@ -496,7 +498,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val qspi = QspiSlave()
     qspi.io.spi_cs_n  := I_qspi_cs
     qspi.io.spi_sck   := I_qspi_sck
-    qspi.io.spi_io_in := (B"00" ## I_qspi_io1 ## I_qspi_io0)   // IO2/IO3 tied low
+    qspi.io.spi_io_in := (I_qspi_io3 ## I_qspi_io2 ## I_qspi_io1 ## I_qspi_io0)
     val qspiDec = QspiDecoder()
     qspiDec.io.cmd_opcode    := qspi.io.cmd_opcode
     qspiDec.io.cmd_addr      := qspi.io.cmd_addr
