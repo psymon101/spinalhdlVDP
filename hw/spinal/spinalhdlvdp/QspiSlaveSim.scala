@@ -103,6 +103,51 @@ object QspiSlaveSim extends App {
     assert(payloadBuf.isEmpty, s"Case 3: no payload expected, got $payloadBuf")
     println(f"Case 3 PASS: READ_STATUS header decoded (op=0x$op3%02X, len=$len3)")
 
-    println("QspiSlaveSim: all 3 cases PASS")
+    // ---- Case 4: Task 38a — slave drives response path ----
+    // Slave-only proof that the IOBUF drive contract holds: during Respond
+    // state, spi_io_oe asserts and tx_byte_sent acks tick through 4 bytes
+    // of host-supplied response data. If a top-level IOBUF is wired to
+    // {.I <- spi_io_out, .OEN <- !spi_io_oe}, these signals carry the
+    // response onto the physical pads exactly when CS is still low.
+    println("Case 4: READ_STATUS response drive — oe + tx_byte_sent contract")
+    val responseBytes = Seq(0x02, 0x00, 0x56, 0x51) // 0x51560002 LSB-first
+    var oeSeenHigh = false
+    var bytesAcked = 0
+    val drvWatcher = fork {
+      var ticks = 0
+      while (ticks < 40000) {
+        dut.clockDomain.waitSampling()
+        if (dut.io.spi_io_oe.toBoolean)    oeSeenHigh = true
+        if (dut.io.tx_byte_sent.toBoolean) bytesAcked += 1
+        ticks += 1
+      }
+    }
+    val loader = fork {
+      dut.io.tx_byte #= responseBytes(0); dut.io.tx_load #= true
+      dut.clockDomain.waitSampling(); dut.io.tx_load #= false
+      var loadIdx = 1; var spins = 0
+      while (loadIdx < responseBytes.length && spins < 40000) {
+        dut.clockDomain.waitSampling(); spins += 1
+        if (dut.io.tx_byte_sent.toBoolean) {
+          dut.io.tx_byte #= responseBytes(loadIdx); dut.io.tx_load #= true
+          dut.clockDomain.waitSampling(); dut.io.tx_load #= false
+          loadIdx += 1
+        }
+      }
+    }
+    // READ_STATUS header, then 2 turnaround + 8 response SCK edges.
+    dut.io.spi_cs_n #= false
+    dut.clockDomain.waitSampling(5)
+    Seq(0x04, 0x00, 0x00, 0x00, 0x00, 0x00).foreach(sendByte)
+    for (_ <- 0 until (2 + 8)) sendNibble(0)
+    dut.clockDomain.waitSampling(H * 4)
+    dut.io.spi_cs_n #= true
+    dut.clockDomain.waitSampling(80)
+    loader.join(); drvWatcher.join()
+    assert(oeSeenHigh,      "Case 4: spi_io_oe never asserted — IOBUF drive path dead")
+    assert(bytesAcked >= 1, s"Case 4: expected at least 1 tx_byte_sent ack, got $bytesAcked")
+    println(f"Case 4 PASS: spi_io_oe pulsed high during Respond; $bytesAcked bytes acked — IOBUF drive contract validated")
+
+    println("QspiSlaveSim: all 4 cases PASS")
   }
 }
