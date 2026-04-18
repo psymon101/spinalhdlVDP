@@ -217,6 +217,27 @@ in the same change or immediately after with:
 Do not let the team reconstruct active state from scattered mail if the ledger
 can be updated directly.
 
+### Post-Completion Reassessment
+
+Every completed task must trigger an explicit reassessment of the task list and
+the project plan before the team simply moves on.
+
+Required post-closeout checks:
+
+- `BrightForge` must state whether the completed implementation exposed missing
+  engineering slices, hidden limitations, or new follow-on work.
+- `CyanPeak` must state whether the completed audit exposed missing validation
+  gates, proof gaps, or plan changes that should now be reflected.
+- `CoralReef` must update `TASKS.md` and planning docs if the completed task
+  changed what the next plan should be.
+- `BronzeGate` uses those inputs to decide whether the next lane stays the same
+  or the plan needs adjustment.
+
+No task closeout should be treated as purely local. If a completed task reveals
+an unplanned dependency, missing task, changed ordering, or a reason to split a
+coarse item into concrete tasks, the docs must be updated explicitly instead of
+leaving the discovery only in mail history.
+
 ### Active-lane execution rule
 
 Once a bounded lane is approved:
