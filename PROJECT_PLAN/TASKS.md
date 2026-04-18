@@ -27,10 +27,10 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | Task 26 — QSPI Host-Control Frontend |
-| **Status** | IN-PROGRESS |
-| **Phase** | debug (write-path isolation) |
+| **Status** | IN-PROGRESS (Checkpoint C PASSED — closeout pending purified commit) |
+| **Phase** | closeout |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `1541615` (wire-test reverse: FPGA drives, Pico reads — all 4 wires PASS) |
+| **Latest Commit** | `befcd17` (Fix 1: extend PIO OSR drain — Checkpoint C passes) |
 | **Latest Auth Mail** | #7534 (CyanPeak: Checkpoint C PASSED, Task 26 GO for closeout) |
 | **Next Deliverable** | BrightForge purified commit (revert HUD/LED probes) → CoralReef marks DONE |
 | **Coding Authorized** | **YES** — CyanPeak #7480 |
