@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 38c — Bidirectional QSPI: Firmware Read Helper + Bit-3 Proof |
-| **Status** | IN-PROGRESS |
-| **Phase** | implement |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `4cee22e` (BrightForge: firmware read helper + bit-3 proof) |
-| **Latest Auth Mail** | #7632 (BrightForge: Task 38c completion packet) |
-| **Next Deliverable** | CyanPeak audit of 4cee22e + serial log evidence |
-| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7627) |
+| **Task** | *(no active lane — cleared)* |
+| **Status** | — |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `4cee22e` (Task 38c DONE: firmware read helper + bit-3 proof) |
+| **Latest Auth Mail** | #7637 (CyanPeak: Task 38c PASSED and CLOSED) |
+| **Next Deliverable** | BronzeGate PM direction for next active lane (expected: Task 35) |
+| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -57,7 +57,7 @@ The repository has closed the Mode0 substrate backlog through baseline **`32a87f
 - **R5.3** — Copper Control Unification (`32a87ff`)
 - **R5.4** — Scroll-Wrap Component Primitive (`d580dcb`)
 
-That means Tasks 1 through 5, Task 15, Task 16, Task 18, Task 26, Task 27, Task 38a, and Task 38b are already complete in this repo state.
+That means Tasks 1 through 5, Task 15, Task 16, Task 18, Task 26, Task 27, Task 38a, Task 38b, and Task 38c are already complete in this repo state.
 
 ---
 
@@ -871,7 +871,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 38c — Bidirectional QSPI: Firmware Read Helper + Bit-3 Proof
 
-**Status:** TODO
+**Status:** DONE (`4cee22e`)
 **depends_on:** [38b]
 **scope_boundary:** Firmware read path only. No HDL changes.
 **delivers:**
