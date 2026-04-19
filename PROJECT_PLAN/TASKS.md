@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 32a — Mode0 Register Bus: Spec & Naming Lock |
+| **Task** | Task 35 — Host-Facing IRQ and Status Registers |
 | **Status** | IN-PROGRESS |
-| **Phase** | artifact |
+| **Phase** | implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `e27db76` (Task 32a artifact + live-lane block) |
-| **Latest Auth Mail** | #7650 (CyanPeak: artifact audit PASSED — Task 32a GO) |
-| **Next Deliverable** | BrightForge Checkpoint B: spec document + sim regression |
-| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7650) |
+| **Latest Commit** | `5e655f6` (Task 35 artifact preflight-approved) |
+| **Latest Auth Mail** | #7646 (CyanPeak: Task 35 artifact PREFLIGHT APPROVED) |
+| **Next Deliverable** | BrightForge implementation + sim + hw proof |
+| **Coding Authorized** | **YES** — preflight approved, dependency 32a now DONE |
 
-**Preflight ready:** Task 35 artifact APPROVED; will activate after Task 32a closes.
+**Unblocked by:** Task 32a DONE at `f040990` (#7655)
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -702,7 +702,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 32a — Mode0 Register Bus: Spec & Naming Lock
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [18, 26]
 **scope_boundary:** Register bus specification and naming lock only. No master refactor, no new primitives, no adapter-specific registers.
 **delivers:**
@@ -775,7 +775,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 35 — Host-Facing IRQ and Status Registers
 
-**Status:** TODO
+**Status:** IN-PROGRESS
 **depends_on:** [18, 32a]
 **scope_boundary:** IRQ line + readable status register surface only. No new automation engines.
 **delivers:**
