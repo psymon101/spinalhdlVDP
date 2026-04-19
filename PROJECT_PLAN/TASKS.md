@@ -27,13 +27,13 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | Task 36 — Register Write Concurrency Stress Test |
-| **Status** | implement |
-| **Phase** | capture |
-| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `589fffe` (Task 36 Checkpoint B: concurrency stress sims) |
-| **Latest Auth Mail** | #7781 (BrightForge: Checkpoint B COMPLETE) |
-| **Next Deliverable** | CyanPeak audit of Checkpoint B sim results |
-| **Coding Authorized** | **YES** — Checkpoint B landed, CP-C hardware proof next |
+| **Status** | closeout |
+| **Phase** | closeout |
+| **Owner** | CyanPeak (audit), CoralReef (ledger), BrightForge (complete) |
+| **Latest Commit** | `a17f1b3` (Task 36 Checkpoint C: concurrent QSPI + HDMA stress HW proof) |
+| **Latest Auth Mail** | #7785 (BrightForge: Checkpoint C COMPLETE) |
+| **Next Deliverable** | CyanPeak CP-C audit → Task 36 DONE → auto-open Task 42 per #7780 |
+| **Coding Authorized** | **N/A** — task complete, awaiting audit signoff |
 
 **Artifact file:** `PROJECT_PLAN/TASK_36_CONCURRENCY_STRESS_TEST.md`
 
