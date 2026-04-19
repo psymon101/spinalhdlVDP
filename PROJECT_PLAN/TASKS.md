@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 34 — QSPI Host-Driven Asset Upload |
-| **Status** | IN-PROGRESS |
-| **Phase** | implement |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `6257719` (Task 34 artifact v1.0) |
-| **Latest Auth Mail** | #7680 (CyanPeak: artifact audit PASSED — Task 34 GO) |
-| **Next Deliverable** | BrightForge Checkpoint B: QspiSdramBridge HDL + SdramUploadSim |
-| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7680) |
+| **Task** | *(no active lane — cleared after Task 34 closeout)* |
+| **Status** | — |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `222c1c0` (Task 34 Checkpoint C: visible-render proven) |
+| **Latest Auth Mail** | #7704 (BrightForge: Task 34 complete — 14.2% pixel delta) |
+| **Next Deliverable** | BronzeGate PM direction for next active lane |
+| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
 
-**Audit notes:** Vblank-only gating approved; wrap-around check on 23-bit addr; `activeVideo` as arbitration gate.
+**Task 34 completion arc:** `6257719` (artifact) → `4b9e32d` (Checkpoint B, 29/29 sim) → `613dfb1` (firmware probe, inconclusive) → `77364e9` (CDC fix) → `222c1c0` (Checkpoint C, visible-render proven).
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -757,7 +757,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 34 — QSPI Host-Driven Asset Upload
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [27, 38c]
 **scope_boundary:** Bulk SDRAM write via QSPI only. No new rendering primitives, no protocol redesign.
 **delivers:**
