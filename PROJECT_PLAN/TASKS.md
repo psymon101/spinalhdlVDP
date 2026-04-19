@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 35 — Host-Facing IRQ and Status Registers |
-| **Status** | IN-PROGRESS |
-| **Phase** | implement |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `5e655f6` (Task 35 artifact preflight-approved) |
-| **Latest Auth Mail** | #7646 (CyanPeak: Task 35 artifact PREFLIGHT APPROVED) |
-| **Next Deliverable** | BrightForge implementation + sim + hw proof |
-| **Coding Authorized** | **YES** — preflight approved, dependency 32a now DONE |
+| **Task** | *(no active lane — cleared after Task 35 closeout)* |
+| **Status** | — |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `798ebbe` (Task 35: IRQ + sticky status bank, sim + HW PASS) |
+| **Latest Auth Mail** | #7661 (BrightForge: Task 35 complete) |
+| **Next Deliverable** | Task 34 artifact creation + CyanPeak preflight audit |
+| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
 
-**Unblocked by:** Task 32a DONE at `f040990` (#7655)
+**Converged next target:** Task 34 — QSPI Host-Driven Asset Upload (depends_on [27, 38c] satisfied).
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -775,7 +775,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 35 — Host-Facing IRQ and Status Registers
 
-**Status:** IN-PROGRESS
+**Status:** DONE
 **depends_on:** [18, 32a]
 **scope_boundary:** IRQ line + readable status register surface only. No new automation engines.
 **delivers:**
