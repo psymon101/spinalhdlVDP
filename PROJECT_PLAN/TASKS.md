@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(no active lane — cleared after Task 33 closeout)* |
-| **Status** | — |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `b4eea8a` (Task 33 Checkpoint C: HDMA color-math HW proof) |
-| **Latest Auth Mail** | #7770 (CyanPeak: Task 33 CLOSED) |
-| **Next Deliverable** | Task 36 artifact creation + CyanPeak preflight audit |
-| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
+| **Task** | Task 36 — Register Write Concurrency Stress Test |
+| **Status** | artifact |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding, on-hold) |
+| **Latest Commit** | `6293a93` (Task 33 ledger closeout) |
+| **Latest Auth Mail** | #7774 (BronzeGate: auto-open Task 36 artifact) |
+| **Next Deliverable** | CyanPeak preflight audit of `TASK_36_CONCURRENCY_STRESS_TEST.md` |
+| **Coding Authorized** | **NO** — wait for artifact audit GO |
 
-**Converged next targets:** Task 36 — Register Write Concurrency Stress Test (depends_on [26, 33] both DONE). Task 42 — Firmware + Platform Docs (depends_on [27] DONE) also unblocked.
+**Artifact file:** `PROJECT_PLAN/TASK_36_CONCURRENCY_STRESS_TEST.md`
 
 Rules:
 - Only **one** lane may be live at a time.
