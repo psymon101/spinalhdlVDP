@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 33 — Copper-lite / HDMA Automator |
-| **Status** | IN-PROGRESS |
-| **Phase** | capture |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `44efb86` (Task 33 Checkpoint B: HDMA engine + 34+ sim PASS) |
-| **Latest Auth Mail** | #7767 (CyanPeak: CP-C blocker — target Color Math for proof) |
-| **Next Deliverable** | BrightForge revised CP-C proof: Color Math tint bands |
-| **Coding Authorized** | **YES** — Checkpoint B PASSED, CP-C rework authorized |
+| **Task** | *(no active lane — cleared after Task 33 closeout)* |
+| **Status** | — |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `b4eea8a` (Task 33 Checkpoint C: HDMA color-math HW proof) |
+| **Latest Auth Mail** | #7770 (CyanPeak: Task 33 CLOSED) |
+| **Next Deliverable** | Task 36 artifact creation + CyanPeak preflight audit |
+| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
 
-**Context:** Checkpoint B complete (34+ sim PASS). CP-C attempted with LAYER_ENABLE target — indistinguishable from baseline. Blocker resolved: switch to Color Math register target for unambiguous visible bands.
+**Converged next targets:** Task 36 — Register Write Concurrency Stress Test (depends_on [26, 33] both DONE). Task 42 — Firmware + Platform Docs (depends_on [27] DONE) also unblocked.
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -738,7 +738,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 33 — Copper-lite / HDMA Automator
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [32a]
 **scope_boundary:** Beam-synchronous micro-engine only. No new fetch engines, no new output stages.
 **delivers:**
