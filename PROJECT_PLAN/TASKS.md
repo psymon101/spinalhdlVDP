@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 38c — Bidirectional QSPI: Firmware Read Helper + Bit-3 Proof |
 | **Status** | IN-PROGRESS |
-| **Phase** | artifact |
+| **Phase** | implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `287b8cf` (fast-lane policy, Task 38b DONE) |
-| **Latest Auth Mail** | #7620 (BronzeGate: fast-lane policy — auto-progression to 38c) |
-| **Next Deliverable** | CoralReef task artifact + live-lane block update |
-| **Coding Authorized** | **NO** — wait for artifact audit before coding |
+| **Latest Commit** | `c2cd5cc` (Task 38c artifact + live-lane block) |
+| **Latest Auth Mail** | #7627 (CyanPeak: artifact audit PASSED — Task 38c GO) |
+| **Next Deliverable** | BrightForge Checkpoint B: firmware implementation + hardware proof |
+| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7627) |
 
 Rules:
 - Only **one** lane may be live at a time.
