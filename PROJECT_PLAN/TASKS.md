@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(no active lane — cleared)* |
-| **Status** | — |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `1294614` (Task 38b DONE: status surface expansion) |
-| **Latest Auth Mail** | #7617 (CyanPeak: Task 38b PASSED and CLOSED) |
-| **Next Deliverable** | BronzeGate PM direction for next active lane (expected: Task 38c) |
-| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
+| **Task** | Task 38c — Bidirectional QSPI: Firmware Read Helper + Bit-3 Proof |
+| **Status** | IN-PROGRESS |
+| **Phase** | artifact |
+| **Owner** | BrightForge (coding), CyanPeak (audit) |
+| **Latest Commit** | `287b8cf` (fast-lane policy, Task 38b DONE) |
+| **Latest Auth Mail** | #7620 (BronzeGate: fast-lane policy — auto-progression to 38c) |
+| **Next Deliverable** | CoralReef task artifact + live-lane block update |
+| **Coding Authorized** | **NO** — wait for artifact audit before coding |
 
 Rules:
 - Only **one** lane may be live at a time.
