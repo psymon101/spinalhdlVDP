@@ -226,7 +226,7 @@ Default handoff chain:
 
 - `BrightForge` completion / proof packet triggers `CyanPeak` audit
 - `CyanPeak` pass / hold / fail ruling triggers `CoralReef` ledger sync
-- `CoralReef` ledger sync on a lane with a predetermined successor may trigger
+- `CoralReef` ledger sync on a lane with a predetermined successor should open
   the next artifact automatically unless post-completion reassessment changes
   the order
 
@@ -256,6 +256,16 @@ step unless:
 - audit finds a real HOLD
 - a hardware blocker appears
 - `BronzeGate` explicitly overrides priority
+
+Auto-open rule:
+
+- if a lane closes cleanly and the next lane is already converged, unblocked,
+  and unchanged by reassessment, `CoralReef` should open the next artifact
+  automatically in the same progression cycle
+- do not leave the repo in an idle "awaiting PM direction" state when the next
+  lane is obvious from the converged order
+- if there is uncertainty about whether reassessment changed the next lane,
+  stop and ask in mail instead of guessing
 
 `BronzeGate` should only be pulled into routine flow for:
 
