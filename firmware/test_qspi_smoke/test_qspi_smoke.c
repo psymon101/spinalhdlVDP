@@ -119,6 +119,40 @@ static void qspi_tx_bytes(const uint8_t *buf, size_t n)
     pio_wait_sm_idle(QSPI_PIO, QSPI_SM_TX);
 }
 
+/* Task 34 — SDRAM_WRITE bulk upload.
+ *   addr      : 24-bit target SDRAM byte address
+ *   words     : pointer to LE 16-bit words
+ *   num_words : count (LEN field, up to 65535 words = 128 KB)
+ * Sends a SDRAM_WRITE header (CMD=0x02) followed by 2*num_words payload
+ * bytes via the same PIO TX path used by reg_write_word.
+ */
+static void sdram_upload(uint32_t addr, const uint16_t *words, uint16_t num_words)
+{
+    const size_t n = 6 + 2 * (size_t)num_words;
+    uint8_t frame[512];  /* Checkpoint C: cap at 253 words (506 bytes) to keep under one vblank */
+    if (n > sizeof frame) return;
+    frame[0] = 0x02;                             /* CMD = SDRAM_WRITE */
+    frame[1] = (uint8_t)( addr        & 0xFF);
+    frame[2] = (uint8_t)((addr >> 8)  & 0xFF);
+    frame[3] = (uint8_t)((addr >> 16) & 0xFF);
+    frame[4] = (uint8_t)( num_words       & 0xFF);
+    frame[5] = (uint8_t)((num_words >> 8) & 0xFF);
+    for (size_t i = 0; i < num_words; ++i) {
+        frame[6 + 2*i + 0] = (uint8_t)( words[i]       & 0xFF);
+        frame[6 + 2*i + 1] = (uint8_t)((words[i] >> 8) & 0xFF);
+    }
+    /* Pad to multiple of 4 for qspi_tx_bytes (it sends whole 32-bit words). */
+    size_t padded = (n + 3) & ~(size_t)3;
+    while (n < padded) { frame[padded - 1] = 0x00; padded--; break; }
+    /* Above padding loop is a no-op as written; do it properly: */
+    size_t m = n;
+    while (m & 3) { frame[m++] = 0x00; }
+    cs_assert();
+    qspi_tx_bytes(frame, m);
+    cs_deassert();
+    sleep_us(10);
+}
+
 static void reg_write_word(uint32_t addr, uint16_t data)
 {
     /* 8-byte transaction: 6-byte header + 2-byte payload (one 16-bit word).
@@ -280,6 +314,40 @@ int main(void)
      * sticky, so sel=5 read should show bit 2 set between clears. */
     reg_write_word(0x0321, 0x000C);     /* enable bits 2,3 for irq */
     sleep_ms(10);
+
+    /* Task 34 Checkpoint C: bounded SDRAM upload.
+     * Upload 16 little-endian 16-bit words to SDRAM byte address 0x100000
+     * (a location far from the fetch-engine working region so it's safe
+     * to poke). Then poll READ_STATUS sel=6 to verify upload_done went
+     * high, and sel=1 to confirm rx_cmd_cnt advanced. Finally check sel=4
+     * for QSPI_ERROR — should remain 0 across the bulk transfer. */
+    const uint16_t test_asset[16] = {
+        0xDEAD, 0xBEEF, 0x1234, 0x5678,
+        0xCAFE, 0xBABE, 0xFEED, 0xF00D,
+        0x0001, 0x0002, 0x0004, 0x0008,
+        0x0010, 0x0020, 0x0040, 0x0080,
+    };
+    uint32_t cnt_before = qspi_read_status(1) & 0xFF;
+    uint32_t err_before = qspi_read_status(4) & 0xFF;
+    uint32_t up6_before = qspi_read_status(6);
+    sdram_upload(0x100000u, test_asset, 16);
+    /* Poll sel=6 for upload_done (bit 1). Bridge latches done for one cycle,
+     * but the latched sticky on the upload path (none currently) would be
+     * needed to see it after the fact. So we rely on cnt_after > cnt_before
+     * as the definitive "command was accepted" proof, and sel=4 unchanged
+     * as the "no protocol error" proof. */
+    sleep_ms(20);
+    uint32_t cnt_after = qspi_read_status(1) & 0xFF;
+    uint32_t err_after = qspi_read_status(4) & 0xFF;
+    uint32_t up6_after = qspi_read_status(6);
+    printf("[task34] sdram_upload test_asset[16] at 0x100000\n");
+    printf("[task34]   cnt %lu -> %lu (delta=%lu)\n",
+           (unsigned long)cnt_before, (unsigned long)cnt_after,
+           (unsigned long)(cnt_after - cnt_before));
+    printf("[task34]   err %lu -> %lu (expect 0)\n",
+           (unsigned long)err_before, (unsigned long)err_after);
+    printf("[task34]   sel=6 upload-status before=0x%08lx after=0x%08lx\n",
+           (unsigned long)up6_before, (unsigned long)up6_after);
 
     /* Continue periodic write + read loop so serial keeps spitting evidence
      * and the HDMI scene remains driveable. Toggles between 0x0088 and

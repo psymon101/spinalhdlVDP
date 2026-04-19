@@ -46,6 +46,11 @@ object QspiRegWriteSim extends App {
     slave.io.tx_byte := dec.io.tx_byte
     slave.io.tx_load := dec.io.tx_load
     dec.io.status_sticky := io.statusStickyIn  // Task 35: driven by tb
+    // Task 34: tie bridge status inputs off in this harness; the decoder
+    // drives bridge outputs, which the TB does not consume (no bridge
+    // instantiated here). A SdramUploadSim covers the bridge path.
+    dec.io.upload_busy := False
+    dec.io.upload_done := False
     io.regWriteAddr   := dec.io.regWriteAddr
     io.regWriteData   := dec.io.regWriteData
     io.regWriteEnable := dec.io.regWriteEnable

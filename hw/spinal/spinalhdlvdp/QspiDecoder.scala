@@ -42,10 +42,20 @@ case class QspiDecoder() extends Component {
     val rx_cmd_cnt = out UInt (8 bits)
     // Task 35 — host-readable status sticky bits routed from VdpTop.
     val status_sticky = in Bits (16 bits)
+
+    // Task 34 — SDRAM_WRITE bridge interface.
+    val sdramHeaderValid = out Bool()
+    val sdramAddrInit    = out UInt(23 bits)
+    val sdramLenBytes    = out UInt(17 bits)
+    val sdramByteOut     = out Bits(8 bits)
+    val sdramByteValid   = out Bool()
+    val upload_busy      = in Bool()
+    val upload_done      = in Bool()
   }
 
   object Op {
-    val REG_WRITE = B"8'h01"
+    val REG_WRITE   = B"8'h01"
+    val SDRAM_WRITE = B"8'h02"     // Task 34
     val READ_STATUS = B"8'h04"
   }
 
@@ -61,6 +71,16 @@ case class QspiDecoder() extends Component {
   val lenReg     = Reg(UInt(16 bits)) init 0
   val wordsLeft  = Reg(UInt(16 bits)) init 0
   val activeWrite = Reg(Bool()) init False
+  val activeSdramWrite = Reg(Bool()) init False   // Task 34
+
+  // Task 34 — SDRAM_WRITE bridge output registers.
+  val sdramHeaderValidReg = Reg(Bool()) init False
+  val sdramAddrInitReg    = Reg(UInt(23 bits)) init 0
+  val sdramLenBytesReg    = Reg(UInt(17 bits)) init 0
+  val sdramByteOutReg     = Reg(Bits(8 bits)) init 0
+  val sdramByteValidReg   = Reg(Bool()) init False
+  sdramHeaderValidReg := False
+  sdramByteValidReg   := False
 
   // Latched diagnostics.
   val last_addr  = Reg(UInt(16 bits)) init 0
@@ -77,6 +97,13 @@ case class QspiDecoder() extends Component {
     haveLo    := False
     rx_cmd_cnt := rx_cmd_cnt + 1
     activeWrite := io.cmd_opcode === Op.REG_WRITE
+    // Task 34 — SDRAM_WRITE dispatch.
+    activeSdramWrite := io.cmd_opcode === Op.SDRAM_WRITE
+    when(io.cmd_opcode === Op.SDRAM_WRITE) {
+      sdramAddrInitReg    := io.cmd_addr(22 downto 0)
+      sdramLenBytesReg    := (io.cmd_len << 1).resize(17)   // bytes = 2 * words
+      sdramHeaderValidReg := True
+    }
   }
 
   // Each payload byte arrives on `payload_valid`. Assemble low then high.
@@ -96,6 +123,10 @@ case class QspiDecoder() extends Component {
           wordsLeft := wordsLeft - 1
         }
       }
+    } elsewhen(activeSdramWrite) {
+      // Task 34 — raw byte forwarded to the bridge; no word assembly here.
+      sdramByteOutReg   := io.payload_byte
+      sdramByteValidReg := True
     } otherwise {
       // Unknown opcode — record error but drop the byte.
       last_error := opcodeReg
@@ -158,6 +189,11 @@ case class QspiDecoder() extends Component {
       is(U(3, 8 bits)) { rxWord := B(0, 16 bits) ## last_data }
       is(U(4, 8 bits)) { rxWord := B(0, 24 bits) ## last_error }
       is(U(5, 8 bits)) { rxWord := B(0, 16 bits) ## io.status_sticky }   // Task 35
+      is(U(6, 8 bits)) {                                                  // Task 34
+        // sel=6 upload status: byte0[0] = upload_busy, byte0[1] = upload_done (latched)
+        val statBits = B(0, 6 bits) ## io.upload_done ## io.upload_busy
+        rxWord := B(0, 24 bits) ## statBits
+      }
       default          { rxWord := B(0, 32 bits) }
     }
     rxByteIdx := 0
@@ -185,4 +221,11 @@ case class QspiDecoder() extends Component {
 
   io.tx_byte := rxTxByte
   io.tx_load := rxLoad
+
+  // Task 34 — SDRAM bridge outputs
+  io.sdramHeaderValid := sdramHeaderValidReg
+  io.sdramAddrInit    := sdramAddrInitReg
+  io.sdramLenBytes    := sdramLenBytesReg
+  io.sdramByteOut     := sdramByteOutReg
+  io.sdramByteValid   := sdramByteValidReg
 }

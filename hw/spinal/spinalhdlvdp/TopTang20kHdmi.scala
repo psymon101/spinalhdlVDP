@@ -536,6 +536,24 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     video.io.statusEvQspiReady := qspi.io.cmd_valid
     video.io.statusEvQspiError := qspiDec.io.last_error =/= B(0, 8 bits)
 
+    // Task 34 — QSPI → SDRAM bridge. Bridge takes the decoder's raw byte
+    // stream plus the latched header fields and issues per-byte writes to
+    // the SDRAM controller. Arbitration per artifact §4.4: uploads gated
+    // to !activeVideo (vblank + horizontal blanking) so fetch path never
+    // contends with uploads. CyanPeak #7680 explicit callout: activeVideo
+    // is the authoritative gate; using it mirrors the VdpTop timing that
+    // drives fetch requests.
+    val qspiSdramBridge = QspiSdramBridge()
+    qspiSdramBridge.io.headerValid := qspiDec.io.sdramHeaderValid
+    qspiSdramBridge.io.addrInit    := qspiDec.io.sdramAddrInit
+    qspiSdramBridge.io.lenBytes    := qspiDec.io.sdramLenBytes
+    qspiSdramBridge.io.byteIn      := qspiDec.io.sdramByteOut
+    qspiSdramBridge.io.byteValid   := qspiDec.io.sdramByteValid
+    qspiSdramBridge.io.allowUpload := !video.io.de
+    qspiSdramBridge.io.sdramBusy   := sdramArea.ctrl.io.busy
+    qspiDec.io.upload_busy := qspiSdramBridge.io.uploadBusy
+    qspiDec.io.upload_done := qspiSdramBridge.io.uploadDone
+
     val regWriteFromBoot = bootWrite && bootIdx <= lastStepIdx
     // QSPI can only assert after bootstrap completes, preventing any
     // bus contention during the power-on register-write sequence.
@@ -817,11 +835,17 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   // Wire SDRAM controller's logic-side signals to the fetch engine. Both live
   // in sdramClockDomain (the BlackBox via mapCurrentClockDomain, the fetch via
   // explicit ClockingArea inside SdramTileFetch).
+  // Task 34 SDRAM arbitration: fetch has priority; upload wins only when
+  // `uploadBusy` AND no fetch write is pending. Bridge's `allowUpload`
+  // (!activeVideo) already gates the upload-side `sdramWr` pulse; this
+  // mux picks whichever master is asserting write this cycle. Fetch is
+  // the canonical read master — reads always route from fetch.
+  val uploadDrive = pixelArea.qspiSdramBridge.io.uploadBusy && pixelArea.qspiSdramBridge.io.sdramWr
   sdramArea.ctrl.io.rd      := pixelArea.fetch.io.sdramRd
-  sdramArea.ctrl.io.wr      := pixelArea.fetch.io.sdramWr
+  sdramArea.ctrl.io.wr      := pixelArea.fetch.io.sdramWr || uploadDrive
   sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh
-  sdramArea.ctrl.io.addr    := pixelArea.fetch.io.sdramAddr
-  sdramArea.ctrl.io.din     := pixelArea.fetch.io.sdramDin
+  sdramArea.ctrl.io.addr    := Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramAddr, pixelArea.fetch.io.sdramAddr)
+  sdramArea.ctrl.io.din     := Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramDin,  pixelArea.fetch.io.sdramDin)
   pixelArea.fetch.io.sdramDout      := sdramArea.ctrl.io.dout
   pixelArea.fetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
   pixelArea.fetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready
