@@ -12,26 +12,24 @@ set(PICO_BOARD pico2)
 
 pico_sdk_init()
 
+# Task 39: host driver library. Provides vdp_qspi / vdp_status /
+# vdp_upload + the qspi_quad.pio program header.
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../libvdp libvdp_build)
+
 add_executable(test_qspi_smoke
     test_qspi_smoke.c
 )
 
-pico_generate_pio_header(test_qspi_smoke
-    ${CMAKE_CURRENT_SOURCE_DIR}/qspi_quad.pio
-)
-
 target_link_libraries(test_qspi_smoke
-    pico_stdlib
-    hardware_pio
-    hardware_gpio
-    hardware_clocks
+    libvdp
 )
 
-# UART stdio over the Pico's default USB-UART pins (optional; helpful
-# for bring-up diagnostics).
+# stdio routing — target's native USB + debug-probe UART→CDC on /dev/ttyACM0.
 pico_enable_stdio_usb(test_qspi_smoke 1)
-# Task 38c: debug probe forwards UART0 (GP0/GP1) to /dev/ttyACM0.
 pico_enable_stdio_uart(test_qspi_smoke 1)
 
 # Produce the .uf2 for drag-and-drop flashing (plus .elf/.bin/.hex).
 pico_add_extra_outputs(test_qspi_smoke)
+
+# -Wall -Wextra zero-warning gate per Task 39 artifact §4.1.
+target_compile_options(test_qspi_smoke PRIVATE -Wall -Wextra)
