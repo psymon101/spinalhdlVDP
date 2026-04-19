@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 38b — Bidirectional QSPI: Status Surface Expansion |
-| **Status** | IN-PROGRESS |
-| **Phase** | implement |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `1294614` (Task 38b: READ_STATUS sel=0..4 expansion) |
-| **Latest Auth Mail** | #7614 (BrightForge: Task 38b completion packet) |
-| **Next Deliverable** | CyanPeak audit of Checkpoint B + C completion packet |
-| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7612) |
+| **Task** | *(no active lane — cleared)* |
+| **Status** | — |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `1294614` (Task 38b DONE: status surface expansion) |
+| **Latest Auth Mail** | #7617 (CyanPeak: Task 38b PASSED and CLOSED) |
+| **Next Deliverable** | BronzeGate PM direction for next active lane (expected: Task 38c) |
+| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -57,7 +57,7 @@ The repository has closed the Mode0 substrate backlog through baseline **`32a87f
 - **R5.3** — Copper Control Unification (`32a87ff`)
 - **R5.4** — Scroll-Wrap Component Primitive (`d580dcb`)
 
-That means Tasks 1 through 5, Task 15, Task 16, and Task 18 are already complete in this repo state.
+That means Tasks 1 through 5, Task 15, Task 16, Task 18, Task 26, Task 27, Task 38a, and Task 38b are already complete in this repo state.
 
 ---
 
@@ -850,7 +850,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 38b — Bidirectional QSPI: Status Surface Expansion
 
-**Status:** TODO
+**Status:** DONE (`1294614`)
 **depends_on:** [38a]
 **scope_boundary:** Decoder status surface only. No firmware, no IOBUF changes.
 **delivers:**
