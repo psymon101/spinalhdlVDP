@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(no active lane — cleared after Task 39 closeout)* |
-| **Status** | — |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `684e3dd` (Task 39: libvdp host driver library) |
-| **Latest Auth Mail** | #7729 (CyanPeak: Task 39 PASSED and CLOSED) |
-| **Next Deliverable** | Task 32b artifact creation + CyanPeak preflight audit |
-| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
+| **Task** | Task 32b — Mode0 Register Bus: Master Refactor |
+| **Status** | IN-PROGRESS |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding) |
+| **Latest Commit** | `d53a553` (Task 39 ledger sync) |
+| **Latest Auth Mail** | #7733 (CyanPeak: Task 32b AUTHORIZED — draft artifact) |
+| **Next Deliverable** | CyanPeak artifact audit → if PASS, coding authorized |
+| **Coding Authorized** | **NO** — wait for artifact audit |
 
-**Converged next target:** Task 32b — Register Bus Master Refactor (depends_on [32a] satisfied). Per CyanPeak #7729 expectation.
+**Context:** Task 32b unblocked by Task 32a DONE. Natural next lane per converged roadmap (CyanPeak #7729 / #7733).
 
 Rules:
 - Only **one** lane may be live at a time.
