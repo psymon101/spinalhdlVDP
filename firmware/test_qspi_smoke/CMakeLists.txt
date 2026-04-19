@@ -30,7 +30,8 @@ target_link_libraries(test_qspi_smoke
 # UART stdio over the Pico's default USB-UART pins (optional; helpful
 # for bring-up diagnostics).
 pico_enable_stdio_usb(test_qspi_smoke 1)
-pico_enable_stdio_uart(test_qspi_smoke 0)
+# Task 38c: debug probe forwards UART0 (GP0/GP1) to /dev/ttyACM0.
+pico_enable_stdio_uart(test_qspi_smoke 1)
 
 # Produce the .uf2 for drag-and-drop flashing (plus .elf/.bin/.hex).
 pico_add_extra_outputs(test_qspi_smoke)
