@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(no active lane — cleared after Task 34 closeout)* |
-| **Status** | — |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `222c1c0` (Task 34 Checkpoint C: visible-render proven) |
-| **Latest Auth Mail** | #7704 (BrightForge: Task 34 complete — 14.2% pixel delta) |
-| **Next Deliverable** | BronzeGate PM direction for next active lane |
-| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
+| **Task** | Task 39 — Host Driver Library |
+| **Status** | IN-PROGRESS |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact), CyanPeak (audit) |
+| **Latest Commit** | `4013795` (Task 34 ledger sync) |
+| **Latest Auth Mail** | #7711 (CyanPeak: standing by for Task 39 artifact) |
+| **Next Deliverable** | CyanPeak artifact audit → if PASS, coding authorized |
+| **Coding Authorized** | **NO** — wait for artifact audit |
 
-**Task 34 completion arc:** `6257719` (artifact) → `4b9e32d` (Checkpoint B, 29/29 sim) → `613dfb1` (firmware probe, inconclusive) → `77364e9` (CDC fix) → `222c1c0` (Checkpoint C, visible-render proven).
+**Context:** Task 39 unblocked by Tasks 34, 35, 38c all DONE. Natural next host-control lane per BronzeGate #7708 / #7712.
 
 Rules:
 - Only **one** lane may be live at a time.
