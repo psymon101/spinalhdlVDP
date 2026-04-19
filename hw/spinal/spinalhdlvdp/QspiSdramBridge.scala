@@ -54,6 +54,15 @@ case class QspiSdramBridge() extends Component {
     // Host-visible status
     val uploadBusy  = out Bool()
     val uploadDone  = out Bool()
+
+    // Task 34 CDC fix (CyanPeak #7689, BronzeGate #7690 path β):
+    // Toggle signal that flips on each successful sdramWr pulse. The
+    // destination (sdram) clock domain BufferCC's this and edge-detects
+    // to regenerate a one-cycle pulse in its own domain. Together with
+    // the stable `sdramAddr` / `sdramDin` outputs (held unchanged between
+    // writes, inherent to the FSM), this gives a safe pulse+data CDC
+    // without losing writes due to unfavorable pixel↔sdram clock phase.
+    val wrToggle = out Bool()
   }
 
   val addrReg    = Reg(UInt(23 bits)) init 0
@@ -69,6 +78,9 @@ case class QspiSdramBridge() extends Component {
   val wrDinReg  = Reg(Bits(8 bits)) init 0
   val wrPulse  = Reg(Bool()) init False
   val donePulse = Reg(Bool()) init False
+  // Toggle reg: flips every time wrPulse asserts. Stable between flips,
+  // which makes it safe to cross into sdramClockDomain via BufferCC.
+  val wrToggleReg = Reg(Bool()) init False
   wrPulse   := False   // default — single-cycle
   donePulse := False
 
@@ -105,6 +117,7 @@ case class QspiSdramBridge() extends Component {
         wrAddrReg := addrReg
         wrDinReg  := latchedByte
         wrPulse   := True
+        wrToggleReg := !wrToggleReg       // flip on each write — CDC source
         hasByte   := False
         addrReg   := addrReg + 1          // wraps at 2^23 naturally
         bytesLeft := bytesLeft - 1
@@ -125,4 +138,5 @@ case class QspiSdramBridge() extends Component {
   io.sdramDin    := wrDinReg
   io.uploadBusy  := !fsm.isActive(fsm.sIdle)
   io.uploadDone  := donePulse
+  io.wrToggle    := wrToggleReg
 }

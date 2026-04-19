@@ -1,6 +1,7 @@
 package spinalhdlvdp
 
 import spinal.core._
+import spinal.lib.BufferCC   // Task 34 CDC — toggle-based crossing for upload pulse
 
 /** Tang Nano 20K top.
   *
@@ -833,15 +834,27 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     O_led(5) := fetch.io.underrun
   }
 
+  // Task 34 CDC hardening (CyanPeak #7689 / BronzeGate #7690 path β).
+  // Toggle-based crossing for the upload-side write pulse: bridge (in
+  // pixelClockDomain) flips wrToggle on each committed write. Here we
+  // 2-stage-sync it into sdramClockDomain and edge-detect to regenerate
+  // a one-cycle pulse. `sdramAddr` / `sdramDin` outputs from the bridge
+  // are held stable between writes (FSM holds them in wrAddrReg/wrDinReg
+  // until the next write trigger), so sampling them on the regenerated
+  // pulse is safe. This placement after pixelArea avoids a forward
+  // reference into the bridge.
+  val sdramCdcArea = new ClockingArea(sdramClockDomain) {
+    val uploadToggleSync = BufferCC(pixelArea.qspiSdramBridge.io.wrToggle, False)
+    val uploadTogglePrev = RegNext(uploadToggleSync) init False
+    val uploadWrPulse    = uploadToggleSync =/= uploadTogglePrev
+  }
+
   // Wire SDRAM controller's logic-side signals to the fetch engine. Both live
   // in sdramClockDomain (the BlackBox via mapCurrentClockDomain, the fetch via
-  // explicit ClockingArea inside SdramTileFetch).
-  // Task 34 SDRAM arbitration: fetch has priority; upload wins only when
-  // `uploadBusy` AND no fetch write is pending. Bridge's `allowUpload`
-  // (!activeVideo) already gates the upload-side `sdramWr` pulse; this
-  // mux picks whichever master is asserting write this cycle. Fetch is
-  // the canonical read master — reads always route from fetch.
-  val uploadDrive = pixelArea.qspiSdramBridge.io.uploadBusy && pixelArea.qspiSdramBridge.io.sdramWr
+  // explicit ClockingArea inside SdramTileFetch). Upload pulse is the CDC-
+  // regenerated one from sdramCdcArea — fetch retains its existing direct
+  // wiring (it has been empirically stable since Task 15).
+  val uploadDrive = sdramCdcArea.uploadWrPulse
   sdramArea.ctrl.io.rd      := pixelArea.fetch.io.sdramRd
   sdramArea.ctrl.io.wr      := pixelArea.fetch.io.sdramWr || uploadDrive
   sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh
