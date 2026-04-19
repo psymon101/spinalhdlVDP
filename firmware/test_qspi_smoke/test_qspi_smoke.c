@@ -96,26 +96,17 @@ int main(void)
     vdp_reg_write(0x0321u, VDP_STICKY_QSPI_READY | VDP_STICKY_QSPI_ERROR);
     sleep_ms(10);
 
-    /* Task 36 CP-C stress loop: rapid-fire alternating writes to registers
-     * that the HDMA engine ALSO rewrites each frame, to exercise concurrent
-     * bus traffic between QSPI (this loop) and Copper/HDMA.
-     *
-     * - 0x0313 is a reserved/echo register (safe to hammer, visible in
-     *   last_data but no scene effect)
-     * - Writes are separated only by loop overhead (~few microseconds), so
-     *   effective rate is hundreds of writes per millisecond → thousands
-     *   per frame, well into the arbiter's "extHit saturated" regime.
-     * - Every 2000 iterations we emit a serial heartbeat so the host can
-     *   confirm the stress is alive without slowing the write rate. */
-    printf("[smoke] Task 36 CP-C stress loop begin — concurrent QSPI vs HDMA traffic\n");
-    uint32_t stress_iter = 0;
+    /* Task 36 CP-C stress loop: rapid-fire alternating writes to register
+     * 0x0313 (reserved/echo — safe to hammer). No inter-write sleep. No
+     * printf heartbeat — USB CDC shares Bus 002 with the HDMI capture
+     * card, and the serial bursts were perturbing capture-side timing
+     * enough to register as ~30 ms frame drops in OpenCV analysis. Pure
+     * write loop keeps USB silent and isolates the stress to the QSPI
+     * + VDP register-bus path. */
+    printf("[smoke] Task 36 CP-C stress loop begin — silent rapid QSPI writes\n");
+    sleep_ms(50);   /* flush the USB CDC buffer before silence */
     while (true) {
         vdp_reg_write(0x0313u, 0x0055u);
         vdp_reg_write(0x0313u, 0x00AAu);
-        stress_iter += 2;
-        if ((stress_iter & 0xFFFu) == 0) {
-            /* Light-weight heartbeat — no readback, keeps write rate high. */
-            printf("[smoke] stress iter=%lu\n", (unsigned long)stress_iter);
-        }
     }
 }
