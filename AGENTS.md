@@ -306,6 +306,84 @@ Once a bounded lane is approved:
   genuinely unclear
 - `CoralReef` should keep the live-lane block and artifact docs current
 
+### CyanPeak Audit Optimization
+
+`CyanPeak` should optimize audits for speed without lowering evidence quality.
+
+Default audit behavior:
+
+- audit the newest authoritative packet only; superseded packets should not be
+  re-audited unless a new packet explicitly depends on them
+- use the smallest sufficient ruling by default:
+  - `PASS`
+  - `HOLD`
+  - `FAIL`
+- keep routine audit mail compact:
+  - ruling
+  - exact reason
+  - exact next corrective requirement when not PASS
+
+Required immediate HOLD conditions:
+
+- required proof method is missing
+- required proof duration/window is missing
+- commit / programmed state tie-back is missing
+- packet evidence is visibly incomplete or stale
+
+Do not spend audit cycles trying to salvage incomplete proof. Reject quickly
+and request the exact missing evidence.
+
+Preferred audit checklists by packet type:
+
+- artifact audit:
+  - dependencies correct
+  - scope bounded
+  - validation plan explicit
+  - no hidden scope creep
+- implementation audit:
+  - diff matches approved artifact
+  - simulation evidence present
+  - no regression claim without evidence
+- hardware-proof audit:
+  - exact capture duration stated
+  - exact analysis method stated
+  - exact pass/fail metric stated
+  - current commit / programmed state tied to the evidence
+
+When a blocker packet presents multiple hypotheses, prefer the cheapest
+discriminating next experiment unless a larger step is clearly required.
+
+### CoralReef Coordination Optimization
+
+`CoralReef` should optimize artifact / ledger flow for low-latency progression.
+
+Default coordination behavior:
+
+- artifact drafting should start immediately once dependencies and ownership are
+  clear; do not wait for another PM nudge when the next step is already obvious
+- ledger sync should happen immediately after audit PASS unless BronzeGate has
+  explicitly ordered a temporary hold
+- live-lane metadata should always reflect the newest authoritative state once
+  a lane has materially advanced
+
+Preferred default outputs:
+
+- artifact packet
+- ledger sync / live-lane update
+- closeout sync
+
+Avoid routine ACK-only mail when no authoritative state changed.
+
+When the next lane is obvious and unblocked:
+
+- auto-open the next artifact in the same progression cycle
+- include the latest commit, latest authoritative mail, phase, and next
+  deliverable in the same repo/docs sync
+
+When the next lane is not obvious:
+
+- stop and ask in mail with the minimum concrete ambiguity stated
+
 ### Context compression rule
 
 When resuming or handing off, compress state to:
