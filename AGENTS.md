@@ -217,6 +217,54 @@ in the same change or immediately after with:
 Do not let the team reconstruct active state from scattered mail if the ledger
 can be updated directly.
 
+### Fast-Lane Progression
+
+For routine bounded lanes, the team should progress automatically by role
+without waiting for extra PM nudges once the next owner is obvious.
+
+Default handoff chain:
+
+- `BrightForge` completion / proof packet triggers `CyanPeak` audit
+- `CyanPeak` pass / hold / fail ruling triggers `CoralReef` ledger sync
+- `CoralReef` ledger sync on a lane with a predetermined successor may trigger
+  the next artifact automatically unless post-completion reassessment changes
+  the order
+
+Routine ACK-only mail should be minimized. Do not send ACK-only updates unless
+one of these is true:
+
+- blocker receipt needs explicit confirmation
+- assignment is ambiguous or risky
+- hardware-facing action needs explicit receipt confirmation
+
+For low-risk bounded lanes:
+
+- `CoralReef` lands artifact + live-lane block
+- `CyanPeak` audits as soon as the artifact lands
+- `BrightForge` starts immediately after audit GO
+- no extra PM message is required between those routine steps
+
+Ledger sync is part of closeout, not a later cleanup step:
+
+- audit PASS should be followed immediately by `TASKS.md` / live-lane sync
+- a lane is not functionally closed until repo state matches authoritative mail
+
+If a task order is already converged, the next listed lane is the default next
+step unless:
+
+- post-completion reassessment changes the plan
+- audit finds a real HOLD
+- a hardware blocker appears
+- `BronzeGate` explicitly overrides priority
+
+`BronzeGate` should only be pulled into routine flow for:
+
+- scope ambiguity
+- blocker diagnosis
+- plan / task-list changes
+- priority overrides
+- stalled lanes
+
 ### Post-Completion Reassessment
 
 Every completed task must trigger an explicit reassessment of the task list and
