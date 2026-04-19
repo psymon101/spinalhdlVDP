@@ -217,9 +217,9 @@ case class VdpTop() extends Component {
   val copperDrain = safeNow && !extHit
   copperFifo.io.pop.ready := copperDrain
   val copperPopped = copperFifo.io.pop.fire
-  val effWrite = extHit || copperPopped
-  val effAddr  = Mux(extHit, io.regBus.addr, copperFifo.io.pop.payload(30 downto 16).asUInt)
-  val effData  = Mux(extHit, io.regBus.data, copperFifo.io.pop.payload(15 downto 0))
+  val effWrite = (extHit || copperPopped).simPublic()
+  val effAddr  = Mux(extHit, io.regBus.addr, copperFifo.io.pop.payload(30 downto 16).asUInt).simPublic()
+  val effData  = Mux(extHit, io.regBus.data, copperFifo.io.pop.payload(15 downto 0)).simPublic()
 
   // Task 33 HDMA control decode (see forward-declared comment above).
   val copperHdmaRangeHit = effWrite &&
@@ -242,9 +242,9 @@ case class VdpTop() extends Component {
   // Without this gate, the copper's combinational write arrives mid-line,
   // shifts the compositor's effective enable mask mid-scanline, and shows
   // up as 1-frame scroll skips + wrong-bank pixel flashes on hardware.
-  val layerEnableReg    = Reg(Bits(3 bits)) init B"111"
+  val layerEnableReg    = (Reg(Bits(3 bits)) init B"111").simPublic()
   val layerEnablePend   = Reg(Bits(3 bits)) init B"111"
-  val layerEnablePendHit = Reg(Bool()) init False
+  val layerEnablePendHit = (Reg(Bool()) init False).simPublic()
   when(effWrite && effAddr === U(0x0300, 15 bits)) {
     layerEnablePend    := effData(2 downto 0)
     layerEnablePendHit := True
