@@ -59,7 +59,7 @@ The repository has closed the Mode0 substrate backlog through baseline **`32a87f
 - **R5.3** — Copper Control Unification (`32a87ff`)
 - **R5.4** — Scroll-Wrap Component Primitive (`d580dcb`)
 
-That means Tasks 1 through 5, Task 15, Task 16, Task 18, Task 26, Task 27, Task 38a, Task 38b, and Task 38c are already complete in this repo state.
+That means Tasks 1 through 5, Task 15, Task 16, Task 18, Task 26, Task 27, and Tasks 34, 35, 38a, 38b, 38c, and 39 are already complete in this repo state.
 
 ---
 
