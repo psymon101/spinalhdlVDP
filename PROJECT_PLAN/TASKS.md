@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 32b — Mode0 Register Bus: Master Refactor |
 | **Status** | IN-PROGRESS |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding) |
-| **Latest Commit** | `d53a553` (Task 39 ledger sync) |
-| **Latest Auth Mail** | #7733 (CyanPeak: Task 32b AUTHORIZED — draft artifact) |
-| **Next Deliverable** | CyanPeak artifact audit → if PASS, coding authorized |
-| **Coding Authorized** | **NO** — wait for artifact audit |
+| **Phase** | implement |
+| **Owner** | BrightForge (coding), CyanPeak (audit) |
+| **Latest Commit** | `aa638f4` (Task 32b artifact v1.0) |
+| **Latest Auth Mail** | #7736 (CyanPeak: artifact audit PASSED — Task 32b GO) |
+| **Next Deliverable** | BrightForge Checkpoint B: Mode0RegBus bundle + RegBusArbiter + sim regression |
+| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7736) |
 
-**Context:** Task 32b unblocked by Task 32a DONE. Natural next lane per converged roadmap (CyanPeak #7729 / #7733).
+**Context:** Task 32b unblocked by Task 32a DONE. Natural next lane per converged roadmap.
 
 Rules:
 - Only **one** lane may be live at a time.
