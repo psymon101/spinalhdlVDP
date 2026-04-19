@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 36 — Register Write Concurrency Stress Test |
-| **Status** | closeout |
-| **Phase** | closeout |
-| **Owner** | CyanPeak (audit), CoralReef (ledger), BrightForge (complete) |
-| **Latest Commit** | `a17f1b3` (Task 36 Checkpoint C: concurrent QSPI + HDMA stress HW proof) |
-| **Latest Auth Mail** | #7785 (BrightForge: Checkpoint C COMPLETE) |
-| **Next Deliverable** | CyanPeak CP-C audit → Task 36 DONE → auto-open Task 42 per #7780 |
-| **Coding Authorized** | **N/A** — task complete, awaiting audit signoff |
+| **Task** | Task 42 — Firmware + Platform Docs Hardening |
+| **Status** | artifact |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding, on-hold) |
+| **Latest Commit** | `a17f1b3` (Task 36 closeout) |
+| **Latest Auth Mail** | #7789 (CyanPeak: Task 36 CLOSED, GO for Task 42) |
+| **Next Deliverable** | CyanPeak preflight audit of `TASK_42_FIRMWARE_PLATFORM_DOCS.md` |
+| **Coding Authorized** | **NO** — wait for artifact audit GO |
 
-**Artifact file:** `PROJECT_PLAN/TASK_36_CONCURRENCY_STRESS_TEST.md`
+**Artifact file:** `PROJECT_PLAN/TASK_42_FIRMWARE_PLATFORM_DOCS.md`
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -795,7 +795,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 36 — Register Write Concurrency Stress Test
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [26, 33]
 **scope_boundary:** Validation-only task. No new HDL, no new firmware features.
 **delivers:**
