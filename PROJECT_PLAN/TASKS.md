@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(no active lane — cleared after Task 35 closeout)* |
-| **Status** | — |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `798ebbe` (Task 35: IRQ + sticky status bank, sim + HW PASS) |
-| **Latest Auth Mail** | #7661 (BrightForge: Task 35 complete) |
-| **Next Deliverable** | Task 34 artifact creation + CyanPeak preflight audit |
-| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
+| **Task** | Task 34 — QSPI Host-Driven Asset Upload |
+| **Status** | IN-PROGRESS |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact), CyanPeak (audit) |
+| **Latest Commit** | `f60f830` (spec errata) |
+| **Latest Auth Mail** | #7675 (BrightForge: Task 34 preflight input) |
+| **Next Deliverable** | CyanPeak artifact audit → if PASS, coding authorized |
+| **Coding Authorized** | **NO** — wait for artifact audit |
 
-**Converged next target:** Task 34 — QSPI Host-Driven Asset Upload (depends_on [27, 38c] satisfied).
+**Preflight input:** BrightForge #7675 delivered implementation-side analysis. Artifact drafted by CoralReef.
 
 Rules:
 - Only **one** lane may be live at a time.
