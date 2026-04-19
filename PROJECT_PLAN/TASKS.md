@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 38b — Bidirectional QSPI: Status Surface Expansion |
 | **Status** | IN-PROGRESS |
-| **Phase** | artifact |
+| **Phase** | implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `7281d37` (Task 38a DONE, live-lane cleared) |
-| **Latest Auth Mail** | #7607 (BronzeGate: lane open — Task 38b) |
-| **Next Deliverable** | CoralReef task artifact + live-lane block update |
-| **Coding Authorized** | **NO** — wait for artifact audit before coding |
+| **Latest Commit** | `5556b3c` (Task 38b artifact + live-lane block) |
+| **Latest Auth Mail** | #7612 (CyanPeak: artifact audit PASSED — Task 38b GO) |
+| **Next Deliverable** | BrightForge Checkpoint B: simulation proof for sel=0..4 |
+| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7612) |
 
 Rules:
 - Only **one** lane may be live at a time.
