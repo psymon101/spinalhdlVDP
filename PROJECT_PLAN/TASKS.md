@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 32b — Mode0 Register Bus: Master Refactor |
 | **Status** | IN-PROGRESS |
-| **Phase** | implement |
+| **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `aa638f4` (Task 32b artifact v1.0) |
-| **Latest Auth Mail** | #7736 (CyanPeak: artifact audit PASSED — Task 32b GO) |
-| **Next Deliverable** | BrightForge Checkpoint B: Mode0RegBus bundle + RegBusArbiter + sim regression |
-| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7736) |
+| **Latest Commit** | `e15ed31` (Task 32b Checkpoint B: Mode0RegBus + RegBusArbiter refactor) |
+| **Latest Auth Mail** | #7741 (CyanPeak: Checkpoint B audit PASS — GO for Checkpoint C) |
+| **Next Deliverable** | BrightForge Checkpoint C: hardware proof on Tang Nano 20K |
+| **Coding Authorized** | **YES** — Checkpoint B PASSED, capture phase active |
 
-**Context:** Task 32b unblocked by Task 32a DONE. Natural next lane per converged roadmap.
+**Context:** Task 32b unblocked by Task 32a DONE. Checkpoint B (33+ sim cases, zero behavioral change) complete. Now in capture phase for hardware proof.
 
 Rules:
 - Only **one** lane may be live at a time.
