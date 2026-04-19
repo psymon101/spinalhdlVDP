@@ -789,16 +789,17 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     video.io.layer0TestPatternEnable := False
     video.io.layer0TestPatternSelect := U(0, 3 bits)
 
-    // R1 Raster Trigger Unit: fire at line 240 (mid-visible), clear each frame
-    // at start-of-frame so the trigger re-fires every frame and the screen
-    // split stays stable. Pulse/pending drive a red-channel inversion below
-    // the trigger line (see VdpTop), producing a crisp top/bottom split.
-    video.io.rasterTriggerLine     := U(240, 10 bits)
+    // R1 Raster Trigger Unit — Task 34 Checkpoint C uses this as a host-
+    // visible vblank indicator. Trigger fires on line 480 (first line of
+    // vertical blanking in 640x480@60 timing) so host polling of
+    // RASTER_MATCH (sticky bit 0, sel=5) transitions 0→1 at the start of
+    // each vblank. Cleared at start-of-frame so it re-fires every frame.
+    // Per Task 34 §4.4 artifact: this is the firmware-side hook for
+    // vblank-paced SDRAM_WRITE streaming (BronzeGate #7683 Option B).
+    video.io.rasterTriggerLine     := U(480, 10 bits)
     video.io.rasterTriggerPixel    := U(0, 10 bits)
     video.io.rasterTriggerPxEnable := False
-    // R2 cleaner-BG proof: disable the R1 red-channel-inversion split so
-    // sprites on black BG are unambiguous. Revert to True after R2 accepted.
-    video.io.rasterTriggerEnable   := False
+    video.io.rasterTriggerEnable   := True
     video.io.rasterTriggerClear    := vsyncRising
 
     // HDMI TX pipeline

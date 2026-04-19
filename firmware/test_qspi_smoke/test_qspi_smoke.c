@@ -286,14 +286,24 @@ int main(void)
 
     printf("\n[task38c] QSPI readback smoke test starting\n");
 
-    /* Prime decoder state so later sel reads have known expected values.
-     * Task 38c bit-3 proof: write 0x0088 to LAYER_ENABLE. After commit,
-     * last_data = 0x0088 -- both nibbles of the low byte have bit 3 set
-     * (0x8 = 0b1000). Reading sel=3 gives bytes {0x88, 0x00, 0x00, 0x00};
-     * the 0x88 byte requires IO3 to be electrically alive in both the
-     * high-nibble and low-nibble slots of that byte. */
-    reg_write_word(0x0300, 0x0088);     /* prime last_data = 0x0088 (bit-3 set) */
+    /* Prime last_data for bit-3 proof (Task 38c): write to a non-visible
+     * diagnostic register at 0x0313 (reserved per spec) so last_data
+     * latches 0x0088 without disabling layers. The target register is
+     * unused in VdpTop so this is purely a last_data echo. */
+    reg_write_word(0x0313, 0x0088);
     sleep_ms(10);
+
+    /* Task 34 proof prep: force all layers ON so SDRAM tile data is
+     * actively rendered on HDMI. LAYER_ENABLE bits [0:2] = L0 + L1 + sprite. */
+    reg_write_word(0x0300, 0x0007);
+    sleep_ms(10);
+
+    /* Wait 4 seconds before running SDRAM upload so one HDMI capture can
+     * cover both the pre-upload baseline AND the post-upload state in a
+     * single video. Capture analyzer compares early frame vs late frame. */
+    printf("[task34] 4-second pre-upload baseline window starts\n");
+    sleep_ms(4000);
+    printf("[task34] pre-upload baseline window done; starting SDRAM stream\n");
 
     uint32_t magic = qspi_read_status(0);
     uint32_t rcnt  = qspi_read_status(1);
@@ -315,39 +325,83 @@ int main(void)
     reg_write_word(0x0321, 0x000C);     /* enable bits 2,3 for irq */
     sleep_ms(10);
 
-    /* Task 34 Checkpoint C: bounded SDRAM upload.
-     * Upload 16 little-endian 16-bit words to SDRAM byte address 0x100000
-     * (a location far from the fetch-engine working region so it's safe
-     * to poke). Then poll READ_STATUS sel=6 to verify upload_done went
-     * high, and sel=1 to confirm rx_cmd_cnt advanced. Finally check sel=4
-     * for QSPI_ERROR — should remain 0 across the bulk transfer. */
-    const uint16_t test_asset[16] = {
-        0xDEAD, 0xBEEF, 0x1234, 0x5678,
-        0xCAFE, 0xBABE, 0xFEED, 0xF00D,
-        0x0001, 0x0002, 0x0004, 0x0008,
-        0x0010, 0x0020, 0x0040, 0x0080,
+    /* Task 34 Checkpoint C — vblank-paced streaming (BronzeGate #7683 B).
+     *
+     * Target: SDRAM byte address 0x8000 (TileRowBase per
+     * TileAttributeAssets.scala:39). Overwriting tile-row pattern bytes
+     * with an all-ones payload forces the compositor to render distinctly
+     * different pixels in the affected tiles — visible delta on HDMI
+     * capture vs pre-upload baseline.
+     *
+     * Vblank sync via R1 raster trigger: Sc16 has trigger line = 480 and
+     * enable = true (TopTang20kHdmi.scala). Each frame the sticky
+     * RASTER_MATCH bit (0x0320 bit 0) transitions 0→1 at line 480
+     * (start of vblank). Host polls sel=5 bit 0 to detect vblank entry.
+     *
+     * Strategy:
+     *   - 64 bytes = 32 words, delivered as 32 × 1-word SDRAM_WRITE cmds
+     *   - each 1-word command is ~32 µs of QSPI (8 bytes at 2 MHz SCK)
+     *   - Up to ~40 commands fit in one 1.4 ms vblank window
+     *   - Chunk loop: clear RASTER_MATCH → poll → fire burst → repeat
+     */
+    #define TILE_ROW_BASE  0x00008000u
+    #define PAYLOAD_WORDS  32
+    static const uint16_t upload_payload[PAYLOAD_WORDS] = {
+        0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF,
+        0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF,
+        0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF,
+        0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF, 0xFFFF,
     };
+
+    /* Enable RASTER_MATCH (bit 0) in STATUS_ENABLE so the sticky gets set
+     * every frame at line 480. Overwrites the previous enable that had
+     * bits 2,3 set for Task 35; bit 0 suffices for the vblank poll. */
+    reg_write_word(0x0321, 0x0001);   /* STATUS_ENABLE = bit 0 only */
+    sleep_ms(10);
+
     uint32_t cnt_before = qspi_read_status(1) & 0xFF;
     uint32_t err_before = qspi_read_status(4) & 0xFF;
-    uint32_t up6_before = qspi_read_status(6);
-    sdram_upload(0x100000u, test_asset, 16);
-    /* Poll sel=6 for upload_done (bit 1). Bridge latches done for one cycle,
-     * but the latched sticky on the upload path (none currently) would be
-     * needed to see it after the fact. So we rely on cnt_after > cnt_before
-     * as the definitive "command was accepted" proof, and sel=4 unchanged
-     * as the "no protocol error" proof. */
-    sleep_ms(20);
+    printf("[task34] pre-upload: cnt=%lu err=%lu\n",
+           (unsigned long)cnt_before, (unsigned long)err_before);
+    printf("[task34] streaming %d words to 0x%08lx via vblank-paced 1-word bursts\n",
+           PAYLOAD_WORDS, (unsigned long)TILE_ROW_BASE);
+
+    /* Wait for initial vblank, then drip-fire words. Upload enough per
+     * vblank to fit comfortably; re-sync each frame. */
+    #define WORDS_PER_VBLANK  8   /* 8 × 32 µs = 256 µs, well inside 1400 µs */
+    for (int base = 0; base < PAYLOAD_WORDS; base += WORDS_PER_VBLANK) {
+        /* Clear RASTER_MATCH sticky (bit 0). */
+        reg_write_word(0x0320, 0x0001);
+        /* Poll sel=5 until bit 0 is set = vblank entered. */
+        uint32_t timeout_us = 20000;   /* one frame margin */
+        while (timeout_us > 0) {
+            uint32_t s = qspi_read_status(5);
+            if (s & 0x01) break;
+            busy_wait_us_32(50);
+            timeout_us -= 50;
+        }
+        /* Fire one-word bursts. Each sdram_upload call sends CMD=0x02,
+         * addr, LEN=1, 2 payload bytes — ~32 µs total on the wire. */
+        int chunk_end = base + WORDS_PER_VBLANK;
+        if (chunk_end > PAYLOAD_WORDS) chunk_end = PAYLOAD_WORDS;
+        for (int i = base; i < chunk_end; i++) {
+            uint32_t addr = TILE_ROW_BASE + (uint32_t)(i * 2);
+            sdram_upload(addr, &upload_payload[i], 1);
+        }
+    }
+
+    sleep_ms(50);   /* let the bridge drain any pending bytes */
     uint32_t cnt_after = qspi_read_status(1) & 0xFF;
     uint32_t err_after = qspi_read_status(4) & 0xFF;
     uint32_t up6_after = qspi_read_status(6);
-    printf("[task34] sdram_upload test_asset[16] at 0x100000\n");
-    printf("[task34]   cnt %lu -> %lu (delta=%lu)\n",
-           (unsigned long)cnt_before, (unsigned long)cnt_after,
-           (unsigned long)(cnt_after - cnt_before));
-    printf("[task34]   err %lu -> %lu (expect 0)\n",
-           (unsigned long)err_before, (unsigned long)err_after);
-    printf("[task34]   sel=6 upload-status before=0x%08lx after=0x%08lx\n",
-           (unsigned long)up6_before, (unsigned long)up6_after);
+    printf("[task34] post-upload: cnt=%lu (delta=%lu)  err=%lu (expect 0)  sel=6=0x%08lx\n",
+           (unsigned long)cnt_after, (unsigned long)(cnt_after - cnt_before),
+           (unsigned long)err_after, (unsigned long)up6_after);
+
+    /* Restore Task 35 status enable mask so the loop below still shows
+     * sticky=0x04 on QSPI_READY. */
+    reg_write_word(0x0321, 0x000C);
+    sleep_ms(10);
 
     /* Continue periodic write + read loop so serial keeps spitting evidence
      * and the HDMI scene remains driveable. Toggles between 0x0088 and
@@ -357,7 +411,10 @@ int main(void)
     bool on = true;
     int iter = 0;
     while (true) {
-        reg_write_word(0x0300, on ? 0x0088 : 0x0000);
+        /* Task 34 proof: keep all layers ON so uploaded tile-row data
+         * keeps rendering. Toggle last_data echo on 0x0313 for Task 35
+         * sticky-counter exercise. */
+        reg_write_word(0x0313, on ? 0x0088 : 0x0000);
         sleep_ms(10);
         uint32_t m    = qspi_read_status(0);
         uint32_t d    = qspi_read_status(3);
