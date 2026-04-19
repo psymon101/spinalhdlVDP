@@ -114,12 +114,12 @@ This is much simpler and covers the common cases:
 
 | Address | Name | Purpose |
 |---|---|---|
-| `0x0340` | `HDMA_CTRL` | `data[0]=enable`, `data[3:1]=active channels mask` |
-| `0x0341` | `HDMA_STATUS` | `data[0]=done` (sticky, auto-cleared at frame start) |
-| `0x0342` | `HDMA_CH0_ADDR` | Channel 0 target register address |
-| `0x0343` | `HDMA_CH0_LEN` | Channel 0 table length (0..16) |
-| `0x0344..0x0353` | `HDMA_CH0_TABLE[0..15]` | Channel 0 table entries |
-| `0x0354..0x036F` | `HDMA_CH1..CH7` config | Same pattern as CH0 |
+| `0x0380` | `HDMA_CTRL` | `data[0]=enable`, `data[3:1]=active channels mask` |
+| `0x0381` | `HDMA_STATUS` | `data[0]=done` (sticky, auto-cleared at frame start) |
+| `0x0382` | `HDMA_CH0_ADDR` | Channel 0 target register address |
+| `0x0383` | `HDMA_CH0_LEN` | Channel 0 table length (0..16) |
+| `0x0384..0x0393` | `HDMA_CH0_TABLE[0..15]` | Channel 0 table entries |
+| `0x0394..0x03AF` | `HDMA_CH1..CH7` config | Same pattern as CH0 |
 
 ### 3.5 Copper as bus master
 

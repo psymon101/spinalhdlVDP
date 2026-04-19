@@ -78,8 +78,11 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0320..0x032F` | **Reserved for Task 35** — status registers, IRQ enables, sticky bits | Task 35 | — |
 | `0x0330..0x0334` | **Task 20** — Color Math / Window registers (`WIN0_X`, `WIN1_X`, `WIN0_Y`, `WIN1_Y`, `COLOR_MATH_CTRL`) | Task 20 / R6 | `VdpTop.scala:249,255-263` |
 | `0x0335..0x033F` | **Reserved** — Task 20 expansion or future window registers | — | — |
-| `0x0340..0x034F` | **Reserved for Task 33** — Copper-lite control (run/stop, PC, triggers) | Task 33 | — |
-| `0x0350..0x03FF` | **Reserved** — future host-surface registers | — | — |
+| `0x0340..0x0346` | **Task 19** — Affine Background registers (`AFFINE_A`, `AFFINE_B`, `AFFINE_C`, `AFFINE_D`, `AFFINE_X`, `AFFINE_Y`, `AFFINE_CTRL`) | Task 19 | `VdpTop.scala:297-352` |
+| `0x0347..0x034F` | **Reserved** — Task 19 expansion | — | — |
+| `0x0350..0x037F` | **Reserved** — future host-surface registers | — | — |
+| `0x0380..0x03DF` | **Reserved for Task 33** — Copper-lite / HDMA control and table RAM | Task 33 | — |
+| `0x03E0..0x03FF` | **Reserved** — future expansion | — | — |
 | `0x0400..0x05FF` | Copper program RAM (512 × 16-bit instructions) | Task R5 | `VdpTop.scala:45,182` |
 | `0x0600..0x07FF` | **Reserved** — Copper secondary tables (HDMA-style, Task 33) | Task 33 | — |
 | `0x0800..0x0FFF` | **Reserved for Task 37** — affine sprite descriptors | Task 37 | — |
@@ -197,6 +200,7 @@ All pass as of commit `4cee22e` (Task 38c closeout). Task 32a does not introduce
 - **§3.1:** Palette bank addressing (currently hardcoded in `VdpTop.scala:755+`) — future task if palette animation moves to host control.
 - **§5:** Status register clear semantics (write-1-to-clear vs read-to-clear vs auto-clear) — Task 35 artifact.
 - **§7.1:** If Task 34 bulk asset upload needs a sideband write register (e.g. `ASSET_ADDR` pointer), its placement at `0x0350..0x035F` is suggested but not locked.
+- **§7.2:** Task 19 Affine Background registers (`0x0340..0x0346`) were omitted in v1.0; corrected in v1.1. Task 33 Copper-lite relocated from `0x0340..0x034F` (erroneous) to `0x0380..0x03DF`.
 
 ---
 
