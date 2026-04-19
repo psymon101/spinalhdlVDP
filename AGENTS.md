@@ -135,11 +135,11 @@ For FPGA-affecting changes:
 - If visual proof is noisy or ambiguous, a dedicated diagnostic asset/probe must be created to resolve the ambiguity.
 - A task is not closed until the final evidence is definitive and reproducible.
 
-## Low-Token Operating Policy
+## Execution Workflow
 
-This repo runs under a low-token coordination policy. Preserve momentum, but
-do not spend tokens reconstructing state that is already available in mail and
-the live-lane ledger.
+This repo runs under a compact, event-driven coordination policy. Preserve
+momentum, but do not spend tokens reconstructing state that is already
+available in mail and the live-lane ledger.
 
 ### Source of truth order
 
@@ -152,31 +152,7 @@ Use this order every time:
 Do not restate older lane history in routine messages unless the current
 decision depends on it.
 
-### Allowed default mail shapes
-
-Use these durable message types by default:
-
-- assignment / approval
-- blocker or changed diagnosis
-- completion / proof packet
-- audit result
-- closeout
-- ACK when no direct action is required
-
-Do not send narration-only status mail.
-Do not send repeated “still waiting” mail without a changed fact.
-
-### Message size rule
-
-Routine project mail should be compact and factual:
-
-- current task / checkpoint
-- current commit id
-- exact next step or blocker
-
-Prefer one bounded paragraph plus a short evidence list over a long recap.
-
-### Role split for efficiency
+### Standing role split
 
 - `BrightForge`: implementation, validation, proof packets
 - `CyanPeak`: audit outcomes and explicit sign-off
@@ -184,7 +160,8 @@ Prefer one bounded paragraph plus a short evidence list over a long recap.
 - `BronzeGate`: sequencing, stall intervention, scope control
 
 Routine lane mechanics stay with `CoralReef`.
-`BronzeGate` steps in only for drift, ambiguity, stalls, or lane transitions.
+`BronzeGate` steps in only for drift, ambiguity, stalls, lane transitions,
+blocker decisions, or priority changes.
 
 ### Mutual Coverage Check
 
@@ -204,7 +181,7 @@ planning, ledger, and validation gaps do not slip through.
 Neither lane should assume the other already caught everything. If either sees
 a coverage gap, it must be called out explicitly in mail.
 
-### Live-lane hygiene
+### Live-Lane Hygiene
 
 When the active lane changes materially, update the `TASKS.md` live-lane block
 in the same change or immediately after with:
@@ -217,25 +194,18 @@ in the same change or immediately after with:
 Do not let the team reconstruct active state from scattered mail if the ledger
 can be updated directly.
 
-### Fast-Lane Progression
+### Event-Driven Progression
 
-For routine bounded lanes, the team should progress automatically by role
-without waiting for extra PM nudges once the next owner is obvious.
+For routine bounded lanes, progress automatically by role without extra PM
+nudges once the next owner is obvious.
 
 Default handoff chain:
 
-- `BrightForge` completion / proof packet triggers `CyanPeak` audit
-- `CyanPeak` pass / hold / fail ruling triggers `CoralReef` ledger sync
-- `CoralReef` ledger sync on a lane with a predetermined successor should open
-  the next artifact automatically unless post-completion reassessment changes
-  the order
-
-Routine ACK-only mail should be minimized. Do not send ACK-only updates unless
-one of these is true:
-
-- blocker receipt needs explicit confirmation
-- assignment is ambiguous or risky
-- hardware-facing action needs explicit receipt confirmation
+- `BrightForge` completion / proof / blocker / corrected-evidence packet
+  triggers `CyanPeak`
+- `CyanPeak` audit ruling triggers `CoralReef`
+- `CoralReef` ledger sync or closeout on a converged lane opens the next
+  obvious artifact automatically unless reassessment changed the order
 
 For low-risk bounded lanes:
 
@@ -249,7 +219,7 @@ Ledger sync is part of closeout, not a later cleanup step:
 - audit PASS should be followed immediately by `TASKS.md` / live-lane sync
 - a lane is not functionally closed until repo state matches authoritative mail
 
-If a task order is already converged, the next listed lane is the default next
+If task order is already converged, the next listed lane is the default next
 step unless:
 
 - post-completion reassessment changes the plan
@@ -257,23 +227,13 @@ step unless:
 - a hardware blocker appears
 - `BronzeGate` explicitly overrides priority
 
-Auto-open rule:
+If a lane closes cleanly and the next lane is already converged, unblocked, and
+unchanged by reassessment, `CoralReef` should open the next artifact in the
+same progression cycle. Do not leave the repo in an idle "awaiting PM
+direction" state when the next lane is obvious.
 
-- if a lane closes cleanly and the next lane is already converged, unblocked,
-  and unchanged by reassessment, `CoralReef` should open the next artifact
-  automatically in the same progression cycle
-- do not leave the repo in an idle "awaiting PM direction" state when the next
-  lane is obvious from the converged order
-- if there is uncertainty about whether reassessment changed the next lane,
-  stop and ask in mail instead of guessing
-
-`BronzeGate` should only be pulled into routine flow for:
-
-- scope ambiguity
-- blocker diagnosis
-- plan / task-list changes
-- priority overrides
-- stalled lanes
+If there is uncertainty about whether reassessment changed the next lane, stop
+and ask in mail instead of guessing.
 
 ### Post-Completion Reassessment
 
@@ -306,7 +266,74 @@ Once a bounded lane is approved:
   genuinely unclear
 - `CoralReef` should keep the live-lane block and artifact docs current
 
-### CyanPeak Audit Optimization
+### Delta-Only Messaging
+
+Allowed default message types:
+
+- assignment / approval
+- blocker or changed diagnosis
+- completion / proof packet
+- audit result
+- closeout
+- ACK when direct receipt is actually needed
+
+Default rule:
+
+- if authoritative state did not change, do not send a recap of stable
+  background
+- if authoritative state changed, report only the delta plus the next owner
+  unless a blocker or plan change requires more context
+- do not reconstruct full lane history in routine status mail when the
+  live-lane block and latest mail already preserve it
+
+Routine ACK-only or no-change mail should be minimized. Use it only when:
+
+- blocker receipt needs explicit confirmation
+- assignment is ambiguous or risky
+- hardware-facing action needs explicit receipt confirmation
+- a standing rule explicitly requires a receipt
+
+If a check finds no change and no direct task, remain silent by default.
+
+### Structured Packet Templates
+
+Routine mail should be compact and structured by packet type.
+
+`BrightForge` default completion / proof packet:
+
+- task / checkpoint
+- commit
+- exact files or subsystem touched
+- simulation or build result
+- hardware-proof result when applicable
+- blocker / none
+- next expected owner
+
+`CyanPeak` default audit packet:
+
+- ruling: `PASS`, `HOLD`, or `FAIL`
+- exact reason
+- exact corrective requirement when not `PASS`
+- next expected owner
+
+`CoralReef` default artifact / ledger packet:
+
+- task / phase
+- commit
+- exact doc or ledger state change
+- next deliverable
+- next expected owner
+
+`BronzeGate` default PM packet:
+
+- decision or state delta only
+- exact owner change
+- exact next step
+- why only when ambiguity or priority changed
+
+If those fields fit in a short message, do not add extra recap.
+
+### Audit Optimization
 
 `CyanPeak` should optimize audits for speed without lowering evidence quality.
 
@@ -353,7 +380,7 @@ Preferred audit checklists by packet type:
 When a blocker packet presents multiple hypotheses, prefer the cheapest
 discriminating next experiment unless a larger step is clearly required.
 
-### CoralReef Coordination Optimization
+### Coordination Optimization
 
 `CoralReef` should optimize artifact / ledger flow for low-latency progression.
 
@@ -384,7 +411,7 @@ When the next lane is not obvious:
 
 - stop and ask in mail with the minimum concrete ambiguity stated
 
-### Context compression rule
+### Context Compression
 
 When resuming or handing off, compress state to:
 
@@ -395,74 +422,6 @@ When resuming or handing off, compress state to:
 
 Do not carry full conversational history forward when those four facts are
 sufficient.
-
-### Event-Driven Delta-Only Workflow
-
-The team should default to event-driven progression and delta-only mail.
-
-Default rule:
-
-- if authoritative state did not change, do not send a recap of stable
-  background
-- if authoritative state changed, report only the delta plus the next owner
-  unless a blocker or plan change requires more context
-- do not reconstruct full lane history in routine status mail when the
-  live-lane block and latest mail already preserve it
-
-Default event routing:
-
-- `BrightForge` completion / blocker / corrected-evidence packet triggers
-  `CyanPeak`
-- `CyanPeak` audit ruling triggers `CoralReef`
-- `CoralReef` ledger sync or closeout on a converged lane triggers the next
-  obvious artifact automatically
-- `BronzeGate` is only pulled in when the next step is not obvious, a blocker
-  needs a decision, or reassessment changed the plan
-
-Default no-change behavior:
-
-- do not send "still waiting" mail
-- do not send ACK-only mail for unchanged routine posture
-- if a check finds no change and no direct task, remain silent unless a standing
-  rule explicitly requires a receipt
-
-### Structured Packet Templates
-
-Routine mail should be compact and structured by packet type.
-
-`BrightForge` default completion / proof packet:
-
-- task / checkpoint
-- commit
-- exact files or subsystem touched
-- simulation or build result
-- hardware-proof result when applicable
-- blocker / none
-- next expected owner
-
-`CyanPeak` default audit packet:
-
-- ruling: `PASS`, `HOLD`, or `FAIL`
-- exact reason
-- exact corrective requirement when not `PASS`
-- next expected owner
-
-`CoralReef` default artifact / ledger packet:
-
-- task / phase
-- commit
-- exact doc or ledger state change
-- next deliverable
-- next expected owner
-
-`BronzeGate` default PM packet:
-
-- decision or state delta only
-- exact owner change
-- exact next step
-- why only when ambiguity or priority changed
-
-If the above fields fit in a short message, do not add extra recap.
 
 ## Memory Curation Rule
 
