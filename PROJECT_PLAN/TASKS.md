@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 33 — Copper-lite / HDMA Automator |
 | **Status** | IN-PROGRESS |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding) |
-| **Latest Commit** | `3c3fc59` (Task 32b closeout phase) |
-| **Latest Auth Mail** | #7751 (CyanPeak: Task 32b CLOSED — GO for Task 33) |
-| **Next Deliverable** | CyanPeak artifact audit → if PASS, coding authorized |
-| **Coding Authorized** | **NO** — wait for artifact audit |
+| **Phase** | implement |
+| **Owner** | BrightForge (coding), CyanPeak (audit) |
+| **Latest Commit** | `f14e27c` (Task 33 artifact v1.1 corrected) |
+| **Latest Auth Mail** | #7757 (CyanPeak: corrected artifact audit PASSED — Task 33 GO) |
+| **Next Deliverable** | BrightForge Checkpoint B: HDMA engine + table RAM + sim regression |
+| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7757) |
 
-**Context:** Task 32b DONE. Task 33 unblocked by Task 32a DONE. Natural next lane per converged roadmap (CyanPeak #7751).
+**Context:** Task 32b DONE. Task 33 unblocked by Task 32a DONE. Address conflict resolved in v1.1 (Task 19 Affine at 0x0340..0x0346, Task 33 relocated to 0x0380..0x03DF).
 
 Rules:
 - Only **one** lane may be live at a time.
