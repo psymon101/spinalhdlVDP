@@ -53,7 +53,7 @@ object VdpTopSim extends App {
     dut.io.sprite1X #= 1000; dut.io.sprite1Y #= 1000; dut.io.sprite1Enabled #= false; dut.io.sprite1PatternIdx #= 1
     dut.io.sprite2X #= 1000; dut.io.sprite2Y #= 1000; dut.io.sprite2Enabled #= false; dut.io.sprite2PatternIdx #= 0
     dut.io.sprite3X #= 1000; dut.io.sprite3Y #= 1000; dut.io.sprite3Enabled #= false; dut.io.sprite3PatternIdx #= 1
-    dut.io.regWriteAddr #= 0; dut.io.regWriteData #= 0; dut.io.regWriteEnable #= false
+    dut.io.regBus.addr #= 0; dut.io.regBus.data #= 0; dut.io.regBus.enable #= false
     // Task 15 L0 mux: stay on the on-chip source for the existing sim coverage.
     dut.io.layer0UseSdram #= false
     // Test-pattern mux added by CoralReef's TestPatternSource integration —
@@ -100,11 +100,11 @@ object VdpTopSim extends App {
     val newRecord = LinestateStore.packRecord(l0en = false, l1en = false, l0sx = 0).toInt
     // R5: linestate writes now go through the unified register bus at
     // addr = line index within 0x0000-0x01DF.
-    dut.io.regWriteAddr #= 50
-    dut.io.regWriteData #= newRecord
-    dut.io.regWriteEnable #= true
+    dut.io.regBus.addr #= 50
+    dut.io.regBus.data #= newRecord
+    dut.io.regBus.enable #= true
     dut.clockDomain.waitSampling()
-    dut.io.regWriteEnable #= false
+    dut.io.regBus.enable #= false
 
     // Step 2: On this SAME frame, line 50 still shows the OLD committed value
     // (both layers enabled) because the line buffer was already filled from committed state.

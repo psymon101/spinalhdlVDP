@@ -38,17 +38,17 @@ object UnifiedRegMapSim extends App {
     dut.io.rasterTriggerPxEnable #= false
     dut.io.rasterTriggerEnable #= false
     dut.io.rasterTriggerClear #= false
-    dut.io.regWriteAddr #= 0
-    dut.io.regWriteData #= 0
-    dut.io.regWriteEnable #= false
+    dut.io.regBus.addr #= 0
+    dut.io.regBus.data #= 0
+    dut.io.regBus.enable #= false
     dut.clockDomain.waitSampling(5)
 
     def busWrite(addr: Int, data: Int): Unit = {
-      dut.io.regWriteAddr #= addr
-      dut.io.regWriteData #= data
-      dut.io.regWriteEnable #= true
+      dut.io.regBus.addr #= addr
+      dut.io.regBus.data #= data
+      dut.io.regBus.enable #= true
       dut.clockDomain.waitSampling()
-      dut.io.regWriteEnable #= false
+      dut.io.regBus.enable #= false
       dut.clockDomain.waitSampling()
     }
 

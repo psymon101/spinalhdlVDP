@@ -30,10 +30,9 @@ case class QspiDecoder() extends Component {
     val tx_byte_sent  = in Bool()
     val active        = in Bool()
 
-    // VDP register-write bus (asserted one cycle per 16-bit word).
-    val regWriteAddr   = out UInt (15 bits)
-    val regWriteData   = out Bits (16 bits)
-    val regWriteEnable = out Bool()
+    // Task 32b: register bus output — bundle replaces the prior
+    // regWriteAddr/Data/Enable triple.
+    val regBus = out (Mode0RegBus())
 
     // Diagnostics / status echo.
     val last_addr  = out UInt (16 bits)
@@ -139,9 +138,9 @@ case class QspiDecoder() extends Component {
     writeAddr := writeAddr + 1
   }
 
-  io.regWriteAddr   := writeAddr
-  io.regWriteData   := writeData
-  io.regWriteEnable := writePulse
+  io.regBus.addr   := writeAddr
+  io.regBus.data   := writeData
+  io.regBus.enable := writePulse
 
   io.last_addr  := last_addr
   io.last_data  := last_data

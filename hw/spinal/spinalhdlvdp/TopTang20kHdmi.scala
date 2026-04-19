@@ -558,12 +558,24 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val regWriteFromBoot = bootWrite && bootIdx <= lastStepIdx
     // QSPI can only assert after bootstrap completes, preventing any
     // bus contention during the power-on register-write sequence.
-    val qspiActive = bootDoneR && qspiDec.io.regWriteEnable
-    video.io.regWriteAddr := Mux(regWriteFromBoot, bootAddr,
-                              Mux(qspiActive, qspiDec.io.regWriteAddr, animWriteAddr))
-    video.io.regWriteData := Mux(regWriteFromBoot, bootDataMux,
-                              Mux(qspiActive, qspiDec.io.regWriteData, animWriteData))
-    video.io.regWriteEnable := regWriteFromBoot || qspiActive || animWriteActive
+    val qspiActive = bootDoneR && qspiDec.io.regBus.enable
+
+    // Task 32b: unified register bus via RegBusArbiter. Master priority
+    // index 0=bootstrap > 1=qspi > 2=animator — matches the pre-refactor
+    // Mux tree exactly. `qspiDec.io.regBus` already emits the bundle;
+    // bootstrap and animator are inline signals that fold into local
+    // bundle assignments below.
+    val regBusArbiter = RegBusArbiter(3)
+    regBusArbiter.io.masters(0).addr   := bootAddr
+    regBusArbiter.io.masters(0).data   := bootDataMux
+    regBusArbiter.io.masters(0).enable := regWriteFromBoot
+    regBusArbiter.io.masters(1).addr   := qspiDec.io.regBus.addr
+    regBusArbiter.io.masters(1).data   := qspiDec.io.regBus.data
+    regBusArbiter.io.masters(1).enable := qspiActive
+    regBusArbiter.io.masters(2).addr   := animWriteAddr
+    regBusArbiter.io.masters(2).data   := animWriteData
+    regBusArbiter.io.masters(2).enable := animWriteActive
+    video.io.regBus <> regBusArbiter.io.mixed
 
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100

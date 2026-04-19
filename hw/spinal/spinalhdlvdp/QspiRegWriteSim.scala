@@ -22,9 +22,9 @@ object QspiRegWriteSim extends App {
       val spi_io_in = in Bits (4 bits)
       val statusStickyIn = in Bits (16 bits)
       // Expose the decoded register-write pulses for sim inspection.
-      val regWriteAddr   = out UInt (15 bits)
+      val regWriteAddr   = out UInt (15 bits)   // kept for test assertions
       val regWriteData   = out Bits (16 bits)
-      val regWriteEnable = out Bool()
+      val regWriteEnable = out Bool()            // Task 32b: hoisted from dec.io.regBus
       // Task 38b: expose spi_io_out / spi_io_oe so response bytes are
       // observable at nibble granularity during sim.
       val spi_io_out     = out Bits (4 bits)
@@ -51,9 +51,9 @@ object QspiRegWriteSim extends App {
     // instantiated here). A SdramUploadSim covers the bridge path.
     dec.io.upload_busy := False
     dec.io.upload_done := False
-    io.regWriteAddr   := dec.io.regWriteAddr
-    io.regWriteData   := dec.io.regWriteData
-    io.regWriteEnable := dec.io.regWriteEnable
+    io.regWriteAddr   := dec.io.regBus.addr
+    io.regWriteData   := dec.io.regBus.data
+    io.regWriteEnable := dec.io.regBus.enable
     io.spi_io_out     := slave.io.spi_io_out
     io.spi_io_oe      := slave.io.spi_io_oe
   }

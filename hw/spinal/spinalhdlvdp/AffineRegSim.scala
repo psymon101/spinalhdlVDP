@@ -27,7 +27,7 @@ object AffineRegSim extends App {
     dut.io.sprite1X #= 1000; dut.io.sprite1Y #= 1000; dut.io.sprite1Enabled #= false; dut.io.sprite1PatternIdx #= 1
     dut.io.sprite2X #= 1000; dut.io.sprite2Y #= 1000; dut.io.sprite2Enabled #= false; dut.io.sprite2PatternIdx #= 0
     dut.io.sprite3X #= 1000; dut.io.sprite3Y #= 1000; dut.io.sprite3Enabled #= false; dut.io.sprite3PatternIdx #= 1
-    dut.io.regWriteAddr #= 0; dut.io.regWriteData #= 0; dut.io.regWriteEnable #= false
+    dut.io.regBus.addr #= 0; dut.io.regBus.data #= 0; dut.io.regBus.enable #= false
     dut.io.layer0UseSdram #= false
     dut.io.layer0TestPatternEnable #= false
     dut.io.layer0TestPatternSelect #= 0
@@ -54,11 +54,11 @@ object AffineRegSim extends App {
 
     // --- Step 2: write A mid-line, verify reg stays 0 until next hCounter===0 ---
     def writeReg(addr: Int, data: Int): Unit = {
-      dut.io.regWriteAddr #= addr
-      dut.io.regWriteData #= data
-      dut.io.regWriteEnable #= true
+      dut.io.regBus.addr #= addr
+      dut.io.regBus.data #= data
+      dut.io.regBus.enable #= true
       dut.clockDomain.waitSampling()
-      dut.io.regWriteEnable #= false
+      dut.io.regBus.enable #= false
     }
 
     // Settle into mid-line before writing so the commit edge doesn't race.

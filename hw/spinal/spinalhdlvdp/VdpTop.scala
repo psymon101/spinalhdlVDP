@@ -44,9 +44,9 @@ case class VdpTop() extends Component {
     //   0x0300         LAYER_ENABLE (data[0]=L0, data[1]=L1, data[2]=sprite) — global override
     //   0x0400-0x05FF  copper program RAM (host uploads program here)
     //   (other ranges reserved for stages 5+)
-    val regWriteAddr    = in UInt(15 bits)
-    val regWriteData    = in Bits(16 bits)
-    val regWriteEnable  = in Bool()
+    // Task 32b: unified register bus — replaces the prior ad-hoc
+    // regWriteAddr/Data/Enable inputs with the Mode0RegBus bundle.
+    val regBus = in (Mode0RegBus())
 
     // R4.1b stage 3 / R4.1d Checkpoint A: tile decode mode select out to the
     // SDRAM fetch engine. 2-bit field encoding:
@@ -187,11 +187,11 @@ case class VdpTop() extends Component {
   copper.io.hCounter := hCounter.resize(10)
   copper.io.vCounter := vCounter.resize(10)
   copper.io.enabled  := copperCtrlReg(0)
-  val copperProgRangeHit = io.regWriteEnable &&
-    (io.regWriteAddr >= U(0x0400, 15 bits)) &&
-    (io.regWriteAddr <  U(0x0600, 15 bits))
-  copper.io.progAddr := io.regWriteAddr(8 downto 0)
-  copper.io.progData := io.regWriteData
+  val copperProgRangeHit = io.regBus.enable &&
+    (io.regBus.addr >= U(0x0400, 15 bits)) &&
+    (io.regBus.addr <  U(0x0600, 15 bits))
+  copper.io.progAddr := io.regBus.addr(8 downto 0)
+  copper.io.progData := io.regBus.data
   copper.io.progWr   := copperProgRangeHit
 
   // R5.2 (#7082 target 100%): copper writes now flow through a small drain
@@ -202,14 +202,14 @@ case class VdpTop() extends Component {
   val copperFifo = spinal.lib.StreamFifo(dataType = Bits(31 bits), depth = 4)
   copperFifo.io.push.valid   := copper.io.regWr
   copperFifo.io.push.payload := (copper.io.regAddr.asBits ## copper.io.regData).asBits.resize(31)
-  val extHit     = io.regWriteEnable
+  val extHit     = io.regBus.enable
   val safeNow    = hCounter === U(0, log2Up(hTotal) bits)
   val copperDrain = safeNow && !extHit
   copperFifo.io.pop.ready := copperDrain
   val copperPopped = copperFifo.io.pop.fire
   val effWrite = extHit || copperPopped
-  val effAddr  = Mux(extHit, io.regWriteAddr, copperFifo.io.pop.payload(30 downto 16).asUInt)
-  val effData  = Mux(extHit, io.regWriteData, copperFifo.io.pop.payload(15 downto 0))
+  val effAddr  = Mux(extHit, io.regBus.addr, copperFifo.io.pop.payload(30 downto 16).asUInt)
+  val effData  = Mux(extHit, io.regBus.data, copperFifo.io.pop.payload(15 downto 0))
 
   // R5 RegisterMap decode off the merged bus. Writes to the linestate range
   // take the low 9 bits of effAddr as line index and the low 12 bits of
