@@ -26,14 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 35 — Host-Facing IRQ and Status Registers |
+| **Task** | Task 32a — Mode0 Register Bus: Spec & Naming Lock |
 | **Status** | IN-PROGRESS |
 | **Phase** | artifact |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `0313b7d` (Task 38c DONE, live-lane cleared) |
-| **Latest Auth Mail** | #7637 (CyanPeak: Task 38c PASSED — proceed to Task 35) |
+| **Latest Commit** | `5e655f6` (Task 35 artifact preflight-ready) |
+| **Latest Auth Mail** | #7646 (CyanPeak: Task 35 preflight APPROVED — open Task 32a) |
 | **Next Deliverable** | CoralReef task artifact + live-lane block update |
 | **Coding Authorized** | **NO** — wait for artifact audit before coding |
+
+**Preflight ready:** Task 35 artifact APPROVED; will activate after Task 32a closes.
 
 Rules:
 - Only **one** lane may be live at a time.
