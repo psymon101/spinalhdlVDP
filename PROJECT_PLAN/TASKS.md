@@ -27,13 +27,13 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | Task 42 — Firmware + Platform Docs Hardening |
-| **Status** | artifact |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding, on-hold) |
-| **Latest Commit** | `a17f1b3` (Task 36 closeout) |
-| **Latest Auth Mail** | #7789 (CyanPeak: Task 36 CLOSED, GO for Task 42) |
-| **Next Deliverable** | CyanPeak preflight audit of `TASK_42_FIRMWARE_PLATFORM_DOCS.md` |
-| **Coding Authorized** | **NO** — wait for artifact audit GO |
+| **Status** | implement |
+| **Phase** | capture |
+| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
+| **Latest Commit** | `23b7b63` (Task 42 Checkpoint B: docs + libvdp hardening) |
+| **Latest Auth Mail** | #7793 (BrightForge: Checkpoint B COMPLETE) |
+| **Next Deliverable** | Checkpoint C smoke-test integration on hardware |
+| **Coding Authorized** | **YES** — Checkpoint B landed, CP-C hardware proof next |
 
 **Artifact file:** `PROJECT_PLAN/TASK_42_FIRMWARE_PLATFORM_DOCS.md`
 
