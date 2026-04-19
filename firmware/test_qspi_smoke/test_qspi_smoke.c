@@ -96,28 +96,26 @@ int main(void)
     vdp_reg_write(0x0321u, VDP_STICKY_QSPI_READY | VDP_STICKY_QSPI_ERROR);
     sleep_ms(10);
 
-    /* Steady-state loop: toggle last_data echo, every 4th iteration clear
-     * the sticky register to exercise the clear-then-read contract. */
-    bool on = true;
-    int iter = 0;
+    /* Task 36 CP-C stress loop: rapid-fire alternating writes to registers
+     * that the HDMA engine ALSO rewrites each frame, to exercise concurrent
+     * bus traffic between QSPI (this loop) and Copper/HDMA.
+     *
+     * - 0x0313 is a reserved/echo register (safe to hammer, visible in
+     *   last_data but no scene effect)
+     * - Writes are separated only by loop overhead (~few microseconds), so
+     *   effective rate is hundreds of writes per millisecond → thousands
+     *   per frame, well into the arbiter's "extHit saturated" regime.
+     * - Every 2000 iterations we emit a serial heartbeat so the host can
+     *   confirm the stress is alive without slowing the write rate. */
+    printf("[smoke] Task 36 CP-C stress loop begin — concurrent QSPI vs HDMA traffic\n");
+    uint32_t stress_iter = 0;
     while (true) {
-        vdp_reg_write(0x0313u, on ? 0x0088u : 0x0000u);
-        sleep_ms(10);
-        uint32_t m    = vdp_read_status(0);
-        uint32_t d    = vdp_read_status(3);
-        uint32_t stky = vdp_read_status(5);
-        printf("[smoke] loop on=%d magic=0x%08lx last_data=0x%08lx sticky=0x%08lx\n",
-               (int)on, (unsigned long)m, (unsigned long)d, (unsigned long)stky);
-
-        if ((iter & 3) == 3) {
-            vdp_clear_sticky(0x000Fu);
-            sleep_ms(5);
-            uint32_t post = vdp_read_status(5);
-            printf("[smoke] CLEAR: post-clear sticky=0x%08lx\n", (unsigned long)post);
+        vdp_reg_write(0x0313u, 0x0055u);
+        vdp_reg_write(0x0313u, 0x00AAu);
+        stress_iter += 2;
+        if ((stress_iter & 0xFFFu) == 0) {
+            /* Light-weight heartbeat — no readback, keeps write rate high. */
+            printf("[smoke] stress iter=%lu\n", (unsigned long)stress_iter);
         }
-
-        on = !on;
-        iter++;
-        sleep_ms(500);
     }
 }
