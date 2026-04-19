@@ -275,18 +275,43 @@ int main(void)
     printf("[task38c] bit-3 proof: (last_data & 0x88) = 0x%02x (expect 0x88)\n",
            (unsigned)(ldat & 0xFF) & 0x88);
 
+    /* Task 35 exercise: enable QSPI_READY (bit 2) + QSPI_ERROR (bit 3) in
+     * STATUS_ENABLE @ 0x0321. Every host REG_WRITE will tick QSPI_READY
+     * sticky, so sel=5 read should show bit 2 set between clears. */
+    reg_write_word(0x0321, 0x000C);     /* enable bits 2,3 for irq */
+    sleep_ms(10);
+
     /* Continue periodic write + read loop so serial keeps spitting evidence
      * and the HDMI scene remains driveable. Toggles between 0x0088 and
-     * 0x0000 so a visible layer-enable off-moment is still reachable. */
+     * 0x0000 so a visible layer-enable off-moment is still reachable.
+     * Also reads sel=5 (Task 35 status) and periodically clears it via
+     * STATUS_CLEAR @ 0x0320 write-1-to-clear. */
     bool on = true;
+    int iter = 0;
     while (true) {
         reg_write_word(0x0300, on ? 0x0088 : 0x0000);
         sleep_ms(10);
-        uint32_t m   = qspi_read_status(0);
-        uint32_t d   = qspi_read_status(3);
-        printf("[task38c] loop on=%d magic=0x%08lx last_data=0x%08lx\n",
-               (int)on, (unsigned long)m, (unsigned long)d);
+        uint32_t m    = qspi_read_status(0);
+        uint32_t d    = qspi_read_status(3);
+        uint32_t stky = qspi_read_status(5);   /* Task 35 sticky status */
+        printf("[task35] loop on=%d magic=0x%08lx last_data=0x%08lx sticky=0x%08lx\n",
+               (int)on, (unsigned long)m, (unsigned long)d, (unsigned long)stky);
+
+        /* Every 4 iterations, clear the sticky byte and read back to verify
+         * the clear went through. We expect the NEXT sel=5 read (which is
+         * itself a cmd_valid event) to show bit 2 set again from that
+         * cmd_valid — the clear is write-1-to-clear, persistent-source
+         * events come right back, instantaneous pulses don't. */
+        if ((iter & 3) == 3) {
+            reg_write_word(0x0320, 0x000F);     /* clear low nibble sticky */
+            sleep_ms(5);
+            uint32_t post = qspi_read_status(5);
+            printf("[task35] CLEAR: post-clear sticky=0x%08lx (bit 2 expected 0x04 from this read's cmd_valid)\n",
+                   (unsigned long)post);
+        }
+
         on = !on;
+        iter++;
         sleep_ms(500);
     }
 }

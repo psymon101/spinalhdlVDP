@@ -529,6 +529,13 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     qspi.io.tx_byte := qspiDec.io.tx_byte
     qspi.io.tx_load := qspiDec.io.tx_load
 
+    // Task 35 status surface wiring. video produces the sticky word; the
+    // decoder exposes it over READ_STATUS sel=5. QSPI_READY fires on every
+    // cmd_valid (command accepted); QSPI_ERROR follows last_error != 0.
+    qspiDec.io.status_sticky := video.io.statusSticky
+    video.io.statusEvQspiReady := qspi.io.cmd_valid
+    video.io.statusEvQspiError := qspiDec.io.last_error =/= B(0, 8 bits)
+
     val regWriteFromBoot = bootWrite && bootIdx <= lastStepIdx
     // QSPI can only assert after bootstrap completes, preventing any
     // bus contention during the power-on register-write sequence.
@@ -802,7 +809,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     O_led(0) := !pll.LOCK
     O_led(1) := !sdramPll.lock
     O_led(2) := !fetch.io.bootDone
-    O_led(3) := !fetch.io.memtestPass
+    O_led(3) := !video.io.irq            // Task 35 — lit while any enabled status bit is set
     O_led(4) := fetch.io.memtestFail
     O_led(5) := fetch.io.underrun
   }

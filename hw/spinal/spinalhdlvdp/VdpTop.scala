@@ -107,6 +107,15 @@ case class VdpTop() extends Component {
     val rasterTriggerClear     = in Bool()
     val rasterTriggerPulse     = out Bool()
     val rasterTriggerPending   = out Bool()
+
+    // Task 35 — Host-facing status surface.
+    // External event inputs (pixel clock domain, 1-cycle pulses or level):
+    val statusEvQspiReady  = in Bool()  // pulses on QSPI cmd_valid
+    val statusEvQspiError  = in Bool()  // level-high when QspiDecoder.last_error != 0
+    // Sticky register output for QSPI READ_STATUS sel=5 readback:
+    val statusSticky       = out Bits(16 bits)
+    // Host-visible IRQ line — asserted while any enabled sticky bit is set:
+    val irq                = out Bool()
   }
 
   // 640x480@60 timing uses a 25.2 MHz pixel clock.
@@ -712,6 +721,79 @@ case class VdpTop() extends Component {
   rasterTrigger.io.clear          := io.rasterTriggerClear
   io.rasterTriggerPulse           := rasterTrigger.io.triggerPulse
   io.rasterTriggerPending         := rasterTrigger.io.pending
+
+  // -------------------------------------------------------------------
+  // Task 35 — Host-Facing IRQ + Sticky Status Register Bank.
+  //
+  // Address map (within the 0x0320..0x032F reserved block per
+  // MODE0_REGISTER_BUS_SPEC.md §3):
+  //   0x0320  STATUS_STICKY  — read via QSPI sel=5; writes write-1-to-clear
+  //   0x0321  STATUS_ENABLE  — IRQ mask (1 = bit contributes to irq)
+  //
+  // Sticky bit mapping (low byte, upper bits reserved for future events):
+  //   bit 0 : RASTER_MATCH    — rasterTriggerPulse rising edge
+  //   bit 1 : SPRITE_OVERFLOW — spriteEval.overflowFlag pulse
+  //   bit 2 : QSPI_READY      — QSPI cmd_valid pulse (command accepted)
+  //   bit 3 : QSPI_ERROR      — QspiDecoder.last_error non-zero (level)
+  //
+  // Semantics:
+  //   - Sticky bits SET on event pulse, PERSIST until write-1-to-clear.
+  //   - QSPI_ERROR is level-triggered; sticky bit 3 follows the latched
+  //     error state until host clears it AND the upstream error condition
+  //     has also cleared (otherwise the bit re-asserts on the next cycle).
+  //   - irq = (sticky & enable).orR — asserted while any enabled sticky
+  //     bit is set; deasserts when host clears or disables the bit.
+  //   - Safe-boundary commit: STATUS_ENABLE writes commit at hCounter===0
+  //     per spec §4.1. Sticky bit sets propagate immediately (events are
+  //     cycle-accurate and would be lost by a safe-boundary shadow).
+  //   - Write-1-to-clear semantics for STATUS_STICKY: for each bit of the
+  //     write data that is 1, the corresponding sticky bit clears. Bits
+  //     written as 0 are preserved.
+  // -------------------------------------------------------------------
+  val statusStickyReg  = Reg(Bits(16 bits)) init 0
+  val statusEnableReg  = Reg(Bits(16 bits)) init 0
+  val statusEnablePend    = Reg(Bits(16 bits)) init 0
+  val statusEnablePendHit = Reg(Bool()) init False
+
+  // Event sources (low byte).
+  val evRasterMatch    = rasterTrigger.io.triggerPulse
+  val evSpriteOverflow = spriteEval.io.overflowFlag
+  val evQspiReady      = io.statusEvQspiReady
+  val evQspiError      = io.statusEvQspiError
+  val evBus            = (B(0, 12 bits) ## evQspiError ## evQspiReady ## evSpriteOverflow ## evRasterMatch).asBits
+
+  // STATUS_ENABLE write (safe-boundary commit).
+  when(effWrite && effAddr === U(0x0321, 15 bits)) {
+    statusEnablePend    := effData
+    statusEnablePendHit := True
+  }
+
+  // STATUS_STICKY write = write-1-to-clear. No shadow needed; clear is
+  // an immediate action and cannot cause mid-line artifacts (it only
+  // deasserts irq, it doesn't change visible pixel state).
+  val statusClearMask = Bits(16 bits)
+  statusClearMask := B(0, 16 bits)
+  when(effWrite && effAddr === U(0x0320, 15 bits)) {
+    statusClearMask := effData
+  }
+
+  // Sticky update: set on any event this cycle, then clear bits the host
+  // requested. If an event AND a clear both target the same bit in the
+  // same cycle, the event wins (new state takes precedence over stale
+  // clear). QSPI_ERROR uses the level directly so it re-asserts until the
+  // source condition clears.
+  statusStickyReg := (statusStickyReg | evBus) & (~statusClearMask)
+
+  // Safe-boundary commit of enable mask at hCounter===0.
+  when(hCounter === U(0, log2Up(hTotal) bits)) {
+    when(statusEnablePendHit) {
+      statusEnableReg     := statusEnablePend
+      statusEnablePendHit := False
+    }
+  }
+
+  io.statusSticky := statusStickyReg
+  io.irq          := (statusStickyReg & statusEnableReg).orR
 
   // R6 Task 20: post-palette color-math + window stage. Mux on `paletteRgb`
   // controlled by the window comparator and the colorMath op/constant fields.

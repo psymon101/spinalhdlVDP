@@ -40,6 +40,8 @@ case class QspiDecoder() extends Component {
     val last_data  = out Bits (16 bits)
     val last_error = out Bits (8 bits)
     val rx_cmd_cnt = out UInt (8 bits)
+    // Task 35 — host-readable status sticky bits routed from VdpTop.
+    val status_sticky = in Bits (16 bits)
   }
 
   object Op {
@@ -155,6 +157,7 @@ case class QspiDecoder() extends Component {
       is(U(2, 8 bits)) { rxWord := B(0, 16 bits) ## last_addr.asBits }
       is(U(3, 8 bits)) { rxWord := B(0, 16 bits) ## last_data }
       is(U(4, 8 bits)) { rxWord := B(0, 24 bits) ## last_error }
+      is(U(5, 8 bits)) { rxWord := B(0, 16 bits) ## io.status_sticky }   // Task 35
       default          { rxWord := B(0, 32 bits) }
     }
     rxByteIdx := 0

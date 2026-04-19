@@ -20,6 +20,7 @@ object QspiRegWriteSim extends App {
       val spi_cs_n  = in Bool()
       val spi_sck   = in Bool()
       val spi_io_in = in Bits (4 bits)
+      val statusStickyIn = in Bits (16 bits)
       // Expose the decoded register-write pulses for sim inspection.
       val regWriteAddr   = out UInt (15 bits)
       val regWriteData   = out Bits (16 bits)
@@ -44,6 +45,7 @@ object QspiRegWriteSim extends App {
     dec.io.active        := slave.io.active
     slave.io.tx_byte := dec.io.tx_byte
     slave.io.tx_load := dec.io.tx_load
+    dec.io.status_sticky := io.statusStickyIn  // Task 35: driven by tb
     io.regWriteAddr   := dec.io.regWriteAddr
     io.regWriteData   := dec.io.regWriteData
     io.regWriteEnable := dec.io.regWriteEnable
@@ -53,9 +55,10 @@ object QspiRegWriteSim extends App {
 
   Config.sim.compile(new Harness()).doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)
-    dut.io.spi_cs_n  #= true
-    dut.io.spi_sck   #= false
-    dut.io.spi_io_in #= 0
+    dut.io.spi_cs_n     #= true
+    dut.io.spi_sck      #= false
+    dut.io.spi_io_in    #= 0
+    dut.io.statusStickyIn #= 0
     dut.clockDomain.waitSampling(20)
 
     val H = 20
@@ -247,6 +250,24 @@ object QspiRegWriteSim extends App {
     // one — which is exactly what this strict advance proves.
     println(f"Case 5 PASS: rx_cmd_cnt advanced (${before5} → ${r5(0)}); load-time snapshot contract intact")
 
-    println("QspiRegWriteSim: all cases PASS — QspiSlave -> QspiDecoder -> regWrite* + READ_STATUS sel=0..4 verified")
+    // ---- Case 6: Task 35 — sel=5 STATUS_STICKY readback ----
+    // Drive a pattern on statusStickyIn and verify the response reflects
+    // the low-16-bits-in-bytes-0-and-1 mapping. This is a pure pipe test
+    // of the decoder's sel=5 case; the full sticky-bank behaviour is
+    // covered by StatusRegSim against VdpTop.
+    def testSticky(label: String, sticky: Int, expected: Seq[Int]): Unit = {
+      println(label)
+      dut.io.statusStickyIn #= sticky
+      dut.clockDomain.waitSampling(2)
+      val resp = captureResponse(5)
+      assert(resp == expected, f"$label got ${resp.map("0x%02X".format(_)).mkString(",")}, want ${expected.map("0x%02X".format(_)).mkString(",")}")
+      println(f"$label PASS: sticky=0x${sticky}%04X -> bytes=${resp.map("0x%02X".format(_)).mkString(",")}")
+    }
+    testSticky("Case 6.0: sel=5 sticky=0x0000", 0x0000, Seq(0x00, 0x00, 0x00, 0x00))
+    testSticky("Case 6.1: sel=5 sticky=0x0001 (RASTER_MATCH alone)",      0x0001, Seq(0x01, 0x00, 0x00, 0x00))
+    testSticky("Case 6.2: sel=5 sticky=0x000F (all four events)",         0x000F, Seq(0x0F, 0x00, 0x00, 0x00))
+    testSticky("Case 6.3: sel=5 sticky=0xABCD (arbitrary 16-bit pattern)", 0xABCD, Seq(0xCD, 0xAB, 0x00, 0x00))
+
+    println("QspiRegWriteSim: all cases PASS — QspiSlave -> QspiDecoder -> regWrite* + READ_STATUS sel=0..5 verified")
   }
 }
