@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 39 — Host Driver Library |
 | **Status** | IN-PROGRESS |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact), CyanPeak (audit) |
-| **Latest Commit** | `4013795` (Task 34 ledger sync) |
-| **Latest Auth Mail** | #7711 (CyanPeak: standing by for Task 39 artifact) |
-| **Next Deliverable** | CyanPeak artifact audit → if PASS, coding authorized |
-| **Coding Authorized** | **NO** — wait for artifact audit |
+| **Phase** | implement |
+| **Owner** | BrightForge (coding), CyanPeak (audit) |
+| **Latest Commit** | `7d22ee4` (Task 39 artifact v1.0) |
+| **Latest Auth Mail** | #7719 (CyanPeak: artifact audit PASSED — Task 39 GO) |
+| **Next Deliverable** | BrightForge Checkpoint B: libvdp implementation + smoke-test refactor |
+| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7719) |
 
 **Context:** Task 39 unblocked by Tasks 34, 35, 38c all DONE. Natural next host-control lane per BronzeGate #7708 / #7712.
 
