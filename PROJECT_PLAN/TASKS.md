@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `5556b3c` (Task 38b artifact + live-lane block) |
-| **Latest Auth Mail** | #7612 (CyanPeak: artifact audit PASSED — Task 38b GO) |
-| **Next Deliverable** | BrightForge Checkpoint B: simulation proof for sel=0..4 |
+| **Latest Commit** | `1294614` (Task 38b: READ_STATUS sel=0..4 expansion) |
+| **Latest Auth Mail** | #7614 (BrightForge: Task 38b completion packet) |
+| **Next Deliverable** | CyanPeak audit of Checkpoint B + C completion packet |
 | **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7612) |
 
 Rules:
