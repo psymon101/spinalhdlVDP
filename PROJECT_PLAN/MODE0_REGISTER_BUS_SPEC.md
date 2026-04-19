@@ -76,8 +76,10 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0312` | `VDP_ATTR_MODE` — 1-bit linear/packed-2×2 | Task R4.1c | `VdpTop.scala:61,240` |
 | `0x0313..0x031F` | **Reserved** — global-control expansion | — | — |
 | `0x0320..0x032F` | **Reserved for Task 35** — status registers, IRQ enables, sticky bits | Task 35 | — |
-| `0x0330..0x033F` | **Reserved for Task 33** — Copper-lite control (run/stop, PC, triggers) | Task 33 | — |
-| `0x0340..0x03FF` | **Reserved** — future host-surface registers | — | — |
+| `0x0330..0x0334` | **Task 20** — Color Math / Window registers (`WIN0_X`, `WIN1_X`, `WIN0_Y`, `WIN1_Y`, `COLOR_MATH_CTRL`) | Task 20 / R6 | `VdpTop.scala:249,255-263` |
+| `0x0335..0x033F` | **Reserved** — Task 20 expansion or future window registers | — | — |
+| `0x0340..0x034F` | **Reserved for Task 33** — Copper-lite control (run/stop, PC, triggers) | Task 33 | — |
+| `0x0350..0x03FF` | **Reserved** — future host-surface registers | — | — |
 | `0x0400..0x05FF` | Copper program RAM (512 × 16-bit instructions) | Task R5 | `VdpTop.scala:45,182` |
 | `0x0600..0x07FF` | **Reserved** — Copper secondary tables (HDMA-style, Task 33) | Task 33 | — |
 | `0x0800..0x0FFF` | **Reserved for Task 37** — affine sprite descriptors | Task 37 | — |
@@ -194,7 +196,7 @@ All pass as of commit `4cee22e` (Task 38c closeout). Task 32a does not introduce
 - **§2.3:** Copper-lite master priority relative to QSPI / animator — Task 33 artifact.
 - **§3.1:** Palette bank addressing (currently hardcoded in `VdpTop.scala:755+`) — future task if palette animation moves to host control.
 - **§5:** Status register clear semantics (write-1-to-clear vs read-to-clear vs auto-clear) — Task 35 artifact.
-- **§7.1:** If Task 34 bulk asset upload needs a sideband write register (e.g. `ASSET_ADDR` pointer), its placement at `0x0340..0x034F` is suggested but not locked.
+- **§7.1:** If Task 34 bulk asset upload needs a sideband write register (e.g. `ASSET_ADDR` pointer), its placement at `0x0350..0x035F` is suggested but not locked.
 
 ---
 
