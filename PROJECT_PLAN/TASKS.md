@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 32b — Mode0 Register Bus: Master Refactor |
+| **Task** | Task 33 — Copper-lite / HDMA Automator |
 | **Status** | IN-PROGRESS |
-| **Phase** | closeout |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `e15ed31` (Task 32b Checkpoint C: hardware proof complete) |
-| **Latest Auth Mail** | #7747 (BrightForge: Checkpoint C hardware proof PASS) |
-| **Next Deliverable** | CyanPeak final audit → CoralReef ledger sync + task closure |
-| **Coding Authorized** | **YES** — all checkpoints complete, awaiting final audit |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding) |
+| **Latest Commit** | `3c3fc59` (Task 32b closeout phase) |
+| **Latest Auth Mail** | #7751 (CyanPeak: Task 32b CLOSED — GO for Task 33) |
+| **Next Deliverable** | CyanPeak artifact audit → if PASS, coding authorized |
+| **Coding Authorized** | **NO** — wait for artifact audit |
 
-**Context:** Checkpoint B (33+ sim PASS) and Checkpoint C (30s OpenCV hardware proof PASS) both complete. Awaiting CyanPeak final audit for formal closure.
+**Context:** Task 32b DONE. Task 33 unblocked by Task 32a DONE. Natural next lane per converged roadmap (CyanPeak #7751).
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -721,7 +721,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 32b — Mode0 Register Bus: Master Refactor
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [32a]
 **scope_boundary:** Refactor existing masters to the named bus. No new primitives.
 **delivers:**
