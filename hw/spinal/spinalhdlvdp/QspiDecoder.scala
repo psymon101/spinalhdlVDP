@@ -116,13 +116,26 @@ case class QspiDecoder() extends Component {
   io.rx_cmd_cnt := rx_cmd_cnt
 
   // -------------------------------------------------------------------
-  // READ_STATUS response FSM (Checkpoint B).
+  // READ_STATUS response FSM (Task 38b — expanded status surface).
   //
   // Plan §3.3 — on CMD=0x04 LEN=0, drive 4 bytes back to the host after
-  // the slave's 2-edge turnaround.  `sel` = low byte of cmd_addr; for
-  // Checkpoint B we serve the magic on sel=0 and a zeroed word on other
-  // sel values.  Richer status (last_addr/last_data echo, error counter
-  // snapshot) can be layered in later without touching the slave.
+  // the slave's 2-edge turnaround. `sel` = low byte of cmd_addr.
+  //
+  //   sel=0 → magic 0x51560002 (host transport identification, retained
+  //           from Task 27)
+  //   sel=1 → rx_cmd_cnt in byte 0, upper 24 bits zero
+  //   sel=2 → last_addr low byte in byte 0, high byte in byte 1,
+  //           upper 16 bits zero
+  //   sel=3 → last_data low byte in byte 0, high byte in byte 1,
+  //           upper 16 bits zero
+  //   sel=4 → last_error in byte 0, upper 24 bits zero
+  //   sel>4 → zeroed word (reserved for future expansion)
+  //
+  // Load-time snapshot: rxWord is captured once on cmd_valid, never
+  // mutated while the response walks Load→Wait→Shift. If rx_cmd_cnt /
+  // last_addr / last_data / last_error update mid-response (e.g. a new
+  // REG_WRITE lands while the READ_STATUS response is still shifting),
+  // the in-flight response is not corrupted.
   // -------------------------------------------------------------------
   object RxState extends SpinalEnum { val Idle, Load, Wait = newElement() }
   val rxState = Reg(RxState()) init RxState.Idle
@@ -132,11 +145,18 @@ case class QspiDecoder() extends Component {
   val rxTxByte  = Reg(Bits(8 bits)) init 0
   rxLoad := False
 
-  // Kick off READ_STATUS on header pulse.
+  // Kick off READ_STATUS on header pulse. rxWord is sampled atomically
+  // from the current diagnostic state; later changes don't leak in.
   when(io.cmd_valid && io.cmd_opcode === Op.READ_STATUS && io.cmd_len === U(0, 16 bits)) {
     val sel = io.cmd_addr(7 downto 0)
-    when(sel === U(0, 8 bits)) { rxWord := B"32'h51560002" }
-      .otherwise               { rxWord := B(0, 32 bits) }
+    switch(sel) {
+      is(U(0, 8 bits)) { rxWord := B"32'h51560002" }
+      is(U(1, 8 bits)) { rxWord := B(0, 24 bits) ## rx_cmd_cnt.asBits }
+      is(U(2, 8 bits)) { rxWord := B(0, 16 bits) ## last_addr.asBits }
+      is(U(3, 8 bits)) { rxWord := B(0, 16 bits) ## last_data }
+      is(U(4, 8 bits)) { rxWord := B(0, 24 bits) ## last_error }
+      default          { rxWord := B(0, 32 bits) }
+    }
     rxByteIdx := 0
     rxState   := RxState.Load
   }
