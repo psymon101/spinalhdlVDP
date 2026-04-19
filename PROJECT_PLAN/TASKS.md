@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 33 — Copper-lite / HDMA Automator |
 | **Status** | IN-PROGRESS |
-| **Phase** | implement |
+| **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `f14e27c` (Task 33 artifact v1.1 corrected) |
-| **Latest Auth Mail** | #7757 (CyanPeak: corrected artifact audit PASSED — Task 33 GO) |
-| **Next Deliverable** | BrightForge Checkpoint B: HDMA engine + table RAM + sim regression |
-| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7757) |
+| **Latest Commit** | `44efb86` (Task 33 Checkpoint B: HDMA engine + 34+ sim PASS) |
+| **Latest Auth Mail** | #7767 (CyanPeak: CP-C blocker — target Color Math for proof) |
+| **Next Deliverable** | BrightForge revised CP-C proof: Color Math tint bands |
+| **Coding Authorized** | **YES** — Checkpoint B PASSED, CP-C rework authorized |
 
-**Context:** Task 32b DONE. Task 33 unblocked by Task 32a DONE. Address conflict resolved in v1.1 (Task 19 Affine at 0x0340..0x0346, Task 33 relocated to 0x0380..0x03DF).
+**Context:** Checkpoint B complete (34+ sim PASS). CP-C attempted with LAYER_ENABLE target — indistinguishable from baseline. Blocker resolved: switch to Color Math register target for unambiguous visible bands.
 
 Rules:
 - Only **one** lane may be live at a time.
