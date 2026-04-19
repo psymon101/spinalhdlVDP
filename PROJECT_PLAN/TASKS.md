@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 39 — Host Driver Library |
-| **Status** | IN-PROGRESS |
-| **Phase** | implement |
-| **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `7d22ee4` (Task 39 artifact v1.0) |
-| **Latest Auth Mail** | #7719 (CyanPeak: artifact audit PASSED — Task 39 GO) |
-| **Next Deliverable** | BrightForge Checkpoint B: libvdp implementation + smoke-test refactor |
-| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7719) |
+| **Task** | *(no active lane — cleared after Task 39 closeout)* |
+| **Status** | — |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `684e3dd` (Task 39: libvdp host driver library) |
+| **Latest Auth Mail** | #7729 (CyanPeak: Task 39 PASSED and CLOSED) |
+| **Next Deliverable** | Task 32b artifact creation + CyanPeak preflight audit |
+| **Coding Authorized** | **NO** — wait for next lane artifact + audit |
 
-**Context:** Task 39 unblocked by Tasks 34, 35, 38c all DONE. Natural next host-control lane per BronzeGate #7708 / #7712.
+**Converged next target:** Task 32b — Register Bus Master Refactor (depends_on [32a] satisfied). Per CyanPeak #7729 expectation.
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -892,7 +892,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 39 — Host Driver Library
 
-**Status:** TODO
+**Status:** DONE (`684e3dd`)
 **depends_on:** [34, 35, 38c]
 **scope_boundary:** Host-side library only. No HDL changes, no new rendering primitives.
 **delivers:**
