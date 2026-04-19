@@ -245,6 +245,33 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (0 << 14) | 320, (1 << 14) | 0x0311, 0x0002,
           (3 << 14) | 0
         )
+      case 33 =>
+        // Task 33 HW proof (per CyanPeak #7767 / BronzeGate #7766 direction):
+        // HDMA drives COLOR_MATH_CTRL (0x0334) at 4 vertical positions,
+        // producing 4 full-screen tint bands independent of layer content.
+        //
+        // COLOR_MATH_CTRL bit layout (see VdpTop.scala:825-831, ColorMath.scala):
+        //   bits[15:14] = op  (00=pass, 01=shadow, 10=add const)
+        //   bit[13]     = windowUnit.invert — with scenario's zero-sized
+        //                 window this is equivalent to "effect=True
+        //                 everywhere," so ColorMath runs full-screen.
+        //   bits[7:0]   = add-op constant
+        //
+        // Band plan (4 visually distinct tints):
+        //   line 0   : 0x2000 invert+pass     → passthrough band (baseline bright)
+        //   line 120 : 0x6000 invert+shadow   → dim band (>>1)
+        //   line 240 : 0xA080 invert+add 0x80 → bright saturated band
+        //   line 360 : 0x6000 invert+shadow   → dim band again
+        Seq(
+          (0 << 14) | 0,                                              // WAIT y=0 (paces once/frame)
+          (1 << 14) | 0x0382, 0x0334,                                 // chAddr0 = COLOR_MATH_CTRL
+          (1 << 14) | 0x038A, 0x8000 | 0,    (1 << 14) | 0x038B, 0x2000,
+          (1 << 14) | 0x038C, 0x8000 | 120,  (1 << 14) | 0x038D, 0x6000,
+          (1 << 14) | 0x038E, 0x8000 | 240,  (1 << 14) | 0x038F, 0xA080,
+          (1 << 14) | 0x0390, 0x8000 | 360,  (1 << 14) | 0x0391, 0x6000,
+          (1 << 14) | 0x0380, 0x0003,                                 // HDMA_CTRL = enable + ch0 mask
+          (3 << 14) | 0                                               // JUMP 0 (back to WAIT)
+        )
       case _ =>
         Seq(
           (0 << 14) | 160,              // WAIT y=160
@@ -334,7 +361,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -939,4 +966,7 @@ object TopTang20kHdmiScenario99Verilog extends App {
 // Wave 3 scenario.
 object TopTang20kHdmiScenario13Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 13))
+}
+object TopTang20kHdmiScenario33Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 33))   // Task 33 HDMA HW proof
 }

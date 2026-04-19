@@ -195,19 +195,21 @@ case class VdpTop() extends Component {
   copper.io.progWr   := copperProgRangeHit
 
   // Task 33 — HDMA host-control sub-block @ 0x0380..0x03C9.
-  val copperHdmaRangeHit = io.regBus.enable &&
-    (io.regBus.addr >= U(0x0380, 15 bits)) &&
-    (io.regBus.addr <  U(0x0400, 15 bits))
-  copper.io.hdmaCtrlAddr := io.regBus.addr(6 downto 0)
-  copper.io.hdmaData     := io.regBus.data
-  copper.io.hdmaWr       := copperHdmaRangeHit
+  // Decoded from the EFFECTIVE merged bus (effAddr/effWrite) so configuration
+  // writes originating from the copper script also reach the HDMA engine —
+  // not just host (QSPI/bootstrap) writes on io.regBus.
+  // (effAddr/effWrite are defined further below; SpinalHDL resolves via
+  //  concurrent-assignment, so the forward reference is fine.)
 
   // R5.2 (#7082 target 100%): copper writes now flow through a small drain
   // FIFO and are released only on the safe boundary (`hCounter === 0`).
   // Previously the combinational merge let copper regWrite pulses reach the
   // RegisterMap mid-line, producing the ~6 residual scroll skips and
   // red-flash artifacts the R5.1 partial fix couldn't fully eliminate.
-  val copperFifo = spinal.lib.StreamFifo(dataType = Bits(31 bits), depth = 4)
+  // Task 33: depth widened from 4 → 32 so a copper bootstrap script can fire
+  // a burst of writes (e.g. HDMA config is 11 back-to-back writes) without
+  // FIFO-full drops. Drain is still 1/line at hCounter===0.
+  val copperFifo = spinal.lib.StreamFifo(dataType = Bits(31 bits), depth = 32)
   copperFifo.io.push.valid   := copper.io.regWr
   copperFifo.io.push.payload := (copper.io.regAddr.asBits ## copper.io.regData).asBits.resize(31)
   val extHit     = io.regBus.enable
@@ -218,6 +220,14 @@ case class VdpTop() extends Component {
   val effWrite = extHit || copperPopped
   val effAddr  = Mux(extHit, io.regBus.addr, copperFifo.io.pop.payload(30 downto 16).asUInt)
   val effData  = Mux(extHit, io.regBus.data, copperFifo.io.pop.payload(15 downto 0))
+
+  // Task 33 HDMA control decode (see forward-declared comment above).
+  val copperHdmaRangeHit = effWrite &&
+    (effAddr >= U(0x0380, 15 bits)) &&
+    (effAddr <  U(0x0400, 15 bits))
+  copper.io.hdmaCtrlAddr := effAddr(6 downto 0)
+  copper.io.hdmaData     := effData
+  copper.io.hdmaWr       := copperHdmaRangeHit
 
   // R5 RegisterMap decode off the merged bus. Writes to the linestate range
   // take the low 9 bits of effAddr as line index and the low 12 bits of
