@@ -64,9 +64,8 @@ Important note:
 
 ## SDRAM
 
-The current validated repository slice does **not** actively use SDRAM yet.
-
-Known facts:
+The SiP SDRAM is **actively used** for L0 tile + attribute fetch and as
+the target for host-driven asset uploads.
 
 | Property | Value |
 |---------|-------|
@@ -77,8 +76,8 @@ Known facts:
 | Clock target from device docs | up to 166 MHz |
 | Refresh requirement | 4096 refresh cycles / 64 ms |
 | Voltage requirement | SDRAM-connected banks at 3.3V |
-| Intended use | future fetch / render data path |
-| Validation status | not yet part of the proven hardware slice |
+| Controller source | `hw/spinal/spinalhdlvdp/SdramTileFetch.scala` and supporting modules |
+| Validation status | **Task 15** validated custom controller integration; **Task 34** validated the host-driven SDRAM_WRITE upload path; **Task 36** validated stability under concurrent QSPI + HDMA bus load |
 
 Source references for the hardware model:
 
@@ -88,25 +87,33 @@ Source references for the hardware model:
 
 Important implementation note:
 
-- This SDRAM is integrated in the Tang Nano 20K SiP and is **not** exposed as ordinary user-routed board-header pins.
-- Task 15 planning should target the embedded SDRAM interface model from the GW2AR/Tang20K docs, not a PSRAM/HyperRAM model.
+- This SDRAM is integrated in the Tang Nano 20K SiP and is **not** exposed as ordinary user-routed board-header pins; no board-side routing is required.
+- The custom SpinalHDL controller replaces the Gowin SiP reference IP — see `feedback_gowin_bsram.md` project memory for the tristate DQ + 225° phase notes if the controller is ever retouched.
 
-Do not invent additional timing margins, phase settings, or controller behavior here until they are brought into active implementation and validated.
+Do not invent additional timing margins, phase settings, or controller behavior that are not reflected in the current SpinalHDL sources.
 
 ---
 
 ## QSPI
 
-The current validated repository slice does **not** actively use QSPI yet.
-
-Known facts:
+The full 4-wire quad-mode QSPI host-control lane is **validated and
+actively used**. The external host (Pi Pico 2) drives register writes,
+status reads, and SDRAM asset uploads through this lane.
 
 | Property | Value |
 |---------|-------|
-| Intended role | external host control path |
-| Validation status | not yet implemented in the proven slice |
+| Role | external host control path |
+| Mode | quad-output (TX) + bit-bang turnaround (RX on the same 4 IO lines) |
+| Header format | 6-byte header `[CMD:1][ADDR:3][LEN:2]` (little-endian) |
+| Commands | `0x01` REG_WRITE, `0x02` SDRAM_WRITE, `0x04` READ_STATUS |
+| SCK | 2 MHz (proven); 5 MHz is the unverified theoretical ceiling and requires re-validating the PIO OSR drain margin + SDRAM CDC margin before use |
+| Controller source | `hw/spinal/spinalhdlvdp/QspiSlave.scala`, `QspiDecoder.scala` |
+| Host library | `firmware/libvdp/` (Task 39) — see `firmware/README.md` for build + flash |
+| Validation status | **Task 26/27** REG_WRITE; **Task 38a** bidirectional IOBUF on IO0..IO3; **Task 38c** bit-bang READ_STATUS response; **Task 34** SDRAM_WRITE upload; **Task 36** concurrent-load stability under rapid writes paired with Copper/HDMA |
 
-Do not invent QSPI mode, frequency, or pin assignments here until the wrapper and validation evidence exist.
+See `firmware/GOTCHAS.md` for the four proven firmware pitfalls
+(PIO pin-function restore, SpinalHDL literal-cache bug, CS hold time,
+OSR drain margin) that a custom QSPI path must respect.
 
 ---
 
@@ -127,6 +134,12 @@ Current validated assignments from `fpga/tang20k/tang20k_hdmi.cst`:
 | `O_tmds_data_p[0]` | `35,36` | TMDS lane 0 differential pair |
 | `O_tmds_data_p[1]` | `37,38` | TMDS lane 1 differential pair |
 | `O_tmds_data_p[2]` | `39,40` | TMDS lane 2 differential pair |
+| `I_qspi_sck` | `41` | 2 MHz, LVCMOS33, pulldown — Pico GP8 |
+| `I_qspi_cs`  | `42` | active low, pull-up — Pico GP9 |
+| `IO_qspi_io0`| `48` | bidirectional (Task 38a IOBUF) — Pico GP10 |
+| `IO_qspi_io1`| `49` | bidirectional — Pico GP11 |
+| `IO_qspi_io2`| `51` | bidirectional — Pico GP12 |
+| `IO_qspi_io3`| `54` | bidirectional — Pico GP13 |
 
 Shared RTL must remain unaware of pin locations.
 
@@ -156,5 +169,5 @@ The explicit FTDI serial is required on this workstation when multiple FT2232 pr
 
 - The current known-good slice depends on board-specific TMDS transport in `fpga/tang20k/`.
 - Headless Gowin builds on this workstation require a software/minimal Qt path; the repo Makefile already encodes that workaround.
-- The current hardware-proof baseline is the visible test pattern. Keep it available as a comparison reference when adding later stages.
-- SDRAM, QSPI, palette RAM, and line buffers are future work and must not be treated as already established.
+- SDRAM and the full-quad QSPI host-control lane are validated and in active use — see the respective sections above for controller sources and the task list that proved each one.
+- Palette RAM and line buffers remain in the `VdpTop` pipeline and are considered established; bus-master concurrency across them is proven under stress (Task 36).

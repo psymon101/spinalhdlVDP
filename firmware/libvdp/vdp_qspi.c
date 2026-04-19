@@ -63,8 +63,10 @@ void vdp_qspi_init(void)
     s_initialized = true;
 }
 
-/* Wait for PIO FIFO empty + OSR drain. Proven 20 µs margin from Task 38c. */
-static void vdp_pio_wait_sm_idle(void)
+/* Wait for PIO FIFO empty + OSR drain. Proven 20 µs margin from Task 38c.
+ * Exposed as public API (vdp_qspi.h) per Task 42 §4.3 option A — any custom
+ * PIO TX burst must call this before CS deassertion or pin-function switch. */
+void vdp_pio_wait_sm_idle(void)
 {
     while (!pio_sm_is_tx_fifo_empty(VDP_QSPI_PIO, VDP_QSPI_SM_TX)) { /* spin */ }
     sleep_us(20);

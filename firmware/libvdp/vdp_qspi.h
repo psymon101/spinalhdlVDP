@@ -66,6 +66,21 @@ void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words);
  */
 int vdp_last_error(void);
 
+/**
+ * Wait for the PIO TX FIFO to drain + a proven 20 µs OSR margin.
+ *
+ * MUST be called after any PIO TX burst before:
+ *   - deasserting CS_N
+ *   - switching pin function (PIO → SIO for bit-bang read)
+ *   - beginning an unrelated PIO sequence
+ *
+ * The wait is two phases: spin on `pio_sm_is_tx_fifo_empty()`, then
+ * `sleep_us(20)` for the final nibble to shift out of the OSR. At the
+ * proven 2 MHz SCK the final nibble needs ~5 µs, so 20 µs is a 4×
+ * margin (Task 38c). Do not reduce without re-validating on hardware.
+ */
+void vdp_pio_wait_sm_idle(void);
+
 #ifdef __cplusplus
 }
 #endif
