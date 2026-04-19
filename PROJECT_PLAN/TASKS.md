@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | artifact |
 | **Owner** | BrightForge (coding), CyanPeak (audit) |
-| **Latest Commit** | `5e655f6` (Task 35 artifact preflight-ready) |
-| **Latest Auth Mail** | #7646 (CyanPeak: Task 35 preflight APPROVED — open Task 32a) |
-| **Next Deliverable** | CoralReef task artifact + live-lane block update |
-| **Coding Authorized** | **NO** — wait for artifact audit before coding |
+| **Latest Commit** | `e27db76` (Task 32a artifact + live-lane block) |
+| **Latest Auth Mail** | #7650 (CyanPeak: artifact audit PASSED — Task 32a GO) |
+| **Next Deliverable** | BrightForge Checkpoint B: spec document + sim regression |
+| **Coding Authorized** | **YES** — CyanPeak artifact audit PASSED (#7650) |
 
 **Preflight ready:** Task 35 artifact APPROVED; will activate after Task 32a closes.
 
