@@ -298,11 +298,14 @@ int main(void)
     reg_write_word(0x0300, 0x0007);
     sleep_ms(10);
 
-    /* Wait 4 seconds before running SDRAM upload so one HDMI capture can
-     * cover both the pre-upload baseline AND the post-upload state in a
-     * single video. Capture analyzer compares early frame vs late frame. */
-    printf("[task34] 4-second pre-upload baseline window starts\n");
-    sleep_ms(4000);
+    /* Wait LONG enough before running SDRAM upload so one HDMI capture
+     * starting AFTER Pico flash can still see a clean pre-upload window.
+     * With ~8s between flash and capture start, a 12s delay here puts
+     * the upload at firmware t≈14s → capture sees baseline from t≈6..14
+     * in firmware-time = capture-time t≈0..6 s, then upload + post
+     * during capture-time t≈6..12 s. 20 s is safe margin. */
+    printf("[task34] 20-second pre-upload baseline window starts\n");
+    sleep_ms(20000);
     printf("[task34] pre-upload baseline window done; starting SDRAM stream\n");
 
     uint32_t magic = qspi_read_status(0);
@@ -344,6 +347,24 @@ int main(void)
      *   - Up to ~40 commands fit in one 1.4 ms vblank window
      *   - Chunk loop: clear RASTER_MATCH → poll → fire burst → repeat
      */
+    /* Probe iteration per BronzeGate #7698 option (i):
+     * Target TWO distinct regions in a single upload, landing one after
+     * the other. If either causes a visible HDMI delta, hypothesis 2
+     * (tile-addressing) is confirmed for that region.
+     *
+     *   Region 1: AttributeMapBase (0x7000) — 32 words of 0xFFFF
+     *             Overwrites attribute entries for tiles 0..31. Attributes
+     *             drive palette bank and per-pixel metadata; 0xFFFF forces
+     *             max palette bank for every affected tile.
+     *   Region 2: TileRowBase (0x8000) — 32 words of 0xFFFF
+     *             Overwrites tile-row pattern bytes. Original attempt.
+     *
+     * Expected: if attributes are live-read per frame (no cache), region 1
+     * should produce an unmistakable color shift; if tile rows are live-
+     * read, region 2 should solid-block affected tiles. Either result
+     * proves hypothesis 2. Neither result narrows to hypothesis 3.
+     */
+    #define ATTR_MAP_BASE  0x00007000u
     #define TILE_ROW_BASE  0x00008000u
     #define PAYLOAD_WORDS  32
     static const uint16_t upload_payload[PAYLOAD_WORDS] = {
@@ -363,30 +384,36 @@ int main(void)
     uint32_t err_before = qspi_read_status(4) & 0xFF;
     printf("[task34] pre-upload: cnt=%lu err=%lu\n",
            (unsigned long)cnt_before, (unsigned long)err_before);
-    printf("[task34] streaming %d words to 0x%08lx via vblank-paced 1-word bursts\n",
+    printf("[task34] probe: %d words to AttributeMapBase 0x%08lx then %d words to TileRowBase 0x%08lx\n",
+           PAYLOAD_WORDS, (unsigned long)ATTR_MAP_BASE,
            PAYLOAD_WORDS, (unsigned long)TILE_ROW_BASE);
 
     /* Wait for initial vblank, then drip-fire words. Upload enough per
      * vblank to fit comfortably; re-sync each frame. */
     #define WORDS_PER_VBLANK  8   /* 8 × 32 µs = 256 µs, well inside 1400 µs */
-    for (int base = 0; base < PAYLOAD_WORDS; base += WORDS_PER_VBLANK) {
-        /* Clear RASTER_MATCH sticky (bit 0). */
-        reg_write_word(0x0320, 0x0001);
-        /* Poll sel=5 until bit 0 is set = vblank entered. */
-        uint32_t timeout_us = 20000;   /* one frame margin */
-        while (timeout_us > 0) {
-            uint32_t s = qspi_read_status(5);
-            if (s & 0x01) break;
-            busy_wait_us_32(50);
-            timeout_us -= 50;
-        }
-        /* Fire one-word bursts. Each sdram_upload call sends CMD=0x02,
-         * addr, LEN=1, 2 payload bytes — ~32 µs total on the wire. */
-        int chunk_end = base + WORDS_PER_VBLANK;
-        if (chunk_end > PAYLOAD_WORDS) chunk_end = PAYLOAD_WORDS;
-        for (int i = base; i < chunk_end; i++) {
-            uint32_t addr = TILE_ROW_BASE + (uint32_t)(i * 2);
-            sdram_upload(addr, &upload_payload[i], 1);
+
+    /* Helper: vblank-paced upload of a payload at a base address. */
+    const uint32_t targets[2] = { ATTR_MAP_BASE, TILE_ROW_BASE };
+    for (int t = 0; t < 2; t++) {
+        for (int base = 0; base < PAYLOAD_WORDS; base += WORDS_PER_VBLANK) {
+            /* Clear RASTER_MATCH sticky (bit 0). */
+            reg_write_word(0x0320, 0x0001);
+            /* Poll sel=5 until bit 0 is set = vblank entered. */
+            uint32_t timeout_us = 20000;   /* one frame margin */
+            while (timeout_us > 0) {
+                uint32_t s = qspi_read_status(5);
+                if (s & 0x01) break;
+                busy_wait_us_32(50);
+                timeout_us -= 50;
+            }
+            /* Fire one-word bursts. Each sdram_upload call sends CMD=0x02,
+             * addr, LEN=1, 2 payload bytes — ~32 µs total on the wire. */
+            int chunk_end = base + WORDS_PER_VBLANK;
+            if (chunk_end > PAYLOAD_WORDS) chunk_end = PAYLOAD_WORDS;
+            for (int i = base; i < chunk_end; i++) {
+                uint32_t addr = targets[t] + (uint32_t)(i * 2);
+                sdram_upload(addr, &upload_payload[i], 1);
+            }
         }
     }
 
