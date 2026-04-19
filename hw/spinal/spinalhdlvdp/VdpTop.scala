@@ -194,6 +194,14 @@ case class VdpTop() extends Component {
   copper.io.progData := io.regBus.data
   copper.io.progWr   := copperProgRangeHit
 
+  // Task 33 — HDMA host-control sub-block @ 0x0380..0x03C9.
+  val copperHdmaRangeHit = io.regBus.enable &&
+    (io.regBus.addr >= U(0x0380, 15 bits)) &&
+    (io.regBus.addr <  U(0x0400, 15 bits))
+  copper.io.hdmaCtrlAddr := io.regBus.addr(6 downto 0)
+  copper.io.hdmaData     := io.regBus.data
+  copper.io.hdmaWr       := copperHdmaRangeHit
+
   // R5.2 (#7082 target 100%): copper writes now flow through a small drain
   // FIFO and are released only on the safe boundary (`hCounter === 0`).
   // Previously the combinational merge let copper regWrite pulses reach the

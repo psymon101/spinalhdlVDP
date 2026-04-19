@@ -34,6 +34,11 @@ case class Copper() extends Component {
     val progData = in Bits(16 bits)
     val progWr   = in Bool()
 
+    // Task 33: HDMA host-control write port (offset within 0x0380 block).
+    val hdmaCtrlAddr = in UInt(7 bits)
+    val hdmaData     = in Bits(16 bits)
+    val hdmaWr       = in Bool()
+
     // Register-write output (pixel domain, merged upstream with HostInterface)
     val regAddr  = out UInt(15 bits)
     val regData  = out Bits(16 bits)
@@ -58,9 +63,6 @@ case class Copper() extends Component {
   val regAddrR = Reg(UInt(15 bits)) init 0
   val regDataR = Reg(Bits(16 bits)) init 0
   val regWrR   = Reg(Bool())         init False
-  io.regAddr := regAddrR
-  io.regData := regDataR
-  io.regWr   := regWrR
   regWrR := False  // default single-cycle
 
   val opcode = fetchWord(15 downto 14)
@@ -141,4 +143,126 @@ case class Copper() extends Component {
       }
     }
   }
+
+  // ------------------------------------------------------------------
+  // Task 33 — HDMA engine (incremental add)
+  // ------------------------------------------------------------------
+  val NUM_CH  = 4
+  val NUM_ENT = 8
+  val hdmaEnable = Reg(Bool()) init False
+  val hdmaChMask = Reg(Bits(4 bits)) init 0
+  val hdmaDoneSt = Reg(Bool()) init False
+
+  val chAddr0 = Reg(UInt(15 bits)) init 0
+  val chAddr1 = Reg(UInt(15 bits)) init 0
+  val chAddr2 = Reg(UInt(15 bits)) init 0
+  val chAddr3 = Reg(UInt(15 bits)) init 0
+
+  when(io.hdmaWr) {
+    switch(io.hdmaCtrlAddr) {
+      is(U(0x00, 7 bits)) {
+        hdmaEnable := io.hdmaData(0)
+        hdmaChMask := io.hdmaData(4 downto 1)
+      }
+      is(U(0x01, 7 bits)) { when(io.hdmaData(0)) { hdmaDoneSt := False } }
+      is(U(0x02, 7 bits)) { chAddr0 := io.hdmaData(14 downto 0).asUInt }
+      is(U(0x04, 7 bits)) { chAddr1 := io.hdmaData(14 downto 0).asUInt }
+      is(U(0x06, 7 bits)) { chAddr2 := io.hdmaData(14 downto 0).asUInt }
+      is(U(0x08, 7 bits)) { chAddr3 := io.hdmaData(14 downto 0).asUInt }
+      default {}
+    }
+  }
+
+  // Entry table: 25-bit words {valid[24], line[23:16], data[15:0]}.
+  // Initialised to all-zeros so `valid==0` for every entry at power-on;
+  // guarantees sweep cannot produce phantom hits from undefined Mem state
+  // (Verilator models uninitialised readAsync as random).
+  val tbl = Mem(Bits(25 bits), NUM_CH * NUM_ENT).initBigInt(Seq.fill(NUM_CH * NUM_ENT)(BigInt(0)))
+  val tblWrAddr = UInt(log2Up(NUM_CH * NUM_ENT) bits)
+  val tblWrData = Bits(25 bits)
+  val tblWrEn   = Bool()
+  tblWrAddr := 0
+  tblWrData := B(0, 25 bits)
+  tblWrEn   := False
+
+  when(io.hdmaWr) {
+    val off = io.hdmaCtrlAddr
+    when(off >= U(0x0A, 7 bits) && off <= U(0x49, 7 bits)) {
+      val slot   = off - U(0x0A, 7 bits)
+      val ch     = slot(5 downto 4)                    // bits 5:4 ≅ ch (0..3)
+      val ent    = slot(3 downto 1)                    // bits 3:1 ≅ entry (0..7)
+      val isData = slot(0)
+      val ix     = (ch.resize(log2Up(NUM_CH * NUM_ENT)) * U(NUM_ENT, log2Up(NUM_CH * NUM_ENT) bits) +
+                    ent.resize(log2Up(NUM_CH * NUM_ENT))).resize(log2Up(NUM_CH * NUM_ENT))
+      val cur       = tbl.readAsync(ix)
+      val nextValid = Mux(isData, cur(24), io.hdmaData(15))
+      val nextLine  = Mux(isData, cur(23 downto 16), io.hdmaData(7 downto 0))
+      val nextData  = Mux(isData, io.hdmaData, cur(15 downto 0))
+      tblWrAddr := ix
+      tblWrData := nextValid ## nextLine ## nextData
+      tblWrEn   := True
+    }
+  }
+  tbl.write(tblWrAddr, tblWrData, tblWrEn)
+
+  // Sweep FSM — one entry scan per cycle across NUM_CH*NUM_ENT entries per line.
+  def chAddrSel(ch: UInt): UInt = ch.muxList(Seq(
+    (0, chAddr0), (1, chAddr1), (2, chAddr2), (3, chAddr3)))
+  def tidx(ch: UInt, ent: UInt): UInt = {
+    val total = NUM_CH * NUM_ENT
+    (ch.resize(log2Up(total)) * U(NUM_ENT, log2Up(total) bits) +
+     ent.resize(log2Up(total))).resize(log2Up(total))
+  }
+
+  val sweepActive = Reg(Bool()) init False
+  val sweepCh     = Reg(UInt(log2Up(NUM_CH + 1) bits)) init 0
+  val sweepEnt    = Reg(UInt(log2Up(NUM_ENT) bits))    init 0
+  val hzero       = io.hCounter === U(0, 10 bits)
+  val hzeroPrev   = RegNext(hzero) init False
+  val lineStart   = hzero && !hzeroPrev
+
+  val hdmaRegAddr = Reg(UInt(15 bits)) init 0
+  val hdmaRegData = Reg(Bits(16 bits)) init 0
+  val hdmaRegWr   = Reg(Bool())        init False
+  hdmaRegWr := False
+
+  when(lineStart && io.vCounter === U(0, 10 bits)) { hdmaDoneSt := False }
+  when(lineStart && hdmaEnable) {
+    sweepActive := True
+    sweepCh     := 0
+    sweepEnt    := 0
+  }
+
+  val chi      = sweepCh.resize(log2Up(NUM_CH))
+  val masked   = hdmaChMask(chi)
+  val curEntry = tbl.readAsync(tidx(chi, sweepEnt))
+  val entValid = curEntry(24)
+  val entLine  = curEntry(23 downto 16).asUInt
+  val entData  = curEntry(15 downto 0)
+  val hit      = entValid && (entLine === io.vCounter(7 downto 0))
+
+  when(sweepActive) {
+    when(masked && hit) {
+      hdmaRegAddr := chAddrSel(chi)
+      hdmaRegData := entData
+      hdmaRegWr   := True
+    }
+    when(sweepEnt === U(NUM_ENT - 1, log2Up(NUM_ENT) bits)) {
+      sweepEnt := 0
+      when(sweepCh === U(NUM_CH - 1, sweepCh.getWidth bits)) {
+        sweepActive := False
+        sweepCh     := 0
+        hdmaDoneSt  := True
+      } otherwise {
+        sweepCh := sweepCh + 1
+      }
+    } otherwise {
+      sweepEnt := sweepEnt + 1
+    }
+  }
+
+  // Output mux — script wins over HDMA on same-cycle contention.
+  io.regWr   := regWrR || hdmaRegWr
+  io.regAddr := Mux(regWrR, regAddrR, hdmaRegAddr)
+  io.regData := Mux(regWrR, regDataR, hdmaRegData)
 }
