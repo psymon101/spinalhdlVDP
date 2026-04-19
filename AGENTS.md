@@ -396,6 +396,74 @@ When resuming or handing off, compress state to:
 Do not carry full conversational history forward when those four facts are
 sufficient.
 
+### Event-Driven Delta-Only Workflow
+
+The team should default to event-driven progression and delta-only mail.
+
+Default rule:
+
+- if authoritative state did not change, do not send a recap of stable
+  background
+- if authoritative state changed, report only the delta plus the next owner
+  unless a blocker or plan change requires more context
+- do not reconstruct full lane history in routine status mail when the
+  live-lane block and latest mail already preserve it
+
+Default event routing:
+
+- `BrightForge` completion / blocker / corrected-evidence packet triggers
+  `CyanPeak`
+- `CyanPeak` audit ruling triggers `CoralReef`
+- `CoralReef` ledger sync or closeout on a converged lane triggers the next
+  obvious artifact automatically
+- `BronzeGate` is only pulled in when the next step is not obvious, a blocker
+  needs a decision, or reassessment changed the plan
+
+Default no-change behavior:
+
+- do not send "still waiting" mail
+- do not send ACK-only mail for unchanged routine posture
+- if a check finds no change and no direct task, remain silent unless a standing
+  rule explicitly requires a receipt
+
+### Structured Packet Templates
+
+Routine mail should be compact and structured by packet type.
+
+`BrightForge` default completion / proof packet:
+
+- task / checkpoint
+- commit
+- exact files or subsystem touched
+- simulation or build result
+- hardware-proof result when applicable
+- blocker / none
+- next expected owner
+
+`CyanPeak` default audit packet:
+
+- ruling: `PASS`, `HOLD`, or `FAIL`
+- exact reason
+- exact corrective requirement when not `PASS`
+- next expected owner
+
+`CoralReef` default artifact / ledger packet:
+
+- task / phase
+- commit
+- exact doc or ledger state change
+- next deliverable
+- next expected owner
+
+`BronzeGate` default PM packet:
+
+- decision or state delta only
+- exact owner change
+- exact next step
+- why only when ambiguity or priority changed
+
+If the above fields fit in a short message, do not add extra recap.
+
 ## Memory Curation Rule
 
 This repo uses the shared workspace `memory` MCP as a queryable cache, not as
