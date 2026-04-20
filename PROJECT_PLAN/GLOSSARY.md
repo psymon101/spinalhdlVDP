@@ -18,6 +18,12 @@ A control surface built on top of Mode0 that presents a programming model orient
 
 A platform adapter owns platform-specific registers, command semantics, and behavioral quirks. For example, an Amiga-oriented adapter may model Copper-visible registers and Copper-style line effects, but it should do so by driving Mode0 primitives such as raster position, linestate commit, fetch scheduling, layer enable changes, palette updates, and composition control. The adapter defines the platform semantics; Mode0 supplies the machinery.
 
+### Host Controller
+
+The external CPU or MCU that programs the VDP. The host controller is responsible for application logic, user input handling, register writes, status reads, interrupt/event response, and asset upload into host-visible memory surfaces. It is not responsible for per-pixel rendering, composition, beam timing, or display processing.
+
+The host controller may decide **what** the VDP should display and may upload the assets or descriptors needed to do so, but the VDP decides **how** pixels are fetched, composed, timed, and emitted. If a proposed feature requires the host controller to perform display processing that should instead be expressed as VDP-side rendering behavior, the proposal is architecturally suspect and should be challenged.
+
 ### Linestate
 
 A per-scanline state record. The linestate model defines the set of rendering parameters that are valid for a single scanline: scroll positions, layer enables, palette bank, fetch addresses, per-line raster effect parameters, etc. Linestate records are prepared ahead of the scanline they govern, committed atomically at the line boundary, and consumed by the render pipeline during that line's active period. The linestate model is the primary mechanism for per-line raster effects.

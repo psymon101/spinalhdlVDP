@@ -18,6 +18,11 @@ R5 Host Interface + Copper Coprocessor
 
 Provide a **safe, host-programmable control surface** for the VDP and a **minimal copper coprocessor** for mid-frame raster effects. This closes the gap between the external MCU/CPU and the internal pixel pipeline, and lays the register-write infrastructure required by all upcoming primitives (planar, shuffled, affine, raster effects).
 
+Architectural rule:
+- the external host owns command, control, status, and asset upload
+- the VDP owns pixel generation, composition, raster timing, and beam-synchronous behavior
+- this interface exists to let a host program the video processor, not to move display processing into firmware
+
 **Why now:**
 - R1 through R4.1 have built the pixel pipeline, but every register and linestate update is still hardcoded in `TopTang20kHdmi.scala`.
 - Without a host interface, planar/shuffled/affine tasks would require FPGA rebuilds for every scene change, blocking external integration.

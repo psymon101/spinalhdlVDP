@@ -71,6 +71,9 @@ Architectural rule:
 - platform-facing modes are semantic adapters over `Mode0`, not separate render engines
 - platform-specific registers, quirks, and control models belong in the adapter layer
 - generic rendering/timing/fetch/composition primitives belong in `Mode0`
+- the external host is a command/control owner, not a renderer
+- host-side firmware may upload assets, write registers, poll status, and respond to interrupts/events
+- per-pixel display processing, composition, fetch timing, and beam-synchronous behavior belong in the VDP-side video processor, not in the host firmware
 
 Example:
 

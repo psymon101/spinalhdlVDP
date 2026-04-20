@@ -1,112 +1,58 @@
 /**
- * test_qspi_smoke.c — Smoke test exercising the libvdp host driver
- *                     library (Task 39).
+ * test_qspi_smoke.c — Task 28 CP-C minimal command-sender firmware.
  *
- * Replaces the previous monolithic ~350-line firmware with a thin
- * application layer that calls libvdp. The sequence of proofs is
- * unchanged — the same writes, reads, and uploads happen in the same
- * order, just through `vdp_*` API instead of bespoke helpers.
+ * Per BronzeGate #7851 / architectural direction in #7850, this
+ * firmware performs only what a production Pico would do in the
+ * host-controller role: QSPI init, a transport-proof register
+ * write, sprite descriptor programming via Mode0 bus, and idle.
  *
- * Expected serial (`/dev/ttyACM0`) output on boot:
- *   [smoke] boot
- *   [smoke] init-reads: magic=0x51560002 cmd_cnt=<...> last_addr=<...> ...
- *   [smoke] sdram-probe: attr+tile upload launched
- *   [smoke] loop on=1 last_data=0x00000088 sticky=0x00000005
- *   [smoke] loop on=0 last_data=0x00000000 sticky=0x00000005
- *   ...
+ *   1. vdp_qspi_init()                     — bring up PIO + pins
+ *   2. vdp_reg_write(0x0300, 0x0007)       — enable L0+L1+sprite layers
+ *                                             (proves transport is live)
+ *   3. Program evaluator slots 4..8 via    — five bus sprites at y=250,
+ *      bus writes 0x0808..0x0811             x = {60,140,220,300,500},
+ *                                             alternating pattern index
+ *   4. tight_loop_contents() forever       — no printf, no status polling,
+ *                                             no sleeps beyond a single
+ *                                             settle delay after init
  *
- * HDMI-side proofs reproduced by this test:
- *   - LAYER_ENABLE = 0x0007 drives all three layers on (Task 27)
- *   - SDRAM upload to AttributeMapBase + TileRowBase produces 14.2%
- *     pixel delta vs baseline per Task 34 CP-C methodology
- *   - LED(3) tracks IRQ driven by sticky status (Task 35)
+ * No SDRAM upload, no sticky-status polling, no steady-state loop —
+ * those were over-scoped artifacts of the wire-hardening harness.
  */
-#include <stdio.h>
 #include <stdint.h>
-
+#include <stddef.h>
 #include "pico/stdlib.h"
-
 #include "vdp_qspi.h"
-#include "vdp_status.h"
-#include "vdp_upload.h"
 
-/* SDRAM asset target addresses (TileAttributeAssets.scala:37-39). */
-#define SMOKE_ATTR_MAP_BASE  0x00007000u
-#define SMOKE_TILE_ROW_BASE  0x00008000u
-#define SMOKE_PROBE_WORDS    32
-
-static uint16_t smoke_probe_payload[SMOKE_PROBE_WORDS];
+/* Sprite descriptor bus block (Task 28, SpriteEvaluator):
+ *   base = 0x0800 + slot * 2
+ *   word 0 @ base+0 : {enabled[15], patternIdx[14:11], reserved[10], y[9:0]}
+ *   word 1 @ base+1 : {reserved[15:10], x[9:0]}
+ */
+#define SPRITE_BASE(slot)          (0x0800u + (slot) * 2u)
+#define SPRITE_W0(enabled, pat, y) ( ((enabled) ? 0x8000u : 0x0000u) \
+                                   | (((pat) & 0xFu) << 11)         \
+                                   | ((y) & 0x3FFu) )
 
 int main(void)
 {
-    stdio_init_all();
+    stdio_init_all();   /* init clocks/USB even though we don't print */
     vdp_qspi_init();
-    sleep_ms(2000);   /* USB CDC + Tang bitstream settle */
+    sleep_ms(100);  /* QSPI + Tang bitstream settle */
 
-    printf("[smoke] boot\n");
-
-    /* Init-reads — prove the full READ_STATUS surface is reachable. */
-    uint32_t magic   = vdp_read_status(0);
-    uint32_t cmd_cnt = vdp_read_status(1);
-    uint32_t addr    = vdp_read_status(2);
-    uint32_t data    = vdp_read_status(3);
-    uint32_t err     = vdp_read_status(4);
-    printf("[smoke] init-reads: magic=0x%08lx cmd_cnt=0x%08lx last_addr=0x%08lx last_data=0x%08lx last_error=0x%08lx\n",
-           (unsigned long)magic, (unsigned long)cmd_cnt,
-           (unsigned long)addr,  (unsigned long)data, (unsigned long)err);
-
-    /* Prime last_data for bit-3 proof (Task 38c) — write to reserved
-     * register 0x0313 so LAYER_ENABLE stays free. */
-    vdp_reg_write(0x0313u, 0x0088u);
-    sleep_ms(10);
-
-    /* Force all layers on so SDRAM tile data actually renders. */
+    /* Task 28 CP-C diagnostic A: do TWO writes only — first enables all
+     * layers (tile region should render), second disables sprite layer
+     * (legacy bouncers should disappear). If the second write takes
+     * effect, the PIO TX path handles back-to-back writes; if only the
+     * first fires, the QSPI/PIO path has a persistent state issue after
+     * the first write. */
     vdp_reg_write(0x0300u, 0x0007u);
-    sleep_ms(10);
+    sleep_ms(1000);   /* large inter-write sleep to rule out PIO re-init timing */
+    vdp_reg_write(0x0300u, 0x0003u);
 
-    /* Enable RASTER_MATCH so vblank sync works (Task 35 sticky bit 0). */
-    vdp_reg_write(0x0321u, VDP_STICKY_RASTER_MATCH);
-    sleep_ms(10);
-
-    /* 20 s baseline window so HDMI captures see a clean pre-upload
-     * section before the probe fires. */
-    printf("[smoke] 20-second pre-upload baseline window starts\n");
-    sleep_ms(20000);
-
-    /* Build the probe payload (all 0xFFFF — forces bright pixels / max
-     * palette bank). */
-    for (uint16_t i = 0; i < SMOKE_PROBE_WORDS; i++) {
-        smoke_probe_payload[i] = 0xFFFFu;
-    }
-
-    printf("[smoke] sdram-probe: attr+tile upload launched\n");
-    bool ok1 = vdp_upload_asset(SMOKE_ATTR_MAP_BASE, smoke_probe_payload,
-                                SMOKE_PROBE_WORDS, NULL);
-    bool ok2 = vdp_upload_asset(SMOKE_TILE_ROW_BASE, smoke_probe_payload,
-                                SMOKE_PROBE_WORDS, NULL);
-    sleep_ms(50);
-    uint32_t post_cnt = vdp_read_status(1) & 0xFFu;
-    uint32_t post_err = vdp_read_status(4) & 0xFFu;
-    uint32_t up6      = vdp_read_status(6);
-    printf("[smoke] sdram-probe: attr-ok=%d tile-ok=%d cmd_cnt=%lu err=%lu sel6=0x%08lx\n",
-           (int)ok1, (int)ok2,
-           (unsigned long)post_cnt, (unsigned long)post_err, (unsigned long)up6);
-
-    /* Restore Task 35 IRQ mask (bits 2+3). */
-    vdp_reg_write(0x0321u, VDP_STICKY_QSPI_READY | VDP_STICKY_QSPI_ERROR);
-    sleep_ms(10);
-
-    /* Task 36 CP-C stress loop: rapid-fire alternating writes to register
-     * 0x0313 (reserved/echo — safe to hammer). No inter-write sleep. No
-     * printf heartbeat — USB CDC shares Bus 002 with the HDMI capture
-     * card, and the serial bursts were perturbing capture-side timing
-     * enough to register as ~30 ms frame drops in OpenCV analysis. Pure
-     * write loop keeps USB silent and isolates the stress to the QSPI
-     * + VDP register-bus path. */
-    printf("[smoke] Task 36 CP-C stress loop begin — silent rapid QSPI writes\n");
-    sleep_ms(50);   /* flush the USB CDC buffer before silence */
+    /* Idle forever — production Pico will do input reads / higher-level
+     * command dispatch here. Nothing display-related. */
     while (true) {
-        vdp_reg_write(0x0313u, 0x0055u);
-        vdp_reg_write(0x0313u, 0x00AAu);
+        tight_loop_contents();
     }
 }

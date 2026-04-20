@@ -648,6 +648,9 @@ case class VdpTop() extends Component {
   // Shift strobe earlier by descCount cycles so the scan completes before
   // the next line begins drawing.
   spriteEval.io.evalLine  := (fillLine + 1).resize(10)
+  // Scan start shifted earlier by descCount+margin so the sequential
+  // Pass-1 FSM completes before the line-fill swap. descCount=8 needs
+  // ~8 cycles; hTotal-33 is a comfortable margin.
   spriteEval.io.evalStart := hCounter === U(hTotal - 33, log2Up(hTotal) bits)
   io.spriteOverflow := spriteEval.io.overflowFlag
 
