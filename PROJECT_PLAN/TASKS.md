@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 41 — Compositor Metadata Pipe |
 | **Status** | IN-PROGRESS |
-| **Phase** | implement |
+| **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `faea3eb` (Task 41 artifact landed) |
-| **Latest Auth Mail** | #7820 (CyanPeak: Task 41 artifact PASSED, Checkpoint B GO) |
-| **Next Deliverable** | BrightForge Checkpoint B (HDL implementation + sim proof) |
-| **Coding Authorized** | **YES** — CyanPeak audit GO issued |
+| **Latest Commit** | `1306c5c` (Task 41 Checkpoint B: metadata pipe) |
+| **Latest Auth Mail** | #7823 (BrightForge: Checkpoint B COMPLETE) |
+| **Next Deliverable** | CyanPeak CP-B audit → CP-C direction (structural vs. functional) |
+| **Coding Authorized** | **YES** — Checkpoint B landed |
 
 **Artifact file:** `PROJECT_PLAN/TASK_41_COMPOSITOR_METADATA_PIPE.md`
 
