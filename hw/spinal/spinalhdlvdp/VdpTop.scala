@@ -93,6 +93,9 @@ case class VdpTop() extends Component {
     val layer0FetchGrant      = out Bool()
     val layer0FetchSlotValid  = out Bool()
     val layer0FetchPreAnnounce = out Bool()
+    // Task 30: scheduler grantClientId exposed so the top-level SDRAM
+    // arbiter can mux between fetch clients.
+    val layer0FetchGrantClientId = out UInt(2 bits)
     val layer0FetchLine       = out UInt(10 bits)
     val layer0FetchScrollX    = out UInt(10 bits)
     val layer0FetchScrollY    = out UInt(10 bits)
@@ -513,6 +516,7 @@ case class VdpTop() extends Component {
   io.layer0FetchGrant       := grantHold =/= 0
   io.layer0FetchSlotValid   := scheduler.io.slotValid
   io.layer0FetchPreAnnounce := scheduler.io.preAnnounce
+  io.layer0FetchGrantClientId := scheduler.io.grantClientId
   io.layer0FetchLine        := fetchLineReg
   io.layer0FetchScrollX     := fetchScrollXReg
   io.layer0FetchScrollY     := fetchScrollYReg

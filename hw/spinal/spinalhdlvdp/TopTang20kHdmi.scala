@@ -959,12 +959,40 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   // explicit ClockingArea inside SdramTileFetch). Upload pulse is the CDC-
   // regenerated one from sdramCdcArea — fetch retains its existing direct
   // wiring (it has been empirically stable since Task 15).
+  // Task 30 — multi-client SDRAM arbiter. The scheduler's grantClientId
+  // selects which of 4 clients drives the SDRAM request lines on each
+  // cycle. Today only client 0 (tile/attribute fetch) is wired; clients
+  // 1..3 are reserved for future engines (sprite-to-SDRAM, blitter,
+  // spare) and tied inactive. With the current 2-slot schedule
+  // (both slots clientId=0) the arbiter's mux is identity → bit-
+  // identical to the pre-arbiter direct wiring.
+  //
+  // Upload bypass (QSPI-SDRAM write pulse) remains a separate priority
+  // override in front of the arbiter — it is not scheduled, and its
+  // scope is orthogonal to multi-fetch arbitration.
+  val sdramArbiter = SdramArbiter(clientCount = 4, addrWidth = 23, dataWidth = 8)
+  sdramArbiter.io.grantClientId := pixelArea.video.io.layer0FetchGrantClientId
+  sdramArbiter.io.slotValid     := pixelArea.video.io.layer0FetchSlotValid
+  sdramArbiter.io.grant         := pixelArea.video.io.layer0FetchGrant
+  // Client 0 — tile + attribute fetch.
+  sdramArbiter.io.clientRd(0)   := pixelArea.fetch.io.sdramRd
+  sdramArbiter.io.clientWr(0)   := pixelArea.fetch.io.sdramWr
+  sdramArbiter.io.clientAddr(0) := pixelArea.fetch.io.sdramAddr
+  sdramArbiter.io.clientDin(0)  := pixelArea.fetch.io.sdramDin
+  // Clients 1..3 — reserved, tied inactive.
+  for (c <- 1 until 4) {
+    sdramArbiter.io.clientRd(c)   := False
+    sdramArbiter.io.clientWr(c)   := False
+    sdramArbiter.io.clientAddr(c) := U(0, 23 bits)
+    sdramArbiter.io.clientDin(c)  := B(0, 8 bits)
+  }
+
   val uploadDrive = sdramCdcArea.uploadWrPulse
-  sdramArea.ctrl.io.rd      := pixelArea.fetch.io.sdramRd
-  sdramArea.ctrl.io.wr      := pixelArea.fetch.io.sdramWr || uploadDrive
+  sdramArea.ctrl.io.rd      := sdramArbiter.io.sdramRd
+  sdramArea.ctrl.io.wr      := sdramArbiter.io.sdramWr || uploadDrive
   sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh
-  sdramArea.ctrl.io.addr    := Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramAddr, pixelArea.fetch.io.sdramAddr)
-  sdramArea.ctrl.io.din     := Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramDin,  pixelArea.fetch.io.sdramDin)
+  sdramArea.ctrl.io.addr    := Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramAddr, sdramArbiter.io.sdramAddr)
+  sdramArea.ctrl.io.din     := Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramDin,  sdramArbiter.io.sdramDin)
   pixelArea.fetch.io.sdramDout      := sdramArea.ctrl.io.dout
   pixelArea.fetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
   pixelArea.fetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready
