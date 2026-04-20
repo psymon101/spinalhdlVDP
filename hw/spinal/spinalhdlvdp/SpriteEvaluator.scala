@@ -4,7 +4,7 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib._
 
-/** Task 28 — Two-Pass Sprite Evaluator.
+/** Task 28 — Two-Pass Sprite Evaluator + Task 37 affine extension.
   *
   * Pass 1 (sequential scan): walks `descCount` descriptors across one H-blank
   * period, selecting up to `visiblePerLine` whose Y-range `[y, y+16)`
@@ -16,29 +16,21 @@ import spinal.lib._
   * (`active*`) for the pixel-fill path to resolve per-pixel sprite
   * contributions.
   *
-  * Descriptor storage architecture (Task 28 / CyanPeak #7838):
-  *   - Slots `[0 .. legacyIoCount)` are driven live from the io `desc*`
-  *     input Vecs — preserves backwards-compat with the existing
-  *     `VdpTop.io.spriteN` external path and the scenario wiring in
-  *     `TopTang20kHdmi.scala`.
-  *   - Slots `[legacyIoCount .. descCount)` are Reg-backed and
-  *     programmable via the `bus*` write port. Host code writes via the
-  *     Mode0 register bus block `0x0800 + slot*2 + word`
-  *     (word 0 = enabled/patternIndex/y, word 1 = x).
+  * Descriptor storage architecture:
+  *   - Slots `[0 .. legacyIoCount)` driven from io `desc*` input Vecs
+  *     (affineEnable hardwired False — legacy flat path).
+  *   - Slots `[legacyIoCount .. descCount)` Reg-backed, programmable via
+  *     the `bus*` write port. Bus layout is 8 words per slot:
+  *       word 0: {enabled[15], patIdx[14:11], affineEnable[10], y[9:0]}
+  *       word 1: {_[15:10], x[9:0]}
+  *       word 2: matrixA[15:0]   (Q8.8 signed)
+  *       word 3: matrixB[15:0]
+  *       word 4: matrixC[15:0]
+  *       word 5: matrixD[15:0]
+  *       word 6: transX[15:0]    (Q10.6 signed)
+  *       word 7: transY[15:0]
   *
-  * Ordering / priority (per CyanPeak #7838 §8.3):
-  *   - Slot 0 receives the lowest on-line descriptor index, slot 1 the
-  *     next, etc. Descriptor index serves as the deterministic
-  *     tie-breaker.
-  *   - The pixel-fill consumer iterates slots 0..visiblePerLine-1 with
-  *     last-hit-wins, so higher descriptor index = higher render priority
-  *     (back-to-front stacking).
-  *
-  * Scan timing: `evalStart` strobes at the end of each line. The FSM takes
-  * descCount pixel-clock cycles to complete; the results are latched into
-  * registers that remain stable through the next full line. hBlank
-  * provides ~160 cycles of headroom on 640×480@60 timing, so descCount
-  * up to ~150 is safe.
+  * Host maps the Mode0 bus block `0x0800 + slot*8 + word` to these words.
   */
 case class SpriteEvaluator(
     descCount: Int = 32,
@@ -53,6 +45,7 @@ case class SpriteEvaluator(
   val descIdxBits = log2Up(descCount)
   val slotBits    = log2Up(visiblePerLine)
   val extCount    = descCount - legacyIoCount
+  val busWordBits = 3
 
   val io = new Bundle {
     // Legacy IO descriptor ports — slots 0..legacyIoCount-1.
@@ -63,44 +56,60 @@ case class SpriteEvaluator(
 
     // Bus-write port — populates the Reg-backed slots [legacyIoCount..descCount).
     val busSlot = in UInt(descIdxBits bits)
-    val busWord = in UInt(1 bit)            // 0 = {enabled, patternIdx, y}, 1 = x
+    val busWord = in UInt(busWordBits bits)
     val busData = in Bits(16 bits)
     val busWr   = in Bool()
 
-    // Pass 1 trigger — line to evaluate, one-cycle strobe at end of line M.
+    // Pass 1 trigger.
     val evalLine  = in UInt(10 bits)
     val evalStart = in Bool()
 
     // Pass 2 outputs (line-stable across next line).
-    val activeValid      = out Vec(Bool(), visiblePerLine)
-    val activeX          = out Vec(UInt(10 bits), visiblePerLine)
-    val activeRow        = out Vec(UInt(4 bits), visiblePerLine)
-    val activePatternIdx = out Vec(UInt(patternSelBits bits), visiblePerLine)
+    val activeValid        = out Vec(Bool(), visiblePerLine)
+    val activeX            = out Vec(UInt(10 bits), visiblePerLine)
+    val activeY            = out Vec(UInt(10 bits), visiblePerLine)
+    val activeRow          = out Vec(UInt(4 bits), visiblePerLine)
+    val activePatternIdx   = out Vec(UInt(patternSelBits bits), visiblePerLine)
+    // Task 37 affine outputs.
+    val activeAffineEnable = out Vec(Bool(), visiblePerLine)
+    val activeMatrixA      = out Vec(Bits(16 bits), visiblePerLine)
+    val activeMatrixB      = out Vec(Bits(16 bits), visiblePerLine)
+    val activeMatrixC      = out Vec(Bits(16 bits), visiblePerLine)
+    val activeMatrixD      = out Vec(Bits(16 bits), visiblePerLine)
+    val activeTransX       = out Vec(Bits(16 bits), visiblePerLine)
+    val activeTransY       = out Vec(Bits(16 bits), visiblePerLine)
 
-    // Diagnostic: per-line sprite-overflow flag.
     val overflowFlag = out Bool()
   }
 
   // ---------------------------------------------------------------------
-  // Reg-backed extended descriptors (slots legacyIoCount..descCount-1).
-  // Each field gets its own Vec-of-Reg to avoid the Vec(Reg(...)) shared-
-  // reference pitfall.
+  // Reg-backed extended descriptors.
   // ---------------------------------------------------------------------
   val regEnabled      = Vec.fill(extCount)(RegInit(False))
   val regX            = Vec.fill(extCount)(RegInit(U(1023, 10 bits)))
   val regY            = Vec.fill(extCount)(RegInit(U(1023, 10 bits)))
   val regPatternIndex = Vec.fill(extCount)(RegInit(U(0, patternSelBits bits)))
-  // Task 28 CP-C-Opt1 — expose Reg-Vec to simPublic for VdpTop-scoped
-  // integration sim (SpriteBusViaVdpTopSim).
-  // Task 28 CP-C Option B (BronzeGate #7883 follow-on): add syn_keep on
-  // extended Reg-Vec so Gowin synthesis doesn't fold these regs away as
-  // optimised constants. Verilator treats them as ordinary regs; Gowin
-  // may optimise if reached-via-dynamic-index patterns appear dead.
+  val regAffineEnable = Vec.fill(extCount)(RegInit(False))
+  val regMatrixA      = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
+  val regMatrixB      = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
+  val regMatrixC      = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
+  val regMatrixD      = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
+  val regTransX       = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
+  val regTransY       = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
+
+  // simPublic for integration sims.
   for (i <- 0 until extCount) {
     regEnabled(i).simPublic()
     regX(i).simPublic()
     regY(i).simPublic()
     regPatternIndex(i).simPublic()
+    regAffineEnable(i).simPublic()
+    regMatrixA(i).simPublic()
+    regMatrixB(i).simPublic()
+    regMatrixC(i).simPublic()
+    regMatrixD(i).simPublic()
+    regTransX(i).simPublic()
+    regTransY(i).simPublic()
     regEnabled(i).addAttribute("syn_keep", "1")
     regX(i).addAttribute("syn_keep", "1")
     regY(i).addAttribute("syn_keep", "1")
@@ -111,27 +120,28 @@ case class SpriteEvaluator(
     val slot = io.busSlot
     when(slot >= U(legacyIoCount, descIdxBits bits)) {
       val rel = (slot - U(legacyIoCount, descIdxBits bits)).resize(log2Up(extCount))
-      // Task 28 CP-C Option 1b (BronzeGate #7871 / CoralReef #7875):
-      // Explicit per-slot `switch` decode instead of a dynamic-index
-      // `Vec` write. Eliminates the `({31'd0,1'b1} <<< rel)` wide one-hot
-      // shift that Gowin synthesis mis-routes under place-and-route.
-      // Each slot has its own fully-decoded write-enable equation, which
-      // matches the stable pattern used in Copper.scala / QspiDecoder /
-      // HostInterface.
-      val word0 = io.busWord === U(0, 1 bit)
       val enBit = io.busData(15)
       val patW0 = io.busData(14 downto (15 - patternSelBits)).asUInt
+      val affW0 = io.busData(10)
       val yW0   = io.busData(9 downto 0).asUInt
       val xW1   = io.busData(9 downto 0).asUInt
       switch(rel) {
         for (i <- 0 until extCount) {
           is(U(i, log2Up(extCount) bits)) {
-            when(word0) {
-              regEnabled(i)      := enBit
-              regPatternIndex(i) := patW0
-              regY(i)            := yW0
-            } otherwise {
-              regX(i) := xW1
+            switch(io.busWord) {
+              is(U(0, busWordBits bits)) {
+                regEnabled(i)      := enBit
+                regPatternIndex(i) := patW0
+                regAffineEnable(i) := affW0
+                regY(i)            := yW0
+              }
+              is(U(1, busWordBits bits)) { regX(i)       := xW1 }
+              is(U(2, busWordBits bits)) { regMatrixA(i) := io.busData }
+              is(U(3, busWordBits bits)) { regMatrixB(i) := io.busData }
+              is(U(4, busWordBits bits)) { regMatrixC(i) := io.busData }
+              is(U(5, busWordBits bits)) { regMatrixD(i) := io.busData }
+              is(U(6, busWordBits bits)) { regTransX(i)  := io.busData }
+              is(U(7, busWordBits bits)) { regTransY(i)  := io.busData }
             }
           }
         }
@@ -140,46 +150,52 @@ case class SpriteEvaluator(
   }
 
   // ---------------------------------------------------------------------
-  // Unified descriptor read path: slot index 0..descCount-1.
-  // Slots 0..legacyIoCount-1 come from io ports.
-  // Slots legacyIoCount..descCount-1 come from the Reg table.
+  // Unified descriptor read path.
   // ---------------------------------------------------------------------
-  def descEnabled(i: Int): Bool = {
-    if (i < legacyIoCount) io.descEnabled(i)
-    else                   regEnabled(i - legacyIoCount)
-  }
-  def descX(i: Int): UInt = {
-    if (i < legacyIoCount) io.descX(i)
-    else                   regX(i - legacyIoCount)
-  }
-  def descY(i: Int): UInt = {
-    if (i < legacyIoCount) io.descY(i)
-    else                   regY(i - legacyIoCount)
-  }
-  def descPatternIdx(i: Int): UInt = {
+  def descEnabled(i: Int): Bool =
+    if (i < legacyIoCount) io.descEnabled(i) else regEnabled(i - legacyIoCount)
+  def descX(i: Int): UInt =
+    if (i < legacyIoCount) io.descX(i) else regX(i - legacyIoCount)
+  def descY(i: Int): UInt =
+    if (i < legacyIoCount) io.descY(i) else regY(i - legacyIoCount)
+  def descPatternIdx(i: Int): UInt =
     if (i < legacyIoCount) io.descPatternIdx(i).resize(patternSelBits)
     else                   regPatternIndex(i - legacyIoCount)
+  def descAffineEnable(i: Int): Bool =
+    if (i < legacyIoCount) False else regAffineEnable(i - legacyIoCount)
+  def descMatrix(i: Int, sel: Int): Bits = {
+    if (i < legacyIoCount) B(0, 16 bits)
+    else sel match {
+      case 0 => regMatrixA(i - legacyIoCount)
+      case 1 => regMatrixB(i - legacyIoCount)
+      case 2 => regMatrixC(i - legacyIoCount)
+      case 3 => regMatrixD(i - legacyIoCount)
+      case 4 => regTransX(i - legacyIoCount)
+      case 5 => regTransY(i - legacyIoCount)
+    }
   }
 
   // ---------------------------------------------------------------------
   // Sequential Pass-1 FSM.
-  // On evalStart: reset scanIdx/activeCount/totalOnLine, set scanBusy.
-  // While scanBusy: check descriptor at scanIdx for on-line membership.
-  //   If on-line: increment totalOnLine and (if activeCount < visible)
-  //   commit descriptor's {x, y, patternIdx} into slot[activeCount].
-  //   Increment scanIdx; stop when past last descriptor.
-  // After scan: overflow flag set iff totalOnLine > visiblePerLine.
   // ---------------------------------------------------------------------
   val scanIdx        = Reg(UInt(descIdxBits bits)) init 0
   val activeCount    = Reg(UInt(log2Up(visiblePerLine + 1) bits)) init 0
   val totalOnLine    = Reg(UInt(log2Up(descCount + 1) bits)) init 0
   val scanBusy       = Reg(Bool()) init False
 
-  val activeValidReg   = Vec.fill(visiblePerLine)(RegInit(False))
-  val activeXReg       = Vec.fill(visiblePerLine)(RegInit(U(0, 10 bits)))
-  val activeRowReg     = Vec.fill(visiblePerLine)(RegInit(U(0, 4 bits)))
-  val activePatternReg = Vec.fill(visiblePerLine)(RegInit(U(0, patternSelBits bits)))
-  val overflowFlagReg  = Reg(Bool()) init False
+  val activeValidReg        = Vec.fill(visiblePerLine)(RegInit(False))
+  val activeXReg            = Vec.fill(visiblePerLine)(RegInit(U(0, 10 bits)))
+  val activeYReg            = Vec.fill(visiblePerLine)(RegInit(U(0, 10 bits)))
+  val activeRowReg          = Vec.fill(visiblePerLine)(RegInit(U(0, 4 bits)))
+  val activePatternReg      = Vec.fill(visiblePerLine)(RegInit(U(0, patternSelBits bits)))
+  val activeAffineEnableReg = Vec.fill(visiblePerLine)(RegInit(False))
+  val activeMatrixAReg      = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
+  val activeMatrixBReg      = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
+  val activeMatrixCReg      = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
+  val activeMatrixDReg      = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
+  val activeTransXReg       = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
+  val activeTransYReg       = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
+  val overflowFlagReg       = Reg(Bool()) init False
 
   when(io.evalStart) {
     scanIdx     := 0
@@ -192,26 +208,32 @@ case class SpriteEvaluator(
   }
 
   // Combinational on-line check for the currently-scanned descriptor.
-  // We unroll a Mux-chain across all descCount entries selected by scanIdx
-  // so the on-line check works against both IO and Reg slots uniformly.
-  val curEnabled = UInt(1 bit);     curEnabled := 0
-  val curX       = UInt(10 bits);   curX := 0
-  val curY       = UInt(10 bits);   curY := 0
-  val curPat     = UInt(patternSelBits bits); curPat := 0
-  // Task 28 CP-C Option 2 (BronzeGate #7880 follow-on): explicit `switch`
-  // decode for the descriptor read path. Matches the synthesis-stable
-  // style used elsewhere in the repo (Copper / QspiDecoder / HostInterface).
-  // The pre-rewrite form was a when-chain of N guards driving a combinational
-  // Mux-tree — formally equivalent but relies on Gowin folding the guards
-  // into a single case. Explicit switch removes that dependence.
+  val curEnabled      = UInt(1 bit);              curEnabled := 0
+  val curX            = UInt(10 bits);            curX := 0
+  val curY            = UInt(10 bits);            curY := 0
+  val curPat          = UInt(patternSelBits bits); curPat := 0
+  val curAffineEnable = Bool();                   curAffineEnable := False
+  val curMatrixA      = Bits(16 bits);            curMatrixA := 0
+  val curMatrixB      = Bits(16 bits);            curMatrixB := 0
+  val curMatrixC      = Bits(16 bits);            curMatrixC := 0
+  val curMatrixD      = Bits(16 bits);            curMatrixD := 0
+  val curTransX       = Bits(16 bits);            curTransX := 0
+  val curTransY       = Bits(16 bits);            curTransY := 0
   when(scanBusy) {
     switch(scanIdx) {
       for (i <- 0 until descCount) {
         is(U(i, descIdxBits bits)) {
-          curEnabled := descEnabled(i).asUInt
-          curX       := descX(i)
-          curY       := descY(i)
-          curPat     := descPatternIdx(i)
+          curEnabled      := descEnabled(i).asUInt
+          curX            := descX(i)
+          curY            := descY(i)
+          curPat          := descPatternIdx(i)
+          curAffineEnable := descAffineEnable(i)
+          curMatrixA      := descMatrix(i, 0)
+          curMatrixB      := descMatrix(i, 1)
+          curMatrixC      := descMatrix(i, 2)
+          curMatrixD      := descMatrix(i, 3)
+          curTransX       := descMatrix(i, 4)
+          curTransY       := descMatrix(i, 5)
         }
       }
     }
@@ -225,16 +247,21 @@ case class SpriteEvaluator(
       totalOnLine := totalOnLine + 1
       when(activeCount < U(visiblePerLine, activeCount.getWidth bits)) {
         val slot = activeCount.resize(slotBits)
-        // Task 28 CP-C Option 1b — explicit per-slot decode for active-list
-        // writes (same reason as the bus-write rewrite: Gowin synthesis
-        // mis-handles the dynamic-index Vec write).
         switch(slot) {
           for (s <- 0 until visiblePerLine) {
             is(U(s, slotBits bits)) {
-              activeValidReg(s)   := True
-              activeXReg(s)       := curX
-              activeRowReg(s)     := (io.evalLine - curY).resize(4)
-              activePatternReg(s) := curPat
+              activeValidReg(s)        := True
+              activeXReg(s)            := curX
+              activeYReg(s)            := curY
+              activeRowReg(s)          := (io.evalLine - curY).resize(4)
+              activePatternReg(s)      := curPat
+              activeAffineEnableReg(s) := curAffineEnable
+              activeMatrixAReg(s)      := curMatrixA
+              activeMatrixBReg(s)      := curMatrixB
+              activeMatrixCReg(s)      := curMatrixC
+              activeMatrixDReg(s)      := curMatrixD
+              activeTransXReg(s)       := curTransX
+              activeTransYReg(s)       := curTransY
             }
           }
         }
@@ -251,9 +278,17 @@ case class SpriteEvaluator(
     }
   }
 
-  io.activeValid      := activeValidReg
-  io.activeX          := activeXReg
-  io.activeRow        := activeRowReg
-  io.activePatternIdx := activePatternReg
-  io.overflowFlag     := overflowFlagReg
+  io.activeValid        := activeValidReg
+  io.activeX            := activeXReg
+  io.activeY            := activeYReg
+  io.activeRow          := activeRowReg
+  io.activePatternIdx   := activePatternReg
+  io.activeAffineEnable := activeAffineEnableReg
+  io.activeMatrixA      := activeMatrixAReg
+  io.activeMatrixB      := activeMatrixBReg
+  io.activeMatrixC      := activeMatrixCReg
+  io.activeMatrixD      := activeMatrixDReg
+  io.activeTransX       := activeTransXReg
+  io.activeTransY       := activeTransYReg
+  io.overflowFlag       := overflowFlagReg
 }

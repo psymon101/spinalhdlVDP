@@ -253,14 +253,15 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
         // remains enabled throughout the capture.
         Seq(
           (0 << 14) | 0,                                     // WAIT y=0
-          (1 << 14) | 0x0808, 0x8000 | 250,                  // slot 4 word0: en, y=250
-          (1 << 14) | 0x0809, 60,                            // slot 4 x=60
-          (1 << 14) | 0x080A, 0x8000 | (1 << 11) | 250,      // slot 5 word0: en, patIdx=1, y=250
-          (1 << 14) | 0x080B, 140,                           // slot 5 x=140
-          (1 << 14) | 0x080C, 0x8000 | 250,                  // slot 6 word0
-          (1 << 14) | 0x080D, 220,                           // slot 6 x=220
-          (1 << 14) | 0x080E, 0x8000 | (1 << 11) | 250,      // slot 7 word0
-          (1 << 14) | 0x080F, 300,                           // slot 7 x=300
+          // Task 37 bus layout: 8 words per slot. slot N word W = 0x0800+N*8+W.
+          (1 << 14) | 0x0820, 0x8000 | 250,                  // slot 4 word0: en, y=250
+          (1 << 14) | 0x0821, 60,                            // slot 4 x=60
+          (1 << 14) | 0x0828, 0x8000 | (1 << 11) | 250,      // slot 5 word0: en, patIdx=1, y=250
+          (1 << 14) | 0x0829, 140,                           // slot 5 x=140
+          (1 << 14) | 0x0830, 0x8000 | 250,                  // slot 6 word0
+          (1 << 14) | 0x0831, 220,                           // slot 6 x=220
+          (1 << 14) | 0x0838, 0x8000 | (1 << 11) | 250,      // slot 7 word0
+          (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
       case 33 =>

@@ -29,7 +29,8 @@
  *   word 0 @ base+0 : {enabled[15], patternIdx[14:11], reserved[10], y[9:0]}
  *   word 1 @ base+1 : {reserved[15:10], x[9:0]}
  */
-#define SPRITE_BASE(slot)          (0x0800u + (slot) * 2u)
+/* Task 37: 8 words per slot. */
+#define SPRITE_BASE(slot)          (0x0800u + (slot) * 8u)
 #define SPRITE_W0(enabled, pat, y) ( ((enabled) ? 0x8000u : 0x0000u) \
                                    | (((pat) & 0xFu) << 11)         \
                                    | ((y) & 0x3FFu) )

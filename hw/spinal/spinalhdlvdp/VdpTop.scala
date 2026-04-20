@@ -633,13 +633,15 @@ case class VdpTop() extends Component {
   spriteEval.io.descPatternIdx(3) := io.sprite3PatternIdx.resize(4)
 
   // Mode0RegBus decode for 0x0800..0x083F → evaluator bus-write port.
-  //   subAddr = effAddr - 0x0800. slot = subAddr[6:1], word = subAddr[0].
+  // Task 37 extended layout: 8 words per slot (word 0..7 = enable/pat/aff/y,
+  // x, matA, matB, matC, matD, transX, transY). 8 slots × 8 words = 64
+  // addresses (0x0800..0x083F). slot = subAddr[5:3], word = subAddr[2:0].
   val spriteBusRangeHit = effWrite &&
     (effAddr >= U(0x0800, 15 bits)) &&
     (effAddr <  U(0x0840, 15 bits))
   val spriteBusSub = (effAddr - U(0x0800, 15 bits))(5 downto 0)
-  spriteEval.io.busSlot := spriteBusSub(5 downto 1).resize(spriteEval.descIdxBits)
-  spriteEval.io.busWord := spriteBusSub(0).asUInt.resize(1)
+  spriteEval.io.busSlot := spriteBusSub(5 downto 3).resize(spriteEval.descIdxBits)
+  spriteEval.io.busWord := spriteBusSub(2 downto 0).resize(spriteEval.busWordBits)
   spriteEval.io.busData := effData
   spriteEval.io.busWr   := spriteBusRangeHit
 
@@ -672,10 +674,36 @@ case class VdpTop() extends Component {
     val row     = spriteEval.io.activeRow(s)
     val valid   = spriteEval.io.activeValid(s)
     val patIdx  = spriteEval.io.activePatternIdx(s)
-    val col     = (fillX - x).resize(10)
-    val onPixel = fillX >= x && fillX < (x + 16)
+    val affEn   = spriteEval.io.activeAffineEnable(s)
+
+    // Flat path (Task 28 baseline).
+    val col      = (fillX - x).resize(10)
+    val flatOn   = fillX >= x && fillX < (x + 16)
+    val flatAddr = (row(3 downto 0) ## col(3 downto 0)).asUInt
+
+    // Task 37 affine path: per-slot AffineStepper (replication, per
+    // CyanPeak #7904 §8). Host pre-computes transX/Y so that hotspot
+    // (sprite center) maps to texture (8, 8). Out-of-bounds (u,v) outside
+    // [0..15] → clamp to transparent.
+    val stepper = AffineStepper()
+    stepper.io.x       := fillX
+    stepper.io.y       := fillLine.resize(10)
+    stepper.io.matrixA := spriteEval.io.activeMatrixA(s)
+    stepper.io.matrixB := spriteEval.io.activeMatrixB(s)
+    stepper.io.matrixC := spriteEval.io.activeMatrixC(s)
+    stepper.io.matrixD := spriteEval.io.activeMatrixD(s)
+    stepper.io.transX  := spriteEval.io.activeTransX(s)
+    stepper.io.transY  := spriteEval.io.activeTransY(s)
+    val uIntFull = stepper.io.uFrac(31 downto 8)
+    val vIntFull = stepper.io.vFrac(31 downto 8)
+    val uOk      = uIntFull >= S(0, 24 bits) && uIntFull < S(16, 24 bits)
+    val vOk      = vIntFull >= S(0, 24 bits) && vIntFull < S(16, 24 bits)
+    val affOn    = uOk && vOk
+    val affAddr  = (vIntFull(3 downto 0).asBits ## uIntFull(3 downto 0).asBits).asUInt
+
+    val onPixel = Mux(affEn, affOn, flatOn)
+    val addr    = Mux(affEn, affAddr, flatAddr)
     val active  = valid && onPixel
-    val addr    = (row(3 downto 0) ## col(3 downto 0)).asUInt
     val p0      = sprite0Pattern.readAsync(addr)
     val p1      = sprite1Pattern.readAsync(addr)
     val pixel   = Mux(patIdx(0), p1, p0)
