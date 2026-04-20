@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `3caa5a3` (synthesis-friendly explicit slot-decode rewrite) |
-| **Latest Auth Mail** | #7880 (BronzeGate: check timing closure first, then decide on read-path rewrite) |
-| **Next Deliverable** | BrightForge timing report inspection (Sc28 PnR report) |
-| **Coding Authorized** | **YES** — timing check authorized |
+| **Latest Commit** | `6564309` (scan-read rewrite — timing clean, hardware still fails) |
+| **Latest Auth Mail** | #7883 (BronzeGate: reduce scope to 8 descriptors first) |
+| **Next Deliverable** | BrightForge 8-descriptor scoped experiment + refreshed CP-C evidence |
+| **Coding Authorized** | **YES** — scope reduction authorized |
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
