@@ -626,7 +626,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 28 — Two-Pass Sprite Evaluator
 
-**Status:** TODO
+**Status:** IN-PROGRESS
 **depends_on:** [12, 15]
 **scope_boundary:** Sprite evaluation pipeline only. No new compositor changes, no collision logic (Task 29), no attribute extension (Task 37).
 **delivers:**
@@ -934,7 +934,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 41 — Compositor Metadata Pipe
 
-**Status:** IN-PROGRESS
+**Status:** DONE
 **depends_on:** [13]
 **scope_boundary:** Metadata pipe definition and wiring only. No new compositor math, no new fetch formats.
 **delivers:**
