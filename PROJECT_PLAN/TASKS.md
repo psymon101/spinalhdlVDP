@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 28 — Two-Pass Sprite Evaluator |
 | **Status** | IN-PROGRESS |
-| **Phase** | implement |
+| **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `9c55ff3` (Task 28 Checkpoint B: 32-desc/8-visible evaluator) |
-| **Latest Auth Mail** | #7858 (BrightForge: libvdp regression — only first vdp_reg_write lands) |
-| **Next Deliverable** | PM decision on CP-C path (Sc28 bootstrap vs. firmware-fix lane) |
-| **Coding Authorized** | **YES** — CP-C blocked by cross-task libvdp regression |
+| **Latest Commit** | `9c55ff3` (Checkpoint B — no new code commit yet) |
+| **Latest Auth Mail** | #7862 (BrightForge: Sc28 bootstrap fires, sprites still not surfacing) |
+| **Next Deliverable** | BrightForge bounded experiment (simPublic tap or copperFifo path) |
+| **Coding Authorized** | **YES** — CP-C debug in progress |
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
