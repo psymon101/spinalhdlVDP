@@ -27,13 +27,13 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | Task 41 — Compositor Metadata Pipe |
-| **Status** | artifact |
-| **Phase** | artifact |
+| **Status** | IN-PROGRESS |
+| **Phase** | implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `0c01703` (Task 43 closed baseline) |
-| **Latest Auth Mail** | #7817 (CyanPeak: Task 43 CLOSED, Task 41 auto-open) |
-| **Next Deliverable** | CyanPeak artifact audit for Task 41 |
-| **Coding Authorized** | **NO** — pending artifact audit |
+| **Latest Commit** | `faea3eb` (Task 41 artifact landed) |
+| **Latest Auth Mail** | #7820 (CyanPeak: Task 41 artifact PASSED, Checkpoint B GO) |
+| **Next Deliverable** | BrightForge Checkpoint B (HDL implementation + sim proof) |
+| **Coding Authorized** | **YES** — CyanPeak audit GO issued |
 
 **Artifact file:** `PROJECT_PLAN/TASK_41_COMPOSITOR_METADATA_PIPE.md`
 
