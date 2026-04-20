@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `aec80ce` (simPublic taps + VdpTop-scoped integration sim) |
-| **Latest Auth Mail** | #7871 (BronzeGate: PM decision — synthesis-friendly explicit slot decode fix next) |
-| **Next Deliverable** | BrightForge explicit slot-decode rewrite + Sc28 hardware proof |
-| **Coding Authorized** | **YES** — CP-C blocker class: Gowin synthesis discrepancy |
+| **Latest Commit** | `3caa5a3` (synthesis-friendly explicit slot-decode rewrite) |
+| **Latest Auth Mail** | #7878 (BrightForge: rewrite landed, hardware still fails — same symptom) |
+| **Next Deliverable** | PM/audit direction on next bounded option (timing check / scan READ rewrite / scope reduction) |
+| **Coding Authorized** | **YES** — CP-C blocker persists, root cause not yet found |
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
