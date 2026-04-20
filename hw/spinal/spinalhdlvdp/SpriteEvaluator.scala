@@ -103,14 +103,30 @@ case class SpriteEvaluator(
     val slot = io.busSlot
     when(slot >= U(legacyIoCount, descIdxBits bits)) {
       val rel = (slot - U(legacyIoCount, descIdxBits bits)).resize(log2Up(extCount))
-      when(io.busWord === U(0, 1 bit)) {
-        // word 0 layout: {enabled[15], patternIndex[14:11], reserved[10], y[9:0]}
-        regEnabled(rel)      := io.busData(15)
-        regPatternIndex(rel) := io.busData(14 downto (15 - patternSelBits)).asUInt
-        regY(rel)            := io.busData(9 downto 0).asUInt
-      } otherwise {
-        // word 1 layout: {reserved[15:10], x[9:0]}
-        regX(rel) := io.busData(9 downto 0).asUInt
+      // Task 28 CP-C Option 1b (BronzeGate #7871 / CoralReef #7875):
+      // Explicit per-slot `switch` decode instead of a dynamic-index
+      // `Vec` write. Eliminates the `({31'd0,1'b1} <<< rel)` wide one-hot
+      // shift that Gowin synthesis mis-routes under place-and-route.
+      // Each slot has its own fully-decoded write-enable equation, which
+      // matches the stable pattern used in Copper.scala / QspiDecoder /
+      // HostInterface.
+      val word0 = io.busWord === U(0, 1 bit)
+      val enBit = io.busData(15)
+      val patW0 = io.busData(14 downto (15 - patternSelBits)).asUInt
+      val yW0   = io.busData(9 downto 0).asUInt
+      val xW1   = io.busData(9 downto 0).asUInt
+      switch(rel) {
+        for (i <- 0 until extCount) {
+          is(U(i, log2Up(extCount) bits)) {
+            when(word0) {
+              regEnabled(i)      := enBit
+              regPatternIndex(i) := patW0
+              regY(i)            := yW0
+            } otherwise {
+              regX(i) := xW1
+            }
+          }
+        }
       }
     }
   }
@@ -193,10 +209,19 @@ case class SpriteEvaluator(
       totalOnLine := totalOnLine + 1
       when(activeCount < U(visiblePerLine, activeCount.getWidth bits)) {
         val slot = activeCount.resize(slotBits)
-        activeValidReg(slot)   := True
-        activeXReg(slot)       := curX
-        activeRowReg(slot)     := (io.evalLine - curY).resize(4)
-        activePatternReg(slot) := curPat
+        // Task 28 CP-C Option 1b — explicit per-slot decode for active-list
+        // writes (same reason as the bus-write rewrite: Gowin synthesis
+        // mis-handles the dynamic-index Vec write).
+        switch(slot) {
+          for (s <- 0 until visiblePerLine) {
+            is(U(s, slotBits bits)) {
+              activeValidReg(s)   := True
+              activeXReg(s)       := curX
+              activeRowReg(s)     := (io.evalLine - curY).resize(4)
+              activePatternReg(s) := curPat
+            }
+          }
+        }
         activeCount := activeCount + 1
       }
     }
