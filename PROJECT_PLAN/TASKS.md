@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-20 (Task 30 artifact GO per CyanPeak #7918)
+**Updated:** 2026-04-20 (Task 30 CP-B landed at 734ffb6; awaiting CyanPeak CP-B audit → CP-C)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 30 — Pre-Announced Arbiter Grant |
 | **Status** | IN-PROGRESS |
-| **Phase** | implement |
+| **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `e6eca76` (Task 37 DONE; Task 30 artifact auto-opened) |
-| **Latest Auth Mail** | #7918 (CyanPeak: Task 30 artifact PASSED → GO) |
-| **Next Deliverable** | BrightForge CP-B implementation + sim proof |
-| **Coding Authorized** | **YES** — artifact GO (#7918) |
+| **Latest Commit** | `734ffb6` (Task 30 CP-B: SdramArbiter sim-verified) |
+| **Latest Auth Mail** | #7920 (BrightForge: CP-B COMPLETE), #7918 (CyanPeak: artifact GO) |
+| **Next Deliverable** | CyanPeak CP-B audit → CP-C GO |
+| **Coding Authorized** | **YES** — CP-B landed |
 
 **Artifact file:** `PROJECT_PLAN/TASK_30_PRE_ANNOUNCED_ARBITER_GRANT.md`
 
