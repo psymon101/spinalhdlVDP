@@ -1,6 +1,7 @@
 package spinalhdlvdp
 
 import spinal.core._
+import spinal.core.sim._
 import spinal.lib._
 
 /** Task 28 — Two-Pass Sprite Evaluator.
@@ -89,6 +90,14 @@ case class SpriteEvaluator(
   val regX            = Vec.fill(extCount)(RegInit(U(1023, 10 bits)))
   val regY            = Vec.fill(extCount)(RegInit(U(1023, 10 bits)))
   val regPatternIndex = Vec.fill(extCount)(RegInit(U(0, patternSelBits bits)))
+  // Task 28 CP-C-Opt1 — expose Reg-Vec to simPublic for VdpTop-scoped
+  // integration sim (SpriteBusViaVdpTopSim).
+  for (i <- 0 until extCount) {
+    regEnabled(i).simPublic()
+    regX(i).simPublic()
+    regY(i).simPublic()
+    regPatternIndex(i).simPublic()
+  }
 
   when(io.busWr) {
     val slot = io.busSlot

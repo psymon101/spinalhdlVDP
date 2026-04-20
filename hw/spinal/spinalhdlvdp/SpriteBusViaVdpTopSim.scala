@@ -1,0 +1,111 @@
+package spinalhdlvdp
+
+import spinal.core._
+import spinal.core.sim._
+
+/** Task 28 CP-C Option 1 (per BronzeGate #7867) — VdpTop-scoped sim that
+  * drives the Mode0 register bus with writes to `0x0808..0x0811` and
+  * checks whether the SpriteEvaluator's extended Reg-Vec actually latches
+  * the programmed values.
+  *
+  * SpriteEvaluatorSim Case 7 already proves the evaluator works when its
+  * bus port is driven directly. This sim proves (or disproves) the full
+  * VdpTop integration path: host → `io.regBus` → `extHit/effAddr/effWrite`
+  * → VdpTop's `spriteBusRangeHit` decode → `spriteEval.io.busSlot/busWord/
+  * busData/busWr` port → Reg-Vec latching.
+  *
+  * If this sim passes, the hardware failure observed in Sc28 captures
+  * (#7862 / #7866) narrows to a Gowin/SpinalHDL synthesis discrepancy.
+  * If this sim fails, the exact broken signal is reproducible.
+  */
+object SpriteBusViaVdpTopSim extends App {
+  Config.sim.compile(VdpTop()).doSim { dut =>
+    dut.clockDomain.forkStimulus(period = 10)
+
+    // Quiescent init (matches VdpTopSim defaults).
+    dut.io.layer0ScrollX #= 0; dut.io.layer0ScrollY #= 0
+    dut.io.layer1ScrollX #= 0; dut.io.layer1ScrollY #= 0
+    dut.io.sprite0X #= 1000; dut.io.sprite0Y #= 1000; dut.io.sprite0Enabled #= false; dut.io.sprite0PatternIdx #= 0
+    dut.io.sprite1X #= 1000; dut.io.sprite1Y #= 1000; dut.io.sprite1Enabled #= false; dut.io.sprite1PatternIdx #= 1
+    dut.io.sprite2X #= 1000; dut.io.sprite2Y #= 1000; dut.io.sprite2Enabled #= false; dut.io.sprite2PatternIdx #= 0
+    dut.io.sprite3X #= 1000; dut.io.sprite3Y #= 1000; dut.io.sprite3Enabled #= false; dut.io.sprite3PatternIdx #= 1
+    dut.io.regBus.addr #= 0; dut.io.regBus.data #= 0; dut.io.regBus.enable #= false
+    dut.io.layer0UseSdram #= false
+    dut.io.layer0TestPatternEnable #= false
+    dut.io.layer0TestPatternSelect #= 0
+    dut.io.layer0SdramPixel #= 0; dut.io.layer0SdramBank #= 0; dut.io.layer0SdramPriority #= false
+    dut.io.rasterTriggerLine #= 0; dut.io.rasterTriggerPixel #= 0
+    dut.io.rasterTriggerPxEnable #= false; dut.io.rasterTriggerEnable #= false
+    dut.io.rasterTriggerClear #= false
+    dut.io.statusEvQspiReady #= false; dut.io.statusEvQspiError #= false
+
+    dut.clockDomain.waitSampling(10)
+
+    /** Drive one single-cycle pulse on io.regBus matching what the arbiter
+      * would produce for a bootstrap/QSPI/animator register write. */
+    def busPulse(addr: Int, data: Int): Unit = {
+      dut.io.regBus.addr   #= addr
+      dut.io.regBus.data   #= data
+      dut.io.regBus.enable #= true
+      dut.clockDomain.waitSampling()
+      dut.io.regBus.enable #= false
+      dut.io.regBus.addr   #= 0
+      dut.io.regBus.data   #= 0
+      dut.clockDomain.waitSampling()
+    }
+
+    // Program 5 extended slots (4..8) at y=250, x spread, alternating patIdx.
+    val progSeq = Seq(
+      (0x0808, 0x8000 | 250, 0),    // slot 4 word 0: enabled, patIdx=0, y=250
+      (0x0809, 60,            0),   // slot 4 word 1: x=60
+      (0x080A, 0x8000 | (1 << 11) | 250, 0),   // slot 5 word 0: enabled, patIdx=1, y=250
+      (0x080B, 140,           0),
+      (0x080C, 0x8000 | 250,  0),
+      (0x080D, 220,           0),
+      (0x080E, 0x8000 | (1 << 11) | 250, 0),
+      (0x080F, 300,           0),
+      (0x0810, 0x8000 | 250,  0),
+      (0x0811, 500,           0)
+    )
+
+    println("-- phase 1: issue 10 bus pulses via io.regBus --")
+    for (((addr, data, _), i) <- progSeq.zipWithIndex) {
+      busPulse(addr, data)
+      println(f"  pulse[$i] addr=0x$addr%04X data=0x$data%04X")
+    }
+
+    // Give the evaluator a few cycles in case of latch delay.
+    dut.clockDomain.waitSampling(20)
+
+    println("-- phase 2: peek evaluator extended Reg-Vec (slots 4..8 => rel 0..4) --")
+    val expected = Seq(
+      (true,  60,  250, 0),
+      (true,  140, 250, 1),
+      (true,  220, 250, 0),
+      (true,  300, 250, 1),
+      (true,  500, 250, 0)
+    )
+
+    var allPass = true
+    for (i <- 0 until 5) {
+      val en   = dut.spriteEval.regEnabled(i).toBoolean
+      val x    = dut.spriteEval.regX(i).toInt
+      val y    = dut.spriteEval.regY(i).toInt
+      val p    = dut.spriteEval.regPatternIndex(i).toInt
+      val (expEn, expX, expY, expP) = expected(i)
+      val slotOk = en == expEn && x == expX && y == expY && p == expP
+      val status = if (slotOk) "PASS" else "FAIL"
+      println(f"  slot ${i + 4}%d (rel $i) $status en=$en (exp $expEn) x=$x%3d (exp $expX%3d) y=$y%3d (exp $expY%3d) patIdx=$p (exp $expP)")
+      if (!slotOk) allPass = false
+    }
+
+    if (allPass) {
+      println("SpriteBusViaVdpTopSim: ALL 5 SLOTS LATCHED CORRECTLY — VdpTop integration path works in sim")
+      println("  Conclusion: hardware symptom (#7866) is a synthesis discrepancy, not a functional RTL bug")
+    } else {
+      println("SpriteBusViaVdpTopSim: LATCH FAILED — reproduces hardware symptom in sim")
+      println("  Conclusion: exact broken boundary captured; next pass can bisect the failing signal")
+      sys.exit(1)
+    }
+  }
+}
