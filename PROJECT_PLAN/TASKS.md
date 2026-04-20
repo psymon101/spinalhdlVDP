@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `9c55ff3` (CP-B baseline — probe instrumentation transient) |
-| **Latest Auth Mail** | #7890 (BrightForge: on-FPGA probe proves regs DO latch — failure in scan/render pipe) |
-| **Next Deliverable** | BrightForge Canary 4 (probe `io.activeValid(0)`) or PM direction |
-| **Coding Authorized** | **YES** — failure narrowed to Pass-1 scan or Pass-2 pixel-fill |
+| **Latest Commit** | `9e07804` (Task 28 Checkpoint C: 8-desc HW proof verified) |
+| **Latest Auth Mail** | #7893 (BrightForge: Checkpoint C COMPLETE — all 5 canaries lit, 4 sprites visible) |
+| **Next Deliverable** | CyanPeak CP-C audit → closure |
+| **Coding Authorized** | **YES** — Checkpoint C landed |
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
