@@ -58,9 +58,13 @@ if [[ "${REGRESS_CAPTURE:-0}" == "1" ]]; then
         # Ensure the bitstream for this scenario is on the Tang. If synth
         # wasn't run as part of step 1 and REGRESS_CAPTURE is set, this
         # block builds+flashes the scenario sequentially.
+        # Scenario 0 is the default build target (`TopTang20kHdmiVerilog`
+        # with no scenario suffix). The Makefile selects it when SCENARIO
+        # is *empty*, so we must leave the env var unset in that case.
         echo "[sc$N] build+flash"
+        if [[ "$N" == "0" ]]; then SENV=""; else SENV="SCENARIO=$N"; fi
         pushd fpga/tang20k >/dev/null
-        if ! SCENARIO="$N" xvfb-run -a make flash >>"$SCDIR/build_flash.log" 2>&1; then
+        if ! env $SENV xvfb-run -a make flash >>"$SCDIR/build_flash.log" 2>&1; then
             echo "[sc$N] build+flash FAIL — see $SCDIR/build_flash.log"
             REPR_RESULTS+=("sc$N build_flash=fail")
             MASTER_FAIL=1

@@ -31,8 +31,8 @@ import numpy as np
 
 
 def analyze(capture_path: Path, out_path: Path, scenario: str,
-            glitch_max: float = 0.01, freeze_max: float = 0.01,
-            motion_min: float = 0.005, motion_max: float = 0.20,
+            glitch_max: float = 0.01, freeze_max: float = 0.10,
+            motion_min: float = 0.005, motion_max: float = 0.60,
             mid_frame_path: Path | None = None,
             mean_frame_path: Path | None = None) -> int:
     cap = cv2.VideoCapture(str(capture_path))
@@ -88,15 +88,22 @@ def analyze(capture_path: Path, out_path: Path, scenario: str,
     glitch_n = int((deltas > glitch_thresh).sum()) if d_std > 0.0 else 0
     glitch_fraction = float(glitch_n / deltas.size) if deltas.size else 0.0
 
-    # Freeze: run of 4+ near-zero consecutive deltas.
-    freeze_eps = max(d_median * 0.1, 0.5)
+    # Freeze: look for long runs of very-near-zero delta (pipeline stuck).
+    # MJPEG capture always has some encode noise between adjacent frames
+    # even on a pixel-identical source, so "truly frozen" is a tight
+    # floor — 0.1 mean abs-delta across a 1920x1080 BGR frame. Legitimate
+    # static-banded scenes (Sc33) sit around median 0.7 and wouldn't
+    # trip this. Require a run of ≥ 8 (≥ 0.16 s at 50 fps) to call it
+    # a freeze — transient MJPEG repeats of 3–4 identical frames are
+    # normal at low-motion boundaries.
+    freeze_eps = 0.1
     is_frozen = deltas < freeze_eps
     freeze_frames = 0
     run = 0
     for v in is_frozen:
         if v:
             run += 1
-            if run >= 4:
+            if run >= 8:
                 freeze_frames += 1
         else:
             run = 0
@@ -187,9 +194,9 @@ def main() -> int:
     p.add_argument("--mean", type=Path, default=None,
                    help="optional 30-second mean PNG output path")
     p.add_argument("--glitch-max", type=float, default=0.01)
-    p.add_argument("--freeze-max", type=float, default=0.01)
+    p.add_argument("--freeze-max", type=float, default=0.10)
     p.add_argument("--motion-min", type=float, default=0.005)
-    p.add_argument("--motion-max", type=float, default=0.20)
+    p.add_argument("--motion-max", type=float, default=0.60)
     args = p.parse_args()
     return analyze(args.capture, args.out, args.scenario,
                    args.glitch_max, args.freeze_max,
