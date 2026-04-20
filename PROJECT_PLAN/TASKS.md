@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-20 (Task 28 closed per CyanPeak #7896; next-lane ambiguity flagged)
+**Updated:** 2026-04-20 (Task 37 auto-opened per BronzeGate #7900)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,18 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(cleared)* |
-| **Status** | Task 28 DONE at `9e07804` |
-| **Phase** | closeout |
-| **Owner** | CoralReef (ledger) |
-| **Latest Commit** | `9e07804` (Task 28 CP-C PASSED, CyanPeak audit #7896) |
-| **Latest Auth Mail** | #7896 (CyanPeak: Task 28 CLOSED) |
-| **Next Deliverable** | PM decision on next lane (see note below) |
-| **Coding Authorized** | **NO** — lane cleared, awaiting next assignment |
+| **Task** | Task 37 — Affine Sprite Path |
+| **Status** | IN-PROGRESS |
+| **Phase** | artifact |
+| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
+| **Latest Commit** | `12fd74b` (Task 28 DONE; Task 37 artifact auto-opened) |
+| **Latest Auth Mail** | #7900 (BronzeGate: open existing Task 37 next) |
+| **Next Deliverable** | CyanPeak artifact audit → GO |
+| **Coding Authorized** | **NO** — awaiting artifact GO |
 
-**Next-lane ambiguity:** CyanPeak #7896 proposes opening **Task 37 (Sprite Attribute Extension — Palette & Bank)**. However, the existing `TASKS.md` backlog defines Task 37 as **Affine Sprite Path** (deps [19,28], now unblocked). Additional unblocked lanes: Task 30 (Pre-Announced Arbiter Grant, deps [12,15]) and Task 31 (Scroll Table Primitive, deps [15]). PM decision required before a new lane may be marked live.
-
-**Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
+**Artifact file:** `PROJECT_PLAN/TASK_37_AFFINE_SPRITE_PATH.md`
 
 Rules:
 - Only **one** lane may be live at a time.
