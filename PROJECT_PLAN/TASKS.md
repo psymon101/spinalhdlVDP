@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 28 — Two-Pass Sprite Evaluator |
 | **Status** | IN-PROGRESS |
-| **Phase** | artifact |
+| **Phase** | implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
 | **Latest Commit** | `1306c5c` (Task 41 closed baseline) |
-| **Latest Auth Mail** | #7830 (CyanPeak: Task 41 CLOSED, next lane open) |
-| **Next Deliverable** | CyanPeak artifact audit for Task 28 |
-| **Coding Authorized** | **NO** — pending artifact audit |
+| **Latest Auth Mail** | #7838 (CyanPeak: Task 28 artifact PASSED, Checkpoint B GO) |
+| **Next Deliverable** | BrightForge Checkpoint B (HDL implementation + sim proof) |
+| **Coding Authorized** | **YES** — CyanPeak audit GO issued |
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
