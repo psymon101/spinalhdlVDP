@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-20 (Task 37 DONE per CyanPeak #7913; Task 30 auto-opened)
+**Updated:** 2026-04-20 (Task 30 artifact GO per CyanPeak #7918)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 30 — Pre-Announced Arbiter Grant |
 | **Status** | IN-PROGRESS |
-| **Phase** | artifact |
+| **Phase** | implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `aa451bf` (Task 37 DONE; Task 30 artifact auto-opened) |
-| **Latest Auth Mail** | #7913 (CyanPeak: Task 37 CLOSED), #7915 (BronzeGate: next-lane open) |
-| **Next Deliverable** | CyanPeak artifact audit → GO |
-| **Coding Authorized** | **NO** — awaiting artifact GO |
+| **Latest Commit** | `e6eca76` (Task 37 DONE; Task 30 artifact auto-opened) |
+| **Latest Auth Mail** | #7918 (CyanPeak: Task 30 artifact PASSED → GO) |
+| **Next Deliverable** | BrightForge CP-B implementation + sim proof |
+| **Coding Authorized** | **YES** — artifact GO (#7918) |
 
 **Artifact file:** `PROJECT_PLAN/TASK_30_PRE_ANNOUNCED_ARBITER_GRANT.md`
 
