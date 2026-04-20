@@ -423,7 +423,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -439,6 +439,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 15          => 0x0005  // L0 + sprite (mixed-scene integration)
       case 16          => 0x0005  // Sc16 long-soak baseline: same layer config as Sc15
       case 17          => 0x0007  // Sc17 stress: L0 + L1 + sprite (maximum load)
+      case 37          => 0x0005  // Sc37: L0 background + sprite (affine proof)
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
