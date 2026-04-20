@@ -190,13 +190,21 @@ case class SpriteEvaluator(
   val curX       = UInt(10 bits);   curX := 0
   val curY       = UInt(10 bits);   curY := 0
   val curPat     = UInt(patternSelBits bits); curPat := 0
+  // Task 28 CP-C Option 2 (BronzeGate #7880 follow-on): explicit `switch`
+  // decode for the descriptor read path. Matches the synthesis-stable
+  // style used elsewhere in the repo (Copper / QspiDecoder / HostInterface).
+  // The pre-rewrite form was a when-chain of N guards driving a combinational
+  // Mux-tree — formally equivalent but relies on Gowin folding the guards
+  // into a single case. Explicit switch removes that dependence.
   when(scanBusy) {
-    for (i <- 0 until descCount) {
-      when(scanIdx === U(i, descIdxBits bits)) {
-        curEnabled := descEnabled(i).asUInt
-        curX       := descX(i)
-        curY       := descY(i)
-        curPat     := descPatternIdx(i)
+    switch(scanIdx) {
+      for (i <- 0 until descCount) {
+        is(U(i, descIdxBits bits)) {
+          curEnabled := descEnabled(i).asUInt
+          curX       := descX(i)
+          curY       := descY(i)
+          curPat     := descPatternIdx(i)
+        }
       }
     }
   }
