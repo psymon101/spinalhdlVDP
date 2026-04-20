@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
 | **Latest Commit** | `9c55ff3` (Task 28 Checkpoint B: 32-desc/8-visible evaluator) |
-| **Latest Auth Mail** | #7844 (BrightForge: CP-C blocker — bus sprites not visible on Sc5) |
-| **Next Deliverable** | PM/audit direction on blocker resolution path |
-| **Coding Authorized** | **YES** — CP-C blocked, awaiting direction |
+| **Latest Auth Mail** | #7851 (BronzeGate: PM decision — minimal command-sender firmware retry) |
+| **Next Deliverable** | BrightForge minimal-firmware CP-C retry |
+| **Coding Authorized** | **YES** — CP-C blocker diagnosed, HDL path proven |
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
