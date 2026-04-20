@@ -3,117 +3,207 @@ package spinalhdlvdp
 import spinal.core._
 import spinal.lib._
 
-/** R2 Two-Pass Sprite Evaluator.
+/** Task 28 — Two-Pass Sprite Evaluator.
   *
-  * Pass 1 (evalStart): scan `descCount` static descriptors, select up to
-  * `visiblePerLine` whose Y-range `[descY, descY+16)` covers `evalLine`.
-  * Priority = lowest descriptor index wins. Latched into active-slot
-  * registers so the list is stable for the full line.
+  * Pass 1 (sequential scan): walks `descCount` descriptors across one H-blank
+  * period, selecting up to `visiblePerLine` whose Y-range `[y, y+16)`
+  * covers the upcoming scanline. Total on-line count is tracked so the
+  * overflow flag fires when more than `visiblePerLine` descriptors are
+  * on the line.
   *
-  * Pass 2: the active slots are exposed combinationally (`active*`) for the
-  * pixel-fill path in `VdpTop` to resolve per-pixel sprite contributions.
+  * Pass 2 (line-stable): the selected slots are exposed combinationally
+  * (`active*`) for the pixel-fill path to resolve per-pixel sprite
+  * contributions.
   *
-  * Diagnostic: `overflowFlag` latches True on the line if more than
-  * `visiblePerLine` descriptors were on the line — the canonical per-line
-  * sprite-overflow signal (NES-style). Kept as information only; no
-  * adapter-semantic commitment in this task.
+  * Descriptor storage architecture (Task 28 / CyanPeak #7838):
+  *   - Slots `[0 .. legacyIoCount)` are driven live from the io `desc*`
+  *     input Vecs — preserves backwards-compat with the existing
+  *     `VdpTop.io.spriteN` external path and the scenario wiring in
+  *     `TopTang20kHdmi.scala`.
+  *   - Slots `[legacyIoCount .. descCount)` are Reg-backed and
+  *     programmable via the `bus*` write port. Host code writes via the
+  *     Mode0 register bus block `0x0800 + slot*2 + word`
+  *     (word 0 = enabled/patternIndex/y, word 1 = x).
   *
-  * No `Mem` — purely register/combinational logic. GT-022 N/A.
+  * Ordering / priority (per CyanPeak #7838 §8.3):
+  *   - Slot 0 receives the lowest on-line descriptor index, slot 1 the
+  *     next, etc. Descriptor index serves as the deterministic
+  *     tie-breaker.
+  *   - The pixel-fill consumer iterates slots 0..visiblePerLine-1 with
+  *     last-hit-wins, so higher descriptor index = higher render priority
+  *     (back-to-front stacking).
+  *
+  * Scan timing: `evalStart` strobes at the end of each line. The FSM takes
+  * descCount pixel-clock cycles to complete; the results are latched into
+  * registers that remain stable through the next full line. hBlank
+  * provides ~160 cycles of headroom on 640×480@60 timing, so descCount
+  * up to ~150 is safe.
   */
 case class SpriteEvaluator(
-    descCount: Int = 4,
-    visiblePerLine: Int = 2,
-    patternSelBits: Int = 1
+    descCount: Int = 32,
+    visiblePerLine: Int = 8,
+    patternSelBits: Int = 4,
+    legacyIoCount: Int = 4
 ) extends Component {
-  require(descCount >= 2, "descCount must be at least 2")
+  require(descCount >= legacyIoCount, "descCount must be ≥ legacyIoCount")
   require(visiblePerLine >= 1 && visiblePerLine <= descCount,
           "visiblePerLine out of range")
 
   val descIdxBits = log2Up(descCount)
+  val slotBits    = log2Up(visiblePerLine)
+  val extCount    = descCount - legacyIoCount
 
   val io = new Bundle {
-    // Descriptor store (external source; stable during line)
-    val descX          = in Vec(UInt(10 bits), descCount)
-    val descY          = in Vec(UInt(10 bits), descCount)
-    val descEnabled    = in Vec(Bool(), descCount)
-    val descPatternIdx = in Vec(UInt(patternSelBits bits), descCount)
+    // Legacy IO descriptor ports — slots 0..legacyIoCount-1.
+    val descX          = in Vec(UInt(10 bits), legacyIoCount)
+    val descY          = in Vec(UInt(10 bits), legacyIoCount)
+    val descEnabled    = in Vec(Bool(), legacyIoCount)
+    val descPatternIdx = in Vec(UInt(patternSelBits bits), legacyIoCount)
 
-    // Pass 1 trigger — line to evaluate, one-cycle strobe
+    // Bus-write port — populates the Reg-backed slots [legacyIoCount..descCount).
+    val busSlot = in UInt(descIdxBits bits)
+    val busWord = in UInt(1 bit)            // 0 = {enabled, patternIdx, y}, 1 = x
+    val busData = in Bits(16 bits)
+    val busWr   = in Bool()
+
+    // Pass 1 trigger — line to evaluate, one-cycle strobe at end of line M.
     val evalLine  = in UInt(10 bits)
     val evalStart = in Bool()
 
-    // Pass 2 outputs (line-stable)
+    // Pass 2 outputs (line-stable across next line).
     val activeValid      = out Vec(Bool(), visiblePerLine)
     val activeX          = out Vec(UInt(10 bits), visiblePerLine)
     val activeRow        = out Vec(UInt(4 bits), visiblePerLine)
     val activePatternIdx = out Vec(UInt(patternSelBits bits), visiblePerLine)
 
-    // Diagnostic: per-line overflow flag (sticky through the line; cleared on next evalStart)
+    // Diagnostic: per-line sprite-overflow flag.
     val overflowFlag = out Bool()
   }
 
-  // ----- Per-descriptor on-line check (combinational) -----
-  val onLine = Vec(Bool(), descCount)
-  for (d <- 0 until descCount) {
-    onLine(d) := io.descEnabled(d) &&
-                 (io.evalLine >= io.descY(d)) &&
-                 (io.evalLine < (io.descY(d) + U(16, 10 bits)))
-  }
+  // ---------------------------------------------------------------------
+  // Reg-backed extended descriptors (slots legacyIoCount..descCount-1).
+  // Each field gets its own Vec-of-Reg to avoid the Vec(Reg(...)) shared-
+  // reference pitfall.
+  // ---------------------------------------------------------------------
+  val regEnabled      = Vec.fill(extCount)(RegInit(False))
+  val regX            = Vec.fill(extCount)(RegInit(U(1023, 10 bits)))
+  val regY            = Vec.fill(extCount)(RegInit(U(1023, 10 bits)))
+  val regPatternIndex = Vec.fill(extCount)(RegInit(U(0, patternSelBits bits)))
 
-  // Count on-line descriptors for overflow detection.
-  val onLineCount = CountOne(onLine)
-
-  // ----- Priority selection for the 2 slots (lowest descIdx wins) -----
-  // Build priority-encoded selections: slot(i) = the i-th smallest d with onLine(d).
-  // For visiblePerLine=2, unroll manually: slot0 = lowest, slot1 = second-lowest.
-  val slotValid   = Vec(Bool(), visiblePerLine)
-  val slotDescIdx = Vec(UInt(descIdxBits bits), visiblePerLine)
-  for (s <- 0 until visiblePerLine) {
-    slotValid(s)   := False
-    slotDescIdx(s) := 0
-  }
-
-  // Slot 0 = lowest on-line descriptor.
-  for (d <- (descCount - 1) to 0 by -1) {
-    when(onLine(d)) {
-      slotValid(0)   := True
-      slotDescIdx(0) := U(d, descIdxBits bits)
-    }
-  }
-  // Slot 1 = lowest on-line descriptor with index strictly greater than slot0's.
-  // Iterating high→low with last-assignment-wins; guarding by d > slot0DescIdx
-  // gives the desired second-lowest.
-  if (visiblePerLine >= 2) {
-    for (d <- (descCount - 1) to 0 by -1) {
-      val dU = U(d, descIdxBits bits)
-      when(onLine(d) && slotValid(0) && dU > slotDescIdx(0)) {
-        slotValid(1)   := True
-        slotDescIdx(1) := dU
+  when(io.busWr) {
+    val slot = io.busSlot
+    when(slot >= U(legacyIoCount, descIdxBits bits)) {
+      val rel = (slot - U(legacyIoCount, descIdxBits bits)).resize(log2Up(extCount))
+      when(io.busWord === U(0, 1 bit)) {
+        // word 0 layout: {enabled[15], patternIndex[14:11], reserved[10], y[9:0]}
+        regEnabled(rel)      := io.busData(15)
+        regPatternIndex(rel) := io.busData(14 downto (15 - patternSelBits)).asUInt
+        regY(rel)            := io.busData(9 downto 0).asUInt
+      } otherwise {
+        // word 1 layout: {reserved[15:10], x[9:0]}
+        regX(rel) := io.busData(9 downto 0).asUInt
       }
     }
   }
 
-  // ----- Latch active list on evalStart -----
-  val activeValidReg      = Vec(Reg(Bool()) init False, visiblePerLine)
-  val activeXReg          = Vec(Reg(UInt(10 bits)) init 0, visiblePerLine)
-  val activeRowReg        = Vec(Reg(UInt(4 bits)) init 0, visiblePerLine)
-  val activePatternIdxReg = Vec(Reg(UInt(patternSelBits bits)) init 0, visiblePerLine)
-  val overflowReg         = Reg(Bool()) init False
+  // ---------------------------------------------------------------------
+  // Unified descriptor read path: slot index 0..descCount-1.
+  // Slots 0..legacyIoCount-1 come from io ports.
+  // Slots legacyIoCount..descCount-1 come from the Reg table.
+  // ---------------------------------------------------------------------
+  def descEnabled(i: Int): Bool = {
+    if (i < legacyIoCount) io.descEnabled(i)
+    else                   regEnabled(i - legacyIoCount)
+  }
+  def descX(i: Int): UInt = {
+    if (i < legacyIoCount) io.descX(i)
+    else                   regX(i - legacyIoCount)
+  }
+  def descY(i: Int): UInt = {
+    if (i < legacyIoCount) io.descY(i)
+    else                   regY(i - legacyIoCount)
+  }
+  def descPatternIdx(i: Int): UInt = {
+    if (i < legacyIoCount) io.descPatternIdx(i).resize(patternSelBits)
+    else                   regPatternIndex(i - legacyIoCount)
+  }
+
+  // ---------------------------------------------------------------------
+  // Sequential Pass-1 FSM.
+  // On evalStart: reset scanIdx/activeCount/totalOnLine, set scanBusy.
+  // While scanBusy: check descriptor at scanIdx for on-line membership.
+  //   If on-line: increment totalOnLine and (if activeCount < visible)
+  //   commit descriptor's {x, y, patternIdx} into slot[activeCount].
+  //   Increment scanIdx; stop when past last descriptor.
+  // After scan: overflow flag set iff totalOnLine > visiblePerLine.
+  // ---------------------------------------------------------------------
+  val scanIdx        = Reg(UInt(descIdxBits bits)) init 0
+  val activeCount    = Reg(UInt(log2Up(visiblePerLine + 1) bits)) init 0
+  val totalOnLine    = Reg(UInt(log2Up(descCount + 1) bits)) init 0
+  val scanBusy       = Reg(Bool()) init False
+
+  val activeValidReg   = Vec.fill(visiblePerLine)(RegInit(False))
+  val activeXReg       = Vec.fill(visiblePerLine)(RegInit(U(0, 10 bits)))
+  val activeRowReg     = Vec.fill(visiblePerLine)(RegInit(U(0, 4 bits)))
+  val activePatternReg = Vec.fill(visiblePerLine)(RegInit(U(0, patternSelBits bits)))
+  val overflowFlagReg  = Reg(Bool()) init False
 
   when(io.evalStart) {
+    scanIdx     := 0
+    activeCount := 0
+    totalOnLine := 0
+    scanBusy    := True
     for (s <- 0 until visiblePerLine) {
-      val d = slotDescIdx(s)
-      activeValidReg(s)      := slotValid(s)
-      activeXReg(s)          := io.descX(d)
-      activeRowReg(s)        := (io.evalLine - io.descY(d)).resize(4)
-      activePatternIdxReg(s) := io.descPatternIdx(d)
+      activeValidReg(s) := False
     }
-    overflowReg := onLineCount > U(visiblePerLine, onLineCount.getWidth bits)
+  }
+
+  // Combinational on-line check for the currently-scanned descriptor.
+  // We unroll a Mux-chain across all descCount entries selected by scanIdx
+  // so the on-line check works against both IO and Reg slots uniformly.
+  val curEnabled = UInt(1 bit);     curEnabled := 0
+  val curX       = UInt(10 bits);   curX := 0
+  val curY       = UInt(10 bits);   curY := 0
+  val curPat     = UInt(patternSelBits bits); curPat := 0
+  when(scanBusy) {
+    for (i <- 0 until descCount) {
+      when(scanIdx === U(i, descIdxBits bits)) {
+        curEnabled := descEnabled(i).asUInt
+        curX       := descX(i)
+        curY       := descY(i)
+        curPat     := descPatternIdx(i)
+      }
+    }
+  }
+  val dOnLine = scanBusy && curEnabled(0) &&
+                (io.evalLine >= curY) &&
+                (io.evalLine < (curY + U(16, 10 bits)))
+
+  when(scanBusy) {
+    when(dOnLine) {
+      totalOnLine := totalOnLine + 1
+      when(activeCount < U(visiblePerLine, activeCount.getWidth bits)) {
+        val slot = activeCount.resize(slotBits)
+        activeValidReg(slot)   := True
+        activeXReg(slot)       := curX
+        activeRowReg(slot)     := (io.evalLine - curY).resize(4)
+        activePatternReg(slot) := curPat
+        activeCount := activeCount + 1
+      }
+    }
+    when(scanIdx === U(descCount - 1, descIdxBits bits)) {
+      scanBusy := False
+      overflowFlagReg := (totalOnLine +
+        Mux(dOnLine, U(1, totalOnLine.getWidth bits), U(0, totalOnLine.getWidth bits))) >
+        U(visiblePerLine, totalOnLine.getWidth bits)
+    } otherwise {
+      scanIdx := scanIdx + 1
+    }
   }
 
   io.activeValid      := activeValidReg
   io.activeX          := activeXReg
   io.activeRow        := activeRowReg
-  io.activePatternIdx := activePatternIdxReg
-  io.overflowFlag     := overflowReg
+  io.activePatternIdx := activePatternReg
+  io.overflowFlag     := overflowFlagReg
 }

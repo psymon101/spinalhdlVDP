@@ -601,35 +601,51 @@ case class VdpTop() extends Component {
   }
   val composedBg = composedBgIdx
 
-  // R2: two-pass sprite evaluator over 4 descriptors, 2 visible per line.
-  // Descriptors come directly from the top-level sprite* inputs. Evaluator
-  // latches the active list at the line boundary strobe; pass 2 reads it.
-  val spriteEval = SpriteEvaluator(descCount = 4, visiblePerLine = 2, patternSelBits = 1)
+  // Task 28: two-pass sprite evaluator over 32 descriptors, 8 visible per
+  // line. Slots 0..3 come from the top-level sprite* inputs (backwards-
+  // compat with TopTang20kHdmi scenarios + existing sims); slots 4..31
+  // are Reg-backed and bus-programmable via the Mode0 register block at
+  // 0x0800..0x083F. See SpriteEvaluator.scala for the slot layout and
+  // the word-0 / word-1 packing.
+  val spriteEval = SpriteEvaluator(
+    descCount      = 32,
+    visiblePerLine = 8,
+    patternSelBits = 4,
+    legacyIoCount  = 4)
   spriteEval.io.descX(0)          := io.sprite0X
   spriteEval.io.descY(0)          := io.sprite0Y
   spriteEval.io.descEnabled(0)    := io.sprite0Enabled
-  spriteEval.io.descPatternIdx(0) := io.sprite0PatternIdx
+  spriteEval.io.descPatternIdx(0) := io.sprite0PatternIdx.resize(4)
   spriteEval.io.descX(1)          := io.sprite1X
   spriteEval.io.descY(1)          := io.sprite1Y
   spriteEval.io.descEnabled(1)    := io.sprite1Enabled
-  spriteEval.io.descPatternIdx(1) := io.sprite1PatternIdx
+  spriteEval.io.descPatternIdx(1) := io.sprite1PatternIdx.resize(4)
   spriteEval.io.descX(2)          := io.sprite2X
   spriteEval.io.descY(2)          := io.sprite2Y
   spriteEval.io.descEnabled(2)    := io.sprite2Enabled
-  spriteEval.io.descPatternIdx(2) := io.sprite2PatternIdx
+  spriteEval.io.descPatternIdx(2) := io.sprite2PatternIdx.resize(4)
   spriteEval.io.descX(3)          := io.sprite3X
   spriteEval.io.descY(3)          := io.sprite3Y
   spriteEval.io.descEnabled(3)    := io.sprite3Enabled
-  spriteEval.io.descPatternIdx(3) := io.sprite3PatternIdx
-  // At end of line M (hCounter==hTotal-1), fillLine is M+1 for vCounter=M.
-  // The latched slot data is consumed during line M+1, where fillPixel is
-  // being computed for the next LineBuffer write (line M+2). So evalLine
-  // must be `fillLine + 1` = M+2 to match what layer0/1 sample during the
-  // next line's fill. Without this +1 the sprite y-offsets are off by one
-  // line relative to the composition, and sprites at their declared Y do
-  // not render.
+  spriteEval.io.descPatternIdx(3) := io.sprite3PatternIdx.resize(4)
+
+  // Mode0RegBus decode for 0x0800..0x083F → evaluator bus-write port.
+  //   subAddr = effAddr - 0x0800. slot = subAddr[6:1], word = subAddr[0].
+  val spriteBusRangeHit = effWrite &&
+    (effAddr >= U(0x0800, 15 bits)) &&
+    (effAddr <  U(0x0840, 15 bits))
+  val spriteBusSub = (effAddr - U(0x0800, 15 bits))(5 downto 0)
+  spriteEval.io.busSlot := spriteBusSub(5 downto 1).resize(spriteEval.descIdxBits)
+  spriteEval.io.busWord := spriteBusSub(0).asUInt.resize(1)
+  spriteEval.io.busData := effData
+  spriteEval.io.busWr   := spriteBusRangeHit
+
+  // Pass 1 strobe at end of line — evaluator takes descCount cycles to
+  // complete (well under hBlank = 160 cycles at 640×480@60).
+  // Shift strobe earlier by descCount cycles so the scan completes before
+  // the next line begins drawing.
   spriteEval.io.evalLine  := (fillLine + 1).resize(10)
-  spriteEval.io.evalStart := hCounter === hTotal - 1
+  spriteEval.io.evalStart := hCounter === U(hTotal - 33, log2Up(hTotal) bits)
   io.spriteOverflow := spriteEval.io.overflowFlag
 
   // Sprite pattern memories: 256 × 4-bit, power-of-two (GT-022 safe).
@@ -638,12 +654,14 @@ case class VdpTop() extends Component {
 
   val fillX = hCounter.resize(10)
 
-  // Per active-slot pixel resolution. Each slot picks its pattern Mem via
-  // activePatternIdx(s). Pixel is non-transparent where both the X-range
-  // covers fillX and the pattern pixel is non-zero.
-  val slotVisible = Vec(Bool(), 2)
-  val slotPixel   = Vec(Bits(4 bits), 2)
-  for (s <- 0 until 2) {
+  // Per active-slot pixel resolution (Task 28 — widened 2 → 8 slots).
+  // patternIndex is now 4 bits; the low bit selects pattern Mem 0 vs 1 for
+  // this task. Wider pattern-Mem banks land in a future sprite-attribute
+  // extension task (Task 37), so bits [3:1] are ignored here.
+  val NUM_SLOTS = 8
+  val slotVisible = Vec(Bool(), NUM_SLOTS)
+  val slotPixel   = Vec(Bits(4 bits), NUM_SLOTS)
+  for (s <- 0 until NUM_SLOTS) {
     val x       = spriteEval.io.activeX(s)
     val row     = spriteEval.io.activeRow(s)
     val valid   = spriteEval.io.activeValid(s)
@@ -654,37 +672,36 @@ case class VdpTop() extends Component {
     val addr    = (row(3 downto 0) ## col(3 downto 0)).asUInt
     val p0      = sprite0Pattern.readAsync(addr)
     val p1      = sprite1Pattern.readAsync(addr)
-    val pixel   = Mux(patIdx === U(0, 1 bit), p0, p1)
+    val pixel   = Mux(patIdx(0), p1, p0)
     slotPixel(s)   := pixel
     slotVisible(s) := active && pixel =/= B(0, 4 bits)
   }
 
-  // Priority: slot 1 over slot 0 (i.e., evaluator's "second-lowest" wins in
-  // front of "lowest" — matches the previous s1>s0 demo). This can flip once
-  // a later adapter defines a different priority rule; for R2's bounded scope
-  // the important property is that the order is DETERMINISTIC AND STABLE.
-  // R4: line buffer now carries 8 bits per pixel — {priority[7], bank[6:4],
-  // index[3:0]}. Sprites render from legacy bank 0 with priority=0 so they
-  // stay bit-compatible with R2. BG pixels carry composedBgBank and — for
-  // non-priority cases — priority=0 (priority is a BG-only concept; once
-  // composition chose L0 over L1 we've already consumed the priority info).
+  // Task 28 priority: back-to-front (slot 0 = lowest descriptor index,
+  // rendered first; higher-index slots overwrite lower-index ones on
+  // overlap). CyanPeak #7838 §8.3 approved back-to-front with descriptor
+  // index as the deterministic tie-breaker. R2's legacy 2-slot pattern
+  // (slot1 > slot0) generalises to NUM_SLOTS-1 > NUM_SLOTS-2 > … > 0.
+  //
+  // R4: line buffer carries {metadata, priority, bank, index}. Sprites
+  // render from legacy bank 0 with priority=0 to stay bit-compatible
+  // with R2.
+  val anySlotVisible = slotVisible.reduce(_ || _)
   val fillIdx  = Bits(4 bits)
   val fillBank = UInt(3 bits)
-  when(slotVisible(1)) {
-    fillIdx  := slotPixel(1)
-    fillBank := U(0, 3 bits)
-  }.elsewhen(slotVisible(0)) {
-    fillIdx  := slotPixel(0)
-    fillBank := U(0, 3 bits)
-  }.otherwise {
-    fillIdx  := composedBgIdx
-    fillBank := composedBgBank
+  fillIdx  := composedBgIdx
+  fillBank := composedBgBank
+  // Iterate slots low→high with last-hit-wins. In SpinalHDL's
+  // sequential-assignment semantics the highest-index visible slot
+  // overrides lower ones.
+  for (s <- 0 until NUM_SLOTS) {
+    when(slotVisible(s)) {
+      fillIdx  := slotPixel(s)
+      fillBank := U(0, 3 bits)
+    }
   }
-  // Priority bit stored in the line buffer is reserved for future consumers
-  // (e.g. sprite-vs-BG priority). For the R4 proof scene it is driven by the
-  // L0 priority bit only when the BG source was L0 (sprite-path forces 0).
   val fillPrio = Bool()
-  when(slotVisible(1) || slotVisible(0)) {
+  when(anySlotVisible) {
     fillPrio := False
   }.otherwise {
     fillPrio := layer0PrioGated && layer0Opaque && !layer1Opaque
