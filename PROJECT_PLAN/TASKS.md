@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 41 — Compositor Metadata Pipe |
+| **Task** | Task 28 — Two-Pass Sprite Evaluator |
 | **Status** | IN-PROGRESS |
-| **Phase** | capture |
+| **Phase** | artifact |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `1306c5c` (Task 41 Checkpoint B: metadata pipe) |
-| **Latest Auth Mail** | #7827 (BrightForge: Checkpoint C COMPLETE — transient proof, reverted) |
-| **Next Deliverable** | CyanPeak CP-C audit → closure |
-| **Coding Authorized** | **YES** — Checkpoint B landed |
+| **Latest Commit** | `1306c5c` (Task 41 closed baseline) |
+| **Latest Auth Mail** | #7830 (CyanPeak: Task 41 CLOSED, next lane open) |
+| **Next Deliverable** | CyanPeak artifact audit for Task 28 |
+| **Coding Authorized** | **NO** — pending artifact audit |
 
-**Artifact file:** `PROJECT_PLAN/TASK_41_COMPOSITOR_METADATA_PIPE.md`
+**Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
 Rules:
 - Only **one** lane may be live at a time.
