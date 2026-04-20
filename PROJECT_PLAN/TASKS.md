@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-20 (Task 37 auto-opened per BronzeGate #7900)
+**Updated:** 2026-04-20 (Task 37 CP-B landed at fd8a01a; awaiting CyanPeak CP-B audit → CP-C)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 37 — Affine Sprite Path |
 | **Status** | IN-PROGRESS |
-| **Phase** | artifact |
+| **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `12fd74b` (Task 28 DONE; Task 37 artifact auto-opened) |
-| **Latest Auth Mail** | #7900 (BronzeGate: open existing Task 37 next) |
-| **Next Deliverable** | CyanPeak artifact audit → GO |
-| **Coding Authorized** | **NO** — awaiting artifact GO |
+| **Latest Commit** | `fd8a01a` (Task 37 CP-B: affine sprite sim-verified) |
+| **Latest Auth Mail** | #7905 (BrightForge: CP-B COMPLETE), #7904 (CyanPeak: artifact GO) |
+| **Next Deliverable** | CyanPeak CP-B audit → CP-C GO |
+| **Coding Authorized** | **YES** — artifact GO (#7904), CP-B landed (#7905) |
 
 **Artifact file:** `PROJECT_PLAN/TASK_37_AFFINE_SPRITE_PATH.md`
 
