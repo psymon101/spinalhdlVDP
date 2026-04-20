@@ -30,7 +30,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `b6b1601` (Task 30 DONE; Task 31 artifact auto-opened) |
+| **Latest Commit** | `8713c31` (Task 31 artifact GO per CyanPeak #7932; phase → implement) |
 | **Latest Auth Mail** | #7932 (CyanPeak: Task 31 artifact PASSED → GO) |
 | **Next Deliverable** | BrightForge CP-B implementation + sim proof |
 | **Coding Authorized** | **YES** — artifact GO (#7932) |
