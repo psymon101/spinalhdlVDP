@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-20 (Task 37 CP-C landed at e4e53bc; awaiting CyanPeak CP-C audit → closure)
+**Updated:** 2026-04-20 (Task 37 DONE per CyanPeak #7913; Task 30 auto-opened)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 37 — Affine Sprite Path |
+| **Task** | Task 30 — Pre-Announced Arbiter Grant |
 | **Status** | IN-PROGRESS |
-| **Phase** | capture |
+| **Phase** | artifact |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `e4e53bc` (Task 37 CP-C: 3 affine sprites hardware-proven) |
-| **Latest Auth Mail** | #7911 (BrightForge: CP-C COMPLETE), #7906 (CyanPeak: CP-B PASSED → CP-C GO) |
-| **Next Deliverable** | CyanPeak CP-C audit → closure |
-| **Coding Authorized** | **YES** — CP-C landed |
+| **Latest Commit** | `aa451bf` (Task 37 DONE; Task 30 artifact auto-opened) |
+| **Latest Auth Mail** | #7913 (CyanPeak: Task 37 CLOSED), #7915 (BronzeGate: next-lane open) |
+| **Next Deliverable** | CyanPeak artifact audit → GO |
+| **Coding Authorized** | **NO** — awaiting artifact GO |
 
-**Artifact file:** `PROJECT_PLAN/TASK_37_AFFINE_SPRITE_PATH.md`
+**Artifact file:** `PROJECT_PLAN/TASK_30_PRE_ANNOUNCED_ARBITER_GRANT.md`
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -666,7 +666,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 30 — Pre-Announced Arbiter Grant
 
-**Status:** TODO
+**Status:** IN-PROGRESS
 **depends_on:** [15]
 **scope_boundary:** SDRAM arbitration lookahead only. No new fetch engines, no new memory types.
 **delivers:**
@@ -679,6 +679,8 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 - Sim: mixed scene with tile + sprite + Copper fetch proves no arbitration glitches under lookahead
 - Hardware: long-soak validation (Task 22 class) with arbiter active
+
+**Task doc:** `PROJECT_PLAN/TASK_30_PRE_ANNOUNCED_ARBITER_GRANT.md`
 
 ---
 
@@ -815,7 +817,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 37 — Affine Sprite Path
 
-**Status:** TODO
+**Status:** DONE (`e4e53bc`)
 **depends_on:** [19, 28]
 **scope_boundary:** Affine-transformed sprites only. No new background affine features.
 **delivers:**
@@ -828,6 +830,8 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 - Sim: affine sprite renders with correct transformed pixels
 - Hardware: visible rotated/scaled sprite on Tang Nano 20K
+
+**Task doc:** `PROJECT_PLAN/TASK_37_AFFINE_SPRITE_PATH.md`
 
 ---
 
