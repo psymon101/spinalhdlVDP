@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
 | **Latest Commit** | `1306c5c` (Task 41 Checkpoint B: metadata pipe) |
-| **Latest Auth Mail** | #7824 (CyanPeak: Checkpoint B PASSED, Checkpoint C GO) |
-| **Next Deliverable** | BrightForge Checkpoint C (vertical stripe hardware proof on Sc33) |
+| **Latest Auth Mail** | #7827 (BrightForge: Checkpoint C COMPLETE — transient proof, reverted) |
+| **Next Deliverable** | CyanPeak CP-C audit → closure |
 | **Coding Authorized** | **YES** — Checkpoint B landed |
 
 **Artifact file:** `PROJECT_PLAN/TASK_41_COMPOSITOR_METADATA_PIPE.md`
