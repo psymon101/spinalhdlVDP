@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 43 — Scenario Regression Harness |
 | **Status** | implement |
-| **Phase** | implement |
+| **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `56f9215` (Task 43 artifact landed) |
-| **Latest Auth Mail** | #7804 (CyanPeak: Task 43 artifact PASSED, Checkpoint B GO) |
-| **Next Deliverable** | BrightForge Checkpoint B harness implementation |
-| **Coding Authorized** | **YES** — CyanPeak audit GO issued |
+| **Latest Commit** | `c0b1f89` (Task 43 Checkpoint B: regression harness) |
+| **Latest Auth Mail** | #7811 (CyanPeak: Checkpoint B PASSED, Checkpoint C GO) |
+| **Next Deliverable** | BrightForge Checkpoint C validation on hardware (Sc0, Sc17, Sc33) |
+| **Coding Authorized** | **YES** — Checkpoint B landed, CP-C validation next |
 
 **Artifact file:** `PROJECT_PLAN/TASK_43_SCENARIO_REGRESSION_HARNESS.md`
 
