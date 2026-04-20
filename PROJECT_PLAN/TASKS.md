@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 43 — Scenario Regression Harness |
-| **Status** | implement |
-| **Phase** | capture |
+| **Task** | Task 41 — Compositor Metadata Pipe |
+| **Status** | artifact |
+| **Phase** | artifact |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `c0b1f89` (Task 43 Checkpoint B: regression harness) |
-| **Latest Auth Mail** | #7811 (CyanPeak: Checkpoint B PASSED, Checkpoint C GO) |
-| **Next Deliverable** | BrightForge Checkpoint C validation on hardware (Sc0, Sc17, Sc33) |
-| **Coding Authorized** | **YES** — Checkpoint B landed, CP-C validation next |
+| **Latest Commit** | `0c01703` (Task 43 closed baseline) |
+| **Latest Auth Mail** | #7817 (CyanPeak: Task 43 CLOSED, Task 41 auto-open) |
+| **Next Deliverable** | CyanPeak artifact audit for Task 41 |
+| **Coding Authorized** | **NO** — pending artifact audit |
 
-**Artifact file:** `PROJECT_PLAN/TASK_43_SCENARIO_REGRESSION_HARNESS.md`
+**Artifact file:** `PROJECT_PLAN/TASK_41_COMPOSITOR_METADATA_PIPE.md`
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -934,7 +934,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 41 — Compositor Metadata Pipe
 
-**Status:** TODO
+**Status:** IN-PROGRESS
 **depends_on:** [13]
 **scope_boundary:** Metadata pipe definition and wiring only. No new compositor math, no new fetch formats.
 **delivers:**
@@ -972,7 +972,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 43 — Scenario Regression Harness
 
-**Status:** TODO
+**Status:** DONE
 **depends_on:** [21]
 **scope_boundary:** Test infrastructure only. No new HDL, no new features.
 **delivers:**
