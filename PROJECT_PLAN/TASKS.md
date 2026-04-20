@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
 | **Latest Commit** | `3caa5a3` (synthesis-friendly explicit slot-decode rewrite) |
-| **Latest Auth Mail** | #7878 (BrightForge: rewrite landed, hardware still fails — same symptom) |
-| **Next Deliverable** | PM/audit direction on next bounded option (timing check / scan READ rewrite / scope reduction) |
-| **Coding Authorized** | **YES** — CP-C blocker persists, root cause not yet found |
+| **Latest Auth Mail** | #7880 (BronzeGate: check timing closure first, then decide on read-path rewrite) |
+| **Next Deliverable** | BrightForge timing report inspection (Sc28 PnR report) |
+| **Coding Authorized** | **YES** — timing check authorized |
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
