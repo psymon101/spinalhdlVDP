@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `9c55ff3` (Checkpoint B — no new code commit yet) |
-| **Latest Auth Mail** | #7866 (BrightForge: copperFifo path same failure, narrowed to VdpTop↔evaluator integration) |
-| **Next Deliverable** | BrightForge Option 1 (simPublic tap + VdpTop-scoped sim) or PM direction |
-| **Coding Authorized** | **YES** — CP-C debug narrowed to integration discrepancy |
+| **Latest Commit** | `aec80ce` (simPublic taps + VdpTop-scoped integration sim) |
+| **Latest Auth Mail** | #7871 (BronzeGate: PM decision — synthesis-friendly explicit slot decode fix next) |
+| **Next Deliverable** | BrightForge explicit slot-decode rewrite + Sc28 hardware proof |
+| **Coding Authorized** | **YES** — CP-C blocker class: Gowin synthesis discrepancy |
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
