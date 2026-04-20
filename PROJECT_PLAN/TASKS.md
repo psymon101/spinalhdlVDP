@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | IN-PROGRESS |
 | **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `537df9f` (scale 32→8 + syn_keep — hardware still fails) |
-| **Latest Auth Mail** | #7885 (BrightForge: all bounded synthesis experiments exhausted) |
-| **Next Deliverable** | PM/audit direction on next major option (probe / scope pull-back / Mem / defer) |
-| **Coding Authorized** | **YES** — all bounded experiments exhausted, awaiting direction |
+| **Latest Commit** | `9c55ff3` (CP-B baseline — probe instrumentation transient) |
+| **Latest Auth Mail** | #7890 (BrightForge: on-FPGA probe proves regs DO latch — failure in scan/render pipe) |
+| **Next Deliverable** | BrightForge Canary 4 (probe `io.activeValid(0)`) or PM direction |
+| **Coding Authorized** | **YES** — failure narrowed to Pass-1 scan or Pass-2 pixel-fill |
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
