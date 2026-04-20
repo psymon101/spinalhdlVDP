@@ -27,13 +27,13 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | Task 43 — Scenario Regression Harness |
-| **Status** | artifact |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding, on-hold) |
-| **Latest Commit** | `23b7b63` (Task 42 closeout) |
-| **Latest Auth Mail** | #7799 (CyanPeak: Task 42 CLOSED, GO for Task 43) |
-| **Next Deliverable** | CyanPeak preflight audit of `TASK_43_SCENARIO_REGRESSION_HARNESS.md` |
-| **Coding Authorized** | **NO** — wait for artifact audit GO |
+| **Status** | implement |
+| **Phase** | implement |
+| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
+| **Latest Commit** | `56f9215` (Task 43 artifact landed) |
+| **Latest Auth Mail** | #7804 (CyanPeak: Task 43 artifact PASSED, Checkpoint B GO) |
+| **Next Deliverable** | BrightForge Checkpoint B harness implementation |
+| **Coding Authorized** | **YES** — CyanPeak audit GO issued |
 
 **Artifact file:** `PROJECT_PLAN/TASK_43_SCENARIO_REGRESSION_HARNESS.md`
 
