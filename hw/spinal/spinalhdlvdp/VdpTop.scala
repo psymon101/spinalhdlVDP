@@ -691,11 +691,21 @@ case class VdpTop() extends Component {
   }
   val fillPixel = (fillPrio ## fillBank.asBits ## fillIdx).asBits  // 8 bits
 
-  // Double-buffered scanline buffer: 8-bit packed {priority, bank, index}.
-  val lineBuf = LineBuffer(pixelWidth = 8, lineWidth = hActive)
+  // Task 41 — per-pixel metadata stub. All fetch-engine sources currently
+  // drive the structural default (no math, normal priority, BG0 source),
+  // so existing scenarios remain bit-for-bit identical. Downstream
+  // consumers (sprite evaluator, platform overlays) will drive the flags
+  // from their own fetch engines without touching this file.
+  val fillMeta    = PixelMetadata.default()
+  val fillPacked  = (fillMeta.toBits ## fillPixel).asBits   // 12 bits total
+
+  // Double-buffered scanline buffer — widened from 8 → 12 bits to carry
+  // `{metadata[3:0], priority, bank[2:0], idx[3:0]}`. Per CyanPeak #7820
+  // guidance, 12-bit width fits standard Gowin BSRAM port aspect ratios.
+  val lineBuf = LineBuffer(pixelWidth = 8 + PixelMetadata.Width, lineWidth = hActive)
   lineBuf.io.writeEnable := hCounter < hActive
   lineBuf.io.writeAddr := hCounter.resized
-  lineBuf.io.writeData := fillPixel
+  lineBuf.io.writeData := fillPacked
   lineBuf.io.swap := hCounter === hTotal - 1
 
   // Drain address: present 1 cycle early for readSync pipeline.
@@ -711,11 +721,20 @@ case class VdpTop() extends Component {
   }
   lineBuf.io.readAddr := drainAddr
 
-  // Drain: readSync output is the 8-bit packed {priority, bank[3], idx[4]},
+  // Drain: readSync output is the 12-bit packed
+  // `{metadata[3:0], priority, bank[2:0], idx[3:0]}` (Task 41),
   // available 1 cycle after address. The palette is addressed by the full
   // {bank[3], idx[4]} = 7 bits; the stored priority bit is carried for future
-  // consumers but not used for palette selection.
+  // consumers but not used for palette selection. The 4-bit metadata tail
+  // is unpacked and exposed for downstream compositor / color-math consumers
+  // but — by scope — is not yet gating the live ColorMath enable expression;
+  // fetch-engine stubs drive the default (all-zeros) so existing scenarios
+  // remain bit-for-bit identical.
   val drainWord   = lineBuf.io.readData
+  val drainMeta   = PixelMetadata.fromBits(drainWord(11 downto 8)).setName("drainMeta")
+  drainMeta.mathEnable.simPublic()
+  drainMeta.forcedPriority.simPublic()
+  drainMeta.layerSource.simPublic()
   val drainIdx    = drainWord(3 downto 0).asUInt
   val drainBank   = drainWord(6 downto 4).asUInt
   val paletteAddr = (drainBank @@ drainIdx).resize(log2Up(TileAttributeAssets.PaletteDepth))
