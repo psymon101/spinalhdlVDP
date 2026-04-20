@@ -92,11 +92,19 @@ case class SpriteEvaluator(
   val regPatternIndex = Vec.fill(extCount)(RegInit(U(0, patternSelBits bits)))
   // Task 28 CP-C-Opt1 — expose Reg-Vec to simPublic for VdpTop-scoped
   // integration sim (SpriteBusViaVdpTopSim).
+  // Task 28 CP-C Option B (BronzeGate #7883 follow-on): add syn_keep on
+  // extended Reg-Vec so Gowin synthesis doesn't fold these regs away as
+  // optimised constants. Verilator treats them as ordinary regs; Gowin
+  // may optimise if reached-via-dynamic-index patterns appear dead.
   for (i <- 0 until extCount) {
     regEnabled(i).simPublic()
     regX(i).simPublic()
     regY(i).simPublic()
     regPatternIndex(i).simPublic()
+    regEnabled(i).addAttribute("syn_keep", "1")
+    regX(i).addAttribute("syn_keep", "1")
+    regY(i).addAttribute("syn_keep", "1")
+    regPatternIndex(i).addAttribute("syn_keep", "1")
   }
 
   when(io.busWr) {

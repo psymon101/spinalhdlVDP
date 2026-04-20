@@ -607,9 +607,12 @@ case class VdpTop() extends Component {
   // are Reg-backed and bus-programmable via the Mode0 register block at
   // 0x0800..0x083F. See SpriteEvaluator.scala for the slot layout and
   // the word-0 / word-1 packing.
+  // Task 28 CP-C Option A (BronzeGate #7883): reduce descCount 32 → 8
+  // temporarily as a scale-related discriminator on Gowin. 4 legacy IO
+  // slots + 4 bus-programmable extended slots.
   val spriteEval = SpriteEvaluator(
-    descCount      = 32,
-    visiblePerLine = 8,
+    descCount      = 8,
+    visiblePerLine = 4,
     patternSelBits = 4,
     legacyIoCount  = 4)
   spriteEval.io.descX(0)          := io.sprite0X
@@ -658,7 +661,7 @@ case class VdpTop() extends Component {
   // patternIndex is now 4 bits; the low bit selects pattern Mem 0 vs 1 for
   // this task. Wider pattern-Mem banks land in a future sprite-attribute
   // extension task (Task 37), so bits [3:1] are ignored here.
-  val NUM_SLOTS = 8
+  val NUM_SLOTS = 4   // Task 28 CP-C Option A: match reduced visiblePerLine
   val slotVisible = Vec(Bool(), NUM_SLOTS)
   val slotPixel   = Vec(Bits(4 bits), NUM_SLOTS)
   for (s <- 0 until NUM_SLOTS) {

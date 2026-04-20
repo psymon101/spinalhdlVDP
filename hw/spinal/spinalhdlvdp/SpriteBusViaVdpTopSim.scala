@@ -54,7 +54,8 @@ object SpriteBusViaVdpTopSim extends App {
       dut.clockDomain.waitSampling()
     }
 
-    // Program 5 extended slots (4..8) at y=250, x spread, alternating patIdx.
+    // Program 4 extended slots (4..7) at y=250, x spread, alternating patIdx.
+    // Task 28 CP-C Option A scope (descCount=8, extCount=4).
     val progSeq = Seq(
       (0x0808, 0x8000 | 250, 0),    // slot 4 word 0: enabled, patIdx=0, y=250
       (0x0809, 60,            0),   // slot 4 word 1: x=60
@@ -63,9 +64,7 @@ object SpriteBusViaVdpTopSim extends App {
       (0x080C, 0x8000 | 250,  0),
       (0x080D, 220,           0),
       (0x080E, 0x8000 | (1 << 11) | 250, 0),
-      (0x080F, 300,           0),
-      (0x0810, 0x8000 | 250,  0),
-      (0x0811, 500,           0)
+      (0x080F, 300,           0)
     )
 
     println("-- phase 1: issue 10 bus pulses via io.regBus --")
@@ -82,12 +81,11 @@ object SpriteBusViaVdpTopSim extends App {
       (true,  60,  250, 0),
       (true,  140, 250, 1),
       (true,  220, 250, 0),
-      (true,  300, 250, 1),
-      (true,  500, 250, 0)
+      (true,  300, 250, 1)
     )
 
     var allPass = true
-    for (i <- 0 until 5) {
+    for (i <- 0 until 4) {
       val en   = dut.spriteEval.regEnabled(i).toBoolean
       val x    = dut.spriteEval.regX(i).toInt
       val y    = dut.spriteEval.regY(i).toInt
@@ -100,7 +98,7 @@ object SpriteBusViaVdpTopSim extends App {
     }
 
     if (allPass) {
-      println("SpriteBusViaVdpTopSim: ALL 5 SLOTS LATCHED CORRECTLY — VdpTop integration path works in sim")
+      println("SpriteBusViaVdpTopSim: ALL 4 SLOTS LATCHED CORRECTLY — VdpTop integration path works in sim")
       println("  Conclusion: hardware symptom (#7866) is a synthesis discrepancy, not a functional RTL bug")
     } else {
       println("SpriteBusViaVdpTopSim: LATCH FAILED — reproduces hardware symptom in sim")

@@ -245,6 +245,23 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (0 << 14) | 320, (1 << 14) | 0x0311, 0x0002,
           (3 << 14) | 0
         )
+      case 28 =>
+        // Task 28 CP-C (Sc28) Option A (BronzeGate #7883): reduced-scale
+        // evaluator (descCount=8, visiblePerLine=4, legacyIoCount=4).
+        // Program slots 4..7 — addrs 0x0808..0x080F. 4 extended sprites
+        // at y=250, x spread, alternating patIdx.
+        Seq(
+          (0 << 14) | 0,                                     // WAIT y=0
+          (1 << 14) | 0x0808, 0x8000 | 250,                  // slot 4 word0
+          (1 << 14) | 0x0809, 60,                            // slot 4 word1
+          (1 << 14) | 0x080A, 0x8000 | (1 << 11) | 250,      // slot 5 word0
+          (1 << 14) | 0x080B, 140,
+          (1 << 14) | 0x080C, 0x8000 | 250,                  // slot 6 word0
+          (1 << 14) | 0x080D, 220,
+          (1 << 14) | 0x080E, 0x8000 | (1 << 11) | 250,      // slot 7 word0
+          (1 << 14) | 0x080F, 300,
+          (3 << 14) | 0                                      // JUMP 0
+        )
       case 33 =>
         // Task 33 HW proof (per CyanPeak #7767 / BronzeGate #7766 direction):
         // HDMA drives COLOR_MATH_CTRL (0x0334) at 4 vertical positions,
@@ -361,13 +378,13 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
       case 0           => 0x0001  // R4.1d Checkpoint C: L0 only
       case 1 | 2 | 3   => 0x0002  // L1 only
-      case 4 | 5       => 0x0006  // L1 + sprite layer
+      case 4 | 5 | 28  => 0x0006  // L1 + sprite layer (Sc28 reuses Sc5 pattern)
       case 6 | 7       => 0x0006  // L1 + sprite layer (sprites over bg)
       case 8           => 0x0003  // L0 + L1 (parallax, no sprites)
       case 9 | 10      => 0x0001  // L0 only (planar/shuffled bitmap)
@@ -611,9 +628,12 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // observable on a single captured frame.
 
     // Sprite enables vary per scenario.
-    val scSprite0 = Set(4, 5, 6, 7, 12, 15, 16, 17).contains(scenarioId)
-    val scSprite1 = Set(5, 6, 7, 15, 16, 17).contains(scenarioId)
-    val scSprite23 = Set(5, 6, 17).contains(scenarioId)    // Sc5/Sc6/Sc17 use all 4
+    // Sc28 reuses Sc5's legacy sprite configuration so the scene has
+    // content to render over; the 5 bus-programmed sprites are the
+    // NEW visible proof at y=250.
+    val scSprite0 = Set(4, 5, 6, 7, 12, 15, 16, 17, 28).contains(scenarioId)
+    val scSprite1 = Set(5, 6, 7, 15, 16, 17, 28).contains(scenarioId)
+    val scSprite23 = Set(5, 6, 17, 28).contains(scenarioId)
     video.io.sprite0Enabled    := Bool(scSprite0)
     video.io.sprite0PatternIdx := U(0, 1 bit)
     video.io.sprite1Enabled    := Bool(scSprite1)
@@ -752,7 +772,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       video.io.sprite3Enabled := False
       video.io.sprite2PatternIdx := U(0, 1 bit)
       video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (scenarioId == 5 || scenarioId == 6) {
+    } else if (scenarioId == 5 || scenarioId == 6 || scenarioId == 28) {
       // Per-sprite bounce: each sprite has its own X/Y reg + sign bit. Step
       // sizes spread out so the 4 sprites move at different rates.
       val xMin = 16; val xMax = 624     // 16 ≤ x ≤ 624 keeps 16×16 sprite on-screen
@@ -969,4 +989,7 @@ object TopTang20kHdmiScenario13Verilog extends App {
 }
 object TopTang20kHdmiScenario33Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 33))   // Task 33 HDMA HW proof
+}
+object TopTang20kHdmiScenario28Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 28))   // Task 28 sprite-evaluator HW proof
 }
