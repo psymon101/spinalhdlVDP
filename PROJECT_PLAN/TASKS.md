@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-18 (convergence applied per BronzeGate #7580)
+**Updated:** 2026-04-20 (Task 28 closed per CyanPeak #7896; next-lane ambiguity flagged)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,14 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 28 — Two-Pass Sprite Evaluator |
-| **Status** | IN-PROGRESS |
-| **Phase** | capture |
-| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `9e07804` (Task 28 Checkpoint C: 8-desc HW proof verified) |
-| **Latest Auth Mail** | #7893 (BrightForge: Checkpoint C COMPLETE — all 5 canaries lit, 4 sprites visible) |
-| **Next Deliverable** | CyanPeak CP-C audit → closure |
-| **Coding Authorized** | **YES** — Checkpoint C landed |
+| **Task** | *(cleared)* |
+| **Status** | Task 28 DONE at `9e07804` |
+| **Phase** | closeout |
+| **Owner** | CoralReef (ledger) |
+| **Latest Commit** | `9e07804` (Task 28 CP-C PASSED, CyanPeak audit #7896) |
+| **Latest Auth Mail** | #7896 (CyanPeak: Task 28 CLOSED) |
+| **Next Deliverable** | PM decision on next lane (see note below) |
+| **Coding Authorized** | **NO** — lane cleared, awaiting next assignment |
+
+**Next-lane ambiguity:** CyanPeak #7896 proposes opening **Task 37 (Sprite Attribute Extension — Palette & Bank)**. However, the existing `TASKS.md` backlog defines Task 37 as **Affine Sprite Path** (deps [19,28], now unblocked). Additional unblocked lanes: Task 30 (Pre-Announced Arbiter Grant, deps [12,15]) and Task 31 (Scroll Table Primitive, deps [15]). PM decision required before a new lane may be marked live.
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
@@ -626,7 +628,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 28 — Two-Pass Sprite Evaluator
 
-**Status:** IN-PROGRESS
+**Status:** DONE (`9e07804`)
 **depends_on:** [12, 15]
 **scope_boundary:** Sprite evaluation pipeline only. No new compositor changes, no collision logic (Task 29), no attribute extension (Task 37).
 **delivers:**
