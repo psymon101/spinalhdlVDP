@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
 | **Latest Commit** | `9c55ff3` (Checkpoint B — no new code commit yet) |
-| **Latest Auth Mail** | #7862 (BrightForge: Sc28 bootstrap fires, sprites still not surfacing) |
-| **Next Deliverable** | BrightForge bounded experiment (simPublic tap or copperFifo path) |
-| **Coding Authorized** | **YES** — CP-C debug in progress |
+| **Latest Auth Mail** | #7866 (BrightForge: copperFifo path same failure, narrowed to VdpTop↔evaluator integration) |
+| **Next Deliverable** | BrightForge Option 1 (simPublic tap + VdpTop-scoped sim) or PM direction |
+| **Coding Authorized** | **YES** — CP-C debug narrowed to integration discrepancy |
 
 **Artifact file:** `PROJECT_PLAN/TASK_28_TWO_PASS_SPRITE_EVALUATOR.md`
 
