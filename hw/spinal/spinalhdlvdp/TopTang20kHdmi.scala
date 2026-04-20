@@ -264,6 +264,49 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 37 =>
+        // Task 37 hardware proof: per-sprite affine transforms.
+        // Copper bootstrap programs three extended slots:
+        //   - slot 4 @ (200,200) patIdx=0, 45° rotation around center
+        //   - slot 5 @ (400,200) patIdx=1, 2× scale (texture sampled
+        //     half-rate; middle scanlines of a 32×32 screen-bbox visible
+        //     within the 16-line Pass-1 y-bbox)
+        //   - slot 6 @ (100,400) patIdx=0, flat reference (affineEnable=0)
+        //
+        // Inverse-transform matrices (host computes "screen → texture"):
+        //   45°:    A=cos=0x00B5, B=sin=0x00B5, C=-sin=0xFF4B, D=cos=0x00B5
+        //           transX = (2048 - (A*cx + B*cy))/4; cx=cy=208
+        //                  = (2048 - 75296)/4 = -18312 = 0xB878
+        //           transY = (2048 - (C*cx + D*cy))/4 = 512 = 0x0200
+        //   2×:     A=0x0080, D=0x0080, B=C=0;   cx=408, cy=208
+        //           transX = (2048 - 128*408)/4 = -12544 = 0xCF00
+        //           transY = (2048 - 128*208)/4 =  -6144 = 0xE800
+        // Reuses the Task 19 AffineStepper Q8.8 / Q10.6 contract.
+        Seq(
+          (0 << 14) | 0,                                             // WAIT y=0
+          // Slot 4 — 45° rotation sprite at (200, 200), patIdx=0
+          (1 << 14) | 0x0820, 0x8400 | 200,                          // w0 en|aff|pat=0|y=200
+          (1 << 14) | 0x0821, 200,                                   // w1 x=200
+          (1 << 14) | 0x0822, 0x00B5,                                // matrixA = cos 45
+          (1 << 14) | 0x0823, 0x00B5,                                // matrixB = sin 45
+          (1 << 14) | 0x0824, 0xFF4B,                                // matrixC = -sin 45
+          (1 << 14) | 0x0825, 0x00B5,                                // matrixD = cos 45
+          (1 << 14) | 0x0826, 0xB878,                                // transX
+          (1 << 14) | 0x0827, 0x0200,                                // transY
+          // Slot 5 — 2× scale sprite at (400, 200), patIdx=1
+          (1 << 14) | 0x0828, 0x8C00 | 200,                          // w0 en|aff|pat=1|y=200
+          (1 << 14) | 0x0829, 400,                                   // w1 x=400
+          (1 << 14) | 0x082A, 0x0080,                                // matrixA = 0.5
+          (1 << 14) | 0x082B, 0x0000,
+          (1 << 14) | 0x082C, 0x0000,
+          (1 << 14) | 0x082D, 0x0080,                                // matrixD = 0.5
+          (1 << 14) | 0x082E, 0xCF00,                                // transX
+          (1 << 14) | 0x082F, 0xE800,                                // transY
+          // Slot 6 — flat reference sprite at (100, 400), patIdx=0
+          (1 << 14) | 0x0830, 0x8000 | 400,                          // w0 en|pat=0|y=400
+          (1 << 14) | 0x0831, 100,                                   // w1 x=100
+          (3 << 14) | 0                                              // JUMP 0
+        )
       case 33 =>
         // Task 33 HW proof (per CyanPeak #7767 / BronzeGate #7766 direction):
         // HDMA drives COLOR_MATH_CTRL (0x0334) at 4 vertical positions,
@@ -994,4 +1037,7 @@ object TopTang20kHdmiScenario33Verilog extends App {
 }
 object TopTang20kHdmiScenario28Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 28))   // Task 28 sprite-evaluator HW proof
+}
+object TopTang20kHdmiScenario37Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 37))   // Task 37 affine sprite HW proof
 }
