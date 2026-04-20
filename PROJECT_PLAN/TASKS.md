@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-20 (Task 30 CP-C landed at 734ffb6; awaiting CyanPeak CP-C audit → closure)
+**Updated:** 2026-04-20 (Task 30 DONE per CyanPeak #7925; Task 31 auto-opened)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 30 — Pre-Announced Arbiter Grant |
+| **Task** | Task 31 — Scroll Table Primitive |
 | **Status** | IN-PROGRESS |
-| **Phase** | capture |
+| **Phase** | artifact |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `734ffb6` (Task 30 CP-C: Sc8 parallax stable with arbiter) |
-| **Latest Auth Mail** | #7924 (BrightForge: CP-C COMPLETE), #7920 (CP-B), #7918 (artifact GO) |
-| **Next Deliverable** | CyanPeak CP-C audit → closure |
-| **Coding Authorized** | **YES** — CP-C landed |
+| **Latest Commit** | `4e97e8d` (Task 30 DONE; Task 31 artifact auto-opened) |
+| **Latest Auth Mail** | #7925 (CyanPeak: Task 30 CLOSED), #7928 (BronzeGate: next-lane open) |
+| **Next Deliverable** | CyanPeak artifact audit → GO |
+| **Coding Authorized** | **NO** — awaiting artifact GO |
 
-**Artifact file:** `PROJECT_PLAN/TASK_30_PRE_ANNOUNCED_ARBITER_GRANT.md`
+**Artifact file:** `PROJECT_PLAN/TASK_31_SCROLL_TABLE_PRIMITIVE.md`
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -666,7 +666,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 30 — Pre-Announced Arbiter Grant
 
-**Status:** IN-PROGRESS
+**Status:** DONE (`734ffb6`)
 **depends_on:** [15]
 **scope_boundary:** SDRAM arbitration lookahead only. No new fetch engines, no new memory types.
 **delivers:**
@@ -686,7 +686,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 31 — Scroll Table Primitive
 
-**Status:** TODO
+**Status:** IN-PROGRESS
 **depends_on:** [7, 15]
 **scope_boundary:** Scroll tables only. No new tile fetch formats, no new compositor math.
 **delivers:**
@@ -699,6 +699,8 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 - Sim: scene with per-column scroll offsets proves correct addressing
 - Hardware: visible parallax effect on Tang Nano 20K
+
+**Task doc:** `PROJECT_PLAN/TASK_31_SCROLL_TABLE_PRIMITIVE.md`
 
 ---
 
