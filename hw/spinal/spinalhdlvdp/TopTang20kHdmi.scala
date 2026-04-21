@@ -951,6 +951,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     bitmapRowFetch.io.fetchLine  := video.io.bitmapSdramFetchLine
     bitmapRowFetch.io.col        := video.io.bitmapSdramCol
     bitmapRowFetch.io.enable     := video.io.bitmapModeActive
+    // tileBootDone wired after `fetch` instantiation below (forward ref).
     video.io.bitmapSdramByte     := bitmapRowFetch.io.bitmapByte
     video.io.bitmapSdramAttrByte := bitmapRowFetch.io.attrByte
 
@@ -1170,6 +1171,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   pixelArea.fetch.io.sdramDout      := sdramArea.ctrl.io.dout
   pixelArea.fetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
   pixelArea.fetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready
+  // Task 44b iter 6: gate BitmapRowFetch init on tile-fetch bootDone
+  // (forward-referenced because `fetch` is declared after bitmapRowFetch
+  // in pixelArea block).
+  pixelArea.bitmapRowFetch.io.tileBootDone := pixelArea.fetch.io.bootDone
   pixelArea.fetch.io.sdramBusy      := sdramArea.ctrl.io.busy
 }
 

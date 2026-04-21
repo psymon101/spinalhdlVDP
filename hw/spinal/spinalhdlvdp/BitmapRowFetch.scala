@@ -59,6 +59,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     val fetchLine      = in  UInt(10 bits)
     val col            = in  UInt(10 bits)
     val enable         = in  Bool()    // pixel-domain bitmap-mode enable
+    val tileBootDone   = in  Bool()    // iter 6: tile-fetch init complete (safe to init our SDRAM regions)
     val bitmapByte     = out Bits(8 bits)
     val attrByte       = out Bits(8 bits)
     val bootDone       = out Bool()
@@ -114,6 +115,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     val fetchGrantEdge = fetchGrantSync && !fetchGrantPrev
     val fetchLineSync  = BufferCC(io.fetchLine, U(0, 10 bits))
     val enableSync     = BufferCC(io.enable, False)
+    val tileBootDoneSync = BufferCC(io.tileBootDone, False)
 
     val cmdAddr = Reg(UInt(23 bits)) init 0
     val cmdDin  = Reg(Bits(8 bits))  init 0
@@ -192,7 +194,15 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       sWaitEnable.whenIsActive {
         cmdRd := False; cmdWr := False
         sdramActiveR := False
-        when(enableSync && !io.sdramBusy) {
+        // Iter 6: also wait for tile-fetch bootDone so the arbiter has
+        // no competing client for our SDRAM regions (0x3000..0x4FFF).
+        // Previously our init cmdWr pulses were silently dropped for
+        // the first ~4-6 cycles while BufferCC was propagating
+        // sdramActive=True into pixelCd, because the arbiter was still
+        // routing client 0 and tile fetch had its own init writes in
+        // flight. bootCounter advanced unconditionally so the FSM
+        // "completed" with many writes missing.
+        when(enableSync && tileBootDoneSync && !io.sdramBusy) {
           bootCounter := 0
           sdramActiveR := True
           goto(sInitBitmap)
