@@ -1108,6 +1108,17 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     O_led(3) := !video.io.irq            // Task 35 — lit while any enabled status bit is set
     O_led(4) := fetch.io.memtestFail
     O_led(5) := fetch.io.underrun
+
+    // Task 44b #8097/#8098 Sc45-only pixel-domain register-activity probe.
+    // Free-running 24-bit counter in pixelClockDomain; MSB drives LED3 at
+    // ~1.5 Hz when clk_pixel is actually clocking registers. Overrides the
+    // production LED3 mapping only when scenarioId==45 so Sc44 production
+    // behaviour is unchanged.
+    if (scenarioId == 45) {
+      val sc45PixelDiagCounter = Reg(UInt(24 bits)) init 0
+      sc45PixelDiagCounter := sc45PixelDiagCounter + 1
+      O_led(3) := !sc45PixelDiagCounter.msb
+    }
   }
 
   // Task 34 CDC hardening (CyanPeak #7689 / BronzeGate #7690 path β).
