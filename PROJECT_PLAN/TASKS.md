@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-20 (Task 31 artifact GO per CyanPeak #7932)
+**Updated:** 2026-04-21 (Task 31 CP-B landed at 4962d8c)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,11 +28,11 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | Task 31 — Scroll Table Primitive |
 | **Status** | IN-PROGRESS |
-| **Phase** | implement |
+| **Phase** | capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `8713c31` (Task 31 artifact GO per CyanPeak #7932; phase → implement) |
+| **Latest Commit** | `4962d8c` (Task 31 CP-B — scroll-table primitive sim-verified) |
 | **Latest Auth Mail** | #7932 (CyanPeak: Task 31 artifact PASSED → GO) |
-| **Next Deliverable** | BrightForge CP-B implementation + sim proof |
+| **Next Deliverable** | CyanPeak CP-B audit; then BrightForge CP-C hardware proof |
 | **Coding Authorized** | **YES** — artifact GO (#7932) |
 
 **Artifact file:** `PROJECT_PLAN/TASK_31_SCROLL_TABLE_PRIMITIVE.md`
