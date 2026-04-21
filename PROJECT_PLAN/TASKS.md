@@ -35,7 +35,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Next Deliverable** | CyanPeak Task 44 artifact audit → BrightForge implementation GO |
 | **Coding Authorized** | **NO** — awaiting artifact audit PASS |
 
-**Artifact file:** `PROJECT_PLAN/TASK_29_SPRITE_FLAGS_AND_COLLISION_HOOKS.md`
+**Artifact file:** `PROJECT_PLAN/TASK_44_RAW_BITMAP_ATTRIBUTE_FETCH.md`
 
 Rules:
 - Only **one** lane may be live at a time.
