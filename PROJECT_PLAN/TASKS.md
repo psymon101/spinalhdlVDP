@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-21 (Task 44b CyanPeak audit ruling, ledger sync to 9348f73 / #8093)
+**Updated:** 2026-04-21 (Task 44b LED3 blinker diagnostic, ledger sync to 20ae1bc / #8100)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `062bf18` (CoralReef debug sticky fix atop forced-overlay diagnostic) |
-| **Latest Auth Mail** | #8093 (CyanPeak: sticky patch PASS; Sc45 blanking diagnostic authorized; LED report requested) |
-| **Next Deliverable** | BrightForge LED hardware report for Sc45 — PROVIDED in #8095 (all PLLs locked, bootDone OK, memtest pass); await CyanPeak next probe auth |
+| **Latest Commit** | `20ae1bc` (BrightForge LED3 pixel-domain register-activity probe) |
+| **Latest Auth Mail** | #8100 (BrightForge: LED3 blinks, pixel-domain alive; blank downstream of raster) |
+| **Next Deliverable** | CyanPeak concurrent audit of Sc45 video.io.de / hsync/vsync / clk_pixel_x5 / bitmap-feedback hypotheses (BrightForge #8100) |
 | **Coding Authorized** | **YES** — CyanPeak audit correction 6c #8074; CoralReef sticky patch `062bf18` PASS #8093 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
