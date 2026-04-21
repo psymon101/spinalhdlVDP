@@ -28,11 +28,11 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
+| **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
 | **Latest Commit** | `2e34cd8` (Task 44b CP-A: BitmapRowFetch sim-verified) |
-| **Latest Auth Mail** | #8010 (BrightForge: Task 44b CP-A COMPLETE) |
-| **Next Deliverable** | CyanPeak CP-A audit → BrightForge CP-B hardware proof |
+| **Latest Auth Mail** | #8013 (CyanPeak: Task 44b CP-A PASSED, CP-B GO) |
+| **Next Deliverable** | BrightForge CP-B hardware proof (Sc44d SDRAM-backed) |
 | **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8008 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
