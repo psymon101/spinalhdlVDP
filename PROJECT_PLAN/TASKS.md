@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(none — lane closed)* |
-| **Status** | *(pending next-lane directive)* |
-| **Phase** | — |
-| **Owner** | — |
+| **Task** | **Task 29 — Sprite Flags and Collision Hooks** |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact) → BrightForge (implement) → CyanPeak (audit) |
 | **Latest Commit** | `ac3fb87` (Task 31 CLOSED) |
-| **Latest Auth Mail** | #7945 (CyanPeak: Task 31 CLOSED) |
-| **Next Deliverable** | CoralReef artifact draft for **Task 29** to begin Mode0 adapter-readiness hardening |
-| **Coding Authorized** | **NO** — no active lane |
+| **Latest Auth Mail** | #7969 (BronzeGate: Task 29 is next lane) |
+| **Next Deliverable** | CyanPeak artifact audit → BrightForge implementation GO |
+| **Coding Authorized** | **NO** — awaiting artifact audit PASS |
 
-**Artifact file:** `PROJECT_PLAN/TASK_31_SCROLL_TABLE_PRIMITIVE.md`
+**Artifact file:** `PROJECT_PLAN/TASK_29_SPRITE_FLAGS_AND_COLLISION_HOOKS.md`
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -647,7 +647,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 29 — Sprite Flags and Collision Hooks
 
-**Status:** TODO
+**Status:** IN-PROGRESS
 **depends_on:** [28]
 **scope_boundary:** Sprite-side status flags only. No new compositor, no new fetch formats.
 **delivers:**
