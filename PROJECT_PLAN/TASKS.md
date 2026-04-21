@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
 | **Latest Commit** | `2e34cd8` (Task 44b CP-A: BitmapRowFetch sim-verified) |
-| **Latest Auth Mail** | #8022 (BrightForge: fresh CDC violation blocker, three options proposed) |
-| **Next Deliverable** | PM/audit ruling on BrightForge CDC blocker (#8022): Option A/B/C |
+| **Latest Auth Mail** | #8026 (BronzeGate: authorize bounded canary debug, Option A) |
+| **Next Deliverable** | BrightForge bounded canary debug / root-cause report for black-screen |
 | **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8008 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
