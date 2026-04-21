@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `2e34cd8` (Task 44b CP-A: BitmapRowFetch sim-verified) |
-| **Latest Auth Mail** | #8026 (BronzeGate: authorize bounded canary debug, Option A) |
-| **Next Deliverable** | BrightForge bounded canary debug / root-cause report for black-screen |
+| **Latest Commit** | `82e1a95` (debug iter 1: arbiter fix + canaries, FSM stall in sInitBitmap) |
+| **Latest Auth Mail** | #8030 (BronzeGate: authorize one more targeted canary iteration) |
+| **Next Deliverable** | BrightForge targeted canary iteration 2 (busy/dataReady/cmdWr canaries) |
 | **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8008 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
