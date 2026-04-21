@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `a8f0208` (Task 44 CP-A: sim-verified bitmap decoder) |
-| **Latest Auth Mail** | #7992 (CyanPeak: Task 44 CP-A PASSED, CP-B GO) |
-| **Next Deliverable** | BrightForge CP-B hardware proof |
+| **Latest Commit** | `a87bcd3` (Task 44 partial CP-B: decoder+mux hardware proof) |
+| **Latest Auth Mail** | #7999 (BronzeGate: #7995 stands, Task 44 active) |
+| **Next Deliverable** | BronzeGate ruling on Option A vs B for SDRAM row-buffer integration |
 | **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #7987, CP-A PASS #7992 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44_RAW_BITMAP_ATTRIBUTE_FETCH.md`
