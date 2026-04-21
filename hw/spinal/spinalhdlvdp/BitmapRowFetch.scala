@@ -142,11 +142,33 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     val pendingKind = Reg(Bool())     init False
     val pendingIdx  = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
     val pendingData = Reg(Bits(8 bits)) init 0
+    // Iter 5 fix (webcam evidence #8046): track whether we are in an
+    // Attr-fetch wait or Bitmap-fetch wait so the always-on latch
+    // below can set the correct `kind`.
+    val fetchKindIsAttr = RegInit(False)
+    // Forward-declared so the always-on latch below can reference it
+    // before the FSM block defines its state transitions.
+    val sdramActiveR = RegInit(False)
     byteFifo.io.push.valid         := pushPending
     byteFifo.io.push.payload.kind  := pendingKind
     byteFifo.io.push.payload.idx   := pendingIdx
     byteFifo.io.push.payload.data  := pendingData
     when(byteFifo.io.push.fire) { pushPending := False }
+
+    // Iter 5: evaluate the dataReady → pushPending latch every sdramCd
+    // cycle (not only when `sFetchBitmapWait` is active). Iter-4 canary
+    // evidence showed `dataReady` fired while sdramActive was True but
+    // pushPending never asserted — implying dataReady arrived one cycle
+    // before the FSM transitioned to sFetchBitmapWait, so the old
+    // guard inside `whenIsActive` never caught the event. This
+    // component-scope guard still gates on `sdramActiveR` so only our
+    // own fetch windows latch data.
+    when(io.sdramDataReady && sdramActiveR && !pushPending) {
+      pendingKind := fetchKindIsAttr
+      pendingIdx  := byteIdx
+      pendingData := io.sdramDout
+      pushPending := True
+    }
 
     val dbgPushPendingEver = RegInit(False)
     when(pushPending) { dbgPushPendingEver := True }
@@ -241,14 +263,9 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       sFetchBitmapWait.whenIsActive {
         sdramActiveR := True
         cmdRd := False
-        // Latch on dataReady (if no prior pending pending).
-        when(io.sdramDataReady && !pushPending) {
-          pendingKind := False
-          pendingIdx  := byteIdx
-          pendingData := io.sdramDout
-          pushPending := True
-        }
-        // Advance to next byte once the pending push is accepted.
+        fetchKindIsAttr := False
+        // Latch done at component scope (see above). Just wait for push.fire
+        // to advance byteIdx and re-enter sFetchBitmap.
         when(byteFifo.io.push.fire) {
           byteIdx := byteIdx + 1
           goto(sFetchBitmap)
@@ -274,12 +291,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       sFetchAttrWait.whenIsActive {
         sdramActiveR := True
         cmdRd := False
-        when(io.sdramDataReady && !pushPending) {
-          pendingKind := True
-          pendingIdx  := byteIdx
-          pendingData := io.sdramDout
-          pushPending := True
-        }
+        fetchKindIsAttr := True
         when(byteFifo.io.push.fire) {
           byteIdx := byteIdx + 1
           goto(sFetchAttr)
@@ -296,8 +308,8 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     // on cmdRd/cmdWr alone is too narrow for the top-level pixelCd
     // BufferCC — arbiter would miss the window and drop writes. Gets
     // set when enable first sees high, stays high until fetch loop
-    // quiesces in sIdle (with no new grant).
-    val sdramActiveR = RegInit(False)
+    // quiesces in sIdle (with no new grant). Declared earlier now
+    // so iter-5 always-on latch can reference it.
 
     // CP-B iter 4 sticky debug latches (sdramCd-resident). Per
     // BronzeGate #8039 evidence requirement: dataReady observed while
