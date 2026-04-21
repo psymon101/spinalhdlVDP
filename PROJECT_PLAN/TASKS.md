@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-21 (Task 44b PM state delta, ledger sync to 7083082 / #8089)
+**Updated:** 2026-04-21 (Task 44b CyanPeak audit ruling, ledger sync to 9348f73 / #8093)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
 | **Latest Commit** | `062bf18` (CoralReef debug sticky fix atop forced-overlay diagnostic) |
-| **Latest Auth Mail** | #8089 (BronzeGate PM state delta: #8087/#8088 supersede final-mux diagnosis; Sc45 blanking remains main blocker) |
-| **Next Deliverable** | STOP — Sc45 pixel-domain/HDMI blanking diagnosis; generation-target bug identified; actual Sc45 remains uniform black (BronzeGate #8089) |
-| **Coding Authorized** | **YES** — CyanPeak audit correction 6c #8074 |
+| **Latest Auth Mail** | #8093 (CyanPeak: sticky patch PASS; Sc45 blanking diagnostic authorized; LED report requested) |
+| **Next Deliverable** | BrightForge LED hardware report for Sc45 — PROVIDED in #8095 (all PLLs locked, bootDone OK, memtest pass); await CyanPeak next probe auth |
+| **Coding Authorized** | **YES** — CyanPeak audit correction 6c #8074; CoralReef sticky patch `062bf18` PASS #8093 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
