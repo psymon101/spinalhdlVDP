@@ -28,11 +28,11 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 29 — Sprite Flags and Collision Hooks** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
+| **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `318b800` (Task 29 artifact opened) |
-| **Latest Auth Mail** | #7974 (CyanPeak: Task 29 artifact PASSED, implementation GO) |
-| **Next Deliverable** | BrightForge Checkpoint A (HDL + sim proof) |
+| **Latest Commit** | `2374483` (Task 29 CP-A: sim-verified collision flags) |
+| **Latest Auth Mail** | #7977 (BrightForge: Task 29 CP-A COMPLETE) |
+| **Next Deliverable** | CyanPeak CP-A audit → BrightForge CP-B hardware proof |
 | **Coding Authorized** | **YES** — CyanPeak audit PASS #7974 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_29_SPRITE_FLAGS_AND_COLLISION_HOOKS.md`
