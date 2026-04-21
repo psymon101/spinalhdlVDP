@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `8cbef9e` (debug iter 2: canaries visible, fetch-loop bug isolated) |
-| **Latest Auth Mail** | #8036 (BronzeGate: #8035 supersedes #8034, continue fetch-loop diagnostic) |
-| **Next Deliverable** | BrightForge fetch-loop diagnostic canaries (cmdRd/fetchGrantEdge/pushValid) |
+| **Latest Commit** | `4fcfb4c` (debug iter 3: push-guard isolated, cmdRd fires but push never valid) |
+| **Latest Auth Mail** | #8039 (BronzeGate: authorize registered-push fix iteration) |
+| **Next Deliverable** | BrightForge registered-push fix (mirror proven tile-fetch pattern) |
 | **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8008 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
