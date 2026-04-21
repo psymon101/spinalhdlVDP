@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact) → BrightForge (implement) → CyanPeak (audit) |
+| **Phase** | implement |
+| **Owner** | BrightForge (implement) → CyanPeak (audit) |
 | **Latest Commit** | `a87bcd3` (Task 44 decoder primitive DONE) |
-| **Latest Auth Mail** | #8004 (BronzeGate: approve Option B split) |
-| **Next Deliverable** | CyanPeak Task 44b artifact audit → BrightForge implementation GO |
-| **Coding Authorized** | **NO** — awaiting artifact audit PASS |
+| **Latest Auth Mail** | #8008 (CyanPeak: Task 44b artifact PASSED, implementation GO) |
+| **Next Deliverable** | BrightForge Checkpoint A (HDL + sim proof) |
+| **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8008 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
