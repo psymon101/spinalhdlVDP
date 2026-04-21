@@ -1012,9 +1012,35 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     } else {
       sc29Canary := False
     }
-    hdmiTx.red   := Mux(sc29Canary, B(0x00, 8 bits), video.io.red)
-    hdmiTx.green := Mux(sc29Canary, B(0xFF, 8 bits), video.io.green)
-    hdmiTx.blue  := Mux(sc29Canary, B(0x00, 8 bits), video.io.blue)
+
+    // Task 44b CP-B silicon debug canaries (CyanPeak #8028). Three
+    // stripes in the top band (y < 40) prove:
+    //   x <  40        : RED when !enableSync   (BITMAP_CTRL bit 0 not reaching sdramCd)
+    //   40..80         : GREEN when bootDoneR   (SDRAM init complete)
+    //   80..120        : BLUE when FIFO pop has fired at least once (CDC alive)
+    val sc45RedCanary   = Bool()
+    val sc45GreenCanary = Bool()
+    val sc45BlueCanary  = Bool()
+    if (scenarioId == 45) {
+      val enableSeen   = video.io.bitmapModeActive
+      val bootDoneSeen = bitmapRowFetch.io.bootDone
+      val fifoActive   = bitmapRowFetch.io.fifoActiveEver
+      val inTop = video.io.y < U(40, 10 bits)
+      val inR   = video.io.x < U(40, 10 bits)
+      val inG   = video.io.x >= U(40, 10 bits) && video.io.x < U(80, 10 bits)
+      val inB   = video.io.x >= U(80, 10 bits) && video.io.x < U(120, 10 bits)
+      sc45RedCanary   := inTop && inR && !enableSeen
+      sc45GreenCanary := inTop && inG && bootDoneSeen
+      sc45BlueCanary  := inTop && inB && fifoActive
+    } else {
+      sc45RedCanary   := False
+      sc45GreenCanary := False
+      sc45BlueCanary  := False
+    }
+
+    hdmiTx.red   := Mux(sc29Canary || sc45RedCanary,   Mux(sc45RedCanary,   B(0xFF, 8 bits), B(0x00, 8 bits)), video.io.red)
+    hdmiTx.green := Mux(sc29Canary || sc45GreenCanary, B(0xFF, 8 bits), video.io.green)
+    hdmiTx.blue  := Mux(sc29Canary || sc45BlueCanary,  Mux(sc45BlueCanary,  B(0xFF, 8 bits), B(0x00, 8 bits)), video.io.blue)
 
     O_tmds_clk_p := hdmiTx.tmds_clk_p
     O_tmds_clk_n := hdmiTx.tmds_clk_n
@@ -1070,11 +1096,11 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   // Task 44b: when BITMAP_CTRL[0]=1, pin the arbiter to client 1
   // (bitmap fetch) so its SDRAM reads actually reach the controller.
   // Otherwise use the scheduler's grantClientId (default client 0).
-  // When BitmapRowFetch wants the bus (init or fetch) OR bitmap mode is
-  // active, route to client 1. Otherwise use the scheduler's output
-  // (default client 0 — tile fetch).
-  sdramArbiter.io.grantClientId := Mux(pixelArea.bitmapRowFetch.io.sdramActive ||
-                                       pixelArea.video.io.bitmapModeActive,
+  // Per CyanPeak #8028: pin to client 1 only when BitmapRowFetch's FSM
+  // has active SDRAM work. Pinning on `bitmapModeActive` alone would
+  // permanently starve client 0 (tile fetch) and prevent the tile
+  // engine from reaching its ready state.
+  sdramArbiter.io.grantClientId := Mux(pixelArea.bitmapRowFetch.io.sdramActive,
                                        U(1, 2 bits),
                                        pixelArea.video.io.layer0FetchGrantClientId)
   sdramArbiter.io.slotValid     := pixelArea.video.io.layer0FetchSlotValid

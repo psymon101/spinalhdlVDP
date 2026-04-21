@@ -63,6 +63,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     val attrByte       = out Bits(8 bits)
     val bootDone       = out Bool()
     val sdramActive    = out Bool()    // pulses whenever SDRAM FSM wants the bus
+    val fifoActiveEver = out Bool()    // CP-B canary: sticky-high once FIFO pop has fired at least once
   }
 
   case class RowByte() extends Bundle {
@@ -86,7 +87,9 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
   io.attrByte   := attrLineBuf.readAsync(attrReadAddr)
 
   byteFifo.io.pop.ready := True
+  val popFiredSticky = RegInit(False)
   when(byteFifo.io.pop.fire) {
+    popFiredSticky := True
     when(byteFifo.io.pop.payload.kind) {
       attrLineBuf.write(
         address = byteFifo.io.pop.payload.idx,
@@ -99,6 +102,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
         enable  = True)
     }
   }
+  io.fifoActiveEver := popFiredSticky
 
   val sd = new ClockingArea(sdramCd) {
     val fetchGrantSync = BufferCC(io.fetchGrant, False)
@@ -147,13 +151,16 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       // uninitialised, leading to a black render.
       sWaitEnable.whenIsActive {
         cmdRd := False; cmdWr := False
+        sdramActiveR := False
         when(enableSync && !io.sdramBusy) {
           bootCounter := 0
+          sdramActiveR := True
           goto(sInitBitmap)
         }
       }
 
       sInitBitmap.whenIsActive {
+        sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
           when(bootCounter < U(TotalBitmapBytes, bootCounter.getWidth bits)) {
@@ -169,6 +176,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       }
 
       sInitAttr.whenIsActive {
+        sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
           when(bootCounter < U(TotalAttrBytes, bootCounter.getWidth bits)) {
@@ -186,14 +194,17 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
 
       sIdle.whenIsActive {
         cmdRd := False; cmdWr := False
+        sdramActiveR := False
         when(fetchGrantEdge) {
           lineReg := fetchLineSync & U(MaxLines - 1, 10 bits)
           byteIdx := 0
+          sdramActiveR := True
           goto(sFetchBitmap)
         }
       }
 
       sFetchBitmap.whenIsActive {
+        sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
           when(byteIdx < U(BitmapBytesPerRow, byteIdx.getWidth bits)) {
@@ -210,6 +221,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       }
 
       sFetchBitmapWait.whenIsActive {
+        sdramActiveR := True
         cmdRd := False
         when(io.sdramDataReady && byteFifo.io.push.ready) {
           byteFifo.io.push.valid := True
@@ -222,6 +234,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       }
 
       sFetchAttr.whenIsActive {
+        sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
           when(byteIdx < U(AttrBytesPerRow, byteIdx.getWidth bits)) {
@@ -237,6 +250,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       }
 
       sFetchAttrWait.whenIsActive {
+        sdramActiveR := True
         cmdRd := False
         when(io.sdramDataReady && byteFifo.io.push.ready) {
           byteFifo.io.push.valid := True
@@ -254,7 +268,12 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     io.sdramRd   := cmdRd
     io.sdramWr   := cmdWr
 
-    val sdramActiveR = cmdRd || cmdWr
+    // Level-high sdramActive: True across all non-idle states. Pulsing
+    // on cmdRd/cmdWr alone is too narrow for the top-level pixelCd
+    // BufferCC — arbiter would miss the window and drop writes. Gets
+    // set when enable first sees high, stays high until fetch loop
+    // quiesces in sIdle (with no new grant).
+    val sdramActiveR = RegInit(False)
   }
 
   io.bootDone    := BufferCC(sd.bootDoneR, False)
