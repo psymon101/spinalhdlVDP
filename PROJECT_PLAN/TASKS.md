@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-21 (Task 31 CLOSED per CyanPeak #7945; next-lane TBD)
+**Updated:** 2026-04-21 (platform stage paused; adapter-readiness hardening backlog added)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -32,7 +32,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Owner** | — |
 | **Latest Commit** | `ac3fb87` (Task 31 CLOSED) |
 | **Latest Auth Mail** | #7945 (CyanPeak: Task 31 CLOSED) |
-| **Next Deliverable** | PM/audit directive for next unblocked lane |
+| **Next Deliverable** | CoralReef artifact draft for **Task 29** to begin Mode0 adapter-readiness hardening |
 | **Coding Authorized** | **NO** — no active lane |
 
 **Artifact file:** `PROJECT_PLAN/TASK_31_SCROLL_TABLE_PRIMITIVE.md`
@@ -919,7 +919,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 ### Task 40 — First Platform Adapter (C64 Raster+Sprite Smoke)
 
 **Status:** TODO
-**depends_on:** [28, 30, 39]
+**depends_on:** [29, 30, 39, 44]
 **scope_boundary:** Single bounded adapter proof only. No cycle-accurate emulation claim. No additional platforms.
 **delivers:**
 
@@ -992,6 +992,125 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 - All 17 scenarios rebuild successfully from clean state
 - At least 3 representative scenarios pass automated stability analysis
+
+---
+
+## Phase 9.5 — Mode0 Adapter-Readiness Hardening
+
+Platform adapters are now treated as a **new stage**.
+
+Do not open an adapter lane until both are true:
+
+- the documentation/usability gate has passed for the current Mode0 substrate
+- the substrate gaps required by the chosen platform have been explicitly closed
+
+For the current roadmap, the highest-leverage substrate closure order is:
+
+1. **Task 29** — Sprite Flags and Collision Hooks
+2. **Task 44** — Raw Bitmap + Attribute Fetch Primitive
+3. **Task 45** — Sprite Capacity Hardening
+4. **Task 46** — V-Scroll Table Primitive
+
+Tasks **47–49** remain additional platform-enabling expansion tasks for broader
+adapter parity after those first four land.
+
+### Task 44 — Raw Bitmap + Attribute Fetch Primitive
+
+**Status:** TODO
+**depends_on:** [17, 32a]
+**scope_boundary:** Raw bitmap + attribute fetch only. No platform-exact register maps, no blitter, no full adapter semantics.
+**delivers:**
+
+- Linear bitmap fetch path suitable for bitmap-first adapters
+- Attribute overlay / color-source path for bitmap+attribute display models
+- Register-bus controlled base addresses and mode controls
+- Stable SDRAM layout contract for bitmap rows and attribute rows
+
+**validation:**
+
+- Sim: bitmap + attribute scenes prove row fetch, attribute application, and palette selection
+- Hardware: visible bitmap+attribute proof on Tang Nano 20K with 30s OpenCV stability analysis
+
+### Task 45 — Sprite Capacity Hardening
+
+**Status:** TODO
+**depends_on:** [28, 29]
+**scope_boundary:** Sprite storage and evaluator scale only. No platform-exact OAM maps, no new compositor layers.
+**delivers:**
+
+- Synthesis-stable descriptor storage for larger sprite sets (BRAM / `Mem` if needed)
+- At least `descCount=32`
+- At least `visiblePerLine=8`
+- Host-visible status semantics preserved under the larger sprite load
+
+**validation:**
+
+- Sim: mixed scenes with >32 descriptors and >8 visible candidates prove stable selection and limit behavior
+- Hardware: visible multi-sprite proof on Tang Nano 20K with expected per-line cull behavior
+
+### Task 46 — V-Scroll Table Primitive
+
+**Status:** TODO
+**depends_on:** [31, 32a]
+**scope_boundary:** V-scroll lookup state only. No new fetch formats, no additional compositor math.
+**delivers:**
+
+- Per-column or per-band V-scroll table primitive parallel to Task 31 H-scroll support
+- Register-bus address block for host / Copper writes
+- Integration point before the existing vertical wrap / address path
+
+**validation:**
+
+- Sim: mixed vertical-offset scene proves per-band/per-column Y displacement
+- Hardware: visible V-scroll table effect on Tang Nano 20K
+
+### Task 47 — DMA-Style Transfer Primitive
+
+**Status:** TODO
+**depends_on:** [30, 32b, 39]
+**scope_boundary:** Block-transfer primitive only. No blitter raster ops, no platform-specific DMA command sets.
+**delivers:**
+
+- Register-bus triggered local transfer engine for repeated asset / descriptor movement
+- Bounded copy/fill semantics suitable for OAM/VRAM-style workloads
+- Status / completion signaling compatible with the existing host-control surface
+
+**validation:**
+
+- Sim: bounded copy/fill transactions land correctly under active fetch load
+- Hardware: Pico-triggered DMA-style transfer visibly updates rendered state without corruption
+
+### Task 48 — Four-Layer Compositor Expansion
+
+**Status:** TODO
+**depends_on:** [41]
+**scope_boundary:** Layer-count expansion only. No platform-specific mode tables, no new color-math semantics beyond existing contracts.
+**delivers:**
+
+- 3rd and 4th background/compositor input paths
+- Priority contract extended across all active layers
+- Metadata propagation preserved across the wider compositor
+
+**validation:**
+
+- Sim: 4-layer composition scenes prove deterministic priority and metadata handling
+- Hardware: visible 3+/4-layer proof on Tang Nano 20K
+
+### Task 49 — Blitter-Class Block Transfer Engine
+
+**Status:** TODO
+**depends_on:** [47, 41]
+**scope_boundary:** Block-transfer engine only. No full platform adapter, no CPU-side software renderer.
+**delivers:**
+
+- Rectangular copy/fill primitive over local video memory
+- Register-bus control/status surface for scheduled blit operations
+- Bounded overlap / in-progress / completion semantics
+
+**validation:**
+
+- Sim: copy/fill operations complete correctly under concurrent fetch load
+- Hardware: visible block-transfer proof on Tang Nano 20K
 
 ---
 

@@ -80,8 +80,10 @@ using `Mode0` scanline/raster and state-commit primitives, rather than requiring
 a separate Amiga-only rendering engine beside `Mode0`.
 
 Candidate adapter targets mentioned in the repo now include platforms such as
-ZX Spectrum, Commodore 64, Amiga, SNES, and other systems whose video behavior
-can be expressed through `Mode0` primitives.
+ZX Spectrum, Commodore 64, NES / Famicom, TMS9918-family systems, Master
+System / Game Gear, MSX1 / MSX2, PC Engine / TurboGrafx-16, Genesis / Mega
+Drive, SNES, Amiga, Atari ST, and other systems whose video behavior can be
+expressed through `Mode0` primitives.
 
 The strategic build order for those primitives now lives in
 `PROJECT_PLAN/MODE0_ROADMAP.md`. That file describes the capability progression

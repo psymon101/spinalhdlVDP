@@ -75,6 +75,22 @@ Example:
 | SNES | 4-layer composition, windowing, color math, affine, HDMA-class beam automation |
 | Genesis | per-line/per-column scroll tables, windowing, shadow/highlight, linked-list sprite behavior |
 
+## Adapter-Readiness Closure Order
+
+Before opening broad platform-adapter work, close the highest-leverage substrate
+gaps in this order:
+
+1. **Sprite flags / collision hooks** — needed for honest C64 / NES / Genesis claims
+2. **Raw bitmap + attribute fetch** — needed for C64 bitmap use and ZX Spectrum-style adapters
+3. **Sprite-capacity hardening** — needed once adapters outgrow the current bounded sprite counts
+4. **V-scroll table primitive** — needed for Genesis-class scroll semantics
+
+After those, the larger platform-enabling expansions remain:
+
+- **DMA-style transfer primitive** for OAM/VRAM-class bulk movement
+- **4-layer compositor expansion** for SNES-class adapter pressure
+- **Blitter-class engine** for Amiga-class adapter pressure
+
 ---
 
 ## Proven Base
@@ -434,10 +450,15 @@ These are not promises of cycle-accurate emulation. They are readiness checkpoin
 |---|---|
 | Commodore 64 | through R3 |
 | NES / Famicom | through R4 |
+| TMS9918-family (ColecoVision / SG-1000 / MSX1-class) | through R4 |
+| Master System / Game Gear | through R4 |
+| MSX2 | through R5 |
+| PC Engine / TurboGrafx-16 | through R5 |
 | Genesis / Mega Drive | through R6, with scroll-table primitive complete |
 | SNES / Super Famicom | through R6, plus R8 for Mode 7 |
 | Amiga | through R7, with R5 especially important |
 | Atari ST | through R7 |
+| Neo Geo | through R7 |
 | ZX Spectrum | through R7.2 |
 
 ---
