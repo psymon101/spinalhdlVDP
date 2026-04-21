@@ -277,7 +277,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (0 << 14) | 0                                   // WAIT y=0
         )
         val shearEntries: Seq[Int] = (40 until 80).flatMap { e =>
-          Seq((1 << 14) | (0x0900 + e), 16)
+          Seq((1 << 14) | (0x0900 + e), 8)
         }
         val shearJump = Seq((3 << 14) | 0)                // JUMP 0
         shearBase ++ shearEntries ++ shearJump
