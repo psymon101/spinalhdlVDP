@@ -1074,9 +1074,22 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val anyCanary = sc45RedCanary || sc45GreenCanary || sc45BlueCanary ||
                     sc45PurpleCanary || sc45YellowCanary || sc45OrangeCanary
 
-    hdmiTx.red   := Mux(sc29Canary, B(0x00, 8 bits), Mux(anyCanary, canaryR, video.io.red))
-    hdmiTx.green := Mux(sc29Canary, B(0xFF, 8 bits), Mux(anyCanary, canaryG, video.io.green))
-    hdmiTx.blue  := Mux(sc29Canary, B(0x00, 8 bits), Mux(anyCanary, canaryB, video.io.blue))
+    // Task 44b #8080/#8081 forced-overlay diagnostic: scenario-45 only, constant-True
+    // white block at x=280..320, y=0..40. Independent of bitmapRowFetch,
+    // video.io.bitmapModeActive, and all existing canary predicates. If visible,
+    // the HDMI overlay mux path is alive on Sc45.
+    val sc45ForcedOverlay = Bool()
+    if (scenarioId == 45) {
+      sc45ForcedOverlay := (video.io.y < U(40, 10 bits)) &&
+                           (video.io.x >= U(280, 10 bits)) &&
+                           (video.io.x <  U(320, 10 bits))
+    } else {
+      sc45ForcedOverlay := False
+    }
+
+    hdmiTx.red   := Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryR, video.io.red)))
+    hdmiTx.green := Mux(sc29Canary, B(0xFF, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryG, video.io.green)))
+    hdmiTx.blue  := Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryB, video.io.blue)))
 
     O_tmds_clk_p := hdmiTx.tmds_clk_p
     O_tmds_clk_n := hdmiTx.tmds_clk_n
