@@ -667,13 +667,23 @@ case class VdpTop() extends Component {
   // Test-pattern override: when enabled, forces standard validation pattern
   // regardless of SDRAM or on-chip path state.
   val onChipIdx4   = layer0.io.pixelIndex.resize(4)
-  // Task 44 — bitmap fetch pixel decoder. The SDRAM row/attr row
-  // delivery path is CP-B hardware work; for CP-A we instantiate the
-  // decoder with stubbed byte inputs so the register/mux path is
-  // wired end-to-end and does not drift.
+  // Task 44 — bitmap fetch pixel decoder.
+  //
+  // CP-B note: the full SDRAM-backed row-buffer fetch is a follow-on
+  // lane. For initial hardware proof we feed the decoder with a
+  // deterministic pixel-domain test-pattern generator so the decoder
+  // and the mux path render visibly on silicon. Inputs are stable
+  // across their respective byte windows (bitmapByte for 8 pixel
+  // columns in 1bpp, attrByte for 8 pixel columns × 8 rows).
+  val bitmapByteIdx = hCounter(9 downto 3)                 // 0..127
+  val bitmapRowIdx  = fillLine(7 downto 0)                 // 0..255 mod
+  val bitmapAttrIdx = hCounter(9 downto 6)                 // 8-pixel attr cells
+  val bitmapAttrRow = fillLine(8 downto 3)                 // 8-pixel-row attr cells
   val bitmapFetch = BitmapFetch()
-  bitmapFetch.io.bitmapByte      := B(0, 8 bits)  // CP-B: wire from SDRAM row buffer
-  bitmapFetch.io.attrByte        := B(0, 8 bits)
+  bitmapFetch.io.bitmapByte      := (bitmapByteIdx.resize(8).asBits ^ bitmapRowIdx.asBits)
+  // Attribute: bright=0, paper = bitmapAttrRow[2:0], ink = bitmapAttrIdx[2:0]
+  bitmapFetch.io.attrByte        := (B(0, 2 bits) ## bitmapAttrRow(2 downto 0).asBits ##
+                                     bitmapAttrIdx(2 downto 0).asBits)
   bitmapFetch.io.pixelWithinByte := hCounter(2 downto 0)
   bitmapFetch.io.bpp             := bitmapBpp
 

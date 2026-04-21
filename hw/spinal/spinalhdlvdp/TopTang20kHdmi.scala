@@ -264,6 +264,21 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 44 =>
+        // Task 44 CP-B hardware proof: raw bitmap + attribute decoder.
+        // Bootstrap enables BITMAP_CTRL[0]=1 (bitmap mode, 1bpp). The
+        // decoder is fed from the VdpTop-internal test-pattern
+        // generator (SDRAM row-buffer wiring deferred to follow-on);
+        // screen displays a deterministic XOR-pattern bitmap with
+        // cell-varying ink/paper attributes. Proves:
+        //   - BITMAP_CTRL register decode on hardware
+        //   - layer0 source mux routes BitmapFetch output into L0
+        //   - 1bpp decode renders a non-tile pattern on HDMI
+        Seq(
+          (0 << 14) | 0,                                   // WAIT y=0
+          (1 << 14) | 0x0350, 0x0001,                      // BITMAP_CTRL = enable|1bpp
+          (3 << 14) | 0                                    // JUMP 0
+        )
       case 29 =>
         // Task 29 hardware proof: sprite-background collision sticky
         // flags. Copper bootstrap enables sprite slot 4 at (100, 100)
@@ -460,7 +475,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -477,6 +492,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 16          => 0x0005  // Sc16 long-soak baseline: same layer config as Sc15
       case 17          => 0x0007  // Sc17 stress: L0 + L1 + sprite (maximum load)
       case 29          => 0x0005  // Sc29: L0 + sprite (collision flag proof)
+      case 44          => 0x0001  // Sc44: L0 only (bitmap-fetch proof)
       case 31          => 0x0001  // Sc31: L0 only — on-chip BasicPatternSource for per-column scroll shear
       case 37          => 0x0005  // Sc37: L0 background + sprite (affine proof)
       case _           => 0x0001
@@ -1129,4 +1145,7 @@ object TopTang20kHdmiScenario31Verilog extends App {
 }
 object TopTang20kHdmiScenario29Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 29))   // Task 29 sprite-collision HW proof
+}
+object TopTang20kHdmiScenario44Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 44))   // Task 44 bitmap-fetch HW proof
 }
