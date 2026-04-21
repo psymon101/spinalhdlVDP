@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-21 (Task 44b iter 4→5, ledger sync to 57d4a79 / #8047)
+**Updated:** 2026-04-21 (Task 44b iter 6b, ledger sync to a572dcf / #8065)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `a3d8ac4` (iter 6b: CyanPeak audit fix — adds sInitSettle/sFetchSettle states) |
+| **Latest Commit** | `a572dcf` (iter 6b: CyanPeak audit fix — adds sInitSettle/sFetchSettle states) |
 | **Latest Auth Mail** | #8054 (BronzeGate: authorize iter-6 tileBootDone + bitmap bus pre-arm/settle init fix) |
 | **Next Deliverable** | BrightForge hardware evidence (Sc44d bitmap render) |
-| **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8008 |
+| **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8065 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
