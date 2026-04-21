@@ -31,7 +31,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
 | **Latest Commit** | `82e1a95` (debug iter 1: arbiter fix + canaries, FSM stall in sInitBitmap) |
-| **Latest Auth Mail** | #8030 (BronzeGate: authorize one more targeted canary iteration) |
+| **Latest Auth Mail** | #8032 (CyanPeak: debug iter 2 GO, purple/yellow/orange sticky canaries) |
 | **Next Deliverable** | BrightForge targeted canary iteration 2 (busy/dataReady/cmdWr canaries) |
 | **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8008 |
 
