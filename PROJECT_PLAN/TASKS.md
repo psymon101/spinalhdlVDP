@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 29 — Sprite Flags and Collision Hooks** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact) → BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `ac3fb87` (Task 31 CLOSED) |
-| **Latest Auth Mail** | #7969 (BronzeGate: Task 29 is next lane) |
-| **Next Deliverable** | CyanPeak artifact audit → BrightForge implementation GO |
-| **Coding Authorized** | **NO** — awaiting artifact audit PASS |
+| **Phase** | implement |
+| **Owner** | BrightForge (implement) → CyanPeak (audit) |
+| **Latest Commit** | `318b800` (Task 29 artifact opened) |
+| **Latest Auth Mail** | #7974 (CyanPeak: Task 29 artifact PASSED, implementation GO) |
+| **Next Deliverable** | BrightForge Checkpoint A (HDL + sim proof) |
+| **Coding Authorized** | **YES** — CyanPeak audit PASS #7974 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_29_SPRITE_FLAGS_AND_COLLISION_HOOKS.md`
 
