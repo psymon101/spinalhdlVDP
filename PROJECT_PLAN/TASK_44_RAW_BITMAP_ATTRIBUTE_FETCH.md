@@ -1,19 +1,26 @@
 # Task 44 — Raw Bitmap + Attribute Fetch Primitive
 
-**Status:** Artifact phase  
+**Status:** DONE (`a87bcd3`) — decoder primitive closed; SDRAM row-buffer deferred to Task 44b  
 **depends_on:** [17, 32a]  
-**scope_boundary:** Raw bitmap + attribute fetch only. No platform-exact register maps, no blitter, no full adapter semantics.  
+**scope_boundary:** Raw bitmap + attribute **decoder and register interface** only. SDRAM-backed row fetch deferred to Task 44b. No platform-exact register maps, no blitter, no full adapter semantics.  
 **delivers:**
 
-- Linear bitmap fetch path suitable for bitmap-first adapters
-- Attribute overlay / color-source path for bitmap+attribute display models
-- Register-bus controlled base addresses and mode controls
-- Stable SDRAM layout contract for bitmap rows and attribute rows
+- `BitmapFetch` combinational decoder (1bpp / 2bpp) with attribute-to-palette mapping
+- Register-bus controlled base addresses and mode controls (`0x0350..0x0356`)
+- L0 pixel mux integration path
+- Deterministic hardware proof of decoder + mux on Tang Nano 20K
+
+**deferred to Task 44b:**
+
+- SDRAM-domain `BitmapRowFetch` module
+- Scheduler client-1 slot wiring
+- Live SDRAM-backed `bitmapByte` / `attrByte` delivery
+- Host upload / init path for bitmap+attribute data
 
 **validation:**
 
-- Sim: bitmap + attribute scenes prove row fetch, attribute application, and palette selection
-- Hardware: visible bitmap+attribute proof on Tang Nano 20K with 30s OpenCV stability analysis
+- Sim: `BitmapFetchSim` 4/4 PASS, `VdpTopSim` zero regression PASS
+- Hardware: Sc44 visible bitmap+attribute proof on Tang Nano 20K with 15s capture + OpenCV stability PASS
 
 ---
 
