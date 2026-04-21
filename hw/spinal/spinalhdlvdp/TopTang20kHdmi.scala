@@ -264,6 +264,26 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 29 =>
+        // Task 29 hardware proof: sprite-background collision sticky
+        // flags. Copper bootstrap enables sprite slot 4 at (100, 100)
+        // pattern 0 so it sits over the on-chip BasicPatternSource
+        // background (non-transparent in most tiles). The ever-present
+        // overlap causes STATUS_STICKY bit 4 (SPRITE_0_HIT) and bit 5
+        // (SPRITE_BG_HIT) to latch. An on-screen canary in the top-
+        // left corner (driven at top-level from video.io.statusSticky)
+        // visualises bit 4 for hardware confirmation without
+        // requiring a firmware polling loop.
+        //
+        // slot 4 is descCount=8's lowest bus-programmable descriptor;
+        // with slots 0..3 (legacy IO) disabled it becomes the Pass-1
+        // active slot 0, so SPRITE_0_HIT applies.
+        Seq(
+          (0 << 14) | 0,                                 // WAIT y=0
+          (1 << 14) | 0x0820, 0x8000 | 100,              // slot 4 w0: en|pat=0|y=100
+          (1 << 14) | 0x0821, 100,                       // slot 4 w1: x=100
+          (3 << 14) | 0                                  // JUMP 0
+        )
       case 31 =>
         // Task 31 hardware proof: per-column scroll table.
         // Program L0 scroll-table entries so the right half of the
@@ -440,7 +460,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -456,6 +476,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 15          => 0x0005  // L0 + sprite (mixed-scene integration)
       case 16          => 0x0005  // Sc16 long-soak baseline: same layer config as Sc15
       case 17          => 0x0007  // Sc17 stress: L0 + L1 + sprite (maximum load)
+      case 29          => 0x0005  // Sc29: L0 + sprite (collision flag proof)
       case 31          => 0x0001  // Sc31: L0 only — on-chip BasicPatternSource for per-column scroll shear
       case 37          => 0x0005  // Sc37: L0 background + sprite (affine proof)
       case _           => 0x0001
@@ -909,7 +930,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // Sc31 uses on-chip BasicPatternSource so per-column scroll-table
     // offsets are visible (SDRAM fetch latches scroll once per line,
     // hiding column-band variation).
-    video.io.layer0UseSdram      := Bool(scenarioId != 31)
+    video.io.layer0UseSdram      := Bool(scenarioId != 31 && scenarioId != 29)
 
     // Test pattern override: default disabled so normal SDRAM-backed rendering
     // continues. Set enable=True and select a pattern (1..7) for validation.
@@ -937,9 +958,21 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     hdmiTx.hsync := video.io.hsync
     hdmiTx.vsync := video.io.vsync
     hdmiTx.de := video.io.de
-    hdmiTx.red := video.io.red
-    hdmiTx.green := video.io.green
-    hdmiTx.blue := video.io.blue
+    // Task 29 Sc29 canary: top-left 40×40 corner shows a green block
+    // iff STATUS_STICKY bit 4 (SPRITE_0_HIT) is latched. This gives a
+    // firmware-free hardware confirmation that the collision flag
+    // fires on Gowin silicon. Disabled for all other scenarios so
+    // production renders are unaffected.
+    val sc29Canary = Bool()
+    if (scenarioId == 29) {
+      val inCanary = video.io.x < U(40, 10 bits) && video.io.y < U(40, 10 bits)
+      sc29Canary := inCanary && video.io.statusSticky(4)
+    } else {
+      sc29Canary := False
+    }
+    hdmiTx.red   := Mux(sc29Canary, B(0x00, 8 bits), video.io.red)
+    hdmiTx.green := Mux(sc29Canary, B(0xFF, 8 bits), video.io.green)
+    hdmiTx.blue  := Mux(sc29Canary, B(0x00, 8 bits), video.io.blue)
 
     O_tmds_clk_p := hdmiTx.tmds_clk_p
     O_tmds_clk_n := hdmiTx.tmds_clk_n
@@ -1093,4 +1126,7 @@ object TopTang20kHdmiScenario37Verilog extends App {
 }
 object TopTang20kHdmiScenario31Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 31))   // Task 31 scroll-table HW proof
+}
+object TopTang20kHdmiScenario29Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 29))   // Task 29 sprite-collision HW proof
 }

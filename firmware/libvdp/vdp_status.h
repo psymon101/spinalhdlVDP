@@ -22,6 +22,9 @@ extern "C" {
 #define VDP_STICKY_SPRITE_OVERFLOW 0x0002
 #define VDP_STICKY_QSPI_READY      0x0004
 #define VDP_STICKY_QSPI_ERROR      0x0008
+/* Task 29 — sprite collision flags (write-1-to-clear @ 0x0320). */
+#define VDP_STICKY_SPRITE_0_HIT    0x0010  /* slot-0 non-transparent over non-transparent BG */
+#define VDP_STICKY_SPRITE_BG_HIT   0x0020  /* any sprite non-transparent over non-transparent BG */
 
 /**
  * Block until `bit_mask` bits are all set in the sticky register, or
