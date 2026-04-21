@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 29 — Sprite Flags and Collision Hooks** |
+| **Task** | **Task 44 — Raw Bitmap + Attribute Fetch Primitive** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | capture |
-| **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `2374483` (Task 29 CP-A: sim-verified collision flags) |
-| **Latest Auth Mail** | #7977 (BrightForge: Task 29 CP-A COMPLETE) |
-| **Next Deliverable** | CyanPeak CP-A audit → BrightForge CP-B hardware proof |
-| **Coding Authorized** | **YES** — CyanPeak audit PASS #7974 |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact) → BrightForge (implement) → CyanPeak (audit) |
+| **Latest Commit** | `ad9857e` (Task 29 CLOSED) |
+| **Latest Auth Mail** | #7983 (CyanPeak: Task 29 CLOSED) |
+| **Next Deliverable** | CyanPeak Task 44 artifact audit → BrightForge implementation GO |
+| **Coding Authorized** | **NO** — awaiting artifact audit PASS |
 
 **Artifact file:** `PROJECT_PLAN/TASK_29_SPRITE_FLAGS_AND_COLLISION_HOOKS.md`
 
@@ -647,7 +647,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 29 — Sprite Flags and Collision Hooks
 
-**Status:** IN-PROGRESS
+**Status:** DONE (`ad9857e`)
 **depends_on:** [28]
 **scope_boundary:** Sprite-side status flags only. No new compositor, no new fetch formats.
 **delivers:**
