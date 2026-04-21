@@ -38,8 +38,17 @@ object AffineAssets {
     ((priority & 0x1) << 7) | ((bank & 0x7) << 4) | (index & 0xF)
   }
 
-  /** Flat init buffer for `Mem(Bits(8 bits), 128*128)` — row-major (y * 128 + x). */
-  val textureInit: Seq[Bits] = (for {
+  /** Flat init buffer for `Mem(Bits(8 bits), 128*128)` — row-major (y * 128 + x).
+    *
+    * Must be a `def` (not a `val`): `Bits` literals carry a pointer to
+    * the SpinalHDL elaboration context at construction time. With a
+    * cached `val` the Seq is first evaluated inside whichever Component
+    * triggers `AffineAssets.textureInit`, and subsequent Components
+    * that reference the same Seq see `null`-contexts — crashing
+    * `Mem.init` with "Null value encountered in {??? : Bits[8 bits]}".
+    * PM #8017 / audit #8016 authorized this substrate-hardening fix
+    * under Task 44b scope. */
+  def textureInit: Seq[Bits] = (for {
     y <- 0 until Height
     x <- 0 until Width
   } yield B(texel(x, y), 8 bits)).toSeq
