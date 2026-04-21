@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-21 (Task 44b forced-overlay diagnostic, ledger sync to 1756fd1 / #8083)
+**Updated:** 2026-04-21 (Task 44b debug sticky fix, ledger sync to 062bf18 / #8087)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `1756fd1` (forced-overlay diagnostic — Sc45 final-HDMI-mux path negative) |
+| **Latest Commit** | `062bf18` (CoralReef debug sticky fix atop forced-overlay diagnostic) |
 | **Latest Auth Mail** | #8054 (BronzeGate: authorize iter-6 tileBootDone + bitmap bus pre-arm/settle init fix) |
-| **Next Deliverable** | STOP — diagnose Sc45 final-HDMI-mux / scenario-selection path (BrightForge #8083) |
+| **Next Deliverable** | STOP — diagnose real Sc45 uniform-black output; build-system root cause confirmed (BrightForge #8087)
 | **Coding Authorized** | **YES** — CyanPeak audit correction 6c #8074 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
