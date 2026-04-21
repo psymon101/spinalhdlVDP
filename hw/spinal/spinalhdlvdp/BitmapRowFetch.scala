@@ -279,18 +279,22 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     // quiesces in sIdle (with no new grant).
     val sdramActiveR = RegInit(False)
 
-    // CP-B iter 2 sticky debug latches (sdramCd-resident).
-    val dbgBusyDroppedR = RegInit(False)
-    val dbgDataReadyR   = RegInit(False)
-    val dbgWrAssertedR  = RegInit(False)
-    when(!io.sdramBusy)     { dbgBusyDroppedR := True }
-    when(io.sdramDataReady) { dbgDataReadyR   := True }
-    when(cmdWr)             { dbgWrAssertedR  := True }
+    // CP-B iter 3 sticky debug latches (sdramCd-resident). Repurposed
+    // from iter 2: replaced `!sdramBusy`, `sdramDataReady`, and `cmdWr`
+    // (proven already) with fetch-loop-targeted signals per BronzeGate
+    // #8036.
+    val dbgCmdRdEver          = RegInit(False)
+    val dbgFetchGrantEdgeEver = RegInit(False)
+    val dbgPushValidEver      = RegInit(False)
+    when(cmdRd)                    { dbgCmdRdEver          := True }
+    when(fetchGrantEdge)           { dbgFetchGrantEdgeEver := True }
+    when(byteFifo.io.push.valid)   { dbgPushValidEver      := True }
   }
 
-  io.dbgBusyDroppedEver := BufferCC(sd.dbgBusyDroppedR, False)
-  io.dbgDataReadyEver   := BufferCC(sd.dbgDataReadyR, False)
-  io.dbgWrAssertedEver  := BufferCC(sd.dbgWrAssertedR, False)
+  // Cross into pixelCd for the top-level canary muxes.
+  io.dbgBusyDroppedEver := BufferCC(sd.dbgCmdRdEver, False)
+  io.dbgDataReadyEver   := BufferCC(sd.dbgFetchGrantEdgeEver, False)
+  io.dbgWrAssertedEver  := BufferCC(sd.dbgPushValidEver, False)
 
   io.bootDone    := BufferCC(sd.bootDoneR, False)
   io.sdramActive := BufferCC(sd.sdramActiveR, False)

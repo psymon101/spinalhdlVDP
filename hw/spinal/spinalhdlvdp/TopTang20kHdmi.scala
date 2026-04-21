@@ -1019,12 +1019,12 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     //   40..80         : GREEN when bootDoneR   (SDRAM init complete)
     //   80..120        : BLUE when FIFO pop has fired at least once (CDC alive)
     // Sc45 debug canaries — top row, 6 stripes of 40 px each.
-    //   stripe 0 (x<40)      RED     when !enableSeen        (iter 1)
-    //   stripe 1 (40..80)    GREEN   when bootDoneR          (iter 1)
-    //   stripe 2 (80..120)   BLUE    when FIFO ever popped   (iter 1)
-    //   stripe 3 (120..160)  PURPLE  when !sdramBusy seen    (iter 2)
-    //   stripe 4 (160..200)  YELLOW  when dataReady seen     (iter 2)
-    //   stripe 5 (200..240)  ORANGE  when cmdWr seen         (iter 2)
+    //   stripe 0 (x<40)      RED     when !enableSeen
+    //   stripe 1 (40..80)    GREEN   when bootDoneR
+    //   stripe 2 (80..120)   BLUE    when FIFO ever popped
+    //   stripe 3 (120..160)  PURPLE  when sd.cmdRd ever asserted   (iter 3)
+    //   stripe 4 (160..200)  YELLOW  when fetchGrantEdge ever      (iter 3)
+    //   stripe 5 (200..240)  ORANGE  when byteFifo.push.valid ever (iter 3)
     val sc45RedCanary    = Bool()
     val sc45GreenCanary  = Bool()
     val sc45BlueCanary   = Bool()
