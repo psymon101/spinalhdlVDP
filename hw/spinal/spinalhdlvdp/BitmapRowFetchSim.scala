@@ -7,8 +7,8 @@ import scala.collection.mutable
 /** Task 44b — BitmapRowFetch validation sim.
   *
   * Validates the CyanPeak audit fix (iter 6b):
-  *   - sInitSettle window: sdramActiveR high for 8 cycles before first cmdWr.
-  *   - sFetchSettle window: sdramActiveR high for 8 cycles before first cmdRd.
+  *   - sInitSettle window: sdramActiveR high for 16 cycles before first cmdWr.
+  *   - sFetchSettle window: sdramActiveR high for 16 cycles before first cmdRd.
   *   - bootCounter resets correctly between states.
   *   - SDRAM writes populate correctly after settle.
   */
@@ -55,18 +55,17 @@ object BitmapRowFetchSim extends App {
     assert(timeout > 0, "Timed out waiting for sdramActive to go high")
     
     var cyclesWithActiveNoWr = 0
-    for (_ <- 0 until 10) {
+    for (_ <- 0 until 20) {
       if (dut.io.sdramActive.toBoolean && !dut.io.sdramWr.toBoolean) {
         cyclesWithActiveNoWr += 1
       }
       dut.sdramCd.waitSampling()
     }
     
-    // We expect 8 cycles of settle in sdramCd.
-    // The loop above checks 10 cycles. We should see at least several cycles
-    // of active-but-no-write remaining in the settle window.
+    // We expect 16 cycles of settle in sdramCd.
+    // The loop above checks 20 cycles.
     println(s"[sim] Observed $cyclesWithActiveNoWr cycles of active-but-no-write (post-propagation)")
-    assert(cyclesWithActiveNoWr > 0, "Expected some settle cycles remaining")
+    assert(cyclesWithActiveNoWr >= 10, s"Expected most settle cycles remaining, got $cyclesWithActiveNoWr")
     
     // Eventually cmdWr should assert
     timeout = 100
@@ -113,7 +112,7 @@ object BitmapRowFetchSim extends App {
     
     // Now we should be in sFetchSettle
     cyclesWithActiveNoWr = 0
-    for (_ <- 0 until 15) {
+    for (_ <- 0 until 25) {
       if (dut.io.sdramActive.toBoolean && !dut.io.sdramRd.toBoolean) {
         cyclesWithActiveNoWr += 1
       }
@@ -121,7 +120,7 @@ object BitmapRowFetchSim extends App {
     }
     
     println(s"[sim] Observed $cyclesWithActiveNoWr cycles of active-but-no-read (post-propagation)")
-    assert(cyclesWithActiveNoWr > 0, "Expected some settle cycles for fetch remaining")
+    assert(cyclesWithActiveNoWr >= 10, s"Expected most settle cycles for fetch remaining, got $cyclesWithActiveNoWr")
     
     // Eventually cmdRd should assert
     timeout = 100

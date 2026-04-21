@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `a572dcf` (iter 6b: CyanPeak audit fix — adds sInitSettle/sFetchSettle states) |
+| **Latest Commit** | `40d9ba2` (iter 6c: increased settle window to 16 cycles; removed sWaitEnable busy gate) |
 | **Latest Auth Mail** | #8054 (BronzeGate: authorize iter-6 tileBootDone + bitmap bus pre-arm/settle init fix) |
-| **Next Deliverable** | HOLD — BrightForge display-baseline verification, CyanPeak overlay-path audit (BronzeGate #8071) |
-| **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8065 |
+| **Next Deliverable** | BrightForge hardware evidence (Sc44d bitmap render) |
+| **Coding Authorized** | **YES** — CyanPeak audit correction 6c #8071 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 

@@ -203,8 +203,13 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
         // sdramActive=True into pixelCd, because the arbiter was still
         // routing client 0 and tile fetch had its own init writes in
         // flight. bootCounter advanced unconditionally so the FSM
-        // "completed" with many writes missing.
-        when(enableSync && tileBootDoneSync && !io.sdramBusy) {
+        // \"completed\" with many writes missing.
+        //
+        // Task 44b iter 6c (CyanPeak audit correction): removed !io.sdramBusy
+        // from this transition. sInitSettle provides the mandatory window
+        // for sdramActive to propagate; waiting for busy here could cause
+        // a deadlock if client 0 is keeping the bus busy.
+        when(enableSync && tileBootDoneSync) {
           bootCounter := 0
           sdramActiveR := True
           goto(sInitSettle)
@@ -215,11 +220,13 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       // holding sdramActiveR high for 8 cycles before issuing any writes.
       // This ensures the top-level pixel-domain Mux has observed our
       // client-1 request before cmdWr pulses arrive at the controller.
+      // Iter 6c: increased from 8 -> 16 cycles to safely cover the ~3-pixel-cycle
+      // BufferCC delay (3 * 3.33 = 10 SDRAM cycles).
       sInitSettle.whenIsActive {
         sdramActiveR := True
         cmdRd := False; cmdWr := False
         bootCounter := bootCounter + 1
-        when(bootCounter >= 8) {
+        when(bootCounter >= 16) {
           bootCounter := 0
           goto(sInitBitmap)
         }
@@ -271,12 +278,12 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       }
 
       // Task 44b iter 6b (CyanPeak audit fix): pre-arm the arbiter for
-      // per-line fetch.
+      // per-line fetch. Iter 6c: increased to 16 cycles.
       sFetchSettle.whenIsActive {
         sdramActiveR := True
         cmdRd := False; cmdWr := False
         bootCounter := bootCounter + 1
-        when(bootCounter >= 8) {
+        when(bootCounter >= 16) {
           bootCounter := 0
           goto(sFetchBitmap)
         }
