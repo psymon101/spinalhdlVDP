@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `a87bcd3` (Task 44 decoder primitive DONE) |
-| **Latest Auth Mail** | #8008 (CyanPeak: Task 44b artifact PASSED, implementation GO) |
-| **Next Deliverable** | BrightForge Checkpoint A (HDL + sim proof) |
+| **Latest Commit** | `2e34cd8` (Task 44b CP-A: BitmapRowFetch sim-verified) |
+| **Latest Auth Mail** | #8010 (BrightForge: Task 44b CP-A COMPLETE) |
+| **Next Deliverable** | CyanPeak CP-A audit → BrightForge CP-B hardware proof |
 | **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8008 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
