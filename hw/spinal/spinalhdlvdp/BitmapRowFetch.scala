@@ -362,14 +362,17 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     // OUR sdramActive is high (filters out tile-fetch traffic);
     // pushPending ever; FIFO pop.fire ever.
     val dbgDataReadyOursR     = RegInit(False)
-    val dbgPushPendingEverR   = RegInit(False)
+    val dbgBusyDroppedEver    = RegInit(False)
+    val dbgWrAssertedEver     = RegInit(False)
     when(io.sdramDataReady && sdramActiveR) { dbgDataReadyOursR   := True }
+    when(!io.sdramBusy)                     { dbgBusyDroppedEver  := True }
+    when(cmdWr)                             { dbgWrAssertedEver   := True }
   }
 
   // Iter 4 canaries: dataReady-ours, pushPending-ever, pop-fire-ever.
-  io.dbgBusyDroppedEver := BufferCC(sd.dbgDataReadyOursR, False)
-  io.dbgDataReadyEver   := BufferCC(sd.dbgPushPendingEver, False)
-  io.dbgWrAssertedEver  := popFiredSticky
+  io.dbgBusyDroppedEver := BufferCC(sd.dbgBusyDroppedEver, False)
+  io.dbgDataReadyEver   := BufferCC(sd.dbgDataReadyOursR, False)
+  io.dbgWrAssertedEver  := BufferCC(sd.dbgWrAssertedEver, False)
 
   io.bootDone    := BufferCC(sd.bootDoneR, False)
   io.sdramActive := BufferCC(sd.sdramActiveR, False)
