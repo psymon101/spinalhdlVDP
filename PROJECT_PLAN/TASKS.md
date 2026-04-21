@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-21 (Task 31 CP-C landed at ac3fb87; awaiting closure audit)
+**Updated:** 2026-04-21 (Task 31 CLOSED per CyanPeak #7945; next-lane TBD)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | Task 31 — Scroll Table Primitive |
-| **Status** | IN-PROGRESS |
-| **Phase** | closeout |
-| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger) |
-| **Latest Commit** | `ac3fb87` (Task 31 CP-C — scroll-table shear proven on hardware) |
-| **Latest Auth Mail** | #7940 (BrightForge: CP-C complete), #7936 (CyanPeak: CP-B PASSED) |
-| **Next Deliverable** | CyanPeak closure audit → Task 31 CLOSED |
-| **Coding Authorized** | **YES** — artifact GO (#7932) |
+| **Task** | *(none — lane closed)* |
+| **Status** | *(pending next-lane directive)* |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `ac3fb87` (Task 31 CLOSED) |
+| **Latest Auth Mail** | #7945 (CyanPeak: Task 31 CLOSED) |
+| **Next Deliverable** | PM/audit directive for next unblocked lane |
+| **Coding Authorized** | **NO** — no active lane |
 
 **Artifact file:** `PROJECT_PLAN/TASK_31_SCROLL_TABLE_PRIMITIVE.md`
 
@@ -686,7 +686,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 31 — Scroll Table Primitive
 
-**Status:** IN-PROGRESS
+**Status:** DONE (`ac3fb87`)
 **depends_on:** [7, 15]
 **scope_boundary:** Scroll tables only. No new tile fetch formats, no new compositor math.
 **delivers:**
