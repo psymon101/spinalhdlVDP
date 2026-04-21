@@ -75,7 +75,7 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0311` | `VDP_TILE_MODE` — 2-bit packed/planar/shuffled | Task R4.1b/c/d | `VdpTop.scala:225,232` |
 | `0x0312` | `VDP_ATTR_MODE` — 1-bit linear/packed-2×2 | Task R4.1c | `VdpTop.scala:61,240` |
 | `0x0313..0x031F` | **Reserved** — global-control expansion | — | — |
-| `0x0320..0x032F` | **Reserved for Task 35** — status registers, IRQ enables, sticky bits | Task 35 | — |
+| `0x0320..0x032F` | **Task 35** — status registers, IRQ enables, sticky bits (see §3.1.1) | Task 35, 29 | `VdpTop.scala:878-921` |
 | `0x0330..0x0334` | **Task 20** — Color Math / Window registers (`WIN0_X`, `WIN1_X`, `WIN0_Y`, `WIN1_Y`, `COLOR_MATH_CTRL`) | Task 20 / R6 | `VdpTop.scala:249,255-263` |
 | `0x0335..0x033F` | **Reserved** — Task 20 expansion or future window registers | — | — |
 | `0x0340..0x0346` | **Task 19** — Affine Background registers (`AFFINE_A`, `AFFINE_B`, `AFFINE_C`, `AFFINE_D`, `AFFINE_X`, `AFFINE_Y`, `AFFINE_CTRL`) | Task 19 | `VdpTop.scala:297-352` |
@@ -87,6 +87,20 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0600..0x07FF` | **Reserved** — Copper secondary tables (HDMA-style, Task 33) | Task 33 | — |
 | `0x0800..0x0FFF` | **Reserved for Task 37** — affine sprite descriptors | Task 37 | — |
 | `0x1000..0x7FFF` | **Reserved** — future Mode0 expansion (palette banks, sprite attr, etc.) | — | — |
+
+### 3.1.1 STATUS_STICKY bit layout (`0x0320`, write-1-to-clear)
+
+| Bit | Name | Source | Landed |
+|---|---|---|---|
+| 0 | `RASTER_MATCH` | `RasterTriggerUnit.triggerPulse` | Task 35 |
+| 1 | `SPRITE_OVERFLOW` | `SpriteEvaluator.overflowFlag` | Task 35 |
+| 2 | `QSPI_READY` | decoder cmd_valid pulse | Task 35 |
+| 3 | `QSPI_ERROR` | decoder last_error ≠ 0 | Task 35 |
+| 4 | `SPRITE_0_HIT` | sprite slot 0 non-transparent over non-transparent BG | **Task 29** |
+| 5 | `SPRITE_BG_HIT` | any sprite non-transparent over non-transparent BG | **Task 29** |
+| 6..15 | *reserved* | — | — |
+
+`STATUS_ENABLE` (`0x0321`) is the per-bit IRQ mask using the same bit layout; commit is safe-boundary at `hCounter === 0`.
 
 ### 3.2 Allocation rules
 

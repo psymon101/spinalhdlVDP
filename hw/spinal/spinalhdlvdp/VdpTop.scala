@@ -758,6 +758,16 @@ case class VdpTop() extends Component {
   // render from legacy bank 0 with priority=0 to stay bit-compatible
   // with R2.
   val anySlotVisible = slotVisible.reduce(_ || _)
+
+  // Task 29 — sprite/background collision detection. Purely
+  // observational: no pixel-path change. `slotVisible(s)` already
+  // includes `pixel =/= 0`, so overlap with non-transparent background
+  // is simply the AND with `bgOpaque`. Sticky bits fold into `evBus`
+  // below and clear via the existing write-1-to-clear path on 0x0320.
+  val bgOpaque           = composedBgIdx =/= B(0, 4 bits)
+  val sprite0HitPulse    = slotVisible(0) && bgOpaque
+  val spriteBgHitPulse   = anySlotVisible && bgOpaque
+
   val fillIdx  = Bits(4 bits)
   val fillBank = UInt(3 bits)
   fillIdx  := composedBgIdx
@@ -885,7 +895,11 @@ case class VdpTop() extends Component {
   val evSpriteOverflow = spriteEval.io.overflowFlag
   val evQspiReady      = io.statusEvQspiReady
   val evQspiError      = io.statusEvQspiError
-  val evBus            = (B(0, 12 bits) ## evQspiError ## evQspiReady ## evSpriteOverflow ## evRasterMatch).asBits
+  // Task 29 — extend event bus with sprite collision bits:
+  //   bit 4: SPRITE_0_HIT   (sprite 0 non-transparent over non-transparent BG)
+  //   bit 5: SPRITE_BG_HIT  (any sprite non-transparent over non-transparent BG)
+  val evBus = (B(0, 10 bits) ## spriteBgHitPulse ## sprite0HitPulse ##
+               evQspiError ## evQspiReady ## evSpriteOverflow ## evRasterMatch).asBits
 
   // STATUS_ENABLE write (safe-boundary commit).
   when(effWrite && effAddr === U(0x0321, 15 bits)) {
