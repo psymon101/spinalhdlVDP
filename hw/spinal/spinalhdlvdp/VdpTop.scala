@@ -409,11 +409,38 @@ case class VdpTop() extends Component {
   io.layer0TileDecodeMode := tileDecodeModeReg
   io.layer0AttributeMode  := attributeModeReg
 
+  // Task 31 — per-layer scroll tables. 128 entries × 10 bits indexed by
+  // hCounter(9 downto 3) (one band per 8 pixels, covering 640-pixel
+  // active area with 80 in-frame entries + off-edge). Bus decode:
+  //   0x0900..0x097F = layer 0 table (subAddr bit 7 = 0)
+  //   0x0980..0x09FF = layer 1 table (subAddr bit 7 = 1)
+  val scrollTable0 = ScrollTable(entries = 128, offsetWidth = 10)
+  val scrollTable1 = ScrollTable(entries = 128, offsetWidth = 10)
+  val scrollTableRangeHit = effWrite &&
+    (effAddr >= U(0x0900, 15 bits)) &&
+    (effAddr <  U(0x0A00, 15 bits))
+  val scrollTableSub  = (effAddr - U(0x0900, 15 bits))(7 downto 0)
+  val scrollTableEntry = scrollTableSub(6 downto 0)    // 7 bits
+  val scrollTableLayer = scrollTableSub(7)             // 0 = L0, 1 = L1
+  scrollTable0.io.wrAddr := scrollTableEntry
+  scrollTable0.io.wrData := effData(9 downto 0).asUInt
+  scrollTable0.io.wr     := scrollTableRangeHit && !scrollTableLayer
+  scrollTable1.io.wrAddr := scrollTableEntry
+  scrollTable1.io.wrData := effData(9 downto 0).asUInt
+  scrollTable1.io.wr     := scrollTableRangeHit && scrollTableLayer
+
+  val scrollTable0Addr = hCounter(9 downto 3).resize(7)
+  val scrollTable1Addr = hCounter(9 downto 3).resize(7)
+  scrollTable0.io.rdAddr := scrollTable0Addr
+  scrollTable1.io.rdAddr := scrollTable1Addr
+  val scrollTable0Offset = scrollTable0.io.rdData
+  val scrollTable1Offset = scrollTable1.io.rdData
+
   // Layer 0 (lower priority background).
   val layer0 = BasicPatternSource()
   layer0.io.x := hCounter.resize(10)
   layer0.io.y := fillLine
-  layer0.io.scrollX := io.layer0ScrollX + linestate.io.layer0ScrollX
+  layer0.io.scrollX := io.layer0ScrollX + linestate.io.layer0ScrollX + scrollTable0Offset
   layer0.io.scrollY := io.layer0ScrollY
 
   // Test pattern source: combinational standard patterns for task validation.
@@ -490,8 +517,14 @@ case class VdpTop() extends Component {
   val earlyLatchStrobe = hCounter === U(hTotal - 2, log2Up(hTotal) bits)
   val fetchLineReg    = RegNextWhen((vCounter + 3).resize(10),
                                     earlyLatchStrobe) init 0
-  val fetchScrollXReg = RegNextWhen(io.layer0ScrollX + linestate.io.layer0ScrollX,
-                                    earlyLatchStrobe) init 0
+  // Task 31: include scroll-table offset in the SDRAM-fetch scroll
+  // snapshot. At `earlyLatchStrobe` hCounter is known, so the table
+  // read produces a deterministic per-line offset. Full per-column
+  // behaviour is visible only in the on-chip BasicPatternSource path;
+  // the SDRAM fetch sees one offset per line.
+  val fetchScrollXReg = RegNextWhen(
+    (io.layer0ScrollX + linestate.io.layer0ScrollX + scrollTable0Offset).resize(10),
+    earlyLatchStrobe) init 0
   val fetchScrollYReg = RegNextWhen(io.layer0ScrollY, earlyLatchStrobe) init 0
 
   io.layer0FetchStart       := fetchStartCount =/= 0
@@ -526,7 +559,7 @@ case class VdpTop() extends Component {
   val layer1 = BasicPatternSource()
   layer1.io.x := hCounter.resize(10)
   layer1.io.y := fillLine
-  layer1.io.scrollX := io.layer1ScrollX
+  layer1.io.scrollX := io.layer1ScrollX + scrollTable1Offset
   layer1.io.scrollY := io.layer1ScrollY
 
   // Task 19 Checkpoint B: affine coordinate generator + texture BRAM. The

@@ -264,6 +264,23 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 31 =>
+        // Task 31 hardware proof: per-column scroll table.
+        // Program L0 scroll-table entries so the right half of the
+        // screen scrolls +16 px relative to the left half. Entries
+        // 0..39 cover hCounter 0..319 (left half) and default to 0;
+        // entries 40..79 cover hCounter 320..639 (right half) and get
+        // an offset of +16. Bands are 8 pixels each (hCounter bits
+        // [9:3] index the 128-entry table).
+        //   address = 0x0900 + entry  (L0 block)
+        val shearBase = Seq(
+          (0 << 14) | 0                                   // WAIT y=0
+        )
+        val shearEntries: Seq[Int] = (40 until 80).flatMap { e =>
+          Seq((1 << 14) | (0x0900 + e), 16)
+        }
+        val shearJump = Seq((3 << 14) | 0)                // JUMP 0
+        shearBase ++ shearEntries ++ shearJump
       case 37 =>
         // Task 37 hardware proof: per-sprite affine transforms.
         // Copper bootstrap programs three extended slots:
@@ -423,7 +440,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -439,6 +456,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 15          => 0x0005  // L0 + sprite (mixed-scene integration)
       case 16          => 0x0005  // Sc16 long-soak baseline: same layer config as Sc15
       case 17          => 0x0007  // Sc17 stress: L0 + L1 + sprite (maximum load)
+      case 31          => 0x0001  // Sc31: L0 only — on-chip BasicPatternSource for per-column scroll shear
       case 37          => 0x0005  // Sc37: L0 background + sprite (affine proof)
       case _           => 0x0001
     }, 16 bits)
@@ -888,7 +906,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     video.io.layer0SdramPixel    := fetch.io.pixelIndex
     video.io.layer0SdramBank     := fetch.io.pixelPaletteBank
     video.io.layer0SdramPriority := fetch.io.pixelPriority
-    video.io.layer0UseSdram      := True
+    // Sc31 uses on-chip BasicPatternSource so per-column scroll-table
+    // offsets are visible (SDRAM fetch latches scroll once per line,
+    // hiding column-band variation).
+    video.io.layer0UseSdram      := Bool(scenarioId != 31)
 
     // Test pattern override: default disabled so normal SDRAM-backed rendering
     // continues. Set enable=True and select a pattern (1..7) for validation.
@@ -1069,4 +1090,7 @@ object TopTang20kHdmiScenario28Verilog extends App {
 }
 object TopTang20kHdmiScenario37Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 37))   // Task 37 affine sprite HW proof
+}
+object TopTang20kHdmiScenario31Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 31))   // Task 31 scroll-table HW proof
 }
