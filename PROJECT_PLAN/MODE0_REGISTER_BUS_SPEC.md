@@ -80,7 +80,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0335..0x033F` | **Reserved** — Task 20 expansion or future window registers | — | — |
 | `0x0340..0x0346` | **Task 19** — Affine Background registers (`AFFINE_A`, `AFFINE_B`, `AFFINE_C`, `AFFINE_D`, `AFFINE_X`, `AFFINE_Y`, `AFFINE_CTRL`) | Task 19 | `VdpTop.scala:297-352` |
 | `0x0347..0x034F` | **Reserved** — Task 19 expansion | — | — |
-| `0x0350..0x037F` | **Reserved** — future host-surface registers | — | — |
+| `0x0350..0x0356` | **Task 44** — Raw Bitmap+Attribute Fetch (`BITMAP_CTRL`, `BITMAP_BASE_LO/HI`, `ATTR_BASE_LO/HI`, `BITMAP_STRIDE`, `ATTR_STRIDE`) | Task 44 | `VdpTop.scala` (bitmap-fetch block), `BitmapFetch.scala` |
+| `0x0357..0x037F` | **Reserved** — Task 44 expansion / future host-surface registers | — | — |
 | `0x0380..0x03DF` | **Reserved for Task 33** — Copper-lite / HDMA control and table RAM | Task 33 | — |
 | `0x03E0..0x03FF` | **Reserved** — future expansion | — | — |
 | `0x0400..0x05FF` | Copper program RAM (512 × 16-bit instructions) | Task R5 | `VdpTop.scala:45,182` |

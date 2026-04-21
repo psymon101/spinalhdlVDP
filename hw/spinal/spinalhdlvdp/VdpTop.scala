@@ -375,6 +375,71 @@ case class VdpTop() extends Component {
     affineCtrlPendHit := True
   }
   val affineEnable = affineCtrlReg(0)
+
+  // Task 44 — raw bitmap + attribute fetch register block (0x0350..0x0356).
+  //   0x0350 BITMAP_CTRL       bit[0] enable, bits[2:1] bpp, bits[6:3] cellWidth log2
+  //   0x0351 BITMAP_BASE_LO    low 16 bits of bitmap SDRAM base
+  //   0x0352 BITMAP_BASE_HI    high 7 bits of bitmap SDRAM base
+  //   0x0353 ATTR_BASE_LO      low 16 bits of attribute SDRAM base
+  //   0x0354 ATTR_BASE_HI      high 7 bits of attribute SDRAM base
+  //   0x0355 BITMAP_STRIDE     bytes per bitmap row
+  //   0x0356 ATTR_STRIDE       bytes per attribute row
+  // All registers use the established safe-boundary {shadow, pend, commit
+  // at hCounter===0} pattern. Defaults are zero → BITMAP_CTRL[0]=0 at
+  // power-on, so the L0 source mux below keeps the existing tile path
+  // (no regression for legacy scenarios).
+  val bitmapCtrlReg     = (Reg(Bits(16 bits)) init 0).simPublic()
+  val bitmapCtrlPend    = Reg(Bits(16 bits)) init 0
+  val bitmapCtrlPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0350, 15 bits)) {
+    bitmapCtrlPend    := effData
+    bitmapCtrlPendHit := True
+  }
+  val bitmapBaseLoReg     = Reg(Bits(16 bits)) init 0
+  val bitmapBaseLoPend    = Reg(Bits(16 bits)) init 0
+  val bitmapBaseLoPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0351, 15 bits)) {
+    bitmapBaseLoPend    := effData
+    bitmapBaseLoPendHit := True
+  }
+  val bitmapBaseHiReg     = Reg(Bits(16 bits)) init 0
+  val bitmapBaseHiPend    = Reg(Bits(16 bits)) init 0
+  val bitmapBaseHiPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0352, 15 bits)) {
+    bitmapBaseHiPend    := effData
+    bitmapBaseHiPendHit := True
+  }
+  val attrBaseLoReg     = Reg(Bits(16 bits)) init 0
+  val attrBaseLoPend    = Reg(Bits(16 bits)) init 0
+  val attrBaseLoPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0353, 15 bits)) {
+    attrBaseLoPend    := effData
+    attrBaseLoPendHit := True
+  }
+  val attrBaseHiReg     = Reg(Bits(16 bits)) init 0
+  val attrBaseHiPend    = Reg(Bits(16 bits)) init 0
+  val attrBaseHiPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0354, 15 bits)) {
+    attrBaseHiPend    := effData
+    attrBaseHiPendHit := True
+  }
+  val bitmapStrideReg     = Reg(Bits(16 bits)) init 0
+  val bitmapStridePend    = Reg(Bits(16 bits)) init 0
+  val bitmapStridePendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0355, 15 bits)) {
+    bitmapStridePend    := effData
+    bitmapStridePendHit := True
+  }
+  val attrStrideReg     = Reg(Bits(16 bits)) init 0
+  val attrStridePend    = Reg(Bits(16 bits)) init 0
+  val attrStridePendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0356, 15 bits)) {
+    attrStridePend    := effData
+    attrStridePendHit := True
+  }
+  val bitmapEnable = bitmapCtrlReg(0)
+  val bitmapBpp    = bitmapCtrlReg(2 downto 1).asUInt
+
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {
       layerEnableReg     := layerEnablePend
@@ -405,6 +470,14 @@ case class VdpTop() extends Component {
     when(affineXPendHit)    { affineXReg    := affineXPend;    affineXPendHit    := False }
     when(affineYPendHit)    { affineYReg    := affineYPend;    affineYPendHit    := False }
     when(affineCtrlPendHit) { affineCtrlReg := affineCtrlPend; affineCtrlPendHit := False }
+    // Task 44 bitmap-fetch register commits.
+    when(bitmapCtrlPendHit)    { bitmapCtrlReg    := bitmapCtrlPend;    bitmapCtrlPendHit    := False }
+    when(bitmapBaseLoPendHit)  { bitmapBaseLoReg  := bitmapBaseLoPend;  bitmapBaseLoPendHit  := False }
+    when(bitmapBaseHiPendHit)  { bitmapBaseHiReg  := bitmapBaseHiPend;  bitmapBaseHiPendHit  := False }
+    when(attrBaseLoPendHit)    { attrBaseLoReg    := attrBaseLoPend;    attrBaseLoPendHit    := False }
+    when(attrBaseHiPendHit)    { attrBaseHiReg    := attrBaseHiPend;    attrBaseHiPendHit    := False }
+    when(bitmapStridePendHit)  { bitmapStrideReg  := bitmapStridePend;  bitmapStridePendHit  := False }
+    when(attrStridePendHit)    { attrStrideReg    := attrStridePend;    attrStridePendHit    := False }
   }
   io.layer0TileDecodeMode := tileDecodeModeReg
   io.layer0AttributeMode  := attributeModeReg
@@ -594,22 +667,35 @@ case class VdpTop() extends Component {
   // Test-pattern override: when enabled, forces standard validation pattern
   // regardless of SDRAM or on-chip path state.
   val onChipIdx4   = layer0.io.pixelIndex.resize(4)
+  // Task 44 — bitmap fetch pixel decoder. The SDRAM row/attr row
+  // delivery path is CP-B hardware work; for CP-A we instantiate the
+  // decoder with stubbed byte inputs so the register/mux path is
+  // wired end-to-end and does not drift.
+  val bitmapFetch = BitmapFetch()
+  bitmapFetch.io.bitmapByte      := B(0, 8 bits)  // CP-B: wire from SDRAM row buffer
+  bitmapFetch.io.attrByte        := B(0, 8 bits)
+  bitmapFetch.io.pixelWithinByte := hCounter(2 downto 0)
+  bitmapFetch.io.bpp             := bitmapBpp
+
   // Task 19: when affineEnable is high, the affine-texture lookup wins over
-  // every other L0 source (test-pattern / SDRAM / on-chip). This keeps the
-  // affine primitive observable without disturbing the existing mux ordering
-  // when affineEnable=0 (default — Checkpoint A proven backward-compat).
+  // every other L0 source (test-pattern / SDRAM / on-chip). Task 44
+  // inserts the bitmap-fetch path between affine and SDRAM; when
+  // bitmapEnable=0 (default) the ordering and values are unchanged.
   val layer0Index = (Mux(affineEnable, affineIndex,
                          Mux(io.layer0TestPatternEnable,
                              testPattern.io.pixelIndex,
-                             Mux(io.layer0UseSdram, io.layer0SdramPixel, onChipIdx4)))).simPublic()
+                             Mux(bitmapEnable, bitmapFetch.io.pixelIndex.asBits,
+                                 Mux(io.layer0UseSdram, io.layer0SdramPixel, onChipIdx4))))).simPublic()
   val layer0Bank  = (Mux(affineEnable, affineBank,
                          Mux(io.layer0TestPatternEnable,
                              testPattern.io.paletteBank,
-                             Mux(io.layer0UseSdram, io.layer0SdramBank,  U(0, 3 bits))))).simPublic()
+                             Mux(bitmapEnable, bitmapFetch.io.paletteBank,
+                                 Mux(io.layer0UseSdram, io.layer0SdramBank,  U(0, 3 bits)))))).simPublic()
   val layer0Prio  = (Mux(affineEnable, affinePrio,
                          Mux(io.layer0TestPatternEnable,
                              False,
-                             Mux(io.layer0UseSdram, io.layer0SdramPriority, False)))).simPublic()
+                             Mux(bitmapEnable, False,
+                                 Mux(io.layer0UseSdram, io.layer0SdramPriority, False))))).simPublic()
 
   // R5: fold global LAYER_ENABLE register into the per-line linestate enable.
   val effectiveL0Enable = linestate.io.layer0Enable && layerEnableReg(0)
