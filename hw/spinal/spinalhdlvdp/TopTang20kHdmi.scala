@@ -1022,9 +1022,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     //   stripe 0 (x<40)      RED     when !enableSeen
     //   stripe 1 (40..80)    GREEN   when bootDoneR
     //   stripe 2 (80..120)   BLUE    when FIFO ever popped
-    //   stripe 3 (120..160)  PURPLE  when sd.cmdRd ever asserted   (iter 3)
-    //   stripe 4 (160..200)  YELLOW  when fetchGrantEdge ever      (iter 3)
-    //   stripe 5 (200..240)  ORANGE  when byteFifo.push.valid ever (iter 3)
+    //   stripe 3 (120..160)  PURPLE  when dataReady seen while our sdramActive (iter 4)
+    //   stripe 4 (160..200)  YELLOW  when pushPending ever                    (iter 4)
+    //   stripe 5 (200..240)  ORANGE  when FIFO pop.fire ever                  (iter 4)
     val sc45RedCanary    = Bool()
     val sc45GreenCanary  = Bool()
     val sc45BlueCanary   = Bool()

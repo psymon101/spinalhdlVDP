@@ -132,10 +132,24 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     val attrInk   = (initLine(2 downto 0) + initCol(2 downto 0))(2 downto 0)
     val initAttrByte = (B(0, 2 bits) ## attrPaper.asBits ## attrInk.asBits)
 
-    byteFifo.io.push.valid   := False
-    byteFifo.io.push.payload.kind := False
-    byteFifo.io.push.payload.idx  := 0
-    byteFifo.io.push.payload.data := 0
+    // Registered-push pattern (per BronzeGate #8039, mirrors
+    // SdramTileAttributeFetch's FIFO push). When sdramDataReady fires
+    // we latch the payload into {pendingKind, pendingIdx, pendingData}
+    // and assert pushPending. pushPending holds until push.fire
+    // clears it. This removes the same-cycle `dataReady && push.ready`
+    // dependency that silently dropped every read in earlier iters.
+    val pushPending = RegInit(False)
+    val pendingKind = Reg(Bool())     init False
+    val pendingIdx  = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
+    val pendingData = Reg(Bits(8 bits)) init 0
+    byteFifo.io.push.valid         := pushPending
+    byteFifo.io.push.payload.kind  := pendingKind
+    byteFifo.io.push.payload.idx   := pendingIdx
+    byteFifo.io.push.payload.data  := pendingData
+    when(byteFifo.io.push.fire) { pushPending := False }
+
+    val dbgPushPendingEver = RegInit(False)
+    when(pushPending) { dbgPushPendingEver := True }
 
     val fsm = new StateMachine {
       val sWaitEnable      = new State with EntryPoint
@@ -227,11 +241,15 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       sFetchBitmapWait.whenIsActive {
         sdramActiveR := True
         cmdRd := False
-        when(io.sdramDataReady && byteFifo.io.push.ready) {
-          byteFifo.io.push.valid := True
-          byteFifo.io.push.payload.kind := False
-          byteFifo.io.push.payload.idx  := byteIdx
-          byteFifo.io.push.payload.data := io.sdramDout
+        // Latch on dataReady (if no prior pending pending).
+        when(io.sdramDataReady && !pushPending) {
+          pendingKind := False
+          pendingIdx  := byteIdx
+          pendingData := io.sdramDout
+          pushPending := True
+        }
+        // Advance to next byte once the pending push is accepted.
+        when(byteFifo.io.push.fire) {
           byteIdx := byteIdx + 1
           goto(sFetchBitmap)
         }
@@ -256,11 +274,13 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       sFetchAttrWait.whenIsActive {
         sdramActiveR := True
         cmdRd := False
-        when(io.sdramDataReady && byteFifo.io.push.ready) {
-          byteFifo.io.push.valid := True
-          byteFifo.io.push.payload.kind := True
-          byteFifo.io.push.payload.idx  := byteIdx
-          byteFifo.io.push.payload.data := io.sdramDout
+        when(io.sdramDataReady && !pushPending) {
+          pendingKind := True
+          pendingIdx  := byteIdx
+          pendingData := io.sdramDout
+          pushPending := True
+        }
+        when(byteFifo.io.push.fire) {
           byteIdx := byteIdx + 1
           goto(sFetchAttr)
         }
@@ -279,22 +299,19 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     // quiesces in sIdle (with no new grant).
     val sdramActiveR = RegInit(False)
 
-    // CP-B iter 3 sticky debug latches (sdramCd-resident). Repurposed
-    // from iter 2: replaced `!sdramBusy`, `sdramDataReady`, and `cmdWr`
-    // (proven already) with fetch-loop-targeted signals per BronzeGate
-    // #8036.
-    val dbgCmdRdEver          = RegInit(False)
-    val dbgFetchGrantEdgeEver = RegInit(False)
-    val dbgPushValidEver      = RegInit(False)
-    when(cmdRd)                    { dbgCmdRdEver          := True }
-    when(fetchGrantEdge)           { dbgFetchGrantEdgeEver := True }
-    when(byteFifo.io.push.valid)   { dbgPushValidEver      := True }
+    // CP-B iter 4 sticky debug latches (sdramCd-resident). Per
+    // BronzeGate #8039 evidence requirement: dataReady observed while
+    // OUR sdramActive is high (filters out tile-fetch traffic);
+    // pushPending ever; FIFO pop.fire ever.
+    val dbgDataReadyOursR     = RegInit(False)
+    val dbgPushPendingEverR   = RegInit(False)
+    when(io.sdramDataReady && sdramActiveR) { dbgDataReadyOursR   := True }
   }
 
-  // Cross into pixelCd for the top-level canary muxes.
-  io.dbgBusyDroppedEver := BufferCC(sd.dbgCmdRdEver, False)
-  io.dbgDataReadyEver   := BufferCC(sd.dbgFetchGrantEdgeEver, False)
-  io.dbgWrAssertedEver  := BufferCC(sd.dbgPushValidEver, False)
+  // Iter 4 canaries: dataReady-ours, pushPending-ever, pop-fire-ever.
+  io.dbgBusyDroppedEver := BufferCC(sd.dbgDataReadyOursR, False)
+  io.dbgDataReadyEver   := BufferCC(sd.dbgPushPendingEver, False)
+  io.dbgWrAssertedEver  := popFiredSticky
 
   io.bootDone    := BufferCC(sd.bootDoneR, False)
   io.sdramActive := BufferCC(sd.sdramActiveR, False)
