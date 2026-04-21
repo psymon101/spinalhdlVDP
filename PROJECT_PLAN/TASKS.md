@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `51d4ed6` (iter 5: fetch loop end-to-end alive; init writes missing, bitmap black) |
+| **Latest Commit** | `a3d8ac4` (iter 6b: CyanPeak audit fix — adds sInitSettle/sFetchSettle states) |
 | **Latest Auth Mail** | #8054 (BronzeGate: authorize iter-6 tileBootDone + bitmap bus pre-arm/settle init fix) |
-| **Next Deliverable** | BrightForge iter-6 tileBootDone + bitmap bus pre-arm/settle init fix |
+| **Next Deliverable** | BrightForge hardware evidence (Sc44d bitmap render) |
 | **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8008 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`

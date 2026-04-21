@@ -177,9 +177,11 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
 
     val fsm = new StateMachine {
       val sWaitEnable      = new State with EntryPoint
+      val sInitSettle      = new State
       val sInitBitmap      = new State
       val sInitAttr        = new State
       val sIdle            = new State
+      val sFetchSettle     = new State
       val sFetchBitmap     = new State
       val sFetchBitmapWait = new State
       val sFetchAttr       = new State
@@ -205,6 +207,20 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
         when(enableSync && tileBootDoneSync && !io.sdramBusy) {
           bootCounter := 0
           sdramActiveR := True
+          goto(sInitSettle)
+        }
+      }
+
+      // Task 44b iter 6b (CyanPeak audit fix): pre-arm the arbiter by
+      // holding sdramActiveR high for 8 cycles before issuing any writes.
+      // This ensures the top-level pixel-domain Mux has observed our
+      // client-1 request before cmdWr pulses arrive at the controller.
+      sInitSettle.whenIsActive {
+        sdramActiveR := True
+        cmdRd := False; cmdWr := False
+        bootCounter := bootCounter + 1
+        when(bootCounter >= 8) {
+          bootCounter := 0
           goto(sInitBitmap)
         }
       }
@@ -248,7 +264,20 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
         when(fetchGrantEdge) {
           lineReg := fetchLineSync & U(MaxLines - 1, 10 bits)
           byteIdx := 0
+          bootCounter := 0
           sdramActiveR := True
+          goto(sFetchSettle)
+        }
+      }
+
+      // Task 44b iter 6b (CyanPeak audit fix): pre-arm the arbiter for
+      // per-line fetch.
+      sFetchSettle.whenIsActive {
+        sdramActiveR := True
+        cmdRd := False; cmdWr := False
+        bootCounter := bootCounter + 1
+        when(bootCounter >= 8) {
+          bootCounter := 0
           goto(sFetchBitmap)
         }
       }
