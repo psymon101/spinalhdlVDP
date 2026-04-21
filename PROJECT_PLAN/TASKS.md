@@ -32,7 +32,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
 | **Latest Commit** | `2e34cd8` (Task 44b CP-A: BitmapRowFetch sim-verified) |
 | **Latest Auth Mail** | #8013 (CyanPeak: Task 44b CP-A PASSED, CP-B GO) |
-| **Next Deliverable** | BrightForge CP-B hardware proof (Sc44d SDRAM-backed) |
+| **Next Deliverable** | PM/audit ruling on BrightForge blocker (#8015): SpinalHDL Mem.init null bug |
 | **Coding Authorized** | **YES** — CyanPeak artifact audit PASS #8008 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
