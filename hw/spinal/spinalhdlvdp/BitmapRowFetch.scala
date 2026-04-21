@@ -64,6 +64,10 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     val bootDone       = out Bool()
     val sdramActive    = out Bool()    // pulses whenever SDRAM FSM wants the bus
     val fifoActiveEver = out Bool()    // CP-B canary: sticky-high once FIFO pop has fired at least once
+    // CP-B debug iteration 2 (CyanPeak #8032) — all sticky-latched in pixelCd.
+    val dbgBusyDroppedEver   = out Bool()  // sticky: !sdramBusy observed by FSM at least once
+    val dbgDataReadyEver     = out Bool()  // sticky: sdramDataReady observed at least once
+    val dbgWrAssertedEver    = out Bool()  // sticky: cmdWr asserted at least once
   }
 
   case class RowByte() extends Bundle {
@@ -274,7 +278,19 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     // set when enable first sees high, stays high until fetch loop
     // quiesces in sIdle (with no new grant).
     val sdramActiveR = RegInit(False)
+
+    // CP-B iter 2 sticky debug latches (sdramCd-resident).
+    val dbgBusyDroppedR = RegInit(False)
+    val dbgDataReadyR   = RegInit(False)
+    val dbgWrAssertedR  = RegInit(False)
+    when(!io.sdramBusy)     { dbgBusyDroppedR := True }
+    when(io.sdramDataReady) { dbgDataReadyR   := True }
+    when(cmdWr)             { dbgWrAssertedR  := True }
   }
+
+  io.dbgBusyDroppedEver := BufferCC(sd.dbgBusyDroppedR, False)
+  io.dbgDataReadyEver   := BufferCC(sd.dbgDataReadyR, False)
+  io.dbgWrAssertedEver  := BufferCC(sd.dbgWrAssertedR, False)
 
   io.bootDone    := BufferCC(sd.bootDoneR, False)
   io.sdramActive := BufferCC(sd.sdramActiveR, False)

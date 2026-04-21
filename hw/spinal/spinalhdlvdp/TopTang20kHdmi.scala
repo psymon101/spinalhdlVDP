@@ -1018,29 +1018,64 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     //   x <  40        : RED when !enableSync   (BITMAP_CTRL bit 0 not reaching sdramCd)
     //   40..80         : GREEN when bootDoneR   (SDRAM init complete)
     //   80..120        : BLUE when FIFO pop has fired at least once (CDC alive)
-    val sc45RedCanary   = Bool()
-    val sc45GreenCanary = Bool()
-    val sc45BlueCanary  = Bool()
+    // Sc45 debug canaries — top row, 6 stripes of 40 px each.
+    //   stripe 0 (x<40)      RED     when !enableSeen        (iter 1)
+    //   stripe 1 (40..80)    GREEN   when bootDoneR          (iter 1)
+    //   stripe 2 (80..120)   BLUE    when FIFO ever popped   (iter 1)
+    //   stripe 3 (120..160)  PURPLE  when !sdramBusy seen    (iter 2)
+    //   stripe 4 (160..200)  YELLOW  when dataReady seen     (iter 2)
+    //   stripe 5 (200..240)  ORANGE  when cmdWr seen         (iter 2)
+    val sc45RedCanary    = Bool()
+    val sc45GreenCanary  = Bool()
+    val sc45BlueCanary   = Bool()
+    val sc45PurpleCanary = Bool()
+    val sc45YellowCanary = Bool()
+    val sc45OrangeCanary = Bool()
     if (scenarioId == 45) {
       val enableSeen   = video.io.bitmapModeActive
       val bootDoneSeen = bitmapRowFetch.io.bootDone
       val fifoActive   = bitmapRowFetch.io.fifoActiveEver
+      val busyDropped  = bitmapRowFetch.io.dbgBusyDroppedEver
+      val dataReady    = bitmapRowFetch.io.dbgDataReadyEver
+      val wrAsserted   = bitmapRowFetch.io.dbgWrAssertedEver
       val inTop = video.io.y < U(40, 10 bits)
-      val inR   = video.io.x < U(40, 10 bits)
-      val inG   = video.io.x >= U(40, 10 bits) && video.io.x < U(80, 10 bits)
-      val inB   = video.io.x >= U(80, 10 bits) && video.io.x < U(120, 10 bits)
-      sc45RedCanary   := inTop && inR && !enableSeen
-      sc45GreenCanary := inTop && inG && bootDoneSeen
-      sc45BlueCanary  := inTop && inB && fifoActive
+      val in0 = video.io.x < U(40, 10 bits)
+      val in1 = video.io.x >= U(40,  10 bits) && video.io.x < U(80,  10 bits)
+      val in2 = video.io.x >= U(80,  10 bits) && video.io.x < U(120, 10 bits)
+      val in3 = video.io.x >= U(120, 10 bits) && video.io.x < U(160, 10 bits)
+      val in4 = video.io.x >= U(160, 10 bits) && video.io.x < U(200, 10 bits)
+      val in5 = video.io.x >= U(200, 10 bits) && video.io.x < U(240, 10 bits)
+      sc45RedCanary    := inTop && in0 && !enableSeen
+      sc45GreenCanary  := inTop && in1 && bootDoneSeen
+      sc45BlueCanary   := inTop && in2 && fifoActive
+      sc45PurpleCanary := inTop && in3 && busyDropped
+      sc45YellowCanary := inTop && in4 && dataReady
+      sc45OrangeCanary := inTop && in5 && wrAsserted
     } else {
-      sc45RedCanary   := False
-      sc45GreenCanary := False
-      sc45BlueCanary  := False
+      sc45RedCanary    := False
+      sc45GreenCanary  := False
+      sc45BlueCanary   := False
+      sc45PurpleCanary := False
+      sc45YellowCanary := False
+      sc45OrangeCanary := False
     }
 
-    hdmiTx.red   := Mux(sc29Canary || sc45RedCanary,   Mux(sc45RedCanary,   B(0xFF, 8 bits), B(0x00, 8 bits)), video.io.red)
-    hdmiTx.green := Mux(sc29Canary || sc45GreenCanary, B(0xFF, 8 bits), video.io.green)
-    hdmiTx.blue  := Mux(sc29Canary || sc45BlueCanary,  Mux(sc45BlueCanary,  B(0xFF, 8 bits), B(0x00, 8 bits)), video.io.blue)
+    val canaryR = Bits(8 bits)
+    val canaryG = Bits(8 bits)
+    val canaryB = Bits(8 bits)
+    canaryR := B(0, 8 bits); canaryG := B(0, 8 bits); canaryB := B(0, 8 bits)
+    when(sc45RedCanary)    { canaryR := B(0xFF, 8 bits) }
+    when(sc45GreenCanary)  { canaryG := B(0xFF, 8 bits) }
+    when(sc45BlueCanary)   { canaryB := B(0xFF, 8 bits) }
+    when(sc45PurpleCanary) { canaryR := B(0x80, 8 bits); canaryB := B(0xFF, 8 bits) }
+    when(sc45YellowCanary) { canaryR := B(0xFF, 8 bits); canaryG := B(0xFF, 8 bits) }
+    when(sc45OrangeCanary) { canaryR := B(0xFF, 8 bits); canaryG := B(0x80, 8 bits) }
+    val anyCanary = sc45RedCanary || sc45GreenCanary || sc45BlueCanary ||
+                    sc45PurpleCanary || sc45YellowCanary || sc45OrangeCanary
+
+    hdmiTx.red   := Mux(sc29Canary, B(0x00, 8 bits), Mux(anyCanary, canaryR, video.io.red))
+    hdmiTx.green := Mux(sc29Canary, B(0xFF, 8 bits), Mux(anyCanary, canaryG, video.io.green))
+    hdmiTx.blue  := Mux(sc29Canary, B(0x00, 8 bits), Mux(anyCanary, canaryB, video.io.blue))
 
     O_tmds_clk_p := hdmiTx.tmds_clk_p
     O_tmds_clk_n := hdmiTx.tmds_clk_n
