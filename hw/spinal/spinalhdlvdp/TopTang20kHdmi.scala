@@ -264,6 +264,19 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 45 =>
+        // Task 44b CP-B hardware proof: SDRAM-backed bitmap + attribute
+        // fetch. Bootstrap writes BITMAP_CTRL = 0x0081 (enable | 1bpp
+        // | useSdram). `BitmapRowFetch` runs its synth-init phase
+        // at boot (writes a diagonal-stripe bitmap + Spectrum-format
+        // attributes into SDRAM at 0x3000 / 0x4000), then on each
+        // line's fetchGrant pulse reads the row into its pixel-domain
+        // line buffer which feeds `BitmapFetch`.
+        Seq(
+          (0 << 14) | 0,                                   // WAIT y=0
+          (1 << 14) | 0x0350, 0x0081,                      // BITMAP_CTRL = en|1bpp|useSdram
+          (3 << 14) | 0                                    // JUMP 0
+        )
       case 44 =>
         // Task 44 CP-B hardware proof: raw bitmap + attribute decoder.
         // Bootstrap enables BITMAP_CTRL[0]=1 (bitmap mode, 1bpp). The
@@ -475,7 +488,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -492,7 +505,8 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 16          => 0x0005  // Sc16 long-soak baseline: same layer config as Sc15
       case 17          => 0x0007  // Sc17 stress: L0 + L1 + sprite (maximum load)
       case 29          => 0x0005  // Sc29: L0 + sprite (collision flag proof)
-      case 44          => 0x0001  // Sc44: L0 only (bitmap-fetch proof)
+      case 44          => 0x0001  // Sc44: L0 only (Task 44 test-gen bitmap proof)
+      case 45          => 0x0001  // Sc45: L0 only (Task 44b SDRAM-backed bitmap proof)
       case 31          => 0x0001  // Sc31: L0 only — on-chip BasicPatternSource for per-column scroll shear
       case 37          => 0x0005  // Sc37: L0 background + sprite (affine proof)
       case _           => 0x0001
@@ -928,6 +942,18 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // R4: SDRAM tile+attribute fetch. Replaces the retired SdramTileFetch.
     // Scheduler now gates SDRAM reads via slotValid; grant pulses start a
     // line's fetch cycle; preAnnounce gives the engine a prefetch hint.
+    // Task 44b — SDRAM-backed bitmap row fetch. Runs alongside tile
+    // fetch but uses linear addressing and reads into pixel-domain
+    // line buffers; its SDRAM bus is routed through arbiter client 1
+    // (see top-level wiring below).
+    val bitmapRowFetch = BitmapRowFetch(sdramClockDomain)
+    bitmapRowFetch.io.fetchGrant := video.io.bitmapSdramFetchGrant
+    bitmapRowFetch.io.fetchLine  := video.io.bitmapSdramFetchLine
+    bitmapRowFetch.io.col        := video.io.bitmapSdramCol
+    bitmapRowFetch.io.enable     := video.io.bitmapModeActive
+    video.io.bitmapSdramByte     := bitmapRowFetch.io.bitmapByte
+    video.io.bitmapSdramAttrByte := bitmapRowFetch.io.attrByte
+
     val fetch = SdramTileAttributeFetch(sdramClockDomain)
     fetch.io.fetchGrant       := video.io.layer0FetchGrant
     fetch.io.fetchSlotValid   := video.io.layer0FetchSlotValid
@@ -1041,7 +1067,16 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   // override in front of the arbiter — it is not scheduled, and its
   // scope is orthogonal to multi-fetch arbitration.
   val sdramArbiter = SdramArbiter(clientCount = 4, addrWidth = 23, dataWidth = 8)
-  sdramArbiter.io.grantClientId := pixelArea.video.io.layer0FetchGrantClientId
+  // Task 44b: when BITMAP_CTRL[0]=1, pin the arbiter to client 1
+  // (bitmap fetch) so its SDRAM reads actually reach the controller.
+  // Otherwise use the scheduler's grantClientId (default client 0).
+  // When BitmapRowFetch wants the bus (init or fetch) OR bitmap mode is
+  // active, route to client 1. Otherwise use the scheduler's output
+  // (default client 0 — tile fetch).
+  sdramArbiter.io.grantClientId := Mux(pixelArea.bitmapRowFetch.io.sdramActive ||
+                                       pixelArea.video.io.bitmapModeActive,
+                                       U(1, 2 bits),
+                                       pixelArea.video.io.layer0FetchGrantClientId)
   sdramArbiter.io.slotValid     := pixelArea.video.io.layer0FetchSlotValid
   sdramArbiter.io.grant         := pixelArea.video.io.layer0FetchGrant
   // Client 0 — tile + attribute fetch.
@@ -1049,8 +1084,16 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   sdramArbiter.io.clientWr(0)   := pixelArea.fetch.io.sdramWr
   sdramArbiter.io.clientAddr(0) := pixelArea.fetch.io.sdramAddr
   sdramArbiter.io.clientDin(0)  := pixelArea.fetch.io.sdramDin
-  // Clients 1..3 — reserved, tied inactive.
-  for (c <- 1 until 4) {
+  // Client 1 — Task 44b bitmap SDRAM fetch.
+  sdramArbiter.io.clientRd(1)   := pixelArea.bitmapRowFetch.io.sdramRd
+  sdramArbiter.io.clientWr(1)   := pixelArea.bitmapRowFetch.io.sdramWr
+  sdramArbiter.io.clientAddr(1) := pixelArea.bitmapRowFetch.io.sdramAddr
+  sdramArbiter.io.clientDin(1)  := pixelArea.bitmapRowFetch.io.sdramDin
+  pixelArea.bitmapRowFetch.io.sdramDout      := sdramArea.ctrl.io.dout
+  pixelArea.bitmapRowFetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready
+  pixelArea.bitmapRowFetch.io.sdramBusy      := sdramArea.ctrl.io.busy
+  // Clients 2..3 — reserved, tied inactive.
+  for (c <- 2 until 4) {
     sdramArbiter.io.clientRd(c)   := False
     sdramArbiter.io.clientWr(c)   := False
     sdramArbiter.io.clientAddr(c) := U(0, 23 bits)
@@ -1148,4 +1191,7 @@ object TopTang20kHdmiScenario29Verilog extends App {
 }
 object TopTang20kHdmiScenario44Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 44))   // Task 44 bitmap-fetch HW proof
+}
+object TopTang20kHdmiScenario45Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 45))   // Task 44b SDRAM-backed bitmap HW proof
 }

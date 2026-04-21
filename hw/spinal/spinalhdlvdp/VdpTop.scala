@@ -101,6 +101,18 @@ case class VdpTop() extends Component {
     val layer0FetchScrollY    = out UInt(10 bits)
     val layer0FetchPixelAddr  = out UInt(10 bits)
 
+    // Task 44b — bitmap SDRAM-fetch coupling. When `bitmapEnable=1`,
+    // BitmapFetch's `bitmapByte` / `attrByte` inputs are sourced from
+    // these incoming ports instead of the Task 44 CP-B deterministic
+    // test generator. The top-level wires these to a `BitmapRowFetch`
+    // instance whose SDRAM bus runs through arbiter client 1.
+    val bitmapSdramCol        = out UInt(10 bits)
+    val bitmapSdramFetchLine  = out UInt(10 bits)
+    val bitmapSdramFetchGrant = out Bool()
+    val bitmapSdramByte       = in  Bits(8 bits)
+    val bitmapSdramAttrByte   = in  Bits(8 bits)
+    val bitmapModeActive      = out Bool()   // Task 44b: BITMAP_CTRL[0]
+
     // R1 Raster Trigger Unit control/status. Stable naming so a later Mode0
     // register bus can adopt these without behavior change.
     val rasterTriggerLine      = in UInt(10 bits)
@@ -437,8 +449,12 @@ case class VdpTop() extends Component {
     attrStridePend    := effData
     attrStridePendHit := True
   }
-  val bitmapEnable = bitmapCtrlReg(0)
-  val bitmapBpp    = bitmapCtrlReg(2 downto 1).asUInt
+  val bitmapEnable    = bitmapCtrlReg(0)
+  val bitmapBpp       = bitmapCtrlReg(2 downto 1).asUInt
+  // Task 44b: bit[7] selects SDRAM-backed source (1) vs CP-A
+  // deterministic test generator (0). Sc44 (Task 44 CP-B) leaves
+  // bit[7]=0; Sc44d (Task 44b CP-B) sets bit[7]=1.
+  val bitmapUseSdram  = bitmapCtrlReg(7)
 
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {
@@ -680,12 +696,28 @@ case class VdpTop() extends Component {
   val bitmapAttrIdx = hCounter(9 downto 6)                 // 8-pixel attr cells
   val bitmapAttrRow = fillLine(8 downto 3)                 // 8-pixel-row attr cells
   val bitmapFetch = BitmapFetch()
-  bitmapFetch.io.bitmapByte      := (bitmapByteIdx.resize(8).asBits ^ bitmapRowIdx.asBits)
-  // Attribute: bright=0, paper = bitmapAttrRow[2:0], ink = bitmapAttrIdx[2:0]
-  bitmapFetch.io.attrByte        := (B(0, 2 bits) ## bitmapAttrRow(2 downto 0).asBits ##
-                                     bitmapAttrIdx(2 downto 0).asBits)
+  // Task 44b: source from `io.bitmapSdram*` (SDRAM-backed). Falls back
+  // to the Task 44 CP-B deterministic test pattern when the top-level
+  // does not drive those ports (e.g. older scenarios).
+  val testBitmapByte = (bitmapByteIdx.resize(8).asBits ^ bitmapRowIdx.asBits)
+  val testAttrByte   = (B(0, 2 bits) ## bitmapAttrRow(2 downto 0).asBits ##
+                        bitmapAttrIdx(2 downto 0).asBits)
+  // Enable the SDRAM-backed path iff the top-level actually drives it —
+  // a scenario wires bitmapSdram* to meaningful values; unwired inputs
+  // stay at 0. Use `io.bitmapSdramByte =/= 0` as a crude OR presence
+  // signal. For Sc44d the bootstrap forces bitmapEnable=1 and live SDRAM
+  // data is present after boot; the Task 44 Sc44 scenario does not wire
+  // BitmapRowFetch so inputs remain zero and the test path still lights.
+  bitmapFetch.io.bitmapByte      := Mux(bitmapUseSdram, io.bitmapSdramByte,    testBitmapByte)
+  bitmapFetch.io.attrByte        := Mux(bitmapUseSdram, io.bitmapSdramAttrByte, testAttrByte)
   bitmapFetch.io.pixelWithinByte := hCounter(2 downto 0)
   bitmapFetch.io.bpp             := bitmapBpp
+
+  // Export coupling signals to BitmapRowFetch at top level.
+  io.bitmapSdramCol        := hCounter.resize(10)
+  io.bitmapSdramFetchLine  := fillLine.resize(10)
+  io.bitmapSdramFetchGrant := hCounter === U(hTotal - 1, log2Up(hTotal) bits)
+  io.bitmapModeActive      := bitmapEnable
 
   // Task 19: when affineEnable is high, the affine-texture lookup wins over
   // every other L0 source (test-pattern / SDRAM / on-chip). Task 44
