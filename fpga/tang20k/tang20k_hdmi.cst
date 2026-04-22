@@ -19,14 +19,17 @@ IO_PORT "O_led[4]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
 IO_LOC "O_led[5]" 20;
 IO_PORT "O_led[5]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
 
+// Task 44b iter 6i (CyanPeak #8162 / BronzeGate #8159): raise TMDS drive
+// strength and enable FAST slew to harden signal integrity for strict
+// HDMI receivers (Guermok USB2 capture card rejects Sc45 at DRIVE=8).
 IO_LOC "O_tmds_clk_p" 33,34;
-IO_PORT "O_tmds_clk_p" PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "O_tmds_clk_p" PULL_MODE=NONE DRIVE=16 SLEW=FAST BANK_VCCIO=3.3;
 IO_LOC "O_tmds_data_p[0]" 35,36;
-IO_PORT "O_tmds_data_p[0]" PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "O_tmds_data_p[0]" PULL_MODE=NONE DRIVE=16 SLEW=FAST BANK_VCCIO=3.3;
 IO_LOC "O_tmds_data_p[1]" 37,38;
-IO_PORT "O_tmds_data_p[1]" PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "O_tmds_data_p[1]" PULL_MODE=NONE DRIVE=16 SLEW=FAST BANK_VCCIO=3.3;
 IO_LOC "O_tmds_data_p[2]" 39,40;
-IO_PORT "O_tmds_data_p[2]" PULL_MODE=NONE DRIVE=8 BANK_VCCIO=3.3;
+IO_PORT "O_tmds_data_p[2]" PULL_MODE=NONE DRIVE=16 SLEW=FAST BANK_VCCIO=3.3;
 
 // QSPI host-control frontend — full 4-wire quad-mode.
 // Pin mapping inherited from the proven VDP project tang20k.cst.
