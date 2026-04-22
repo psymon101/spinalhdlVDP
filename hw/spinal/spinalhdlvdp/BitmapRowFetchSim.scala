@@ -11,6 +11,7 @@ import scala.collection.mutable
   *   - sFetchSettle window: sdramActiveR high for 16 cycles before first cmdRd.
   *   - bootCounter resets correctly between states.
   *   - SDRAM writes populate correctly after settle.
+  *   - Content delivery matches expected SDRAM data.
   */
 object BitmapRowFetchSim extends App {
   Config.sim.compile {
@@ -29,6 +30,25 @@ object BitmapRowFetchSim extends App {
     dut.io.col            #= 0
     dut.io.enable         #= false
     dut.io.tileBootDone   #= false
+
+    // Use a fork for a reactive SDRAM model
+    val sdramModel = fork {
+      while(true) {
+        if(dut.io.sdramRd.toBoolean) {
+          val addr = dut.io.sdramAddr.toLong
+          // Simulate latency
+          dut.sdramCd.waitSampling(5)
+          // Drive dataReady and dout.
+          // In our reactive model, we return (addr & 0xFF).
+          dut.io.sdramDout #= (addr & 0xFF).toInt
+          dut.io.sdramDataReady #= true
+          dut.sdramCd.waitSampling()
+          dut.io.sdramDataReady #= false
+        } else {
+          dut.sdramCd.waitSampling()
+        }
+      }
+    }
 
     // Let reset propagate
     dut.sdramCd.waitSampling(10)
@@ -93,15 +113,6 @@ object BitmapRowFetchSim extends App {
     dut.clockDomain.waitSampling(4) // 4-pixel-cycle pulse per VdpTop
     dut.io.fetchGrant #= false
     
-    // Use a fork to catch the cmdRd pulse so we don't miss it between waitSampling calls
-    var cmdRdObserved = false
-    val cmdRdWatcher = fork {
-      while(!cmdRdObserved) {
-        if(dut.io.sdramRd.toBoolean) cmdRdObserved = true
-        dut.sdramCd.waitSampling()
-      }
-    }
-
     // Wait for sdramActive to go high
     timeout = 100
     while(!dut.io.sdramActive.toBoolean && timeout > 0) {
@@ -123,13 +134,46 @@ object BitmapRowFetchSim extends App {
     assert(cyclesWithActiveNoWr >= 10, s"Expected most settle cycles for fetch remaining, got $cyclesWithActiveNoWr")
     
     // Eventually cmdRd should assert
+    // (Handled by the sdramModel fork above)
     timeout = 100
-    while(!cmdRdObserved && timeout > 0) {
+    while(!dut.io.sdramRd.toBoolean && timeout > 0) {
       dut.sdramCd.waitSampling()
       timeout -= 1
     }
-    assert(cmdRdObserved, "Timed out waiting for first cmdRd after fetch settle")
+    assert(timeout > 0, "Timed out waiting for first cmdRd after fetch settle")
     println("[sim] First cmdRd observed after fetch settle — OK")
+
+    // Wait for the full line to be fetched (80 bitmap + 80 attr = 160 bytes)
+    // Plus some padding for FIFO and SDRAM latency.
+    dut.sdramCd.waitSampling(1000)
+    
+    // === Case 3: Content Verification ===
+    println("[sim] Case 3: Verifying line-buffer content...")
+    
+    // In our reactive model above, we return (addr & 0xFF).
+    // For line 0, bitmap fetch addr = BitmapSdramBase + 0*80 + byteIdx
+    // BitmapSdramBase = 0x3000.
+    // So col 0 (byteIdx 0) -> addr 0x3000 -> data 0x00.
+    // col 8 (byteIdx 1) -> addr 0x3001 -> data 0x01.
+    // col 80 (byteIdx 10) -> addr 0x300A -> data 0x0A.
+    
+    dut.io.col #= 0
+    dut.clockDomain.waitSampling(2)
+    println(s"[sim] col=0: bitmapByte=${dut.io.bitmapByte.toInt}")
+    assert(dut.io.bitmapByte.toInt == 0x00, s"Expected 0x00, got ${dut.io.bitmapByte.toInt}")
+
+    dut.io.col #= 8
+    dut.clockDomain.waitSampling(2)
+    println(s"[sim] col=8: bitmapByte=${dut.io.bitmapByte.toInt}")
+    assert(dut.io.bitmapByte.toInt == 0x01, s"Expected 0x01, got ${dut.io.bitmapByte.toInt}")
+
+    // Attr fetch addr = AttrSdramBase + 0*80 + byteIdx
+    // AttrSdramBase = 0x4000.
+    // So col 0 (byteIdx 0) -> addr 0x4000 -> data 0x00.
+    dut.io.col #= 0
+    dut.clockDomain.waitSampling(2)
+    println(s"[sim] col=0: attrByte=${dut.io.attrByte.toInt}")
+    assert(dut.io.attrByte.toInt == 0x00, s"Expected 0x00, got ${dut.io.attrByte.toInt}")
 
     println("[sim] BitmapRowFetchSim: PASS")
   }

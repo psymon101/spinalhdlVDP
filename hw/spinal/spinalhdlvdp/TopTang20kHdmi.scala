@@ -1141,30 +1141,22 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   // explicit ClockingArea inside SdramTileFetch). Upload pulse is the CDC-
   // regenerated one from sdramCdcArea — fetch retains its existing direct
   // wiring (it has been empirically stable since Task 15).
-  // Task 30 — multi-client SDRAM arbiter. The scheduler's grantClientId
-  // selects which of 4 clients drives the SDRAM request lines on each
-  // cycle. Today only client 0 (tile/attribute fetch) is wired; clients
-  // 1..3 are reserved for future engines (sprite-to-SDRAM, blitter,
-  // spare) and tied inactive. With the current 2-slot schedule
-  // (both slots clientId=0) the arbiter's mux is identity → bit-
-  // identical to the pre-arbiter direct wiring.
-  //
-  // Upload bypass (QSPI-SDRAM write pulse) remains a separate priority
-  // override in front of the arbiter — it is not scheduled, and its
-  // scope is orthogonal to multi-fetch arbitration.
-  val sdramArbiter = SdramArbiter(clientCount = 4, addrWidth = 23, dataWidth = 8)
-  // Task 44b: when BITMAP_CTRL[0]=1, pin the arbiter to client 1
-  // (bitmap fetch) so its SDRAM reads actually reach the controller.
-  // Otherwise use the scheduler's grantClientId (default client 0).
-  // Per CyanPeak #8028: pin to client 1 only when BitmapRowFetch's FSM
-  // has active SDRAM work. Pinning on `bitmapModeActive` alone would
-  // permanently starve client 0 (tile fetch) and prevent the tile
-  // engine from reaching its ready state.
-  sdramArbiter.io.grantClientId := Mux(pixelArea.bitmapRowFetch.io.sdramActive,
-                                       U(1, 2 bits),
-                                       pixelArea.video.io.layer0FetchGrantClientId)
-  sdramArbiter.io.slotValid     := pixelArea.video.io.layer0FetchSlotValid
-  sdramArbiter.io.grant         := pixelArea.video.io.layer0FetchGrant
+  // Task 30 — multi-client SDRAM arbiter.
+  // Task 44b iter 6d (CyanPeak audit correction): Move arbiter and mux logic
+  // into sdramClockDomain. Synchronize pixel-domain control signals via BufferCC
+  // to ensure glitch-free switching and rule out SDRAM controller stalls.
+  val sdramArbArea = new ClockingArea(sdramClockDomain) {
+    val arbiter = SdramArbiter(clientCount = 4, addrWidth = 23, dataWidth = 8)
+
+    val activeBit   = BufferCC(pixelArea.bitmapRowFetch.io.sdramActive, False)
+    val grantIdSync = BufferCC(pixelArea.video.io.layer0FetchGrantClientId, U(0, 2 bits))
+
+    arbiter.io.grantClientId := Mux(activeBit, U(1, 2 bits), grantIdSync)
+    arbiter.io.slotValid     := BufferCC(pixelArea.video.io.layer0FetchSlotValid, False)
+    arbiter.io.grant         := BufferCC(pixelArea.video.io.layer0FetchGrant,     False)
+  }
+  val sdramArbiter = sdramArbArea.arbiter
+
   // Client 0 — tile + attribute fetch.
   sdramArbiter.io.clientRd(0)   := pixelArea.fetch.io.sdramRd
   sdramArbiter.io.clientWr(0)   := pixelArea.fetch.io.sdramWr

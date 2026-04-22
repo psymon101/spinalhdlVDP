@@ -30,7 +30,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `1756fd1` (BrightForge Sc45 forced-overlay + LED3 diagnostic) |
+| **Latest Commit** | `c6cbc0b` (iter 6d: pipeline metadata fix; arbiter CDC hardening; divider timing fix) |
 | **Latest Auth Mail** | #8104 (BrightForge: MAJOR RETRACTION — Sc45 HDMI is alive; monitor confirms overlay+canaries) |
 | **Next Deliverable** | BrightForge Sc45 hardware proof (OpenCV analysis) — pending capture-path recovery |
 | **Coding Authorized** | **YES** — CyanPeak audit correction 6c #8074; CoralReef sticky patch `062bf18` PASS #8093 |

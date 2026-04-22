@@ -34,8 +34,8 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
 
   val BitmapSdramBase    = 0x3000
   val AttrSdramBase      = 0x4000
-  val BitmapBytesPerRow  = 80
-  val AttrBytesPerRow    = 80
+  val BitmapBytesPerRow  = 128   // Task 44b iter 6d: power-of-two for shift-addressing
+  val AttrBytesPerRow    = 128
   val BitmapBufferDepth  = 128
   val AttrBufferDepth    = 128
   val MaxLines           = 32
@@ -127,12 +127,20 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     val byteIdx     = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
     val lineReg     = Reg(UInt(10 bits)) init 0
 
-    val initLine  = (bootCounter / U(BitmapBytesPerRow, bootCounter.getWidth bits)).resize(8)
-    val initCol   = (bootCounter % U(BitmapBytesPerRow, bootCounter.getWidth bits)).resize(8)
-    val initBitmapByte = (initLine + initCol).resize(8).asBits
-    val attrPaper = initLine(2 downto 0)
-    val attrInk   = (initLine(2 downto 0) + initCol(2 downto 0))(2 downto 0)
+    // Task 44b iter 6d (CyanPeak audit correction): replace dividers with
+    // counters to ensure timing closure at 64.8 MHz.
+    val initLineReg = Reg(UInt(8 bits)) init 0
+    val initColReg  = Reg(UInt(8 bits)) init 0
+    val initBitmapByte = (initLineReg + initColReg).resize(8).asBits
+    val attrPaper = initLineReg(2 downto 0)
+    val attrInk   = (initLineReg(2 downto 0) + initColReg(2 downto 0))(2 downto 0)
     val initAttrByte = (B(0, 2 bits) ## attrPaper.asBits ## attrInk.asBits)
+
+    // Task 44b iter 6d (CyanPeak audit correction): pipeline metadata.
+    // Latch the kind and index of the IN-FLIGHT request so we don't
+    // rely on FSM registers being stable when dataReady eventually pulses.
+    val inflightKind = Reg(Bool())     init False
+    val inflightIdx  = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
 
     // Registered-push pattern (per BronzeGate #8039, mirrors
     // SdramTileAttributeFetch's FIFO push). When sdramDataReady fires
@@ -144,10 +152,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     val pendingKind = Reg(Bool())     init False
     val pendingIdx  = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
     val pendingData = Reg(Bits(8 bits)) init 0
-    // Iter 5 fix (webcam evidence #8046): track whether we are in an
-    // Attr-fetch wait or Bitmap-fetch wait so the always-on latch
-    // below can set the correct `kind`.
-    val fetchKindIsAttr = RegInit(False)
+
     // Forward-declared so the always-on latch below can reference it
     // before the FSM block defines its state transitions.
     val sdramActiveR = RegInit(False)
@@ -155,7 +160,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     byteFifo.io.push.payload.kind  := pendingKind
     byteFifo.io.push.payload.idx   := pendingIdx
     byteFifo.io.push.payload.data  := pendingData
-    when(byteFifo.io.push.fire) { pushPending := False }
+    when(byteFifo.io.push.ready) { pushPending := False }
 
     // Iter 5: evaluate the dataReady → pushPending latch every sdramCd
     // cycle (not only when `sFetchBitmapWait` is active). Iter-4 canary
@@ -166,8 +171,8 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     // component-scope guard still gates on `sdramActiveR` so only our
     // own fetch windows latch data.
     when(io.sdramDataReady && sdramActiveR && !pushPending) {
-      pendingKind := fetchKindIsAttr
-      pendingIdx  := byteIdx
+      pendingKind := inflightKind
+      pendingIdx  := inflightIdx
       pendingData := io.sdramDout
       pushPending := True
     }
@@ -211,13 +216,15 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
         // a deadlock if client 0 is keeping the bus busy.
         when(enableSync && tileBootDoneSync) {
           bootCounter := 0
+          initLineReg := 0
+          initColReg  := 0
           sdramActiveR := True
           goto(sInitSettle)
         }
       }
 
       // Task 44b iter 6b (CyanPeak audit fix): pre-arm the arbiter by
-      // holding sdramActiveR high for 8 cycles before issuing any writes.
+      // holding sdramActiveR high for a window before issuing any writes.
       // This ensures the top-level pixel-domain Mux has observed our
       // client-1 request before cmdWr pulses arrive at the controller.
       // Iter 6c: increased from 8 -> 16 cycles to safely cover the ~3-pixel-cycle
@@ -241,8 +248,17 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
             cmdAddr := (U(BitmapSdramBase, 23 bits) + bootCounter.resize(23)).resized
             cmdDin  := initBitmapByte
             bootCounter := bootCounter + 1
+            // Advance counters
+            when(initColReg === 127) {
+              initColReg := 0
+              initLineReg := initLineReg + 1
+            } otherwise {
+              initColReg := initColReg + 1
+            }
           } otherwise {
             bootCounter := 0
+            initLineReg := 0
+            initColReg  := 0
             goto(sInitAttr)
           }
         }
@@ -257,6 +273,13 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
             cmdAddr := (U(AttrSdramBase, 23 bits) + bootCounter.resize(23)).resized
             cmdDin  := initAttrByte
             bootCounter := bootCounter + 1
+            // Advance counters
+            when(initColReg === 127) {
+              initColReg := 0
+              initLineReg := initLineReg + 1
+            } otherwise {
+              initColReg := initColReg + 1
+            }
           } otherwise {
             bootCounter := 0
             bootDoneR   := True
@@ -293,11 +316,13 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
         sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
-          when(byteIdx < U(BitmapBytesPerRow, byteIdx.getWidth bits)) {
+          when(byteIdx < 80) {
             cmdRd   := True
             cmdAddr := (U(BitmapSdramBase, 23 bits) +
-                        lineReg.resize(23) * U(BitmapBytesPerRow, 23 bits) +
+                        (lineReg.resize(23) << 7) +
                         byteIdx.resize(23)).resized
+            inflightKind := False
+            inflightIdx  := byteIdx
             goto(sFetchBitmapWait)
           } otherwise {
             byteIdx := 0
@@ -309,7 +334,6 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       sFetchBitmapWait.whenIsActive {
         sdramActiveR := True
         cmdRd := False
-        fetchKindIsAttr := False
         // Latch done at component scope (see above). Just wait for push.fire
         // to advance byteIdx and re-enter sFetchBitmap.
         when(byteFifo.io.push.fire) {
@@ -322,11 +346,13 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
         sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
-          when(byteIdx < U(AttrBytesPerRow, byteIdx.getWidth bits)) {
+          when(byteIdx < 80) {
             cmdRd   := True
             cmdAddr := (U(AttrSdramBase, 23 bits) +
-                        lineReg.resize(23) * U(AttrBytesPerRow, 23 bits) +
+                        (lineReg.resize(23) << 7) +
                         byteIdx.resize(23)).resized
+            inflightKind := True
+            inflightIdx  := byteIdx
             goto(sFetchAttrWait)
           } otherwise {
             goto(sIdle)
@@ -337,7 +363,6 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
       sFetchAttrWait.whenIsActive {
         sdramActiveR := True
         cmdRd := False
-        fetchKindIsAttr := True
         when(byteFifo.io.push.fire) {
           byteIdx := byteIdx + 1
           goto(sFetchAttr)
