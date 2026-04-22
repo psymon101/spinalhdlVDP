@@ -716,7 +716,10 @@ case class VdpTop() extends Component {
   // Export coupling signals to BitmapRowFetch at top level.
   io.bitmapSdramCol        := hCounter.resize(10)
   io.bitmapSdramFetchLine  := fillLine.resize(10)
-  io.bitmapSdramFetchGrant := hCounter === U(hTotal - 1, log2Up(hTotal) bits)
+  // Task 44b iter 6f: move fetch-grant pulse to start of blanking (hActive) so
+  // SDRAM switching noise lands at the start of hblank and has maximum time
+  // to settle before the next active line begins.
+  io.bitmapSdramFetchGrant := hCounter === U(hActive, log2Up(hTotal) bits)
   io.bitmapModeActive      := bitmapEnable
 
   // Task 19: when affineEnable is high, the affine-texture lookup wins over
@@ -1080,36 +1083,20 @@ case class VdpTop() extends Component {
   colorMath.io.enable   := windowUnit.io.effect
   val mathRgb = colorMath.io.rgbOut
 
-  // Task 44b iter 6e (CyanPeak audit correction): register HDMI signals to
-  // eliminate combinational glitches that cause capture-card sync failure.
-  val hsyncR = RegNext(!(hCounter >= hSyncStart && hCounter < hSyncEnd)) init True
-  val vsyncR = RegNext(!(vCounter >= vSyncStart && vCounter < vSyncEnd)) init True
-  val deR    = RegNext(activeVideo) init False
-  
-  val redR   = Reg(Bits(8 bits)) init 0
-  val greenR = Reg(Bits(8 bits)) init 0
-  val blueR  = Reg(Bits(8 bits)) init 0
-
+  io.hsync := !(hCounter >= hSyncStart && hCounter < hSyncEnd)
+  io.vsync := !(vCounter >= vSyncStart && vCounter < vSyncEnd)
+  io.de := activeVideo
+  io.red := B(0, 8 bits)
+  io.green := B(0, 8 bits)
+  io.blue := B(0, 8 bits)
   when(activeVideo && primed) {
     val redRaw = mathRgb(23 downto 16)
-    redR   := Mux(rasterTrigger.io.pending, ~redRaw, redRaw)
-    greenR := mathRgb(15 downto 8)
-    blueR  := mathRgb(7 downto 0)
-  } otherwise {
-    redR   := 0
-    greenR := 0
-    blueR  := 0
+    io.red   := Mux(rasterTrigger.io.pending, ~redRaw, redRaw)
+    io.green := mathRgb(15 downto 8)
+    io.blue  := mathRgb(7 downto 0)
   }
-
-  io.hsync := hsyncR
-  io.vsync := vsyncR
-  io.de    := deR
-  io.red   := redR
-  io.green := greenR
-  io.blue  := blueR
-
-  io.x := RegNext(hCounter.resize(10)) init 0
-  io.y := RegNext(vCounter.resize(10)) init 0
+  io.x := hCounter.resize(10)
+  io.y := vCounter.resize(10)
 }
 
 object VdpTop {

@@ -90,7 +90,20 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
   val clkdiv = GowinClkdiv()
   clkdiv.HCLKIN := pll.CLKOUT
   clkdiv.CALIB := True
-  clkdiv.RESETN := pll.LOCK
+  // Task 44b iter 6f (CyanPeak #8123 proposal): hold clkdiv.RESETN low for 16
+  // pll.CLKOUT cycles after pll.LOCK goes high, so the PLL output stabilizes
+  // before pixel-domain logic starts toggling. Counter lives in a small
+  // clocking area on pll.CLKOUT with async reset from !pll.LOCK.
+  val pllClockDomain = ClockDomain(
+    clock = pll.CLKOUT,
+    reset = !pll.LOCK,
+    config = ClockDomainConfig(resetKind = ASYNC, resetActiveLevel = HIGH)
+  )
+  val pllResetArea = new ClockingArea(pllClockDomain) {
+    val clkdivResetCounter = Reg(UInt(4 bits)) init 0
+    when(clkdivResetCounter =/= 15) { clkdivResetCounter := clkdivResetCounter + 1 }
+  }
+  clkdiv.RESETN := pllResetArea.clkdivResetCounter === 15
 
   val pixelReset = !pll.LOCK
   val pixelClockDomain = ClockDomain(
@@ -998,9 +1011,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     hdmiTx.clk_pixel := clkdiv.CLKOUT
     hdmiTx.clk_pixel_x5 := pll.CLKOUT
     hdmiTx.reset := pixelReset
-    hdmiTx.hsync := video.io.hsync
-    hdmiTx.vsync := video.io.vsync
-    hdmiTx.de := video.io.de
+    // Task 44b iter 6f: registered hsync/vsync/de at the TMDS boundary.
+    hdmiTx.hsync := RegNext(video.io.hsync) init True
+    hdmiTx.vsync := RegNext(video.io.vsync) init True
+    hdmiTx.de    := RegNext(video.io.de)    init False
     // Task 29 Sc29 canary: top-left 40×40 corner shows a green block
     // iff STATUS_STICKY bit 4 (SPRITE_0_HIT) is latched. This gives a
     // firmware-free hardware confirmation that the collision flag
@@ -1087,9 +1101,17 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       sc45ForcedOverlay := False
     }
 
-    hdmiTx.red   := Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryR, video.io.red)))
-    hdmiTx.green := Mux(sc29Canary, B(0xFF, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryG, video.io.green)))
-    hdmiTx.blue  := Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryB, video.io.blue)))
+    val muxedRed   = Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryR, video.io.red)))
+    val muxedGreen = Mux(sc29Canary, B(0xFF, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryG, video.io.green)))
+    val muxedBlue  = Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryB, video.io.blue)))
+
+    // Task 44b iter 6f (CyanPeak #8123 proposal): register the final HDMI
+    // outputs after the canary/overlay muxes, immediately before the TMDS
+    // serializer. Removes combinational glitches on hsync/vsync/de/RGB that
+    // strict HDMI receivers (Guermok USB2 capture card) reject.
+    hdmiTx.red   := RegNext(muxedRed)   init 0
+    hdmiTx.green := RegNext(muxedGreen) init 0
+    hdmiTx.blue  := RegNext(muxedBlue)  init 0
 
     O_tmds_clk_p := hdmiTx.tmds_clk_p
     O_tmds_clk_n := hdmiTx.tmds_clk_n
