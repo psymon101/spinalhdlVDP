@@ -10,16 +10,9 @@ case class GowinRpll() extends BlackBox {
   addGeneric("DYN_IDIV_SEL", "false")
   addGeneric("IDIV_SEL", 2)
   addGeneric("DYN_FBDIV_SEL", "false")
-  // Task 44b iter 6g (CyanPeak #8130): raise VCO into valid 400-1250 MHz range.
-  // Prior settings (FBDIV=14, ODIV=8) put VCO at 126 MHz, below the GW2AR-18C
-  // rPLL minimum of 400 MHz (UG286), producing a high-jitter clock the Guermok
-  // USB capture card rejects. New settings keep the 126 MHz serial output but
-  // place the VCO at 504 MHz:
-  //   27 MHz * (FBDIV=56) / (IDIV=3) = 504 MHz (VCO, stable range)
-  //   504 MHz / (ODIV=4)             = 126 MHz (CLKOUT, 5x pixel clock)
-  addGeneric("FBDIV_SEL", 55)  // FBDIV = FBDIV_SEL + 1 = 56
+  addGeneric("FBDIV_SEL", 13)
   addGeneric("DYN_ODIV_SEL", "false")
-  addGeneric("ODIV_SEL", 4)
+  addGeneric("ODIV_SEL", 8)
   addGeneric("PSDA_SEL", "0000")
   addGeneric("DYN_DA_EN", "true")
   addGeneric("DUTYDA_SEL", "1000")
