@@ -918,9 +918,9 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 40 — First Platform Adapter (C64 Raster+Sprite Smoke)
 
-**Status:** TODO
+**Status:** DEFERRED — platform-specific adapter work waits until broad substrate capabilities land.
 **depends_on:** [29, 30, 39, 44]
-**scope_boundary:** Single bounded adapter proof only. No cycle-accurate emulation claim. No additional platforms.
+**scope_boundary:** Deferred platform-specific proof only. Do not open until broad Mode0 substrate tasks are complete enough to support multiple adapters. No cycle-accurate emulation claim. No additional platforms.
 **delivers:**
 
 - C64-class raster IRQ driving a two-bar split with sprites
@@ -999,20 +999,26 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 Platform adapters are now treated as a **new stage**.
 
+Current roadmap direction: do **not** start platform-specific adapter lanes yet.
+Close the broad, reusable Mode0 substrate capabilities first so future
+platform adapters build on shared primitives instead of one-off platform code.
+
 Do not open an adapter lane until both are true:
 
 - the documentation/usability gate has passed for the current Mode0 substrate
 - the substrate gaps required by the chosen platform have been explicitly closed
 
-For the current roadmap, the highest-leverage substrate closure order is:
+For the current roadmap, the remaining broad substrate closure order is:
 
-1. **Task 29** — Sprite Flags and Collision Hooks
-2. **Task 44** — Raw Bitmap + Attribute Fetch Primitive
-3. **Task 45** — Sprite Capacity Hardening
-4. **Task 46** — V-Scroll Table Primitive
+1. **Task 44b** — Bitmap SDRAM Fetch + Upload Path
+2. **Task 45** — Sprite Capacity Hardening
+3. **Task 46** — V-Scroll Table Primitive
+4. **Task 47** — DMA-Style Transfer Primitive
+5. **Task 48** — Four-Layer Compositor Expansion
+6. **Task 49** — Blitter-Class Block Transfer Engine
 
-Tasks **47–49** remain additional platform-enabling expansion tasks for broader
-adapter parity after those first four land.
+Task **40** is deferred until these broad primitives are in place and the team
+is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 44 — Raw Bitmap + Attribute Fetch Primitive
 
