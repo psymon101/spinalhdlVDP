@@ -30,7 +30,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `f223474` (iter 6f: HDMI top-level hardening per CyanPeak #8123); `478b389` reverts erroneous 6g PLL change |
+| **Latest Commit** | `e0b7240` (iter 6h: BitmapRowFetch Sc45-only gate per #8141/#8143) |
 | **Latest Auth Mail** | #8143 (BronzeGate PM authorization: Task 44b iter 6h Sc44 BitmapRowFetch isolation probe) |
 | **Next Deliverable** | BrightForge iter 6h implementation/proof packet — Sc44 with BitmapRowFetch disabled to isolate SDRAM noise hypothesis |
 | **Coding Authorized** | **YES** — PM authorization iter 6h #8143 |
