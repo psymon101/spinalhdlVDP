@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
 | **Latest Commit** | `f223474` (iter 6f: HDMI top-level hardening per CyanPeak #8123); `478b389` reverts erroneous 6g PLL change |
-| **Latest Auth Mail** | #8135 (CyanPeak reaction: PLL math error corrected, VCO was 1008 MHz in spec all along; hypothesis reset to marginal signal / switching noise) |
-| **Next Deliverable** | PM/audit ruling on next probe after 6g hypothesis falsified; capture-card blocker still unresolved |
-| **Coding Authorized** | **YES** — CyanPeak audit correction 6e #8115 |
+| **Latest Auth Mail** | #8143 (BronzeGate PM authorization: Task 44b iter 6h Sc44 BitmapRowFetch isolation probe) |
+| **Next Deliverable** | BrightForge iter 6h implementation/proof packet — Sc44 with BitmapRowFetch disabled to isolate SDRAM noise hypothesis |
+| **Coding Authorized** | **YES** — PM authorization iter 6h #8143 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
