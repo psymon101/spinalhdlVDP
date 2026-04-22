@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-21 (Task 44b LED3 blinker diagnostic, ledger sync to 20ae1bc / #8100)
+**Updated:** 2026-04-22 (Task 44b iter-6h falsified; PM route to Phase-A capture infrastructure probes / #8148)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -29,11 +29,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
-| **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `e0b7240` (iter 6h: BitmapRowFetch Sc45-only gate per #8141/#8143) |
-| **Latest Auth Mail** | #8143 (BronzeGate PM authorization: Task 44b iter 6h Sc44 BitmapRowFetch isolation probe) |
-| **Next Deliverable** | BrightForge iter 6h implementation/proof packet — Sc44 with BitmapRowFetch disabled to isolate SDRAM noise hypothesis |
-| **Coding Authorized** | **YES** — PM authorization iter 6h #8143 |
+| **Owner** | BrightForge (Phase-A capture infrastructure probes) → CyanPeak (audit) |
+| **Latest Commit** | `e0b7240` (iter 6h: BitmapRowFetch Sc45-only gate per #8141/#8143); `f63f4d1` ledger sync to iter-6h implementation |
+| **Latest Auth Mail** | #8148 (BronzeGate PM route: iter-6h falsified; run Phase-A capture infrastructure probes) |
+| **Next Deliverable** | BrightForge Phase-A evidence packet: known-good HDMI source validation, QSPI isolation Sc45 capture if card passes, shorter-cable Sc45 capture if physically available |
+| **Coding Authorized** | **NO** — no RTL or CST edits authorized while Phase-A capture infrastructure probes run |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
