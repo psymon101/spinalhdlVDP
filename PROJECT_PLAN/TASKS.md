@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-22 (Task 44b QSPI-isolation evidence verified; await CyanPeak audit / #8159)
+**Updated:** 2026-04-22 (Task 44b iter-6i CST blocked on Gowin SLEW syntax / #8164)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -29,11 +29,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
-| **Owner** | CyanPeak (audit ruling) |
-| **Latest Commit** | `e0b7240` (iter 6h: BitmapRowFetch Sc45-only gate per #8141/#8143); `f63f4d1` ledger sync to iter-6h implementation |
-| **Latest Auth Mail** | #8159 (BronzeGate PM route: #8157 QSPI-isolation evidence verified; CyanPeak audit next) |
-| **Next Deliverable** | CyanPeak audit ruling after Sc45 QSPI-isolation failure; choose smallest sufficient next step or waiver requirements |
-| **Coding Authorized** | **NO** — no RTL, CST, or further capture work authorized until audit/PM routing |
+| **Owner** | CyanPeak (amended audit ruling) with CoralReef support |
+| **Latest Commit** | `2fba350` (iter-6i CST DRIVE=16 + SLEW=FAST diagnostic commit; Gowin P&R rejects `SLEW`) |
+| **Latest Auth Mail** | #8164 (BronzeGate PM HOLD: iter-6i CST syntax failed; need amended Gowin-valid probe) |
+| **Next Deliverable** | CyanPeak amended ruling: authorize `DRIVE=16` only, provide verified differential slew syntax, or cancel CST probe/route waiver |
+| **Coding Authorized** | **NO** — hold all builds/captures; no RTL/CST edits until amended audit/PM routing |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
