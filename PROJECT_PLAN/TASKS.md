@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-22 (Task 44b Phase-A routing corrected; QSPI isolation blocked on user hardware action / #8154)
+**Updated:** 2026-04-22 (Task 44b QSPI isolation unblocked by user hardware confirmation / #8155)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -29,10 +29,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
-| **Owner** | User physical action → BrightForge (QSPI isolation Sc45 capture) → CyanPeak (audit) |
+| **Owner** | BrightForge (QSPI isolation Sc45 capture) → CyanPeak (audit) |
 | **Latest Commit** | `e0b7240` (iter 6h: BitmapRowFetch Sc45-only gate per #8141/#8143); `f63f4d1` ledger sync to iter-6h implementation |
-| **Latest Auth Mail** | #8154 (BronzeGate PM ruling: #8152 external-source claim retracted; proceed to QSPI isolation only after physical disconnect) |
-| **Next Deliverable** | User disconnects Pico/QSPI host and confirms Tang20k HDMI feeds Guermok; then BrightForge runs Sc45 QSPI-isolation capture/analyze evidence packet |
+| **Latest Auth Mail** | #8155 (BronzeGate PM unblock: user confirms Pico/QSPI disconnected; run Sc45 QSPI-isolation capture) |
+| **Next Deliverable** | BrightForge Sc45 QSPI-isolation capture/analyze evidence packet with bitstream md5, artifact paths, and comparison to prior Sc45 `mean≈7` rejection |
 | **Coding Authorized** | **NO** — no RTL or CST edits authorized; Sc45 QSPI-isolation capture only after user hardware action |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
