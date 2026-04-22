@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-22 (Task 44b iter-6i CST blocked on Gowin SLEW syntax / #8164)
+**Updated:** 2026-04-22 (Task 44b infrastructure waiver path accepted; webcam evidence package next / #8169)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -29,11 +29,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
-| **Owner** | CyanPeak (amended audit ruling) with CoralReef support |
-| **Latest Commit** | `2fba350` (iter-6i CST DRIVE=16 + SLEW=FAST diagnostic commit; Gowin P&R rejects `SLEW`) |
-| **Latest Auth Mail** | #8164 (BronzeGate PM HOLD: iter-6i CST syntax failed; need amended Gowin-valid probe) |
-| **Next Deliverable** | CyanPeak amended ruling: authorize `DRIVE=16` only, provide verified differential slew syntax, or cancel CST probe/route waiver |
-| **Coding Authorized** | **NO** — hold all builds/captures; no RTL/CST edits until amended audit/PM routing |
+| **Owner** | BrightForge (webcam waiver evidence package) → CyanPeak (audit) |
+| **Latest Commit** | `8c03feb` (iter-6i-r1 DRIVE=16-only CST probe; Sc45 direct capture still rejected) |
+| **Latest Auth Mail** | #8169 (BronzeGate PM ACK: accept CyanPeak #8168 infrastructure waiver path) |
+| **Next Deliverable** | BrightForge waiver evidence package: Sc45 monitor webcam capture, green/blue canaries, pattern stability, bitstream md5, artifact paths, webcam `analyze.py` JSON |
+| **Coding Authorized** | **NO** — no RTL/CST edits; webcam waiver evidence only |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
