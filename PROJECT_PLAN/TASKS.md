@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `20ae1bc` (BrightForge LED3 pixel-domain register-activity probe) |
-| **Latest Auth Mail** | #8100 (BrightForge: LED3 blinks, pixel-domain alive; blank downstream of raster) |
-| **Next Deliverable** | CyanPeak concurrent audit of Sc45 video.io.de / hsync/vsync / clk_pixel_x5 / bitmap-feedback hypotheses (BrightForge #8100) |
+| **Latest Commit** | `1756fd1` (BrightForge Sc45 forced-overlay + LED3 diagnostic) |
+| **Latest Auth Mail** | #8104 (BrightForge: MAJOR RETRACTION — Sc45 HDMI is alive; monitor confirms overlay+canaries) |
+| **Next Deliverable** | BrightForge Sc45 hardware proof (OpenCV analysis) — pending capture-path recovery |
 | **Coding Authorized** | **YES** — CyanPeak audit correction 6c #8074; CoralReef sticky patch `062bf18` PASS #8093 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
