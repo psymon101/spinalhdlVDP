@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `f223474` (iter 6f: HDMI top-level hardening per CyanPeak #8123) |
-| **Latest Auth Mail** | #8129 (BronzeGate PM state delta: iter 6f proof failed; capture blocker remains; audit ruling required) |
-| **Next Deliverable** | CyanPeak audit of iter-6f failed capture proof; PM/audit ruling on next probe or infrastructure waiver |
+| **Latest Commit** | `f223474` (iter 6f: HDMI top-level hardening per CyanPeak #8123); `478b389` reverts erroneous 6g PLL change |
+| **Latest Auth Mail** | #8135 (CyanPeak reaction: PLL math error corrected, VCO was 1008 MHz in spec all along; hypothesis reset to marginal signal / switching noise) |
+| **Next Deliverable** | PM/audit ruling on next probe after 6g hypothesis falsified; capture-card blocker still unresolved |
 | **Coding Authorized** | **YES** — CyanPeak audit correction 6e #8115 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
