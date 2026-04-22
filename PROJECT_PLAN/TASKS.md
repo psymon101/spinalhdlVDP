@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `31aa1cc` (iter 6d: pipeline metadata fix; arbiter CDC hardening; divider timing fix) |
+| **Latest Commit** | `ce2eeb3` (iter 6e: registered HDMI outputs; bit-clock SDC constraint) |
 | **Latest Auth Mail** | #8113 (BronzeGate PM ruling: capture-card rejection is validation blocker; no new RTL pending audit) |
-| **Next Deliverable** | CyanPeak capture-compatibility/acceptance ruling plus BrightForge non-RTL capture-path evidence (BronzeGate #8113) |
-| **Coding Authorized** | **YES** — CyanPeak audit correction 6c #8074; CoralReef sticky patch `062bf18` PASS #8093 |
+| **Next Deliverable** | BrightForge Sc45 hardware proof (direct capture) — verify sync lock with hardening |
+| **Coding Authorized** | **YES** — CyanPeak audit correction 6e #8115 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
