@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
 | **Owner** | BrightForge (implement) → CyanPeak (audit) |
-| **Latest Commit** | `ce2eeb3` (iter 6e: registered HDMI outputs; bit-clock SDC constraint) |
+| **Latest Commit** | `a85b9a3` (iter 6e: registered HDMI outputs; bit-clock SDC constraint) |
 | **Latest Auth Mail** | #8113 (BronzeGate PM ruling: capture-card rejection is validation blocker; no new RTL pending audit) |
-| **Next Deliverable** | BrightForge Sc45 hardware proof (direct capture) — verify sync lock with hardening |
+| **Next Deliverable** | BrightForge Sc45 direct capture proof — iter 6e hardening did NOT resolve capture-card rejection (#8116); await PM/audit ruling on next probe or infrastructure waiver |
 | **Coding Authorized** | **YES** — CyanPeak audit correction 6e #8115 |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
