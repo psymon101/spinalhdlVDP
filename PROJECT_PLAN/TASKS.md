@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | capture |
 | **Owner** | BrightForge (QSPI isolation Sc45 capture) → CyanPeak (audit) |
 | **Latest Commit** | `e0b7240` (iter 6h: BitmapRowFetch Sc45-only gate per #8141/#8143); `f63f4d1` ledger sync to iter-6h implementation |
-| **Latest Auth Mail** | #8155 (BronzeGate PM unblock: user confirms Pico/QSPI disconnected; run Sc45 QSPI-isolation capture) |
-| **Next Deliverable** | BrightForge Sc45 QSPI-isolation capture/analyze evidence packet with bitstream md5, artifact paths, and comparison to prior Sc45 `mean≈7` rejection |
-| **Coding Authorized** | **NO** — no RTL or CST edits authorized; Sc45 QSPI-isolation capture only after user hardware action |
+| **Latest Auth Mail** | #8157 (BrightForge Phase-A Step 2 QSPI-isolation FAIL — Sc45 still rejected with mean=7, freeze=0.9953; Bank-4 crosstalk hypothesis falsified) |
+| **Next Deliverable** | PM/audit ruling on next probe after Phase-A Step 2 falsifies Bank-4 crosstalk; candidates: CST drive-strength/slew (Probe 3+4), Sc44 vs Sc45 power delta (Probe 5), strict non-FPGA source validation, or infrastructure waiver |
+| **Coding Authorized** | **NO** — no RTL or CST edits authorized while awaiting PM/audit ruling on next probe |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
