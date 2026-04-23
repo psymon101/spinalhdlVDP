@@ -162,6 +162,8 @@ decision depends on it.
 Routine lane mechanics stay with `CoralReef`.
 `BronzeGate` steps in only for drift, ambiguity, stalls, lane transitions,
 blocker decisions, or priority changes.
+If the next owner is obvious and standing policy already covers the handoff,
+`BronzeGate` should stay silent by default.
 
 ### Mutual Coverage Check
 
@@ -194,6 +196,15 @@ in the same change or immediately after with:
 Do not let the team reconstruct active state from scattered mail if the ledger
 can be updated directly.
 
+Live-lane freshness rule:
+
+- `Latest Commit` and `Latest Auth Mail` must point to the newest authoritative
+  packet for the active lane
+- do not leave the live-lane block one packet behind after artifact delivery,
+  audit result, implementation proof, or closeout
+- if a lane advanced and the next owner is clear, the responsible owner should
+  correct the ledger directly instead of waiting for a PM reminder
+
 ### Event-Driven Progression
 
 For routine bounded lanes, progress automatically by role without extra PM
@@ -214,10 +225,20 @@ For low-risk bounded lanes:
 - `BrightForge` starts immediately after audit GO
 - no extra PM message is required between those routine steps
 
+Start-immediately rule:
+
+- after artifact audit PASS, `BrightForge` should start coding immediately when
+  the artifact packet and live-lane block authorize implementation
+- `BrightForge` should not wait for a second BronzeGate mail unless the audit
+  packet or ledger sync states a HOLD, ambiguity, or changed priority
+- after implementation audit PASS, `CoralReef` should sync closeout and open
+  the next obvious lane immediately without waiting for PM confirmation
+
 Ledger sync is part of closeout, not a later cleanup step:
 
 - audit PASS should be followed immediately by `TASKS.md` / live-lane sync
 - a lane is not functionally closed until repo state matches authoritative mail
+- post-audit ledger sync is owned work, not optional cleanup
 
 If task order is already converged, the next listed lane is the default next
 step unless:
@@ -234,6 +255,19 @@ direction" state when the next lane is obvious.
 
 If there is uncertainty about whether reassessment changed the next lane, stop
 and ask in mail instead of guessing.
+
+### Stall Intervention Threshold
+
+Use a short stall threshold so routine lanes do not sit idle waiting for manual
+nudges.
+
+- if the expected next owner has not acted within 15 minutes of a clear
+  authoritative handoff during an active work session, `BronzeGate` should
+  intervene
+- before that threshold, prefer silence over reminder mail unless there is a
+  blocker, ambiguity, or explicit user priority change
+- when intervening, state the exact missing handoff and exact next owner rather
+  than reconstructing full history
 
 ### Post-Completion Reassessment
 
@@ -294,6 +328,12 @@ Routine ACK-only or no-change mail should be minimized. Use it only when:
 - a standing rule explicitly requires a receipt
 
 If a check finds no change and no direct task, remain silent by default.
+
+Routine ACK suppression:
+
+- do not send ACK-only mail for unchanged “standing by” posture
+- send ACK only when receipt is explicitly required, the action is risky, or a
+  blocker needs confirmation
 
 ### Structured Packet Templates
 
