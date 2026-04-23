@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **None — substrate backlog complete** |
-| **Status** | **CLOSED** |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `9c5f08d` (Task 49 implementation/audit PASS) |
-| **Latest Auth Mail** | #8248 (CyanPeak Task 49 implementation audit PASS) |
-| **Next Deliverable** | PM reassessment of task order; Task 40 (First Platform Adapter) is deferred pending PM direction |
-| **Coding Authorized** | **NO** — no live lane |
+| **Task** | **Task 40 — First Platform Adapter (C64 Raster+Sprite Smoke)** |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact/ledger) -> CyanPeak (audit) |
+| **Latest Commit** | `c807428` (Task 49 closeout; substrate backlog complete) |
+| **Latest Auth Mail** | #8254 (CyanPeak relay of BronzeGate #8252 Task 40 open) |
+| **Next Deliverable** | CoralReef Task 40 artifact draft for CyanPeak audit |
+| **Coding Authorized** | **NO** — artifact and audit required before implementation |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_49_BLITTER_CLASS_BLOCK_TRANSFER_ENGINE.md` (v1.0, audit PASS)
 
@@ -918,7 +918,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 40 — First Platform Adapter (C64 Raster+Sprite Smoke)
 
-**Status:** DEFERRED — platform-specific adapter work waits until broad substrate capabilities land.
+**Status:** IN-PROGRESS — artifact lane open
 **depends_on:** [29, 30, 39, 44]
 **scope_boundary:** Deferred platform-specific proof only. Do not open until broad Mode0 substrate tasks are complete enough to support multiple adapters. No cycle-accurate emulation claim. No additional platforms.
 **delivers:**
