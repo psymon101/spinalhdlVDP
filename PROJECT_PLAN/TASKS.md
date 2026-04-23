@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 45 — Sprite Capacity Hardening** |
+| **Task** | **Task 46 — V-Scroll Table Primitive** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | audit |
-| **Owner** | CyanPeak (audit ruling) |
-| **Latest Commit** | `9aba5fb` (Task 45 implementation/proof; evidence #8190) |
-| **Latest Auth Mail** | #8192 (BronzeGate PM route: Task 45 implementation evidence verified; CyanPeak audit next) |
-| **Next Deliverable** | CyanPeak implementation audit ruling on #8190 evidence packet |
-| **Coding Authorized** | **NO** — hold further work pending audit/PM routing |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact/ledger) → CyanPeak (audit) |
+| **Latest Commit** | `9aba5fb` (Task 45 implementation closure point; evidence #8190; audit PASS #8191) |
+| **Latest Auth Mail** | #8193 (BronzeGate PM closeout: Task 45 PASS; open Task 46 artifact lane) |
+| **Next Deliverable** | Task 46 artifact draft or existing artifact-path identification for reusable V-scroll table primitive |
+| **Coding Authorized** | **NO** — Task 46 implementation waits for artifact, audit, and PM authorization |
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_45_SPRITE_CAPACITY_HARDENING.md` (v1.0-draft)
+**Artifact file:** TBD — Task 46 artifact draft pending
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -1056,7 +1056,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 45 — Sprite Capacity Hardening
 
-**Status:** IN-PROGRESS — implementation authorized by #8189
+**Status:** DONE (`9aba5fb`; evidence #8190; audit PASS #8191)
 **depends_on:** [28, 29]
 **scope_boundary:** Sprite storage and evaluator scale only. No platform-exact OAM maps, no new compositor layers.
 **delivers:**
@@ -1073,7 +1073,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 46 — V-Scroll Table Primitive
 
-**Status:** TODO
+**Status:** IN-PROGRESS — artifact lane opened by #8193
 **depends_on:** [31, 32a]
 **scope_boundary:** V-scroll lookup state only. No new fetch formats, no additional compositor math.
 **delivers:**

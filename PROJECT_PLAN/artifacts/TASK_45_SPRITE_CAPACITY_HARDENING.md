@@ -3,8 +3,8 @@
 **Artifact version:** 1.0-draft  
 **Author:** CoralReef  
 **Date:** 2026-04-23  
-**Status:** Audit PASS (#8187); implementation authorized (#8189)  
-**Coding authorized:** YES — BrightForge implementation/proof lane authorized by BronzeGate #8189  
+**Status:** DONE (`9aba5fb`; evidence #8190; audit PASS #8191)  
+**Coding authorized:** CLOSED — no further Task 45 work authorized  
 
 ---
 
