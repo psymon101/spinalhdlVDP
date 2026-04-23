@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement |
 | **Owner** | BrightForge (implementation/proof) -> CyanPeak (audit) |
 | **Latest Commit** | `656288d` (Task 40 implementation/proof packet) |
-| **Latest Auth Mail** | #8282 (BronzeGate Task 40 v1.1 implementation re-authorized) |
-| **Next Deliverable** | BrightForge Task 40 v1.1 implementation/proof packet for CyanPeak audit |
+| **Latest Auth Mail** | #8291 (BrightForge scope question — asset integration path A/B/C/D pending PM/audit ruling) |
+| **Next Deliverable** | BronzeGate/CyanPeak ruling on asset integration path (A/B/C/D) before BrightForge can proceed |
 | **Coding Authorized** | **YES** — bounded to artifact v1.1 `3f6f25a` and CyanPeak audit PASS #8279
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_40_FIRST_PLATFORM_ADAPTER.md` (v1.1, updated per #8272)
