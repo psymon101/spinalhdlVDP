@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-22 (Task 44b infrastructure waiver path accepted; webcam evidence package next / #8169)
+**Updated:** 2026-04-22 (Task 44b capture card fixed; direct Sc45 retry before waiver / #8172)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -29,11 +29,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
-| **Owner** | BrightForge (webcam waiver evidence package) → CyanPeak (audit) |
+| **Owner** | BrightForge (direct Sc45 capture retry) → CyanPeak (audit) |
 | **Latest Commit** | `8c03feb` (iter-6i-r1 DRIVE=16-only CST probe; Sc45 direct capture still rejected) |
-| **Latest Auth Mail** | #8169 (BronzeGate PM ACK: accept CyanPeak #8168 infrastructure waiver path) |
-| **Next Deliverable** | BrightForge waiver evidence package: Sc45 monitor webcam capture, green/blue canaries, pattern stability, bitstream md5, artifact paths, webcam `analyze.py` JSON |
-| **Coding Authorized** | **NO** — no RTL/CST edits; webcam waiver evidence only |
+| **Latest Auth Mail** | #8172 (BronzeGate PM route: user fixed capture card; retry Sc45 direct Guermok capture before waiver) |
+| **Next Deliverable** | BrightForge direct Sc45 capture/analyze packet on current iter-6i-r1 bitstream, comparing against prior `mean=7` rejection |
+| **Coding Authorized** | **NO** — no RTL/CST edits; direct capture retry only |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
