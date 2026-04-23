@@ -525,12 +525,41 @@ case class VdpTop() extends Component {
   val scrollTable0Offset = scrollTable0.io.rdData
   val scrollTable1Offset = scrollTable1.io.rdData
 
+  // Task 46 — per-layer V-scroll tables. Structurally identical to the Task 31
+  // H-scroll tables: 128 entries × 10 bits indexed by hCounter(9 downto 3);
+  // each vertical band (~5 px wide across the 640-pixel active area) gets
+  // its own Y offset added to `scrollY`. Default init-to-zero keeps existing
+  // scenes bit-identical until host programs the table. Bus decode:
+  //   0x0A00..0x0A7F = layer 0 V-scroll table (subAddr bit 7 = 0)
+  //   0x0A80..0x0AFF = layer 1 V-scroll table (subAddr bit 7 = 1)
+  val vScrollTable0 = ScrollTable(entries = 128, offsetWidth = 10)
+  val vScrollTable1 = ScrollTable(entries = 128, offsetWidth = 10)
+  val vScrollTableRangeHit = effWrite &&
+    (effAddr >= U(0x0A00, 15 bits)) &&
+    (effAddr <  U(0x0B00, 15 bits))
+  val vScrollTableSub   = (effAddr - U(0x0A00, 15 bits))(7 downto 0)
+  val vScrollTableEntry = vScrollTableSub(6 downto 0)    // 7 bits = 128 entries
+  val vScrollTableLayer = vScrollTableSub(7)             // 0 = L0, 1 = L1
+  vScrollTable0.io.wrAddr := vScrollTableEntry
+  vScrollTable0.io.wrData := effData(9 downto 0).asUInt
+  vScrollTable0.io.wr     := vScrollTableRangeHit && !vScrollTableLayer
+  vScrollTable1.io.wrAddr := vScrollTableEntry
+  vScrollTable1.io.wrData := effData(9 downto 0).asUInt
+  vScrollTable1.io.wr     := vScrollTableRangeHit && vScrollTableLayer
+
+  val vScrollTable0Addr = hCounter(9 downto 3).resize(7)
+  val vScrollTable1Addr = hCounter(9 downto 3).resize(7)
+  vScrollTable0.io.rdAddr := vScrollTable0Addr
+  vScrollTable1.io.rdAddr := vScrollTable1Addr
+  val vScrollTable0Offset = vScrollTable0.io.rdData
+  val vScrollTable1Offset = vScrollTable1.io.rdData
+
   // Layer 0 (lower priority background).
   val layer0 = BasicPatternSource()
   layer0.io.x := hCounter.resize(10)
   layer0.io.y := fillLine
   layer0.io.scrollX := io.layer0ScrollX + linestate.io.layer0ScrollX + scrollTable0Offset
-  layer0.io.scrollY := io.layer0ScrollY
+  layer0.io.scrollY := io.layer0ScrollY + vScrollTable0Offset
 
   // Test pattern source: combinational standard patterns for task validation.
   val testPattern = TestPatternSource()
@@ -649,7 +678,7 @@ case class VdpTop() extends Component {
   layer1.io.x := hCounter.resize(10)
   layer1.io.y := fillLine
   layer1.io.scrollX := io.layer1ScrollX + scrollTable1Offset
-  layer1.io.scrollY := io.layer1ScrollY
+  layer1.io.scrollY := io.layer1ScrollY + vScrollTable1Offset
 
   // Task 19 Checkpoint B: affine coordinate generator + texture BRAM. The
   // stepper runs combinationally against the current (hCounter, fillLine) so
