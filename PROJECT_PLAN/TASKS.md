@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 47 proof packet #8212 routed to CyanPeak audit)
+**Updated:** 2026-04-23 (Task 47 closed at `706ede2`; Task 48 artifact lane opened from CyanPeak audit PASS #8214)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 47 — DMA-Style Transfer Primitive** |
+| **Task** | **Task 48 — Four-Layer Compositor Expansion** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | audit |
-| **Owner** | CyanPeak (implementation/evidence audit) |
-| **Latest Commit** | `706ede2` (Task 47 implementation; proof packet #8212) |
-| **Latest Auth Mail** | #8212 (BrightForge Task 47 implementation/proof packet) |
-| **Next Deliverable** | CyanPeak implementation audit ruling on #8212, including DMA-triggered hardware-proof requirement |
-| **Coding Authorized** | **YES** — bounded to artifact #8207 and CyanPeak audit notes #8208 |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact/ledger) -> CyanPeak (audit) |
+| **Latest Commit** | `706ede2` (Task 47 implementation closed by CyanPeak audit PASS #8214) |
+| **Latest Auth Mail** | #8214 (CyanPeak Task 47 implementation audit PASS) |
+| **Next Deliverable** | CoralReef Task 48 artifact draft for CyanPeak audit |
+| **Coding Authorized** | **NO** — implementation remains closed until Task 48 artifact audit and PM authorization |
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_47_DMA_STYLE_TRANSFER_PRIMITIVE.md` (v1.0-draft)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_48_FOUR_LAYER_COMPOSITOR_EXPANSION.md` (to be drafted)
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -1089,7 +1089,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 47 — DMA-Style Transfer Primitive
 
-**Status:** IN-PROGRESS — implementation/proof #8212 under CyanPeak audit
+**Status:** DONE — implementation `706ede2`; proof packet #8212; CyanPeak audit PASS #8214
 **depends_on:** [30, 32b, 39]
 **scope_boundary:** Block-transfer primitive only. No blitter raster ops, no platform-specific DMA command sets.
 **delivers:**
@@ -1105,7 +1105,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 48 — Four-Layer Compositor Expansion
 
-**Status:** TODO
+**Status:** IN-PROGRESS — artifact lane opened after Task 47 closeout / #8214
 **depends_on:** [41]
 **scope_boundary:** Layer-count expansion only. No platform-specific mode tables, no new color-math semantics beyond existing contracts.
 **delivers:**

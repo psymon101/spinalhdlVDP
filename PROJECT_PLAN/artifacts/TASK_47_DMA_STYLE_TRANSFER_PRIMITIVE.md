@@ -3,8 +3,8 @@
 **Artifact version:** 1.0-draft  
 **Author:** CoralReef  
 **Date:** 2026-04-23  
-**Status:** Audit PASS #8208; implementation authorized #8210  
-**Coding authorized:** YES — bounded to this artifact and CyanPeak #8208 notes  
+**Status:** DONE — implementation `706ede2`; proof packet #8212; CyanPeak audit PASS #8214  
+**Coding authorized:** CLOSED — Task 47 implementation accepted and complete  
 
 ---
 
