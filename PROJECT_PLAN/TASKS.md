@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 44b waiver evidence uses screen-capture primary, monitor/webcam backup / #8178)
+**Updated:** 2026-04-23 (Task 44b direct Sc45 lock restored; black bitmap content under audit / #8180)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -29,11 +29,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
-| **Owner** | BrightForge (direct Sc45 capture evidence) → CyanPeak (audit) |
+| **Owner** | CyanPeak (audit ruling) |
 | **Latest Commit** | `8c03feb` (iter-6i-r1 DRIVE=16-only; unchanged bitstream now locks on Guermok direct capture per #8179) |
-| **Latest Auth Mail** | #8179 (BrightForge: Sc45 direct Guermok capture IS NOW LOCKING — canaries + forced overlay visible on unchanged iter-6i-r1 bitstream) |
-| **Next Deliverable** | CyanPeak audit ruling on whether #8179 direct-capture evidence (canaries + forced overlay + static lock) satisfies CP-B; open question: bitmap region is black (not diagonal stripes) |
-| **Coding Authorized** | **NO** — no RTL/CST edits; evidence audit only |
+| **Latest Auth Mail** | #8180 (BronzeGate PM route: Sc45 direct capture now locks; audit canary/black-bitmap evidence) |
+| **Next Deliverable** | CyanPeak audit ruling on #8179/#8180: pass on canaries+overlay/direct lock, hold for missing diagonal bitmap, or route alternate evidence |
+| **Coding Authorized** | **NO** — no RTL/CST/capture work until audit/PM routing |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
