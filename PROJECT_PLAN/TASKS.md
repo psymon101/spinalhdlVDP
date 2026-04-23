@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 40 DONE at `6e93888`; audit PASS #8298; no live lane)
+**Updated:** 2026-04-23 (Task 40 DONE at `6e93888`; PM reassessment opens Task 25 artifact lane)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **None — Task 40 complete** |
-| **Status** | **CLOSED** |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `81b809a` (Task 40 v1.1 artifact §7 amendment) / `6e93888` (implementation/audit PASS) |
-| **Latest Auth Mail** | #8298 (CyanPeak Task 40 v1.1 implementation audit PASS) |
-| **Next Deliverable** | PM reassessment of task order; no other active lanes |
-| **Coding Authorized** | **NO** — no live lane
+| **Task** | **25 — Future Address/Data Bus Interface Definition** |
+| **Status** | **OPEN** |
+| **Phase** | artifact |
+| **Owner** | `CoralReef -> CyanPeak` |
+| **Latest Commit** | `92c8ce6` (Task 40 closeout baseline; PM reassessment opens Task 25 artifact lane) |
+| **Latest Auth Mail** | pending PM open packet |
+| **Next Deliverable** | `CoralReef` artifact draft for Task 25 parallel bus interface definition |
+| **Coding Authorized** | **NO** — definition/planning only
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_40_FIRST_PLATFORM_ADAPTER.md` (v1.1, updated per #8272)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_25_FUTURE_ADDRESS_DATA_BUS_INTERFACE_DEFINITION.md` (pending draft)
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -433,7 +433,7 @@ That means Tasks 1 through 5, Task 15, Task 16, Task 18, Task 26, Task 27, and T
 
 ### Task 25 — Future Address/Data Bus Interface Definition
 
-**Status:** DEFERRED
+**Status:** IN-PROGRESS
 **depends_on:** [24]
 **scope_boundary:** Definition and planning only. No implementation until QSPI path is stable.
 **delivers:** Design document describing parallel bus attachment strategy.
