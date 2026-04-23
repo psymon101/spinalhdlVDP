@@ -229,6 +229,7 @@ The following C64 features are **deliberately not emulated** in Task 40. They ar
 | Sprite-sprite collision IRQ | Status bit exists (Task 29) but adapter does not route it to C64 $D019 format | Task 40b |
 | Sprite-background collision IRQ | Same as above | Task 40b |
 | Full $D018 bank switching | Requires dynamic tileMap/pattern base pointers in L0 | Task 40b or substrate task |
+| Sprite palette uses Pepto values | Sprite bank is hardcoded to Bank 0 (legacy palette) in `VdpTop.scala:1011` — no per-sprite or per-scenario bank selector at the `VdpTop.io` boundary. Making sprites use Pepto Bank 7 would require either parameterising the sprite bank (touches `VdpTop`, off-limits per PM #8293) or replacing Bank 0's `legacyPalette` globally (breaks other scenarios' bit-identical colour baselines). CyanPeak #8298 accepted Option C: sprites stay on Bank 0 for Task 40; L0 uses Pepto Bank 7. | Task 40b (sprite-palette hardening, once substrate exposes a sprite-bank IO) |
 | Badline / DMA steal emulation | Requires cycle-accurate bus arbitration not in Mode0 | Out of scope for all adapters |
 | Light pen | No hardware input for it on Tang Nano 20K | Out of scope |
 | Open borders / vertical blank tricks | Requires exact VIC-II timing | Out of scope |
