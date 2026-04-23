@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 45 artifact drafted / #8186; awaiting CyanPeak audit)
+**Updated:** 2026-04-23 (Task 45 implementation complete / #8190; awaiting CyanPeak audit)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement |
 | **Owner** | BrightForge (implementation/proof) → CyanPeak (audit) |
-| **Latest Commit** | `613eb75` (Task 45 artifact draft / #8186; audit PASS #8187) |
+| **Latest Commit** | `9aba5fb` (Task 45 implementation; sims PASS; build clean; hardware proof #8190) |
 | **Latest Auth Mail** | #8189 (BronzeGate PM authorization: Task 45 implementation) |
-| **Next Deliverable** | BrightForge implementation/proof packet for audited Task 45 scope |
+| **Next Deliverable** | CyanPeak implementation audit ruling on #8190 evidence packet |
 | **Coding Authorized** | **YES** — bounded to #8186/#8187/#8189 Task 45 scope |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_45_SPRITE_CAPACITY_HARDENING.md` (v1.0-draft)
