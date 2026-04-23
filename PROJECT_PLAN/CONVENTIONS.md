@@ -145,6 +145,46 @@ The current board-specific boundary is split between:
 
 ---
 
+## Platform Adapter Fidelity Standards
+
+The following standards apply to all platform adapters (starting with Task 40). They are not optional enhancements; they are foundational to the definition of a "platform adapter" in this project.
+
+### 1. Circuitry-Accurate Palettes
+
+Palettes MUST NOT use generic RGB approximations. They must be derived from hardware-level circuitry analysis, specifically considering:
+
+- **DAC resistor values** and output network characteristics of the target system.
+- System-specific voltage levels and color-space mappings (e.g., YPbPr, S-Video nuances).
+- Measurement-based references (e.g., for C64, using Pepto's palette or similar circuitry-aware models).
+
+Adapter implementations must document the palette source and any assumptions in the artifact or code comments.
+
+### 2. Native Platform Fonts
+
+Every adapter must include the **default system font/ROM** (e.g., C64 character ROM) as its baseline text/tile asset to ensure authentic presentation. Fallback generated fonts are not acceptable for adapter proof.
+
+Font ROMs should be stored as `Mem` initial content or Scala `Seq[Bits]` constants in the adapter source file or a dedicated `assets/` directory.
+
+### 3. Display Nuances
+
+Implementations must consider and document platform-specific display nuances:
+
+- Border/background relationships (e.g., C64 $D020/$D021 interaction).
+- Aspect ratio considerations if the adapter/composition level can influence them.
+- Signal-level artifacts that are visually characteristic of the target platform.
+
+### 4. Gap Analysis
+
+Adapters must include an explicit "honest gap analysis" section listing:
+
+- Features that are emulated.
+- Features that are deliberately omitted and why.
+- Features that are architecturally impossible on the current Mode0 substrate.
+
+This prevents scope creep while maintaining honest claims about adapter fidelity.
+
+---
+
 ## What Not To Do
 
 - Do not invent a new package tree.
@@ -152,3 +192,4 @@ The current board-specific boundary is split between:
 - Do not add future-phase features while working a current task.
 - Do not hardcode board facts inside shared logic when the value belongs in `PLATFORM.md` or the Tang20k wrapper.
 - Do not bypass the current known-good output path without keeping a comparison baseline.
+- Do not use generic RGB approximations or fallback fonts in platform adapters.

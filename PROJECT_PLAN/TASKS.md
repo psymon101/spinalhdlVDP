@@ -31,11 +31,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement |
 | **Owner** | BrightForge (implementation delivered) -> CyanPeak (audit pending scope clarification) |
 | **Latest Commit** | `656288d` (Task 40 implementation/proof packet) |
-| **Latest Auth Mail** | #8267 (BronzeGate scope blocker — proof landed, acceptance target pending CyanPeak clarification on #8263/#8264) |
-| **Next Deliverable** | CyanPeak clarification: are #8263/#8264 future criteria or immediate Task 40 scope changes? |
-| **Coding Authorized** | **YES** — bounded to artifact `7047497`; do NOT widen scope per BronzeGate #8265/#8267 |
+| **Latest Auth Mail** | #8272 (CyanPeak clarification: #8263/#8264 are immediate requirements; artifact updated to v1.1) |
+| **Next Deliverable** | BronzeGate PM re-authorization of v1.1 artifact; BrightForge high-fidelity implementation |
+| **Coding Authorized** | **NO** — v1.1 update pending PM re-authorization |
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_40_FIRST_PLATFORM_ADAPTER.md` (v1.0, audit PASS)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_40_FIRST_PLATFORM_ADAPTER.md` (v1.1, updated per #8272)
 
 Rules:
 - Only **one** lane may be live at a time.

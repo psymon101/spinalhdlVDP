@@ -3,8 +3,8 @@
 **Artifact version:** 1.0-draft  
 **Author:** CoralReef  
 **Date:** 2026-04-23  
-**Status:** artifact draft — awaiting CyanPeak audit  
-**Coding authorized:** NO
+**Status:** artifact draft v1.1 — updated per CyanPeak #8272 high-fidelity requirements  
+**Coding authorized:** NO — v1.1 update pending PM re-authorization
 
 ---
 
@@ -53,6 +53,14 @@ The full VIC-II is too large for a first adapter. The artifact bounds emulation 
 | Screen RAM base | $D018 high nibble | `layer0` tileMap base | No — fixed for demo |
 | Char set base | $D018 low nibble | `layer0` pattern base | No — fixed for demo |
 | Sprite pointers | $07F8..$07FF | `SpriteEvaluator.descPatternIdx` | No — fixed for demo |
+
+### 2.3 High-fidelity asset requirements (mandatory per CyanPeak #8272)
+
+**Palette:** The C64 adapter MUST use a circuitry-accurate palette derived from hardware measurements. The accepted reference is **Pepto's palette** (or equivalent resistor-network-aware model). Generic 16-color RGB approximations are NOT acceptable. The palette should be stored as a 16-entry `Mem` or `Seq[Bits]` constant in the adapter source.
+
+**Font:** The authentic **C64 character ROM** (both uppercase/graphics and lowercase/uppercase sets, 256 chars × 8 bytes = 2048 bytes) MUST be included as the default L0 text/tile asset. Fallback generated fonts are NOT acceptable. The ROM should be stored as `Mem` initial content or a Scala constant sequence.
+
+**Display nuances:** The adapter must document the C64 border/background relationship ($D020/$D021) and any aspect-ratio considerations.
 
 **Out of scope for Task 40:** sprite-sprite collision detection (registers exist but behavior is pass-through), sprite-background collision, full $D018 bank switching, badline emulation, light-pen, open borders, and interlace. These are honest gaps documented in §7.
 
@@ -170,15 +178,17 @@ The adapter does not need new address space in the Mode0 map. It consumes C64 ad
 ### 4.3 Tang Nano 20K build
 
 - Build a new Scenario N that includes the adapter + two-bar split + sprites.
-- Target resource delta: minimal (adapter is combinational/register translation only; no new rendering logic).
+- Target resource delta: minimal for adapter logic; palette and font ROMs add Mem overhead.
   - LUTs: +~50–100 (address decode + register shadow)
   - FFs: +~200 (8-bit shadow registers for 32 C64 registers)
-  - BSRAM: 0 (shadow RAM is 256 bytes → 2048 bits → LUT-RAM)
+  - BSRAM: 0 to 2 (palette 16×24 = 384 bits → LUT-RAM; font ROM 2048×8 = 16 Kbit → may infer to BSRAM depending on Gowin heuristics)
 
 ### 4.4 Hardware proof
 
 - **Visible two-bar split:** upper half shows one tile pattern/scroll, lower half shows another.
 - **Sprites visible in both bars:** 4 sprites bouncing, not clipped by the split.
+- **Authentic C64 font visible in text mode:** L0 tiles use the real C64 character ROM.
+- **Authentic C64 palette:** colors match Pepto's measured palette, not generic RGB.
 - **30s capture stability:** `analyze.py` reports `freeze=0`, no visual corruption.
 
 ---
