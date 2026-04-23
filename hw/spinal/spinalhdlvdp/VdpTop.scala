@@ -241,17 +241,24 @@ case class VdpTop() extends Component {
   val copperPopped = copperFifo.io.pop.fire
 
   // Task 47 — DMA-style block transfer primitive. Merges into effWrite with
-  // lowest priority (ext > copper > dma); when a higher-priority master is
+  // lower priority than ext/copper; when a higher-priority master is
   // driving effWrite, the DMA pauses and resumes on the next free cycle.
-  val dmaEngine = DmaEngine()
-  val dmaWr = dmaEngine.io.dmaWr
-  val effWrite = (extHit || copperPopped || dmaWr).simPublic()
+  // Task 49 — Blitter engine added at the *lowest* priority (below DMA).
+  // Fixed co-arbitration: dmaWr > blitWr (preserves Task 47 latency). Both
+  // engines hold their counters when blocked.
+  val dmaEngine     = DmaEngine()
+  val blitterEngine = BlitterEngine()
+  val dmaWr  = dmaEngine.io.dmaWr
+  val blitWr = blitterEngine.io.blitWr
+  val effWrite = (extHit || copperPopped || dmaWr || blitWr).simPublic()
   val effAddr  = Mux(extHit,      io.regBus.addr,
                  Mux(copperPopped, copperFifo.io.pop.payload(30 downto 16).asUInt,
-                                   dmaEngine.io.dmaAddr)).simPublic()
+                 Mux(dmaWr,        dmaEngine.io.dmaAddr,
+                                   blitterEngine.io.blitAddr))).simPublic()
   val effData  = Mux(extHit,      io.regBus.data,
                  Mux(copperPopped, copperFifo.io.pop.payload(15 downto 0),
-                                   dmaEngine.io.dmaData)).simPublic()
+                 Mux(dmaWr,        dmaEngine.io.dmaData,
+                                   blitterEngine.io.blitData))).simPublic()
 
   // DMA bus-write decode — only control registers (0x0B00..0x0B03) and the
   // staging buffer (0x0B10..0x0B4F) are consumed by DmaEngine. Writes from
@@ -262,6 +269,17 @@ case class VdpTop() extends Component {
   dmaEngine.io.busData := effData
   dmaEngine.io.busWr   := effWrite && dmaRangeHit
   dmaEngine.io.busBusy := extHit || copperPopped
+
+  // Task 49 — Blitter bus-write decode. Control registers at 0x0C00..0x0C07
+  // and the 512-word source RAM at 0x0C10..0x0D0F are consumed by the
+  // BlitterEngine. The blitter itself writes only to its programmed
+  // destination address (15-bit), so self-recursion is precluded as long
+  // as the host does not program dst into the blitter's own range.
+  val blitRangeHit = (effAddr >= U(0x0C00, 15 bits)) && (effAddr < U(0x0D10, 15 bits))
+  blitterEngine.io.busAddr := effAddr
+  blitterEngine.io.busData := effData
+  blitterEngine.io.busWr   := effWrite && blitRangeHit
+  blitterEngine.io.busBusy := extHit || copperPopped || dmaWr
 
   // Task 33 HDMA control decode (see forward-declared comment above).
   val copperHdmaRangeHit = effWrite &&
@@ -1141,11 +1159,12 @@ case class VdpTop() extends Component {
   // Task 29 — extend event bus with sprite collision bits:
   //   bit 4: SPRITE_0_HIT   (sprite 0 non-transparent over non-transparent BG)
   //   bit 5: SPRITE_BG_HIT  (any sprite non-transparent over non-transparent BG)
-  // Task 47 — add DMA_DONE at bit 8 of the sticky word. bit 9 (DMA_BUSY) is
-  // a live read-only signal and does not flow through the sticky pipeline;
-  // hosts that need the live state read dmaEngine.io.busy via a future
-  // status-word read implementation.
-  val evBus = (B(0, 7 bits) ## dmaEngine.io.done ## B(0, 2 bits) ##
+  // Task 47 — DMA_DONE at bit 8 of the sticky word.
+  // Task 49 — BLIT_DONE at bit 9 of the sticky word. Bit 10 (BLIT_BUSY) is
+  // a live read-only signal (blitterEngine.io.busy) and does not flow into
+  // the sticky pipeline; hosts that need the live state read it via a
+  // future status-word read implementation.
+  val evBus = (B(0, 6 bits) ## blitterEngine.io.done ## dmaEngine.io.done ## B(0, 2 bits) ##
                spriteBgHitPulse ## sprite0HitPulse ##
                evQspiError ## evQspiReady ## evSpriteOverflow ## evRasterMatch).asBits
 

@@ -93,6 +93,15 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0B02` | `DMA_FILL` — fill value (16 bits, FILL mode) | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
 | `0x0B03` | `DMA_CTRL` — `{done_ack[2], mode[1], go[0]}` | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
 | `0x0B10..0x0B4F` | DMA staging buffer (64 × 16-bit, COPY-mode source) | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
+| `0x0C00` | `BLIT_CTRL` — `{done_ack[3], mode[2:1], go[0]}` (mode: 0=RECT_FILL, 1=RECT_COPY, 2=LINE_FILL) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
+| `0x0C01` | `BLIT_WIDTH` — words per row minus 1 (10 bits) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
+| `0x0C02` | `BLIT_HEIGHT` — rows minus 1 (10 bits) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
+| `0x0C03` | `BLIT_DST_ADDR` — destination start address (15 bits) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
+| `0x0C04` | `BLIT_DST_STRIDE` — destination row increment in words (15 bits) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
+| `0x0C05` | `BLIT_SRC_ADDR` — source RAM start offset (9 bits, COPY mode) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
+| `0x0C06` | `BLIT_SRC_STRIDE` — source RAM row increment (9 bits, COPY mode) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
+| `0x0C07` | `BLIT_FILL_VAL` — fill constant (16 bits, FILL modes) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
+| `0x0C10..0x0D0F` | Blitter source/store RAM (512 × 16-bit) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
 | `0x1000..0x7FFF` | **Reserved** — future Mode0 expansion (palette banks, sprite attr, etc.) | — | — |
 
 ### 3.1.1 STATUS_STICKY bit layout (`0x0320`, write-1-to-clear)
@@ -105,7 +114,10 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | 3 | `QSPI_ERROR` | decoder last_error ≠ 0 | Task 35 |
 | 4 | `SPRITE_0_HIT` | sprite slot 0 non-transparent over non-transparent BG | **Task 29** |
 | 5 | `SPRITE_BG_HIT` | any sprite non-transparent over non-transparent BG | **Task 29** |
-| 6..15 | *reserved* | — | — |
+| 8 | `DMA_DONE` | `DmaEngine.io.done` — sticky pulse on transfer complete | **Task 47** |
+| 9 | `BLIT_DONE` | `BlitterEngine.io.done` — sticky pulse on block transfer complete | **Task 49** |
+| 10 | `BLIT_BUSY` | `BlitterEngine.io.busy` — live read-only; **not routed into `statusStickyReg`** | **Task 49** |
+| 6..7, 11..15 | *reserved* | — | — |
 
 `STATUS_ENABLE` (`0x0321`) is the per-bit IRQ mask using the same bit layout; commit is safe-boundary at `hCounter === 0`.
 
