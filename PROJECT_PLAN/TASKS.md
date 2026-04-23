@@ -29,11 +29,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
-| **Owner** | BrightForge (screen-capture waiver evidence; monitor/webcam backup) → CyanPeak (audit) |
-| **Latest Commit** | `8c03feb` (iter-6i-r1 DRIVE=16-only CST probe; Sc45 direct capture still rejected) |
-| **Latest Auth Mail** | #8178 (BronzeGate PM route: use screen-capture device for waiver evidence; monitor/webcam as backup) |
-| **Next Deliverable** | BrightForge waiver evidence package: screen-capture Sc45 footage with analyze.py, bitstream md5, canary/pattern assessment; fallback monitor/webcam if screen capture is ambiguous |
-| **Coding Authorized** | **NO** — no RTL/CST edits; capture evidence only |
+| **Owner** | BrightForge (direct Sc45 capture evidence) → CyanPeak (audit) |
+| **Latest Commit** | `8c03feb` (iter-6i-r1 DRIVE=16-only; unchanged bitstream now locks on Guermok direct capture per #8179) |
+| **Latest Auth Mail** | #8179 (BrightForge: Sc45 direct Guermok capture IS NOW LOCKING — canaries + forced overlay visible on unchanged iter-6i-r1 bitstream) |
+| **Next Deliverable** | CyanPeak audit ruling on whether #8179 direct-capture evidence (canaries + forced overlay + static lock) satisfies CP-B; open question: bitmap region is black (not diagonal stripes) |
+| **Coding Authorized** | **NO** — no RTL/CST edits; evidence audit only |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
