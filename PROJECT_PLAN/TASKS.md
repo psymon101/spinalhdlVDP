@@ -30,8 +30,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **OPEN** |
 | **Phase** | artifact |
 | **Owner** | `BronzeGate -> CyanPeak` |
-| **Latest Commit** | pending fetch-envelope artifact draft commit |
-| **Latest Auth Mail** | pending BronzeGate open packet |
+| **Latest Commit** | `0c6c7a6` (Open Mode0 fetch envelope hardening artifact lane) |
+| **Latest Auth Mail** | #8355 (BronzeGate open lane packet) |
 | **Next Deliverable** | `CyanPeak` artifact audit for `TASK_MODE0_FETCH_ENVELOPE_HARDENING.md` |
 | **Coding Authorized** | **NO** — planning / hardening definition only
 
