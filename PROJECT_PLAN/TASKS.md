@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 45 — Sprite Capacity Hardening** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
-| **Owner** | BrightForge (implementation/proof) → CyanPeak (audit) |
-| **Latest Commit** | `9aba5fb` (Task 45 implementation; sims PASS; build clean; hardware proof #8190) |
-| **Latest Auth Mail** | #8189 (BronzeGate PM authorization: Task 45 implementation) |
+| **Phase** | audit |
+| **Owner** | CyanPeak (audit ruling) |
+| **Latest Commit** | `9aba5fb` (Task 45 implementation/proof; evidence #8190) |
+| **Latest Auth Mail** | #8192 (BronzeGate PM route: Task 45 implementation evidence verified; CyanPeak audit next) |
 | **Next Deliverable** | CyanPeak implementation audit ruling on #8190 evidence packet |
-| **Coding Authorized** | **YES** — bounded to #8186/#8187/#8189 Task 45 scope |
+| **Coding Authorized** | **NO** — hold further work pending audit/PM routing |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_45_SPRITE_CAPACITY_HARDENING.md` (v1.0-draft)
 
