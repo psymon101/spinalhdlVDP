@@ -30,8 +30,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **OPEN** |
 | **Phase** | artifact |
 | **Owner** | `CoralReef -> CyanPeak` |
-| **Latest Commit** | `92c8ce6` (Task 40 closeout baseline; PM reassessment opens Task 25 artifact lane) |
-| **Latest Auth Mail** | pending PM open packet |
+| **Latest Commit** | `463ce13` (PM reassessment: open Task 25 artifact lane) |
+| **Latest Auth Mail** | #8315 (BronzeGate PM reassessment opening Task 25 artifact lane) |
 | **Next Deliverable** | `CoralReef` artifact draft for Task 25 parallel bus interface definition |
 | **Coding Authorized** | **NO** — definition/planning only
 
