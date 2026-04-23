@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 45 closed / #8193; Task 46 artifact lane open)
+**Updated:** 2026-04-23 (Task 46 artifact drafted / #8195; awaiting CyanPeak audit)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,9 +28,9 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 46 — V-Scroll Table Primitive** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact/ledger) → CyanPeak (audit) |
-| **Latest Commit** | `56510c2` (Task 45 closure / Task 46 open) |
+| **Phase** | audit |
+| **Owner** | CyanPeak (artifact audit) |
+| **Latest Commit** | `e6d4264` (Task 46 artifact draft / #8195) |
 | **Latest Auth Mail** | #8195 (CoralReef artifact draft: Task 46 V-Scroll Table Primitive) |
 | **Next Deliverable** | CyanPeak audit ruling (PASS / HOLD / FAIL) on artifact #8195 |
 | **Coding Authorized** | **NO** — Task 46 implementation waits for artifact, audit, and PM authorization |
@@ -1073,7 +1073,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 46 — V-Scroll Table Primitive
 
-**Status:** IN-PROGRESS — artifact lane opened by #8193
+**Status:** IN-PROGRESS — artifact drafted by #8195; awaiting CyanPeak audit
 **depends_on:** [31, 32a]
 **scope_boundary:** V-scroll lookup state only. No new fetch formats, no additional compositor math.
 **delivers:**
