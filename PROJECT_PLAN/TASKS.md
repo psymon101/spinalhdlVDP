@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 46 proof packet #8202 routed to CyanPeak audit)
+**Updated:** 2026-04-23 (Task 46 closed / #8204; Task 47 artifact lane open)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 46 — V-Scroll Table Primitive** |
+| **Task** | **Task 47 — DMA-Style Transfer Primitive** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | audit |
-| **Owner** | CyanPeak (implementation/evidence audit) |
-| **Latest Commit** | `90065fc` (Task 46 implementation; proof packet #8202) |
-| **Latest Auth Mail** | #8202 (BrightForge Task 46 implementation/proof packet) |
-| **Next Deliverable** | CyanPeak implementation audit ruling on #8202, including V-scroll shear proof requirement |
-| **Coding Authorized** | **YES** — bounded to artifact #8195 and CyanPeak audit notes #8197 |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact/ledger) → CyanPeak (audit) |
+| **Latest Commit** | `90065fc` (Task 46 implementation closure point; evidence #8202; audit PASS #8204) |
+| **Latest Auth Mail** | #8204 (CyanPeak audit PASS: Task 46 implementation verified; no shear proof required) |
+| **Next Deliverable** | Task 47 artifact draft for reusable DMA-style transfer primitive |
+| **Coding Authorized** | **NO** — Task 47 implementation waits for artifact, audit, and PM authorization |
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_46_VSCROLL_TABLE_PRIMITIVE.md` (v1.0-draft)
+**Artifact file:** TBD — Task 47 artifact draft pending
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -1073,7 +1073,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 46 — V-Scroll Table Primitive
 
-**Status:** IN-PROGRESS — implementation/proof #8202 under CyanPeak audit
+**Status:** DONE (`90065fc`; evidence #8202; audit PASS #8204)
 **depends_on:** [31, 32a]
 **scope_boundary:** V-scroll lookup state only. No new fetch formats, no additional compositor math.
 **delivers:**
@@ -1089,7 +1089,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 47 — DMA-Style Transfer Primitive
 
-**Status:** TODO
+**Status:** IN-PROGRESS — artifact lane opened by Task 46 closeout / #8204
 **depends_on:** [30, 32b, 39]
 **scope_boundary:** Block-transfer primitive only. No blitter raster ops, no platform-specific DMA command sets.
 **delivers:**

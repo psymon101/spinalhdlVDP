@@ -3,8 +3,8 @@
 **Artifact version:** 1.0-draft  
 **Author:** CoralReef  
 **Date:** 2026-04-23  
-**Status:** Audit PASS #8197; implementation authorized #8198  
-**Coding authorized:** YES — bounded to this artifact and CyanPeak #8197 notes  
+**Status:** DONE — implementation `90065fc`; evidence #8202; audit PASS #8204  
+**Coding authorized:** CLOSED — no further Task 46 work authorized  
 
 ---
 
