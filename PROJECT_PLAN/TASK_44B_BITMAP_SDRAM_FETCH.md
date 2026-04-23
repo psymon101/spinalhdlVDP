@@ -1,6 +1,6 @@
 # Task 44b — Bitmap SDRAM Fetch + Upload Path
 
-**Status:** Artifact phase  
+**Status:** DONE (`8c03feb`; evidence #8179; audit PASS #8183)  
 **depends_on:** [44]  
 **scope_boundary:** SDRAM-backed bitmap row fetch + data upload/init only. No decoder changes, no register map changes, no platform adapter semantics.  
 **delivers:**

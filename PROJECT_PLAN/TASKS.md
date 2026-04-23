@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 44b direct Sc45 lock restored; black bitmap content under audit / #8180)
+**Updated:** 2026-04-23 (Task 44b PASS closed; Task 45 artifact lane opened / #8184)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
+| **Task** | **Task 45 — Sprite Capacity Hardening** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | capture |
-| **Owner** | CyanPeak (audit ruling) |
-| **Latest Commit** | `8c03feb` (iter-6i-r1 DRIVE=16-only; unchanged bitstream now locks on Guermok direct capture per #8179) |
-| **Latest Auth Mail** | #8180 (BronzeGate PM route: Sc45 direct capture now locks; audit canary/black-bitmap evidence) |
-| **Next Deliverable** | CyanPeak audit ruling on #8179/#8180: pass on canaries+overlay/direct lock, hold for missing diagonal bitmap, or route alternate evidence |
-| **Coding Authorized** | **NO** — no RTL/CST/capture work until audit/PM routing |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact/ledger) → CyanPeak (audit) |
+| **Latest Commit** | `8c03feb` (Task 44b implementation closure point; evidence #8179; audit PASS #8183) |
+| **Latest Auth Mail** | #8184 (BronzeGate PM closeout: Task 44b PASS; open Task 45 artifact lane) |
+| **Next Deliverable** | Task 45 artifact draft or existing artifact-path identification for reusable sprite-capacity hardening |
+| **Coding Authorized** | **NO** — Task 45 implementation waits for artifact, audit, and PM authorization |
 
-**Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
+**Artifact file:** TBD — Task 45 artifact draft pending
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -1010,12 +1010,11 @@ Do not open an adapter lane until both are true:
 
 For the current roadmap, the remaining broad substrate closure order is:
 
-1. **Task 44b** — Bitmap SDRAM Fetch + Upload Path
-2. **Task 45** — Sprite Capacity Hardening
-3. **Task 46** — V-Scroll Table Primitive
-4. **Task 47** — DMA-Style Transfer Primitive
-5. **Task 48** — Four-Layer Compositor Expansion
-6. **Task 49** — Blitter-Class Block Transfer Engine
+1. **Task 45** — Sprite Capacity Hardening
+2. **Task 46** — V-Scroll Table Primitive
+3. **Task 47** — DMA-Style Transfer Primitive
+4. **Task 48** — Four-Layer Compositor Expansion
+5. **Task 49** — Blitter-Class Block Transfer Engine
 
 Task **40** is deferred until these broad primitives are in place and the team
 is ready to prove a specific platform adapter on top of the shared substrate.
@@ -1037,9 +1036,27 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 - Sim: bitmap + attribute scenes prove row fetch, attribute application, and palette selection
 - Hardware: visible bitmap+attribute proof on Tang Nano 20K with 30s OpenCV stability analysis
 
+### Task 44b — Bitmap SDRAM Fetch + Upload Path
+
+**Status:** DONE (`8c03feb`; evidence #8179; audit PASS #8183)
+**depends_on:** [44]
+**scope_boundary:** SDRAM-backed bitmap row fetch + data upload/init only. No decoder changes, no register map changes, no platform adapter semantics.
+**delivers:**
+
+- `BitmapRowFetch` SDRAM-domain module for linear bitmap + attribute row reads
+- Scheduler client-1 slot activation + arbiter wiring
+- Live `bitmapByte` / `attrByte` delivery to existing `BitmapFetch` decoder
+- Bootstrap/init path for bitmap+attribute data into SDRAM
+- Sim proof and hardware proof of the SDRAM-backed fetch pipeline
+
+**validation:**
+
+- Sim: `BitmapRowFetchSim` proves correct SDRAM addressing and byte delivery per pixel
+- Hardware: direct Sc45 capture evidence #8179 showed Sc45 lock, active canaries, and forced overlay; CyanPeak #8183 accepted black bitmap region as post-outage SDRAM state and passed CP-B closure
+
 ### Task 45 — Sprite Capacity Hardening
 
-**Status:** TODO
+**Status:** IN-PROGRESS — artifact lane opened by #8184
 **depends_on:** [28, 29]
 **scope_boundary:** Sprite storage and evaluator scale only. No platform-exact OAM maps, no new compositor layers.
 **delivers:**
