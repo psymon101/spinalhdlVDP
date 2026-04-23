@@ -149,6 +149,29 @@ The current board-specific boundary is split between:
 
 The following standards apply to all platform adapters (starting with Task 40). They are not optional enhancements; they are foundational to the definition of a "platform adapter" in this project.
 
+### 0. General Capability Rule
+
+Platform adapters must translate platform behavior onto the shared `Mode0` substrate. They must not create separate platform-specific render engines when a general `Mode0` primitive can serve multiple adapters honestly.
+
+Required interpretation:
+
+- `Mode0` owns the reusable superset capability.
+- adapters own platform-specific register semantics, limits, quirks, and presentation choices.
+- an adapter may clamp or subset a richer `Mode0` primitive to match its target platform.
+- a more demanding adapter may use more of the same primitive's range without requiring a second engine.
+
+Examples:
+
+- a stronger Amiga-facing sprite model and a more limited C64-facing sprite model should still sit on the same generic `Mode0` sprite machinery if the underlying primitive is shareable
+- a blitter/DMA-style primitive belongs in `Mode0` if multiple platforms can use it, even if they expose different platform-facing command semantics
+- Copper/HDMA/H-int style control should reuse beam-driven automation primitives rather than creating per-platform timing engines
+
+Do not:
+
+- add a C64-only, Amiga-only, or SNES-only hardware engine inside `Mode0` when the need is actually a shared primitive with different adapter limits
+- weaken a shared primitive just to match the least demanding platform
+- bypass a reusable `Mode0` primitive from an adapter merely to preserve platform naming
+
 ### 1. Circuitry-Accurate Palettes
 
 Palettes MUST NOT use generic RGB approximations. They must be derived from hardware-level circuitry analysis, specifically considering:

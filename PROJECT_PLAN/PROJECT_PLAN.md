@@ -72,6 +72,11 @@ Architectural rule:
 - platform-facing modes are semantic adapters over `Mode0`, not separate render engines
 - platform-specific registers, quirks, and control models belong in the adapter layer
 - generic rendering/timing/fetch/composition primitives belong in `Mode0`
+- `Mode0` should expose the strongest general-purpose primitive that multiple platforms can share, even if some adapters use only a constrained subset of it
+- adapters should translate platform intent into `Mode0` parameters, limits, and control choices instead of requiring separate per-platform engines
+- if one platform needs only a bounded subset of a primitive and another needs the full range, both should consume the same `Mode0` primitive whenever the hardware model is honestly shareable
+- do not weaken a shared `Mode0` primitive to match the least demanding platform; adapters may clamp a richer primitive downward, but they should not require a second weaker implementation
+- if a capability is reusable across multiple target platforms, it belongs in `Mode0`; if it is mainly a platform-specific register map, policy rule, or presentation quirk, it belongs in the adapter
 - the external host is a command/control owner, not a renderer
 - host-side firmware may upload assets, write registers, poll status, and respond to interrupts/events
 - per-pixel display processing, composition, fetch timing, and beam-synchronous behavior belong in the VDP-side video processor, not in the host firmware
@@ -80,6 +85,7 @@ Example:
 
 - an Amiga-oriented adapter may implement Copper-style register semantics and raster-driven control updates
 - but it should do so by consuming `Mode0` primitives such as current scanline timing, linestate commit, layer control, palette updates, and fetch/composition hooks
+- an Amiga-oriented adapter may drive a richer sprite or blitter capability than a C64-oriented adapter, but both should sit on the same underlying `Mode0` sprite / transfer primitives if those primitives are general enough
 
 ---
 
