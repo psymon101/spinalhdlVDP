@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 48 artifact PASS #8221; implementation authorized from `ffb7523`)
+**Updated:** 2026-04-23 (Task 48 DONE at `fd1c07d`; audit PASS #8227; Task 49 artifact lane open)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 48 — Four-Layer Compositor Expansion** |
+| **Task** | **Task 49 — Blitter-Class Block Transfer Engine** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
-| **Owner** | BrightForge (implementation/proof) -> CyanPeak (audit) |
-| **Latest Commit** | `ffb7523` (Task 48 artifact draft landed for audit) |
-| **Latest Auth Mail** | #8221 (CyanPeak Task 48 artifact audit PASS) |
-| **Next Deliverable** | BrightForge Task 48 implementation/proof packet for CyanPeak audit |
-| **Coding Authorized** | **YES** — bounded to artifact `ffb7523` and CyanPeak audit notes #8221 |
+| **Phase** | artifact |
+| **Owner** | CoralReef (artifact/ledger) -> CyanPeak (audit) |
+| **Latest Commit** | `fd1c07d` (Task 48 implementation/audit PASS; baseline for Task 49) |
+| **Latest Auth Mail** | #8227 (CyanPeak Task 48 implementation audit PASS) |
+| **Next Deliverable** | CoralReef Task 49 artifact draft for CyanPeak audit |
+| **Coding Authorized** | **NO** — artifact and audit required before implementation |
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_48_FOUR_LAYER_COMPOSITOR_EXPANSION.md` (drafted, v1.0)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_49_BLITTER_CLASS_BLOCK_TRANSFER_ENGINE.md` (to be drafted)
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -1105,7 +1105,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 48 — Four-Layer Compositor Expansion
 
-**Status:** IN-PROGRESS — artifact PASS #8221; implementation authorized against `ffb7523`
+**Status:** DONE — implementation PASS #8227 at commit `fd1c07d`
 **depends_on:** [41]
 **scope_boundary:** Layer-count expansion only. No platform-specific mode tables, no new color-math semantics beyond existing contracts.
 **delivers:**
@@ -1121,7 +1121,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 49 — Blitter-Class Block Transfer Engine
 
-**Status:** TODO
+**Status:** IN-PROGRESS — artifact lane open
 **depends_on:** [47, 41]
 **scope_boundary:** Block-transfer engine only. No full platform adapter, no CPU-side software renderer.
 **delivers:**
