@@ -88,6 +88,11 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0600..0x07FF` | **Reserved** — Copper secondary tables (HDMA-style, Task 33) | Task 33 | — |
 | `0x0800..0x0FFF` | **Reserved for Task 37** — affine sprite descriptors | Task 37 | — |
 | `0x0A00..0x0AFF` | V-scroll table (128 entries × 2 layers × 10-bit offset) | Task 46 | `VdpTop.scala` |
+| `0x0B00` | `DMA_DST` — destination start address (15 bits) | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
+| `0x0B01` | `DMA_LEN` — transfer length minus 1 (10 bits) | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
+| `0x0B02` | `DMA_FILL` — fill value (16 bits, FILL mode) | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
+| `0x0B03` | `DMA_CTRL` — `{done_ack[2], mode[1], go[0]}` | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
+| `0x0B10..0x0B4F` | DMA staging buffer (64 × 16-bit, COPY-mode source) | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
 | `0x1000..0x7FFF` | **Reserved** — future Mode0 expansion (palette banks, sprite attr, etc.) | — | — |
 
 ### 3.1.1 STATUS_STICKY bit layout (`0x0320`, write-1-to-clear)

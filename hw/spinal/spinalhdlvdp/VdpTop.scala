@@ -232,9 +232,29 @@ case class VdpTop() extends Component {
   val copperDrain = safeNow && !extHit
   copperFifo.io.pop.ready := copperDrain
   val copperPopped = copperFifo.io.pop.fire
-  val effWrite = (extHit || copperPopped).simPublic()
-  val effAddr  = Mux(extHit, io.regBus.addr, copperFifo.io.pop.payload(30 downto 16).asUInt).simPublic()
-  val effData  = Mux(extHit, io.regBus.data, copperFifo.io.pop.payload(15 downto 0)).simPublic()
+
+  // Task 47 — DMA-style block transfer primitive. Merges into effWrite with
+  // lowest priority (ext > copper > dma); when a higher-priority master is
+  // driving effWrite, the DMA pauses and resumes on the next free cycle.
+  val dmaEngine = DmaEngine()
+  val dmaWr = dmaEngine.io.dmaWr
+  val effWrite = (extHit || copperPopped || dmaWr).simPublic()
+  val effAddr  = Mux(extHit,      io.regBus.addr,
+                 Mux(copperPopped, copperFifo.io.pop.payload(30 downto 16).asUInt,
+                                   dmaEngine.io.dmaAddr)).simPublic()
+  val effData  = Mux(extHit,      io.regBus.data,
+                 Mux(copperPopped, copperFifo.io.pop.payload(15 downto 0),
+                                   dmaEngine.io.dmaData)).simPublic()
+
+  // DMA bus-write decode — only control registers (0x0B00..0x0B03) and the
+  // staging buffer (0x0B10..0x0B4F) are consumed by DmaEngine. Writes from
+  // ext/copper in this range program the DMA; writes from DMA itself always
+  // target other ranges, so no self-recursion.
+  val dmaRangeHit = (effAddr >= U(0x0B00, 15 bits)) && (effAddr < U(0x0B50, 15 bits))
+  dmaEngine.io.busAddr := effAddr
+  dmaEngine.io.busData := effData
+  dmaEngine.io.busWr   := effWrite && dmaRangeHit
+  dmaEngine.io.busBusy := extHit || copperPopped
 
   // Task 33 HDMA control decode (see forward-declared comment above).
   val copperHdmaRangeHit = effWrite &&
@@ -1061,7 +1081,12 @@ case class VdpTop() extends Component {
   // Task 29 — extend event bus with sprite collision bits:
   //   bit 4: SPRITE_0_HIT   (sprite 0 non-transparent over non-transparent BG)
   //   bit 5: SPRITE_BG_HIT  (any sprite non-transparent over non-transparent BG)
-  val evBus = (B(0, 10 bits) ## spriteBgHitPulse ## sprite0HitPulse ##
+  // Task 47 — add DMA_DONE at bit 8 of the sticky word. bit 9 (DMA_BUSY) is
+  // a live read-only signal and does not flow through the sticky pipeline;
+  // hosts that need the live state read dmaEngine.io.busy via a future
+  // status-word read implementation.
+  val evBus = (B(0, 7 bits) ## dmaEngine.io.done ## B(0, 2 bits) ##
+               spriteBgHitPulse ## sprite0HitPulse ##
                evQspiError ## evQspiReady ## evSpriteOverflow ## evRasterMatch).asBits
 
   // STATUS_ENABLE write (safe-boundary commit).
