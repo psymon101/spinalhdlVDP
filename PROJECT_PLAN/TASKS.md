@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 47 implementation authorized / #8210)
+**Updated:** 2026-04-23 (Task 47 proof packet #8212 routed to CyanPeak audit)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,11 +28,11 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 47 — DMA-Style Transfer Primitive** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
-| **Owner** | BrightForge (implementation/proof) → CyanPeak (audit) |
-| **Latest Commit** | `4959501` (Task 47 implementation authorization ledger sync) |
-| **Latest Auth Mail** | #8210 (BronzeGate PM authorization after CyanPeak artifact PASS #8208) |
-| **Next Deliverable** | BrightForge Task 47 implementation/proof packet |
+| **Phase** | audit |
+| **Owner** | CyanPeak (implementation/evidence audit) |
+| **Latest Commit** | `706ede2` (Task 47 implementation; proof packet #8212) |
+| **Latest Auth Mail** | #8212 (BrightForge Task 47 implementation/proof packet) |
+| **Next Deliverable** | CyanPeak implementation audit ruling on #8212, including DMA-triggered hardware-proof requirement |
 | **Coding Authorized** | **YES** — bounded to artifact #8207 and CyanPeak audit notes #8208 |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_47_DMA_STYLE_TRANSFER_PRIMITIVE.md` (v1.0-draft)
@@ -1089,7 +1089,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 47 — DMA-Style Transfer Primitive
 
-**Status:** IN-PROGRESS — implementation authorized by #8210
+**Status:** IN-PROGRESS — implementation/proof #8212 under CyanPeak audit
 **depends_on:** [30, 32b, 39]
 **scope_boundary:** Block-transfer primitive only. No blitter raster ops, no platform-specific DMA command sets.
 **delivers:**
