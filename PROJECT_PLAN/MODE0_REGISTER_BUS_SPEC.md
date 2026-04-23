@@ -69,7 +69,7 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 |---|---|---|---|
 | `0x0000..0x01DF` | Linestate prepare (480 lines × per-line `{l0en, l1en, l0scrollX[9:0]}`) | Task 14 | `VdpTop.scala:43` |
 | `0x01E0..0x02FF` | **Reserved** — linestate expansion buffer | — | — |
-| `0x0300` | `LAYER_ENABLE` — `data[0]=L0, data[1]=L1, data[2]=sprite` | Task 13 / R5 | `VdpTop.scala:44,221` |
+| `0x0300` | `LAYER_ENABLE` — `data[0]=L0, data[1]=L1, data[2]=sprite, data[3]=L2, data[4]=L3` | Task 13 / R5 / Task 48 | `VdpTop.scala:44,221` |
 | `0x0301..0x030F` | **Reserved** — layer-group overrides | — | — |
 | `0x0310` | `VDP_CTRL` — `data[0]=copperEnable` (R5.3) | Task R5.3 | `VdpTop.scala:172,245` |
 | `0x0311` | `VDP_TILE_MODE` — 2-bit packed/planar/shuffled | Task R4.1b/c/d | `VdpTop.scala:225,232` |

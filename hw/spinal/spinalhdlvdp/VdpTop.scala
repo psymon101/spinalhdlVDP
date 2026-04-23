@@ -17,6 +17,13 @@ case class VdpTop() extends Component {
     val layer0ScrollY = in UInt(10 bits)
     val layer1ScrollX = in UInt(10 bits)
     val layer1ScrollY = in UInt(10 bits)
+    // Task 48 — Four-Layer Compositor Expansion: L2/L3 are simple
+    // BasicPatternSource layers with global-only scroll (no per-column
+    // scroll tables, no LinestateStore widening for L2/L3).
+    val layer2ScrollX = in UInt(10 bits)
+    val layer2ScrollY = in UInt(10 bits)
+    val layer3ScrollX = in UInt(10 bits)
+    val layer3ScrollY = in UInt(10 bits)
     // R2 sprite descriptors. Four descriptors total; SpriteEvaluator selects up
     // to two visible per line via priority-on-index. `patternIdx` picks pattern
     // 0 (sprite0Pattern) or 1 (sprite1Pattern).
@@ -277,11 +284,17 @@ case class VdpTop() extends Component {
   // Without this gate, the copper's combinational write arrives mid-line,
   // shifts the compositor's effective enable mask mid-scanline, and shows
   // up as 1-frame scroll skips + wrong-bank pixel flashes on hardware.
-  val layerEnableReg    = (Reg(Bits(3 bits)) init B"111").simPublic()
-  val layerEnablePend   = Reg(Bits(3 bits)) init B"111"
+  // Task 48: expanded to 5 bits — {L3[4], L2[3], sprite[2], L1[1], L0[0]}.
+  // Default 5'b00111 preserves the original 3-bit init for L0/L1/sprite
+  // (all on at reset) and keeps L2/L3 OFF until a scenario's Copper or
+  // host writes bits 4..3 explicitly. Matches CyanPeak #8221 audit note:
+  // "The default-zero state of bits 4..3 ensures L2/L3 are inactive for
+  // legacy builds."
+  val layerEnableReg    = (Reg(Bits(5 bits)) init B"00111").simPublic()
+  val layerEnablePend   = Reg(Bits(5 bits)) init B"00111"
   val layerEnablePendHit = (Reg(Bool()) init False).simPublic()
   when(effWrite && effAddr === U(0x0300, 15 bits)) {
-    layerEnablePend    := effData(2 downto 0)
+    layerEnablePend    := effData(4 downto 0)
     layerEnablePendHit := True
   }
   // R4.1b stage 3 / R4.1d Checkpoint A: VDP_TILE_MODE @ 0x0311 follows the
@@ -700,6 +713,23 @@ case class VdpTop() extends Component {
   layer1.io.scrollX := io.layer1ScrollX + scrollTable1Offset
   layer1.io.scrollY := io.layer1ScrollY + vScrollTable1Offset
 
+  // Task 48 — Layer 2 and Layer 3. Simple BasicPatternSource layers with
+  // global-only scroll (no per-column scroll tables or per-line enable —
+  // those remain deferred). Compositor priority: L3 > L2 > L1 > L0 when
+  // no L0 forcedPriority override is active; sprite slots still win via
+  // the existing back-to-front iteration.
+  val layer2 = BasicPatternSource()
+  layer2.io.x := hCounter.resize(10)
+  layer2.io.y := fillLine
+  layer2.io.scrollX := io.layer2ScrollX
+  layer2.io.scrollY := io.layer2ScrollY
+
+  val layer3 = BasicPatternSource()
+  layer3.io.x := hCounter.resize(10)
+  layer3.io.y := fillLine
+  layer3.io.scrollX := io.layer3ScrollX
+  layer3.io.scrollY := io.layer3ScrollY
+
   // Task 19 Checkpoint B: affine coordinate generator + texture BRAM. The
   // stepper runs combinationally against the current (hCounter, fillLine) so
   // its output is available in the same cycle as the existing layer0/layer1
@@ -792,29 +822,51 @@ case class VdpTop() extends Component {
                                  Mux(io.layer0UseSdram, io.layer0SdramPriority, False))))).simPublic()
 
   // R5: fold global LAYER_ENABLE register into the per-line linestate enable.
+  // Task 48: L2/L3 use global enable only (bits 3/4) — LinestateStore is
+  // NOT widened per artifact §3.5. bit 2 is sprite enable; unchanged.
   val effectiveL0Enable = linestate.io.layer0Enable && layerEnableReg(0)
   val effectiveL1Enable = linestate.io.layer1Enable && layerEnableReg(1)
+  val effectiveL2Enable = layerEnableReg(3)
+  val effectiveL3Enable = layerEnableReg(4)
   val layer0Pixel = Mux(effectiveL0Enable, layer0Index, B(0, 4 bits))
   val layer0PrioGated = effectiveL0Enable && layer0Prio
   val layer1Pixel = Mux(effectiveL1Enable, layer1.io.pixelIndex.resize(4), B(0, 4 bits))
+  val layer2Pixel = Mux(effectiveL2Enable, layer2.io.pixelIndex.resize(4), B(0, 4 bits))
+  val layer3Pixel = Mux(effectiveL3Enable, layer3.io.pixelIndex.resize(4), B(0, 4 bits))
 
-  // Priority-aware L0/L1 composition. Previous behavior: L1 wins over L0
-  // whenever L1 is non-transparent. With R4 per-tile priority, L0 additionally
-  // wins when its priority bit is set and the L0 pixel is non-transparent —
-  // this is what lets a foreground tile poke through L1.
+  // Four-layer priority-aware composition. L0 forcedPriority override wins
+  // over ALL layers (preserved from the 2-layer era). Otherwise, the
+  // highest-index opaque layer wins (L3 > L2 > L1 > L0). When the only
+  // visible layer is L0 (or nothing), L0 paints. This is bit-identical to
+  // the pre-Task-48 2-layer compositor whenever L2/L3 are disabled (zero
+  // pixel, not opaque).
   val layer0Opaque = layer0Pixel =/= B(0, 4 bits)
   val layer1Opaque = layer1Pixel =/= B(0, 4 bits)
-  val composedBgIdx = Bits(4 bits)
-  val composedBgBank = UInt(3 bits)
+  val layer2Opaque = layer2Pixel =/= B(0, 4 bits)
+  val layer3Opaque = layer3Pixel =/= B(0, 4 bits)
+  val composedBgIdx    = Bits(4 bits)
+  val composedBgBank   = UInt(3 bits)
+  val composedBgSource = UInt(3 bits)   // feeds fillMeta.layerSource
   when(layer0PrioGated && layer0Opaque) {
-    composedBgIdx  := layer0Pixel
-    composedBgBank := layer0Bank
+    composedBgIdx    := layer0Pixel
+    composedBgBank   := layer0Bank
+    composedBgSource := U(PixelMetadata.SourceBG0, 3 bits)
+  }.elsewhen(layer3Opaque) {
+    composedBgIdx    := layer3Pixel
+    composedBgBank   := U(0, 3 bits)  // L3 uses legacy bank 0 like L1/L2
+    composedBgSource := U(PixelMetadata.SourceBG3, 3 bits)
+  }.elsewhen(layer2Opaque) {
+    composedBgIdx    := layer2Pixel
+    composedBgBank   := U(0, 3 bits)
+    composedBgSource := U(PixelMetadata.SourceBG2, 3 bits)
   }.elsewhen(layer1Opaque) {
-    composedBgIdx  := layer1Pixel
-    composedBgBank := U(0, 3 bits)  // L1 is legacy-bank-0 only
+    composedBgIdx    := layer1Pixel
+    composedBgBank   := U(0, 3 bits)
+    composedBgSource := U(PixelMetadata.SourceBG1, 3 bits)
   }.otherwise {
-    composedBgIdx  := layer0Pixel
-    composedBgBank := layer0Bank
+    composedBgIdx    := layer0Pixel
+    composedBgBank   := layer0Bank
+    composedBgSource := U(PixelMetadata.SourceBG0, 3 bits)
   }
   val composedBg = composedBgIdx
 
@@ -951,34 +1003,41 @@ case class VdpTop() extends Component {
   val sprite0HitPulse    = slotVisible(0) && bgOpaque
   val spriteBgHitPulse   = anySlotVisible && bgOpaque
 
-  val fillIdx  = Bits(4 bits)
-  val fillBank = UInt(3 bits)
-  fillIdx  := composedBgIdx
-  fillBank := composedBgBank
+  val fillIdx    = Bits(4 bits)
+  val fillBank   = UInt(3 bits)
+  val fillSource = UInt(3 bits)    // Task 48 — track winning layer for metadata
+  fillIdx    := composedBgIdx
+  fillBank   := composedBgBank
+  fillSource := composedBgSource
   // Iterate slots low→high with last-hit-wins. In SpinalHDL's
   // sequential-assignment semantics the highest-index visible slot
-  // overrides lower ones.
+  // overrides lower ones. When a sprite wins, layerSource flips to SPRITE.
   for (s <- 0 until NUM_SLOTS) {
     when(slotVisible(s)) {
-      fillIdx  := slotPixel(s)
-      fillBank := U(0, 3 bits)
+      fillIdx    := slotPixel(s)
+      fillBank   := U(0, 3 bits)
+      fillSource := U(PixelMetadata.SourceSprite, 3 bits)
     }
   }
   val fillPrio = Bool()
   when(anySlotVisible) {
     fillPrio := False
   }.otherwise {
-    fillPrio := layer0PrioGated && layer0Opaque && !layer1Opaque
+    // L0 priority wins unless a higher-index BG layer is opaque. On a
+    // four-layer compositor, L0 forcedPriority still overrides L1/L2/L3.
+    fillPrio := layer0PrioGated && layer0Opaque && !layer1Opaque && !layer2Opaque && !layer3Opaque
   }
   val fillPixel = (fillPrio ## fillBank.asBits ## fillIdx).asBits  // 8 bits
 
-  // Task 41 — per-pixel metadata stub. All fetch-engine sources currently
-  // drive the structural default (no math, normal priority, BG0 source),
-  // so existing scenarios remain bit-for-bit identical. Downstream
-  // consumers (sprite evaluator, platform overlays) will drive the flags
-  // from their own fetch engines without touching this file.
-  val fillMeta    = PixelMetadata.default()
-  val fillPacked  = (fillMeta.toBits ## fillPixel).asBits   // 12 bits total
+  // Task 48 — per-pixel metadata carries the winning layer source so that
+  // downstream consumers (color-math, sprite collision, etc.) can
+  // distinguish which BG contributed. `fillSource` is assigned in the same
+  // priority-mux logic as pixel data (see above loop) per CyanPeak #8221.
+  val fillMeta = PixelMetadata()
+  fillMeta.mathEnable     := False
+  fillMeta.forcedPriority := False
+  fillMeta.layerSource    := fillSource
+  val fillPacked  = (fillMeta.toBits ## fillPixel).asBits   // 13 bits total
 
   // Double-buffered scanline buffer — widened from 8 → 12 bits to carry
   // `{metadata[3:0], priority, bank[2:0], idx[3:0]}`. Per CyanPeak #7820
@@ -1011,8 +1070,9 @@ case class VdpTop() extends Component {
   // but — by scope — is not yet gating the live ColorMath enable expression;
   // fetch-engine stubs drive the default (all-zeros) so existing scenarios
   // remain bit-for-bit identical.
+  // Task 48: line buffer widened 12→13 bits; metadata occupies bits [12:8].
   val drainWord   = lineBuf.io.readData
-  val drainMeta   = PixelMetadata.fromBits(drainWord(11 downto 8)).setName("drainMeta")
+  val drainMeta   = PixelMetadata.fromBits(drainWord(8 + PixelMetadata.Width - 1 downto 8)).setName("drainMeta")
   drainMeta.mathEnable.simPublic()
   drainMeta.forcedPriority.simPublic()
   drainMeta.layerSource.simPublic()

@@ -214,6 +214,14 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     video.io.layer0ScrollY := U(0, 10 bits)
     video.io.layer1ScrollX := scrollL1.resize(10)
     video.io.layer1ScrollY := U(0, 10 bits)
+    // Task 48 — L2/L3 global scroll defaults (0). Copper/host programs can
+    // drive these via scenario-specific future extensions; keeping 0 here
+    // preserves bit-identical rendering for all existing scenarios since
+    // L2/L3 are also disabled by default (LAYER_ENABLE bits 4..3 = 0).
+    video.io.layer2ScrollX := U(0, 10 bits)
+    video.io.layer2ScrollY := U(0, 10 bits)
+    video.io.layer3ScrollX := U(0, 10 bits)
+    video.io.layer3ScrollY := U(0, 10 bits)
 
     // R5 stage 4: bootstrap FSM uploads a copper program to 0x0400+N then
     // enables the copper. Runs once per power-on. Copper program implements
