@@ -156,6 +156,19 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // Frame counter drives scroll offsets for visible motion proof.
     val vsyncPrev = RegNext(video.io.vsync) init True
     val vsyncRising = video.io.vsync && !vsyncPrev
+
+    // Task 40 — Scenario 20: instantiate the C64 demo animator only when
+    // selected. It owns C64Adapter and drives VdpTop's rasterTrigger* and
+    // sprite 0/1 legacy IO pins directly; its bus output feeds a
+    // RegBusArbiter master slot further below.
+    val c64Demo: Option[C64DemoAnimator] =
+      if (scenarioId == 20) {
+        val d = C64DemoAnimator()
+        d.io.vsyncRising        := vsyncRising
+        d.io.rasterTriggerPulse := video.io.rasterTriggerPulse
+        Some(d)
+      } else None
+
     val frameCounter = Reg(UInt(10 bits)) init 0
     when(vsyncRising) {
       frameCounter := frameCounter + 1
@@ -530,6 +543,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 45          => 0x0001  // Sc45: L0 only (Task 44b SDRAM-backed bitmap proof)
       case 31          => 0x0001  // Sc31: L0 only — on-chip BasicPatternSource for per-column scroll shear
       case 37          => 0x0005  // Sc37: L0 background + sprite (affine proof)
+      case 20          => 0x0005  // Sc20 (Task 40): L0 + sprite; adapter toggles DEN
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
@@ -671,6 +685,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
         }
         val active = animWriteIdx < U(6, 3 bits)
         (a, d, active)
+      } else if (scenarioId == 20) {
+        // Task 40 Sc20: animator bus slot is driven by C64Adapter output.
+        (c64Demo.get.io.busAddr, c64Demo.get.io.busData, c64Demo.get.io.busWr)
       } else {
         (U(0, 15 bits), B(0, 16 bits), False)
       }
@@ -770,9 +787,12 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     val scSprite0 = Set(4, 5, 6, 7, 12, 15, 16, 17, 28).contains(scenarioId)
     val scSprite1 = Set(5, 6, 7, 15, 16, 17, 28).contains(scenarioId)
     val scSprite23 = Set(5, 6, 17, 28).contains(scenarioId)
-    video.io.sprite0Enabled    := Bool(scSprite0)
+    // Task 40 Sc20: sprite 0/1 enable comes dynamically from the C64Adapter.
+    video.io.sprite0Enabled    :=
+      (if (scenarioId == 20) c64Demo.get.io.sprite0Enabled else Bool(scSprite0))
     video.io.sprite0PatternIdx := U(0, 1 bit)
-    video.io.sprite1Enabled    := Bool(scSprite1)
+    video.io.sprite1Enabled    :=
+      (if (scenarioId == 20) c64Demo.get.io.sprite1Enabled else Bool(scSprite1))
     video.io.sprite1PatternIdx := U(1, 1 bit)
 
     // R2 proof scene — deliberately forces the 2-per-line selection limit.
@@ -948,6 +968,19 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       video.io.sprite3Enabled := True
       video.io.sprite2PatternIdx := U(0, 1 bit)
       video.io.sprite3PatternIdx := U(1, 1 bit)
+    } else if (scenarioId == 20) {
+      // Sc20 (Task 40): sprite 0/1 driven by C64Adapter direct outputs;
+      // slots 2/3 disabled.
+      video.io.sprite0X := c64Demo.get.io.sprite0X
+      video.io.sprite0Y := c64Demo.get.io.sprite0Y
+      video.io.sprite1X := c64Demo.get.io.sprite1X
+      video.io.sprite1Y := c64Demo.get.io.sprite1Y
+      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
+      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
+      video.io.sprite2Enabled := False
+      video.io.sprite3Enabled := False
+      video.io.sprite2PatternIdx := U(0, 1 bit)
+      video.io.sprite3PatternIdx := U(1, 1 bit)
     } else {
       // scenarios 0/1/2/3: legacy R2 proof positions; sprites disabled
       video.io.sprite0X := U(120, 10 bits); video.io.sprite0Y := U(120, 10 bits)
@@ -1014,11 +1047,23 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // each vblank. Cleared at start-of-frame so it re-fires every frame.
     // Per Task 34 §4.4 artifact: this is the firmware-side hook for
     // vblank-paced SDRAM_WRITE streaming (BronzeGate #7683 Option B).
-    video.io.rasterTriggerLine     := U(480, 10 bits)
-    video.io.rasterTriggerPixel    := U(0, 10 bits)
-    video.io.rasterTriggerPxEnable := False
-    video.io.rasterTriggerEnable   := True
-    video.io.rasterTriggerClear    := vsyncRising
+    // Task 40 Sc20: raster trigger controlled by C64Adapter via $D012 /
+    // $D011[7] (line), $D01A (enable), $D019 (ack-clear). Other scenarios
+    // keep the default "trigger at line 480" wiring for compatibility.
+    if (scenarioId == 20) {
+      video.io.rasterTriggerLine     := c64Demo.get.io.rasterTriggerLine
+      video.io.rasterTriggerPixel    := U(0, 10 bits)
+      video.io.rasterTriggerPxEnable := False
+      video.io.rasterTriggerEnable   := c64Demo.get.io.rasterTriggerEnable
+      // vsync always re-arms the trigger; ack-write merges via OR.
+      video.io.rasterTriggerClear    := vsyncRising || c64Demo.get.io.rasterTriggerClear
+    } else {
+      video.io.rasterTriggerLine     := U(480, 10 bits)
+      video.io.rasterTriggerPixel    := U(0, 10 bits)
+      video.io.rasterTriggerPxEnable := False
+      video.io.rasterTriggerEnable   := True
+      video.io.rasterTriggerClear    := vsyncRising
+    }
 
     // HDMI TX pipeline
     val hdmiTx = Tang20kHdmiTx()
@@ -1312,4 +1357,7 @@ object TopTang20kHdmiScenario44Verilog extends App {
 }
 object TopTang20kHdmiScenario45Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 45))   // Task 44b SDRAM-backed bitmap HW proof
+}
+object TopTang20kHdmiScenario20Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 20))   // Task 40 first platform adapter (C64 raster+sprite smoke)
 }
