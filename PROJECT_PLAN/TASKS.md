@@ -28,9 +28,9 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 47 — DMA-Style Transfer Primitive** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | artifact |
+| **Phase** | audit |
 | **Owner** | CoralReef (artifact/ledger) → CyanPeak (audit) |
-| **Latest Commit** | `90065fc` (Task 46 implementation closure point; evidence #8202; audit PASS #8204) |
+| **Latest Commit** | `fde62be` (Task 47 artifact draft / #8207; phase → audit) |
 | **Latest Auth Mail** | #8207 (CoralReef artifact draft: Task 47 DMA-Style Transfer Primitive) |
 | **Next Deliverable** | CyanPeak audit ruling (PASS / HOLD / FAIL) on artifact #8207 |
 | **Coding Authorized** | **NO** — Task 47 implementation waits for artifact, audit, and PM authorization |
