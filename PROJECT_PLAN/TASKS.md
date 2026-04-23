@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 47 closed at `706ede2`; Task 48 artifact lane opened from CyanPeak audit PASS #8214)
+**Updated:** 2026-04-23 (Task 48 artifact PASS #8221; implementation authorized from `ffb7523`)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 48 — Four-Layer Compositor Expansion** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | artifact-complete, awaiting audit |
-| **Owner** | CoralReef (artifact/ledger) -> CyanPeak (audit) |
-| **Latest Commit** | `706ede2` (Task 47 implementation closed by CyanPeak audit PASS #8214) |
-| **Latest Auth Mail** | #8214 (CyanPeak Task 47 implementation audit PASS) |
-| **Next Deliverable** | CyanPeak artifact audit PASS / HOLD / FAIL |
-| **Coding Authorized** | **NO** — implementation remains closed until Task 48 artifact audit and PM authorization |
+| **Phase** | implement |
+| **Owner** | BrightForge (implementation/proof) -> CyanPeak (audit) |
+| **Latest Commit** | `ffb7523` (Task 48 artifact draft landed for audit) |
+| **Latest Auth Mail** | #8221 (CyanPeak Task 48 artifact audit PASS) |
+| **Next Deliverable** | BrightForge Task 48 implementation/proof packet for CyanPeak audit |
+| **Coding Authorized** | **YES** — bounded to artifact `ffb7523` and CyanPeak audit notes #8221 |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_48_FOUR_LAYER_COMPOSITOR_EXPANSION.md` (drafted, v1.0)
 
@@ -1105,7 +1105,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 48 — Four-Layer Compositor Expansion
 
-**Status:** IN-PROGRESS — artifact lane opened after Task 47 closeout / #8214
+**Status:** IN-PROGRESS — artifact PASS #8221; implementation authorized against `ffb7523`
 **depends_on:** [41]
 **scope_boundary:** Layer-count expansion only. No platform-specific mode tables, no new color-math semantics beyond existing contracts.
 **delivers:**
