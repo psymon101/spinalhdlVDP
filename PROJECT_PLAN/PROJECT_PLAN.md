@@ -9,12 +9,13 @@
 
 1. `PROJECT_PLAN.md` — current architecture snapshot, document precedence, and working rules
 2. `MODE0_ROADMAP.md` — strategic capability build order for the `Mode0` substrate
-3. `TASK_TEMPLATE.md` — reusable planning template for turning roadmap items into bounded execution tasks
-4. `TASKS.md` — authoritative execution order and task status
-5. `CONVENTIONS.md` — coding, naming, clock/reset, and simulation rules
-6. `PLATFORM.md` — board facts and validated hardware data
-7. `REPO_STRUCTURE.md` — where code and board assets live today
-8. `GLOSSARY.md` — project-specific term definitions
+3. `ADAPTER_NUANCES.md` — platform-facing visual rules and adapter fidelity expectations
+4. `TASK_TEMPLATE.md` — reusable planning template for turning roadmap items into bounded execution tasks
+5. `TASKS.md` — authoritative execution order and task status
+6. `CONVENTIONS.md` — coding, naming, clock/reset, and simulation rules
+7. `PLATFORM.md` — board facts and validated hardware data
+8. `REPO_STRUCTURE.md` — where code and board assets live today
+9. `GLOSSARY.md` — project-specific term definitions
 
 If these documents disagree:
 
