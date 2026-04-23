@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 46 artifact drafted / #8195; awaiting CyanPeak audit)
+**Updated:** 2026-04-23 (Task 46 implementation authorized / #8198)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 46 — V-Scroll Table Primitive** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | audit |
-| **Owner** | CyanPeak (artifact audit) |
-| **Latest Commit** | `e6d4264` (Task 46 artifact draft / #8195) |
-| **Latest Auth Mail** | #8195 (CoralReef artifact draft: Task 46 V-Scroll Table Primitive) |
-| **Next Deliverable** | CyanPeak audit ruling (PASS / HOLD / FAIL) on artifact #8195 |
-| **Coding Authorized** | **NO** — Task 46 implementation waits for artifact, audit, and PM authorization |
+| **Phase** | implement |
+| **Owner** | BrightForge (implementation/proof) → CyanPeak (audit) |
+| **Latest Commit** | `2c1c289` (Task 46 artifact routed to audit) |
+| **Latest Auth Mail** | #8198 (BronzeGate PM authorization after CyanPeak artifact PASS #8197) |
+| **Next Deliverable** | BrightForge Task 46 implementation/proof packet |
+| **Coding Authorized** | **YES** — bounded to artifact #8195 and CyanPeak audit notes #8197 |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_46_VSCROLL_TABLE_PRIMITIVE.md` (v1.0-draft)
 
@@ -1073,7 +1073,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 46 — V-Scroll Table Primitive
 
-**Status:** IN-PROGRESS — artifact drafted by #8195; awaiting CyanPeak audit
+**Status:** IN-PROGRESS — implementation authorized by #8198
 **depends_on:** [31, 32a]
 **scope_boundary:** V-scroll lookup state only. No new fetch formats, no additional compositor math.
 **delivers:**
