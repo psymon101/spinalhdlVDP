@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 44b PASS closed; Task 45 artifact lane opened / #8184)
+**Updated:** 2026-04-23 (Task 45 artifact drafted / #8186; awaiting CyanPeak audit)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 45 — Sprite Capacity Hardening** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | artifact |
+| **Phase** | audit |
 | **Owner** | CoralReef (artifact/ledger) → CyanPeak (audit) |
 | **Latest Commit** | `8c03feb` (Task 44b implementation closure point; evidence #8179; audit PASS #8183) |
-| **Latest Auth Mail** | #8184 (BronzeGate PM closeout: Task 44b PASS; open Task 45 artifact lane) |
-| **Next Deliverable** | Task 45 artifact draft or existing artifact-path identification for reusable sprite-capacity hardening |
+| **Latest Auth Mail** | #8186 (CoralReef artifact draft: Task 45 Sprite Capacity Hardening) |
+| **Next Deliverable** | CyanPeak audit ruling (PASS / HOLD / FAIL) on artifact #8186 |
 | **Coding Authorized** | **NO** — Task 45 implementation waits for artifact, audit, and PM authorization |
 
-**Artifact file:** TBD — Task 45 artifact draft pending
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_45_SPRITE_CAPACITY_HARDENING.md` (v1.0-draft)
 
 Rules:
 - Only **one** lane may be live at a time.
