@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 25 DONE at `5fb86d8`; audit PASS #8322; no live lane)
+**Updated:** 2026-04-23 (PM opens Mode0 Fetch Envelope Hardening artifact lane)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **None — Task 25 complete** |
-| **Status** | **CLOSED** |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `5fb86d8` (Task 25 artifact draft) / `b70a258` (policy update) |
-| **Latest Auth Mail** | #8322 (CyanPeak Task 25 artifact audit PASS) |
-| **Next Deliverable** | PM reassessment of task order; no other active lanes |
-| **Coding Authorized** | **NO** — no live lane
+| **Task** | **Mode0 Fetch Envelope Hardening** |
+| **Status** | **OPEN** |
+| **Phase** | artifact |
+| **Owner** | `BronzeGate -> CyanPeak` |
+| **Latest Commit** | pending fetch-envelope artifact draft commit |
+| **Latest Auth Mail** | pending BronzeGate open packet |
+| **Next Deliverable** | `CyanPeak` artifact audit for `TASK_MODE0_FETCH_ENVELOPE_HARDENING.md` |
+| **Coding Authorized** | **NO** — planning / hardening definition only
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_25_FUTURE_ADDRESS_DATA_BUS_INTERFACE_DEFINITION.md` (v1.0-draft)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_FETCH_ENVELOPE_HARDENING.md` (v1.0-draft)
 
 Rules:
 - Only **one** lane may be live at a time.
