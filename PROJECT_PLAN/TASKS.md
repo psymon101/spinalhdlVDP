@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (PM opens Mode0 Fetch Envelope Hardening artifact lane)
+**Updated:** 2026-04-23 (Mode0 Fetch Envelope Hardening artifact PASS #8358; assessment phase opened)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Mode0 Fetch Envelope Hardening** |
 | **Status** | **OPEN** |
-| **Phase** | artifact |
-| **Owner** | `BronzeGate -> CyanPeak` |
+| **Phase** | implement |
+| **Owner** | `CoralReef -> CyanPeak` |
 | **Latest Commit** | `0c6c7a6` (Open Mode0 fetch envelope hardening artifact lane) |
-| **Latest Auth Mail** | #8355 (BronzeGate open lane packet) |
-| **Next Deliverable** | `CyanPeak` artifact audit for `TASK_MODE0_FETCH_ENVELOPE_HARDENING.md` |
-| **Coding Authorized** | **NO** — planning / hardening definition only
+| **Latest Auth Mail** | #8358 (CyanPeak artifact audit PASS; assessment phase required) |
+| **Next Deliverable** | `CoralReef` fetch-envelope assessment report with empirical evidence and external references |
+| **Coding Authorized** | **YES** — assessment / analysis only; no substrate implementation changes yet
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_FETCH_ENVELOPE_HARDENING.md` (v1.0-draft)
 
