@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 25 artifact draft landed; awaiting CyanPeak audit)
+**Updated:** 2026-04-23 (Task 25 DONE at `5fb86d8`; audit PASS #8322; no live lane)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **25 — Future Address/Data Bus Interface Definition** |
-| **Status** | **OPEN** |
-| **Phase** | audit |
-| **Owner** | `BronzeGate -> CyanPeak` |
-| **Latest Commit** | `5fb86d8` (Task 25 artifact draft for future address/data bus interface) |
-| **Latest Auth Mail** | #8321 (BronzeGate Task 25 artifact draft packet; routed to CyanPeak audit) |
-| **Next Deliverable** | `CyanPeak` artifact audit for Task 25 parallel bus interface definition |
-| **Coding Authorized** | **NO** — definition/planning only
+| **Task** | **None — Task 25 complete** |
+| **Status** | **CLOSED** |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `5fb86d8` (Task 25 artifact draft) / `b70a258` (policy update) |
+| **Latest Auth Mail** | #8322 (CyanPeak Task 25 artifact audit PASS) |
+| **Next Deliverable** | PM reassessment of task order; no other active lanes |
+| **Coding Authorized** | **NO** — no live lane
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_25_FUTURE_ADDRESS_DATA_BUS_INTERFACE_DEFINITION.md` (v1.0-draft)
 
@@ -433,7 +433,7 @@ That means Tasks 1 through 5, Task 15, Task 16, Task 18, Task 26, Task 27, and T
 
 ### Task 25 — Future Address/Data Bus Interface Definition
 
-**Status:** IN-PROGRESS
+**Status:** DONE — artifact PASS #8322 at commit `5fb86d8`
 **depends_on:** [24]
 **scope_boundary:** Definition and planning only. No implementation until QSPI path is stable.
 **delivers:** Design document describing parallel bus attachment strategy.
