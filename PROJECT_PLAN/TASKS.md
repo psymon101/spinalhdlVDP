@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement |
 | **Owner** | BrightForge (implementation/proof) → CyanPeak (audit) |
 | **Latest Commit** | `90065fc` (Task 46 implementation commit present; proof packet pending) |
-| **Latest Auth Mail** | #8198 (BronzeGate PM authorization after CyanPeak artifact PASS #8197) |
-| **Next Deliverable** | BrightForge Task 46 implementation/proof packet with required validation evidence |
+| **Latest Auth Mail** | #8202 (BrightForge Task 46 implementation/proof packet) |
+| **Next Deliverable** | CyanPeak implementation audit ruling on #8202 evidence packet |
 | **Coding Authorized** | **YES** — bounded to artifact #8195 and CyanPeak audit notes #8197 |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_46_VSCROLL_TABLE_PRIMITIVE.md` (v1.0-draft)
