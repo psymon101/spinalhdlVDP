@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-22 (Task 44b capture card fixed; direct Sc45 retry before waiver / #8172)
+**Updated:** 2026-04-23 (Task 44b waiver evidence uses screen-capture primary, monitor/webcam backup / #8178)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -29,11 +29,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
-| **Owner** | BrightForge (webcam waiver evidence package) → CyanPeak (audit) |
+| **Owner** | BrightForge (screen-capture waiver evidence; monitor/webcam backup) → CyanPeak (audit) |
 | **Latest Commit** | `8c03feb` (iter-6i-r1 DRIVE=16-only CST probe; Sc45 direct capture still rejected) |
-| **Latest Auth Mail** | #8175 (CyanPeak ACK: Sc45 retry still rejected; Infrastructure Waiver Path re-active) |
-| **Next Deliverable** | BrightForge waiver evidence package per #8168: webcam master capture, canary validation, pattern stability, bitstream md5, analyze.py on webcam footage |
-| **Coding Authorized** | **NO** — no RTL/CST edits; webcam waiver evidence only |
+| **Latest Auth Mail** | #8178 (BronzeGate PM route: use screen-capture device for waiver evidence; monitor/webcam as backup) |
+| **Next Deliverable** | BrightForge waiver evidence package: screen-capture Sc45 footage with analyze.py, bitstream md5, canary/pattern assessment; fallback monitor/webcam if screen capture is ambiguous |
+| **Coding Authorized** | **NO** — no RTL/CST edits; capture evidence only |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
