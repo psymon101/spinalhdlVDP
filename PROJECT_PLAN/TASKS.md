@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement |
 | **Owner** | BrightForge (implementation/proof) -> CyanPeak (audit) |
-| **Latest Commit** | `ef5d9c9` (Task 49 artifact draft v1.0) |
-| **Latest Auth Mail** | #8238 (CyanPeak Task 49 artifact audit PASS) |
-| **Next Deliverable** | BrightForge Task 49 implementation/proof packet for CyanPeak audit |
+| **Latest Commit** | `9c5f08d` (Task 49 implementation/proof packet) |
+| **Latest Auth Mail** | #8246 (BrightForge Task 49 implementation/proof packet) |
+| **Next Deliverable** | CyanPeak audit of `9c5f08d` |
 | **Coding Authorized** | **YES** — bounded to artifact `ef5d9c9` and CyanPeak audit notes #8238 |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_49_BLITTER_CLASS_BLOCK_TRANSFER_ENGINE.md` (v1.0, audit PASS)
