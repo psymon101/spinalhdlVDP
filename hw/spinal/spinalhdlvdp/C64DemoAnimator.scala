@@ -34,6 +34,11 @@ case class C64DemoAnimator() extends Component {
     val vsyncRising        = in  Bool()
     val rasterTriggerPulse = in  Bool()
 
+    // L0 pixel provider inputs (Path D per CyanPeak #8294).
+    // Fed from VdpTop.io.layer0FetchLine / layer0FetchPixelAddr.
+    val fetchLine      = in UInt(10 bits)
+    val fetchPixelAddr = in UInt(10 bits)
+
     // Mode0 register bus (feeds a RegBusArbiter master slot).
     val busAddr = out UInt(15 bits)
     val busData = out Bits(16 bits)
@@ -49,6 +54,11 @@ case class C64DemoAnimator() extends Component {
     val sprite1X            = out UInt(10 bits)
     val sprite1Y            = out UInt(10 bits)
     val sprite1Enabled      = out Bool()
+
+    // High-fidelity L0 pixel provider (Path D): drives VdpTop.io.layer0SdramPixel
+    // and layer0SdramBank directly from TopTang20kHdmi's Sc20 block.
+    val pixelIndex = out Bits(4 bits)
+    val pixelBank  = out UInt(3 bits)
   }
 
   val adapter = C64Adapter()
@@ -69,9 +79,11 @@ case class C64DemoAnimator() extends Component {
   // Sprite bounce registers. Updated once per vsync.
   // -------------------------------------------------------------
   val s0x   = Reg(UInt(10 bits)) init 120
-  val s0y   = Reg(UInt(10 bits)) init 120
   val s1x   = Reg(UInt(10 bits)) init 400
-  val s1y   = Reg(UInt(10 bits)) init 300
+  // Y positions are fixed in the upper bar for the demo; the Y-axis
+  // doesn't need bouncing to prove the adapter works.
+  val s0y   = U(120, 10 bits)
+  val s1y   = U(160, 10 bits)
   val s0dir = Reg(Bool()) init False          // false = +2, true = -2
   val s1dir = Reg(Bool()) init True
   when(io.vsyncRising) {
@@ -158,4 +170,45 @@ case class C64DemoAnimator() extends Component {
   adapter.io.regAddr := regA
   adapter.io.regData := regD
   adapter.io.regWr   := regW
+
+  // ------------------------------------------------------------------
+  // Task 40 v1.1 — L0 pixel provider (Path D).
+  //
+  // Renders a tile grid using the authentic C64 character ROM
+  // (`C64CharRom.bytes`) into 4-bit palette indices in Bank 7
+  // (`TileAttributeAssets.peptoPalette`). 2× scaling: 8×8 PETSCII glyphs
+  // upscaled to 16×16 screen pixels → 40 × 30 char grid over 640×480.
+  //
+  // Demo tile map: charCode = 0x41 + ((tileX + tileY) & 0x1F) → letters
+  // A..Z and five following glyphs repeat across the screen. This is a
+  // purely scenario-side choice; the adapter ships the authentic font,
+  // and any map over codes 0..255 will render with that font.
+  //
+  // Colour choice: fg = index 14 (Pepto light blue), bg = index 6
+  // (Pepto blue) — the classic C64 boot-screen palette. Bank = 7.
+  // ------------------------------------------------------------------
+  val charRom = Mem(Bits(8 bits), C64CharRom.memInit)
+
+  // Pixel → tile coordinates (2× scale).
+  val tileX  = io.fetchPixelAddr(9 downto 4)   // 0..39 (6 bits enough)
+  val tileY  = io.fetchLine(9 downto 4)        // 0..29
+  val innerX = io.fetchPixelAddr(3 downto 1)   // 0..7
+  val innerY = io.fetchLine(3 downto 1)        // 0..7
+
+  // Tile map: simple rolling letter pattern. Low 5 bits of (tileX+tileY)
+  // OR'd with 0x40 produces PETSCII codes 0x40..0x5F (`@A-Z[\]^_`) — all
+  // with visible glyphs in the provided ROM.
+  val wrapped  = (tileX(4 downto 0) + tileY(4 downto 0)).resize(5)
+  val charCode = (U(0x40, 8 bits) | wrapped.resize(8))       // 0x40..0x5F
+
+  // ROM address: char * 8 + innerY (row within glyph).
+  val romAddr  = (charCode @@ innerY).resize(log2Up(C64CharRom.size))
+  val romByte  = charRom.readAsync(romAddr)
+
+  // Bit 7 is the leftmost pixel; select via (7 - innerX).
+  val bitIdx   = (U(7, 3 bits) - innerX)
+  val fontBit  = romByte(bitIdx)
+
+  io.pixelIndex := Mux(fontBit, B(14, 4 bits), B(6, 4 bits))
+  io.pixelBank  := U(7, 3 bits)
 }

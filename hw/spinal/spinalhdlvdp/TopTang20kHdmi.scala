@@ -166,6 +166,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
         val d = C64DemoAnimator()
         d.io.vsyncRising        := vsyncRising
         d.io.rasterTriggerPulse := video.io.rasterTriggerPulse
+        // Task 40 v1.1 (Path D): feed the adapter the current L0 fetch
+        // coordinates so it can produce a C64-font / Pepto-palette pixel.
+        d.io.fetchLine          := video.io.layer0FetchLine
+        d.io.fetchPixelAddr     := video.io.layer0FetchPixelAddr
         Some(d)
       } else None
 
@@ -1027,8 +1031,16 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     fetch.io.pixelAddr        := video.io.layer0FetchPixelAddr
 
     // Route R4 pixel+bank+priority into VdpTop's L0 interface.
-    video.io.layer0SdramPixel    := fetch.io.pixelIndex
-    video.io.layer0SdramBank     := fetch.io.pixelPaletteBank
+    // Task 40 v1.1 Sc20 (Path D per CyanPeak #8294): the C64 demo animator
+    // overrides the SDRAM-fetch path to render authentic C64 glyphs with
+    // Pepto palette (Bank 7). Other scenarios keep the SDRAM-backed fetch.
+    if (scenarioId == 20) {
+      video.io.layer0SdramPixel    := c64Demo.get.io.pixelIndex
+      video.io.layer0SdramBank     := c64Demo.get.io.pixelBank
+    } else {
+      video.io.layer0SdramPixel    := fetch.io.pixelIndex
+      video.io.layer0SdramBank     := fetch.io.pixelPaletteBank
+    }
     video.io.layer0SdramPriority := fetch.io.pixelPriority
     // Sc31 uses on-chip BasicPatternSource so per-column scroll-table
     // offsets are visible (SDRAM fetch latches scroll once per line,

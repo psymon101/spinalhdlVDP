@@ -212,6 +212,29 @@ object TileAttributeAssets {
   //   - Planar 2bpp (indices 0..3): 4 distinct shades spanning the full range
   //   - Packed 4bpp (indices 0..15): same 4 shades at the low end + saturated
   //     color at the high end — visually busier than planar
+  // Task 40 v1.1 — Pepto palette (2001), 16 entries, circuitry-accurate
+  // VIC-II colors per Philip Timmermann's resistor-network model.
+  // Source: CyanPeak #8288 / #8294 (Path D ruling).
+  // Installed in Bank 7 only; banks 0..6 remain bit-identical to pre-Task-40.
+  val peptoPalette: Seq[BigInt] = Seq(
+    0x000000, // 0: Black
+    0xFFFFFF, // 1: White
+    0x68372B, // 2: Red
+    0x70A4B2, // 3: Cyan
+    0x6F3D86, // 4: Purple
+    0x588D43, // 5: Green
+    0x352879, // 6: Blue
+    0xB8C76F, // 7: Yellow
+    0x6F4F25, // 8: Orange
+    0x433900, // 9: Brown
+    0x9A6759, // 10: Light Red
+    0x444444, // 11: Dark Grey
+    0x6C6C6C, // 12: Grey
+    0x9AD284, // 13: Light Green
+    0x6C5EB5, // 14: Light Blue
+    0x959595  // 15: Light Grey
+  ).map(BigInt(_))
+
   private def ramp(bank: Int): Seq[BigInt] = (0 until PaletteEntries).map { i =>
     val t = math.min(i * 85, 255)   // 0, 85, 170, 255, 255, ..., 255
     bank match {
@@ -222,7 +245,7 @@ object TileAttributeAssets {
       case 4 => rgb(t, t, t)             // grayscale
       case 5 => rgb(t, t, 0)             // yellows
       case 6 => rgb(t, 0, t)             // magentas
-      case 7 => rgb(0, t, t)             // cyans
+      case 7 => peptoPalette(i)          // Task 40 v1.1: Pepto-2001 palette
       case _ => BigInt(0)
     }
   }
