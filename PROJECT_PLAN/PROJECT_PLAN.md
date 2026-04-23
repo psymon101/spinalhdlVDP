@@ -13,12 +13,13 @@
 4. `MODE0_STOPLINES.md` — quantified Tang Nano 20K growth limits for `Mode0`
 5. `MODE0_MAX_CAPABILITIES.md` — intended superset envelope for shared `Mode0` primitives
 6. `MODE0_COVERAGE_MATRIX.md` — current coverage state of the intended `Mode0` envelope
-7. `TASK_TEMPLATE.md` — reusable planning template for turning roadmap items into bounded execution tasks
-8. `TASKS.md` — authoritative execution order and task status
-9. `CONVENTIONS.md` — coding, naming, clock/reset, and simulation rules
-10. `PLATFORM.md` — board facts and validated hardware data
-11. `REPO_STRUCTURE.md` — where code and board assets live today
-12. `GLOSSARY.md` — project-specific term definitions
+7. `MODE0_HARDENING_BACKLOG.md` — prioritized shared-gap closure order before harder adapters
+8. `TASK_TEMPLATE.md` — reusable planning template for turning roadmap items into bounded execution tasks
+9. `TASKS.md` — authoritative execution order and task status
+10. `CONVENTIONS.md` — coding, naming, clock/reset, and simulation rules
+11. `PLATFORM.md` — board facts and validated hardware data
+12. `REPO_STRUCTURE.md` — where code and board assets live today
+13. `GLOSSARY.md` — project-specific term definitions
 
 If these documents disagree:
 
