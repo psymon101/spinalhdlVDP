@@ -775,12 +775,13 @@ case class VdpTop() extends Component {
   // are Reg-backed and bus-programmable via the Mode0 register block at
   // 0x0800..0x083F. See SpriteEvaluator.scala for the slot layout and
   // the word-0 / word-1 packing.
-  // Task 28 CP-C Option A (BronzeGate #7883): reduce descCount 32 → 8
-  // temporarily as a scale-related discriminator on Gowin. 4 legacy IO
-  // slots + 4 bus-programmable extended slots.
+  // Task 45 (BronzeGate #8189): restore sprite evaluator to full parametric
+  // defaults descCount=32, visiblePerLine=8 now that Task 44b has cleared and
+  // Gowin timing/resource reports show ample headroom. 4 legacy IO slots +
+  // 28 bus-programmable extended slots.
   val spriteEval = SpriteEvaluator(
-    descCount      = 8,
-    visiblePerLine = 4,
+    descCount      = 32,
+    visiblePerLine = 8,
     patternSelBits = 4,
     legacyIoCount  = 4)
   spriteEval.io.descX(0)          := io.sprite0X
@@ -800,15 +801,16 @@ case class VdpTop() extends Component {
   spriteEval.io.descEnabled(3)    := io.sprite3Enabled
   spriteEval.io.descPatternIdx(3) := io.sprite3PatternIdx.resize(4)
 
-  // Mode0RegBus decode for 0x0800..0x083F → evaluator bus-write port.
+  // Mode0RegBus decode for 0x0800..0x08FF → evaluator bus-write port.
   // Task 37 extended layout: 8 words per slot (word 0..7 = enable/pat/aff/y,
-  // x, matA, matB, matC, matD, transX, transY). 8 slots × 8 words = 64
-  // addresses (0x0800..0x083F). slot = subAddr[5:3], word = subAddr[2:0].
+  // x, matA, matB, matC, matD, transX, transY). Task 45 restores full scale:
+  // 32 slots × 8 words = 256 addresses (0x0800..0x08FF). slot = subAddr[7:3]
+  // (5 bits → 32 slots), word = subAddr[2:0] (unchanged).
   val spriteBusRangeHit = effWrite &&
     (effAddr >= U(0x0800, 15 bits)) &&
-    (effAddr <  U(0x0840, 15 bits))
-  val spriteBusSub = (effAddr - U(0x0800, 15 bits))(5 downto 0)
-  spriteEval.io.busSlot := spriteBusSub(5 downto 3).resize(spriteEval.descIdxBits)
+    (effAddr <  U(0x0900, 15 bits))
+  val spriteBusSub = (effAddr - U(0x0800, 15 bits))(7 downto 0)
+  spriteEval.io.busSlot := spriteBusSub(7 downto 3).resize(spriteEval.descIdxBits)
   spriteEval.io.busWord := spriteBusSub(2 downto 0).resize(spriteEval.busWordBits)
   spriteEval.io.busData := effData
   spriteEval.io.busWr   := spriteBusRangeHit
@@ -819,9 +821,10 @@ case class VdpTop() extends Component {
   // the next line begins drawing.
   spriteEval.io.evalLine  := (fillLine + 1).resize(10)
   // Scan start shifted earlier by descCount+margin so the sequential
-  // Pass-1 FSM completes before the line-fill swap. descCount=8 needs
-  // ~8 cycles; hTotal-33 is a comfortable margin.
-  spriteEval.io.evalStart := hCounter === U(hTotal - 33, log2Up(hTotal) bits)
+  // Pass-1 FSM completes before the line-fill swap. Task 45 descCount=32
+  // needs ~32 cycles; hTotal-45 gives a 13-cycle completion margin before
+  // the swap at hTotal-1 (476 ns at 25.2 MHz, well within hBlank=160).
+  spriteEval.io.evalStart := hCounter === U(hTotal - 45, log2Up(hTotal) bits)
   io.spriteOverflow := spriteEval.io.overflowFlag
 
   // Sprite pattern memories: 256 × 4-bit, power-of-two (GT-022 safe).
@@ -834,7 +837,7 @@ case class VdpTop() extends Component {
   // patternIndex is now 4 bits; the low bit selects pattern Mem 0 vs 1 for
   // this task. Wider pattern-Mem banks land in a future sprite-attribute
   // extension task (Task 37), so bits [3:1] are ignored here.
-  val NUM_SLOTS = 4   // Task 28 CP-C Option A: match reduced visiblePerLine
+  val NUM_SLOTS = 8   // Task 45: restored to match visiblePerLine=8
   val slotVisible = Vec(Bool(), NUM_SLOTS)
   val slotPixel   = Vec(Bits(4 bits), NUM_SLOTS)
   for (s <- 0 until NUM_SLOTS) {

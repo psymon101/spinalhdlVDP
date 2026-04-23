@@ -19,7 +19,7 @@ import spinal.core.sim._
   */
 object AffineSpriteSim extends App {
   Config.sim.compile(SpriteEvaluator(
-      descCount = 8, visiblePerLine = 4,
+      descCount = 32, visiblePerLine = 8,
       patternSelBits = 4, legacyIoCount = 4))
     .doSim { dut =>
       dut.clockDomain.forkStimulus(period = 10)
