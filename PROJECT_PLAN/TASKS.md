@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 40 DONE at `6e93888`; PM reassessment opens Task 25 artifact lane)
+**Updated:** 2026-04-23 (Task 25 artifact draft landed; awaiting CyanPeak audit)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **25 — Future Address/Data Bus Interface Definition** |
 | **Status** | **OPEN** |
-| **Phase** | artifact |
-| **Owner** | `CoralReef -> CyanPeak` |
-| **Latest Commit** | `463ce13` (PM reassessment: open Task 25 artifact lane) |
-| **Latest Auth Mail** | #8315 (BronzeGate PM reassessment opening Task 25 artifact lane) |
-| **Next Deliverable** | `CoralReef` artifact draft for Task 25 parallel bus interface definition |
+| **Phase** | audit |
+| **Owner** | `BronzeGate -> CyanPeak` |
+| **Latest Commit** | pending Task 25 artifact draft commit |
+| **Latest Auth Mail** | pending BronzeGate Task 25 artifact packet |
+| **Next Deliverable** | `CyanPeak` artifact audit for Task 25 parallel bus interface definition |
 | **Coding Authorized** | **NO** — definition/planning only
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_25_FUTURE_ADDRESS_DATA_BUS_INTERFACE_DEFINITION.md` (pending draft)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_25_FUTURE_ADDRESS_DATA_BUS_INTERFACE_DEFINITION.md` (v1.0-draft)
 
 Rules:
 - Only **one** lane may be live at a time.
