@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 48 DONE at `fd1c07d`; audit PASS #8227; Task 49 artifact lane open)
+**Updated:** 2026-04-23 (Task 49 artifact drafted, awaiting CyanPeak audit)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,12 +30,12 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | artifact |
 | **Owner** | CoralReef (artifact/ledger) -> CyanPeak (audit) |
-| **Latest Commit** | `fd1c07d` (Task 48 implementation/audit PASS; baseline for Task 49) |
-| **Latest Auth Mail** | #8227 (CyanPeak Task 48 implementation audit PASS) |
-| **Next Deliverable** | CoralReef Task 49 artifact draft for CyanPeak audit |
+| **Latest Commit** | `8c7da41` (ledger sync) + artifact draft in worktree |
+| **Latest Auth Mail** | #8232 (CoralReef ledger sync / Task 49 open) |
+| **Next Deliverable** | CyanPeak audit of Task 49 artifact draft |
 | **Coding Authorized** | **NO** — artifact and audit required before implementation |
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_49_BLITTER_CLASS_BLOCK_TRANSFER_ENGINE.md` (to be drafted)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_49_BLITTER_CLASS_BLOCK_TRANSFER_ENGINE.md` (drafted, v1.0)
 
 Rules:
 - Only **one** lane may be live at a time.
