@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 49 artifact PASS #8238; implementation authorized from `ef5d9c9`)
+**Updated:** 2026-04-23 (Task 49 DONE at `9c5f08d`; audit PASS #8248; substrate backlog complete)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 49 — Blitter-Class Block Transfer Engine** |
-| **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
-| **Owner** | BrightForge (implementation/proof) -> CyanPeak (audit) |
-| **Latest Commit** | `9c5f08d` (Task 49 implementation/proof packet) |
-| **Latest Auth Mail** | #8246 (BrightForge Task 49 implementation/proof packet) |
-| **Next Deliverable** | CyanPeak audit of `9c5f08d` |
-| **Coding Authorized** | **YES** — bounded to artifact `ef5d9c9` and CyanPeak audit notes #8238 |
+| **Task** | **None — substrate backlog complete** |
+| **Status** | **CLOSED** |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `9c5f08d` (Task 49 implementation/audit PASS) |
+| **Latest Auth Mail** | #8248 (CyanPeak Task 49 implementation audit PASS) |
+| **Next Deliverable** | PM reassessment of task order; Task 40 (First Platform Adapter) is deferred pending PM direction |
+| **Coding Authorized** | **NO** — no live lane |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_49_BLITTER_CLASS_BLOCK_TRANSFER_ENGINE.md` (v1.0, audit PASS)
 
@@ -1121,7 +1121,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 49 — Blitter-Class Block Transfer Engine
 
-**Status:** IN-PROGRESS — artifact PASS #8238; implementation authorized against `ef5d9c9`
+**Status:** DONE — implementation PASS #8248 at commit `9c5f08d`
 **depends_on:** [47, 41]
 **scope_boundary:** Block-transfer engine only. No full platform adapter, no CPU-side software renderer.
 **delivers:**
