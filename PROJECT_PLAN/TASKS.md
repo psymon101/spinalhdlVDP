@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 46 closed / #8204; Task 47 artifact lane open)
+**Updated:** 2026-04-23 (Task 47 implementation authorized / #8210)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 47 — DMA-Style Transfer Primitive** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | audit |
-| **Owner** | CoralReef (artifact/ledger) → CyanPeak (audit) |
-| **Latest Commit** | `fde62be` (Task 47 artifact draft / #8207; phase → audit) |
-| **Latest Auth Mail** | #8207 (CoralReef artifact draft: Task 47 DMA-Style Transfer Primitive) |
-| **Next Deliverable** | CyanPeak audit ruling (PASS / HOLD / FAIL) on artifact #8207 |
-| **Coding Authorized** | **NO** — Task 47 implementation waits for artifact, audit, and PM authorization |
+| **Phase** | implement |
+| **Owner** | BrightForge (implementation/proof) → CyanPeak (audit) |
+| **Latest Commit** | `46cf9ca` (Task 47 artifact routed to audit) |
+| **Latest Auth Mail** | #8210 (BronzeGate PM authorization after CyanPeak artifact PASS #8208) |
+| **Next Deliverable** | BrightForge Task 47 implementation/proof packet |
+| **Coding Authorized** | **YES** — bounded to artifact #8207 and CyanPeak audit notes #8208 |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_47_DMA_STYLE_TRANSFER_PRIMITIVE.md` (v1.0-draft)
 
@@ -1089,7 +1089,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 47 — DMA-Style Transfer Primitive
 
-**Status:** IN-PROGRESS — artifact lane opened by Task 46 closeout / #8204
+**Status:** IN-PROGRESS — implementation authorized by #8210
 **depends_on:** [30, 32b, 39]
 **scope_boundary:** Block-transfer primitive only. No blitter raster ops, no platform-specific DMA command sets.
 **delivers:**
