@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 40 — First Platform Adapter (C64 Raster+Sprite Smoke)** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact/ledger) -> CyanPeak (audit) |
-| **Latest Commit** | `7047497` (Task 40 artifact draft v1.0) |
-| **Latest Auth Mail** | #8257 (CyanPeak Task 40 artifact audit PASS) |
-| **Next Deliverable** | BrightForge Task 40 implementation/proof packet for CyanPeak audit |
-| **Coding Authorized** | **YES** — bounded to artifact `7047497` and CyanPeak audit notes #8257 |
+| **Phase** | implement |
+| **Owner** | BrightForge (implementation delivered) -> CyanPeak (audit pending scope clarification) |
+| **Latest Commit** | `656288d` (Task 40 implementation/proof packet) |
+| **Latest Auth Mail** | #8267 (BronzeGate scope blocker — proof landed, acceptance target pending CyanPeak clarification on #8263/#8264) |
+| **Next Deliverable** | CyanPeak clarification: are #8263/#8264 future criteria or immediate Task 40 scope changes? |
+| **Coding Authorized** | **YES** — bounded to artifact `7047497`; do NOT widen scope per BronzeGate #8265/#8267 |
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_49_BLITTER_CLASS_BLOCK_TRANSFER_ENGINE.md` (v1.0, audit PASS)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_40_FIRST_PLATFORM_ADAPTER.md` (v1.0, audit PASS)
 
 Rules:
 - Only **one** lane may be live at a time.
