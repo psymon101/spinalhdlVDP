@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 49 artifact drafted, awaiting CyanPeak audit)
+**Updated:** 2026-04-23 (Task 49 artifact PASS #8238; implementation authorized from `ef5d9c9`)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 49 — Blitter-Class Block Transfer Engine** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact/ledger) -> CyanPeak (audit) |
-| **Latest Commit** | `8c7da41` (ledger sync) + artifact draft in worktree |
-| **Latest Auth Mail** | #8232 (CoralReef ledger sync / Task 49 open) |
-| **Next Deliverable** | CyanPeak audit of Task 49 artifact draft |
-| **Coding Authorized** | **NO** — artifact and audit required before implementation |
+| **Phase** | implement |
+| **Owner** | BrightForge (implementation/proof) -> CyanPeak (audit) |
+| **Latest Commit** | `ef5d9c9` (Task 49 artifact draft v1.0) |
+| **Latest Auth Mail** | #8238 (CyanPeak Task 49 artifact audit PASS) |
+| **Next Deliverable** | BrightForge Task 49 implementation/proof packet for CyanPeak audit |
+| **Coding Authorized** | **YES** — bounded to artifact `ef5d9c9` and CyanPeak audit notes #8238 |
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_49_BLITTER_CLASS_BLOCK_TRANSFER_ENGINE.md` (drafted, v1.0)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_49_BLITTER_CLASS_BLOCK_TRANSFER_ENGINE.md` (v1.0, audit PASS)
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -1121,7 +1121,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 49 — Blitter-Class Block Transfer Engine
 
-**Status:** IN-PROGRESS — artifact lane open
+**Status:** IN-PROGRESS — artifact PASS #8238; implementation authorized against `ef5d9c9`
 **depends_on:** [47, 41]
 **scope_boundary:** Block-transfer engine only. No full platform adapter, no CPU-side software renderer.
 **delivers:**
