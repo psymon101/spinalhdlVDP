@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 49 DONE at `9c5f08d`; audit PASS #8248; substrate backlog complete)
+**Updated:** 2026-04-23 (Task 40 DONE at `6e93888`; audit PASS #8298; no live lane)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 40 — First Platform Adapter (C64 Raster+Sprite Smoke)** |
-| **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
-| **Owner** | BrightForge (implementation/proof) -> CyanPeak (audit) |
-| **Latest Commit** | `656288d` (Task 40 implementation/proof packet) |
-| **Latest Auth Mail** | #8291 (BrightForge scope question — asset integration path A/B/C/D pending PM/audit ruling) |
-| **Next Deliverable** | BronzeGate/CyanPeak ruling on asset integration path (A/B/C/D) before BrightForge can proceed |
-| **Coding Authorized** | **YES** — bounded to artifact v1.1 `3f6f25a` and CyanPeak audit PASS #8279
+| **Task** | **None — Task 40 complete** |
+| **Status** | **CLOSED** |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | `81b809a` (Task 40 v1.1 artifact §7 amendment) / `6e93888` (implementation/audit PASS) |
+| **Latest Auth Mail** | #8298 (CyanPeak Task 40 v1.1 implementation audit PASS) |
+| **Next Deliverable** | PM reassessment of task order; no other active lanes |
+| **Coding Authorized** | **NO** — no live lane
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_40_FIRST_PLATFORM_ADAPTER.md` (v1.1, updated per #8272)
 
@@ -918,7 +918,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 
 ### Task 40 — First Platform Adapter (C64 Raster+Sprite Smoke)
 
-**Status:** IN-PROGRESS — artifact PASS #8257; implementation authorized against `7047497`
+**Status:** DONE — implementation PASS #8298 at commit `6e93888`; artifact §7 amended at `81b809a`
 **depends_on:** [29, 30, 39, 44]
 **scope_boundary:** Deferred platform-specific proof only. Do not open until broad Mode0 substrate tasks are complete enough to support multiple adapters. No cycle-accurate emulation claim. No additional platforms.
 **delivers:**
