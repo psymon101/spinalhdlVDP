@@ -30,8 +30,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **OPEN** |
 | **Phase** | audit |
 | **Owner** | `BronzeGate -> CyanPeak` |
-| **Latest Commit** | pending Task 25 artifact draft commit |
-| **Latest Auth Mail** | pending BronzeGate Task 25 artifact packet |
+| **Latest Commit** | `5fb86d8` (Task 25 artifact draft for future address/data bus interface) |
+| **Latest Auth Mail** | #8321 (BronzeGate Task 25 artifact draft packet; routed to CyanPeak audit) |
 | **Next Deliverable** | `CyanPeak` artifact audit for Task 25 parallel bus interface definition |
 | **Coding Authorized** | **NO** — definition/planning only
 
