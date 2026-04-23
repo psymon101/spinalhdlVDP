@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 48 — Four-Layer Compositor Expansion** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | artifact |
+| **Phase** | artifact-complete, awaiting audit |
 | **Owner** | CoralReef (artifact/ledger) -> CyanPeak (audit) |
 | **Latest Commit** | `706ede2` (Task 47 implementation closed by CyanPeak audit PASS #8214) |
 | **Latest Auth Mail** | #8214 (CyanPeak Task 47 implementation audit PASS) |
-| **Next Deliverable** | CoralReef Task 48 artifact draft for CyanPeak audit |
+| **Next Deliverable** | CyanPeak artifact audit PASS / HOLD / FAIL |
 | **Coding Authorized** | **NO** — implementation remains closed until Task 48 artifact audit and PM authorization |
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_48_FOUR_LAYER_COMPOSITOR_EXPANSION.md` (to be drafted)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_48_FOUR_LAYER_COMPOSITOR_EXPANSION.md` (drafted, v1.0)
 
 Rules:
 - Only **one** lane may be live at a time.
