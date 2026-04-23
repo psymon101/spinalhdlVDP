@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Task 46 implementation authorized / #8198)
+**Updated:** 2026-04-23 (Task 46 implementation commit present; proof packet pending)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement |
 | **Owner** | BrightForge (implementation/proof) → CyanPeak (audit) |
-| **Latest Commit** | `32f3e29` (Task 46 implementation authorization ledger sync) |
+| **Latest Commit** | `90065fc` (Task 46 implementation commit present; proof packet pending) |
 | **Latest Auth Mail** | #8198 (BronzeGate PM authorization after CyanPeak artifact PASS #8197) |
-| **Next Deliverable** | BrightForge Task 46 implementation/proof packet |
+| **Next Deliverable** | BrightForge Task 46 implementation/proof packet with required validation evidence |
 | **Coding Authorized** | **YES** — bounded to artifact #8195 and CyanPeak audit notes #8197 |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_46_VSCROLL_TABLE_PRIMITIVE.md` (v1.0-draft)
