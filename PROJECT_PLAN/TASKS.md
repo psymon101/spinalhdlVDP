@@ -30,12 +30,12 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | artifact |
 | **Owner** | CoralReef (artifact/ledger) → CyanPeak (audit) |
-| **Latest Commit** | `9aba5fb` (Task 45 implementation closure point; evidence #8190; audit PASS #8191) |
-| **Latest Auth Mail** | #8193 (BronzeGate PM closeout: Task 45 PASS; open Task 46 artifact lane) |
-| **Next Deliverable** | Task 46 artifact draft or existing artifact-path identification for reusable V-scroll table primitive |
+| **Latest Commit** | `56510c2` (Task 45 closure / Task 46 open) |
+| **Latest Auth Mail** | #8195 (CoralReef artifact draft: Task 46 V-Scroll Table Primitive) |
+| **Next Deliverable** | CyanPeak audit ruling (PASS / HOLD / FAIL) on artifact #8195 |
 | **Coding Authorized** | **NO** — Task 46 implementation waits for artifact, audit, and PM authorization |
 
-**Artifact file:** TBD — Task 46 artifact draft pending
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_46_VSCROLL_TABLE_PRIMITIVE.md` (v1.0-draft)
 
 Rules:
 - Only **one** lane may be live at a time.
