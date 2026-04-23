@@ -29,11 +29,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 44b — Bitmap SDRAM Fetch + Upload Path** |
 | **Status** | **IN-PROGRESS** |
 | **Phase** | capture |
-| **Owner** | BrightForge (direct Sc45 capture retry) → CyanPeak (audit) |
+| **Owner** | BrightForge (webcam waiver evidence package) → CyanPeak (audit) |
 | **Latest Commit** | `8c03feb` (iter-6i-r1 DRIVE=16-only CST probe; Sc45 direct capture still rejected) |
-| **Latest Auth Mail** | #8172 (BronzeGate PM route: user fixed capture card; retry Sc45 direct Guermok capture before waiver) |
-| **Next Deliverable** | BrightForge direct Sc45 capture/analyze packet on current iter-6i-r1 bitstream, comparing against prior `mean=7` rejection |
-| **Coding Authorized** | **NO** — no RTL/CST edits; direct capture retry only |
+| **Latest Auth Mail** | #8175 (CyanPeak ACK: Sc45 retry still rejected; Infrastructure Waiver Path re-active) |
+| **Next Deliverable** | BrightForge waiver evidence package per #8168: webcam master capture, canary validation, pattern stability, bitstream md5, analyze.py on webcam footage |
+| **Coding Authorized** | **NO** — no RTL/CST edits; webcam waiver evidence only |
 
 **Artifact file:** `PROJECT_PLAN/TASK_44B_BITMAP_SDRAM_FETCH.md`
 
