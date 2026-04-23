@@ -3,8 +3,8 @@
 **Artifact version:** 1.0-draft  
 **Author:** CoralReef  
 **Date:** 2026-04-23  
-**Status:** Awaiting CyanPeak audit  
-**Coding authorized:** NO — implementation waits for artifact audit PASS + PM authorization  
+**Status:** Audit PASS (#8187); implementation authorized (#8189)  
+**Coding authorized:** YES — BrightForge implementation/proof lane authorized by BronzeGate #8189  
 
 ---
 

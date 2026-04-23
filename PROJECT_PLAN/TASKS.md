@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 45 — Sprite Capacity Hardening** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | audit |
-| **Owner** | CoralReef (artifact/ledger) → CyanPeak (audit) |
-| **Latest Commit** | `8c03feb` (Task 44b implementation closure point; evidence #8179; audit PASS #8183) |
-| **Latest Auth Mail** | #8186 (CoralReef artifact draft: Task 45 Sprite Capacity Hardening) |
-| **Next Deliverable** | CyanPeak audit ruling (PASS / HOLD / FAIL) on artifact #8186 |
-| **Coding Authorized** | **NO** — Task 45 implementation waits for artifact, audit, and PM authorization |
+| **Phase** | implement |
+| **Owner** | BrightForge (implementation/proof) → CyanPeak (audit) |
+| **Latest Commit** | `613eb75` (Task 45 artifact draft / #8186; audit PASS #8187) |
+| **Latest Auth Mail** | #8189 (BronzeGate PM authorization: Task 45 implementation) |
+| **Next Deliverable** | BrightForge implementation/proof packet for audited Task 45 scope |
+| **Coding Authorized** | **YES** — bounded to #8186/#8187/#8189 Task 45 scope |
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_45_SPRITE_CAPACITY_HARDENING.md` (v1.0-draft)
 
@@ -1056,7 +1056,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 45 — Sprite Capacity Hardening
 
-**Status:** IN-PROGRESS — artifact lane opened by #8184
+**Status:** IN-PROGRESS — implementation authorized by #8189
 **depends_on:** [28, 29]
 **scope_boundary:** Sprite storage and evaluator scale only. No platform-exact OAM maps, no new compositor layers.
 **delivers:**
