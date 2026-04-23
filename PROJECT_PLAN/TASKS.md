@@ -30,7 +30,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement |
 | **Owner** | BrightForge (implementation/proof) → CyanPeak (audit) |
-| **Latest Commit** | `2c1c289` (Task 46 artifact routed to audit) |
+| **Latest Commit** | `32f3e29` (Task 46 implementation authorization ledger sync) |
 | **Latest Auth Mail** | #8198 (BronzeGate PM authorization after CyanPeak artifact PASS #8197) |
 | **Next Deliverable** | BrightForge Task 46 implementation/proof packet |
 | **Coding Authorized** | **YES** — bounded to artifact #8195 and CyanPeak audit notes #8197 |
