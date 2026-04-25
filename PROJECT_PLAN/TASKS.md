@@ -27,12 +27,12 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Mode0 Sprite Envelope Hardening — Implementation** |
-| **Status** | **IN-PROGRESS** |
+| **Status** | **IMPLEMENTATION LANDED — partial deferrals; awaiting CyanPeak audit** |
 | **Phase** | implement |
 | **Owner** | BrightForge |
-| **Latest Commit** | `119d61c` (Stage A: evaluator + 5 new fields) |
-| **Latest Auth Mail** | #8577 (CyanPeak: assessment PASS; implementation authorized) |
-| **Next Deliverable** | BrightForge Stage B (visiblePerLine 8→32 + compositor priority/palette + pattern fetch flip/size) |
+| **Latest Commit** | `d44a9c0` (fit-in-fabric: flipH/V + sizeSel + priority landed; visiblePerLine 32→8 reverted; paletteBank compositor reverted to const) |
+| **Latest Auth Mail** | #8587 (BrightForge completion packet) |
+| **Next Deliverable** | CyanPeak audit of `bc6f5d4..d44a9c0` |
 | **Coding Authorized** | **YES** — CyanPeak #8577
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_SPRITE_ENVELOPE_HARDENING.md` (v1.0-draft)

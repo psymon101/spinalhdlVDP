@@ -3,7 +3,7 @@
 **Artifact version:** 1.0-draft  
 **Author:** CoralReef  
 **Date:** 2026-04-25  
-**Status:** assessment PASS #8577 — implementation phase open  
+**Status:** implementation landed #8587 — partial deferrals; awaiting CyanPeak audit  
 **Coding authorized:** YES — CyanPeak #8577
 
 ---
@@ -16,8 +16,8 @@
 | S-2 | Descriptor field extension assessment (size, flip, priority, palette) | `31e3de0` | PASS #8577 | 5 shared fields identified; 2 adapter-local |
 | S-3 | Evaluator capacity / visible-per-line scaling analysis | `31e3de0` | PASS #8577 | 8→32 recommended; architecture sound |
 | S-4 | Stop-line-aware recommendation for any growth | `31e3de0` | PASS #8577 | +~900 LUT / +~1,200 FF; stays green zone |
-| S-5a | Sprite Descriptor Extension — Stage A (evaluator + 5 new fields) | `119d61c` | **pending audit** | 12/12 sim PASS; VdpTopSim regression PASS; back-compat verified |
-| S-5b | Sprite Descriptor Extension — Stage B (visiblePerLine 8→32 + compositor priority/palette + pattern fetch flip/size) | — | **pending** | Next sub-slice |
+| S-5a | Sprite Descriptor Extension — Stage A (evaluator + 5 new fields) | `119d61c` | PASS #8583 | 12/12 sim PASS; VdpTopSim regression PASS; back-compat verified |
+| S-5b | Sprite Descriptor Extension — Stage B (visiblePerLine 8→32 + compositor priority/palette + pattern fetch flip/size) | `d44a9c0` | **pending audit** | flipH/V ✓, sizeSel ✓, priority ✓ landed; paletteBank compositor wiring reverted (timing); visiblePerLine 32→8 reverted (resource); 0 setup/0 hold build clean |
 
 ---
 
@@ -92,19 +92,22 @@ This task answers:
 | `matrixA/B/C/D` | 16 bits each | Q8.8 signed affine matrix |
 | `transX/transY` | 16 bits each | Q10.6 signed translation |
 
-**Notable absences** (no explicit fields for):
-- horizontal/vertical flip
-- per-sprite palette bank selection
-- sprite size (assumed 16×16 fixed; evaluator uses `y+16` range)
-- per-sprite priority level (evaluator does Y-sort then slot assignment)
+**Fields added in Stage A/B** (now present in descriptor + evaluator):
+- `flipH`, `flipV` — consumed in pattern fetch
+- `paletteBank` — stored, exposed via `io.activePaletteBank`, but **compositor uses bank 0** (timing revert in `d44a9c0`)
+- `sizeSel` — consumed in evaluator Y-range and pattern hitbox
+- `priority` — consumed in compositor merge logic
+
+**Remaining absences**:
 - sprite-to-sprite collision masking / category bits
+- visiblePerLine remains at 8 (32 deferred for resource reasons)
 
 ### 4.2 Evaluator Parameters (`SpriteEvaluator.scala`)
 
 | Parameter | Current Value | Configurable? |
 |---|---|---|
 | `descCount` | 32 | Parameter (constructor arg) |
-| `visiblePerLine` | 8 | Parameter (constructor arg) |
+| `visiblePerLine` | 8 (32 attempted, reverted) | Parameter (constructor arg) |
 | `patternSelBits` | 4 | Parameter (constructor arg) |
 | `legacyIoCount` | 4 | Parameter (constructor arg) |
 
