@@ -1207,7 +1207,7 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 
 ### HDMI Output Compatibility (Option A)
 
-**Status:** IN-PROGRESS — D-B1-L authorized
+**Status:** IN-PROGRESS — D-B1-L partial proof landed, P-2 authorized by audit
 **PM authority:** BronzeGate #8505
 **Audit owner:** CyanPeak
 
@@ -1230,19 +1230,24 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 | D-A | VdpTop test-pattern under 720p shell (clock-enable @ 74.25 MHz) | `7f8e46d` | Timing: 8,873 setup violations, TNS −27.5 µs, worst slack −20.7 ns on `vCounter → lineBuf/DI` | Closed as BLOCKED. Proves VdpTop cannot run at 74.25 MHz without substrate pipelining. |
 | D-B1-A | Synthetic SDRAM frame-buffer proof | — | SDRAM controller sustained write bandwidth ~13 MB/s; full-frame write exceeds budget by ~3× | Closed as BLOCKED before implementation. BrightForge #8504. BronzeGate #8505. |
 
-**Authorized next slice:**
-- **D-B1-L** — Dual-clock line-buffer CDC proof: native-rate synthetic writer → dual-clock BRAM line buffer / FIFO seam → 720p reader + proven centered presentation bridge. No SDRAM frame buffer. No VdpTop changes. (BronzeGate #8505)
+**Active slice:**
+- **D-B1-L** — Dual-clock line-buffer CDC proof. BrightForge partial proof at `aee6a80`: CDC seam works, 0 timing violations, but single-pixel FIFO underruns at 74.25 MHz pop rate. CyanPeak #8516 audit PASS for **Option P-2 (3-pixel wide-FIFO pack)** as path forward. BrightForge implementing P-2 now.
 
 **Planning artifacts:**
 - CoralReef #8500: D-B planning packet (options D-B1 SDRAM frame buffer, D-B2 pipelining, D-B3 480p fallback)
 - CyanPeak #8501: D-B planning audit PASS; D-B1 strategy approved, D-B2 rejected, D-B1-A implementation authorized
+- CoralReef #8502: SDRAM arbiter / CDC topology recon
+- CoralReef #8507: CDC/line-buffer research for D-B1-L implementation
 
 **Paused dependencies:**
 - Fun-demo F2 QSPI-burst investigation paused at `e0f8078`
+- Fun-demo preload animation research parked as research-only per BronzeGate #8514. CoralReef #8517 delivered.
 
 **Key research:**
 - CoralReef #8475: PLL path, serializer headroom, bridge mode, proof scenarios
 - CoralReef #8502: SDRAM arbiter interface recon, CDC topology analysis
+- CoralReef #8510: Host bus feasibility, shapes, Pico abstraction, risks
+- CoralReef #8517: Preload animation storage math, playback architecture, risks
 
 ---
 
