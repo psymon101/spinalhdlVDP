@@ -900,13 +900,15 @@ case class VdpTop() extends Component {
   // 28 bus-programmable extended slots.
   val spriteEval = SpriteEvaluator(
     descCount      = 32,
-    // Sprite Envelope Hardening B-1 (CyanPeak #8577) fallback per assessment
-    // §9.3: visiblePerLine=32 exceeds the GW2AR-18 logic budget (51 k of 20.7 k
-    // available — replicated AffineSteppers + pattern-Mem read ports). 16
-    // slots cover Genesis-class (20/line, with overflow flag for honest
-    // visibility) and partial SNES. Promotion to 32 needs an Affine-share
-    // refactor or a separate-engine architecture, both out of #8577 scope.
-    visiblePerLine = 16,
+    // Sprite Envelope Hardening B-1 (CyanPeak #8577) — TIMING-BLOCKED
+    // capacity bump. 32 blew the logic budget (51 k of 20.7 k); 16 ran
+    // 1.06× over (21.9 k); 12 fit resource but missed timing by 2 ns
+    // on vCounter→lineBuf paths (15 violations, TNS −25.9 ns). The 5
+    // new descriptor fields land at the original 8/line capacity so
+    // they can be used by adapters — capacity bump is parked for a
+    // follow-on slice that pipelines the compositor merge or shares
+    // the per-slot AffineStepper. Out of #8577 scope.
+    visiblePerLine = 8,
     patternSelBits = 4,
     legacyIoCount  = 4)
   spriteEval.io.descX(0)          := io.sprite0X
@@ -978,7 +980,7 @@ case class VdpTop() extends Component {
   // patternIndex is now 4 bits; the low bit selects pattern Mem 0 vs 1 for
   // this task. Wider pattern-Mem banks land in a future sprite-attribute
   // extension task (Task 37), so bits [3:1] are ignored here.
-  val NUM_SLOTS = 16  // Sprite Envelope Hardening B-1 fallback: matches visiblePerLine=16
+  val NUM_SLOTS = 8   // Sprite Envelope Hardening B-1: capacity bump parked, fields-only landing
   val slotVisible = Vec(Bool(), NUM_SLOTS)
   val slotPixel   = Vec(Bits(4 bits), NUM_SLOTS)
   for (s <- 0 until NUM_SLOTS) {
@@ -1082,7 +1084,14 @@ case class VdpTop() extends Component {
                      (spriteEval.io.activePriority(s) || !bgOpaque)
     when(showSprite) {
       fillIdx    := slotPixel(s)
-      fillBank   := spriteEval.io.activePaletteBank(s)
+      // Sprite Envelope Hardening B-4 (per-sprite paletteBank) was deferred
+      // for #8577 to keep timing closure on the existing fabric: the 3-bit
+      // last-hit-wins mux through 8 slots blew the vCounter→lineBuf path
+      // by ~2.7 ns. The field IS stored and exposed via
+      // `spriteEval.io.activePaletteBank` so adapters can probe it; the
+      // compositor uses bank 0 until a follow-on slice pipelines this
+      // merge.
+      fillBank   := U(0, 3 bits)
       fillSource := U(PixelMetadata.SourceSprite, 3 bits)
     }
   }
