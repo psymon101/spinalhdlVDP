@@ -71,3 +71,32 @@ flash-720p-proof: $(PROOF_BITSTREAM)
 
 clean-720p-proof:
 	rm -rf $(PROOF_BUILD_DIR)
+
+# ---------------------------------------------------------------------------
+# BronzeGate #8486 Slice C — 720p centered-640×480 bridge proof.
+# ---------------------------------------------------------------------------
+BRIDGE_BUILD_DIR := impl_720p_bridge
+BRIDGE_TCL       := build_hdmi720p_bridge.tcl
+BRIDGE_BITSTREAM := $(BRIDGE_BUILD_DIR)/pnr/project.fs
+BRIDGE_GEN       := spinalhdlvdp.Hdmi720pBridgeProofTopVerilog
+
+.PHONY: gen-720p-bridge prog-720p-bridge flash-720p-bridge clean-720p-bridge 720p-bridge
+
+gen-720p-bridge:
+	$(SBT) "runMain $(BRIDGE_GEN)"
+
+$(BRIDGE_BITSTREAM): gen-720p-bridge $(BRIDGE_TCL) tang20k_hdmi720p_bridge.cst tang20k_hdmi720p_bridge.sdc
+	rm -rf $(BUILD_DIR) $(BRIDGE_BUILD_DIR)
+	$(GW_ENV) $(GW_SH) $(BRIDGE_TCL)
+	mv $(BUILD_DIR) $(BRIDGE_BUILD_DIR)
+
+720p-bridge: $(BRIDGE_BITSTREAM)
+
+prog-720p-bridge: $(BRIDGE_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) --bitstream $(BRIDGE_BITSTREAM)
+
+flash-720p-bridge: $(BRIDGE_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) -f --verify $(BRIDGE_BITSTREAM)
+
+clean-720p-bridge:
+	rm -rf $(BRIDGE_BUILD_DIR)
