@@ -120,7 +120,7 @@ This assessment evaluates three shared `Mode0` primitives against their intended
 
 | Component | Evidence | Status |
 |---|---|---|
-| Copper coprocessor (512×16 RAM, WAIT/WRITE/WRITE_SEQ/JUMP) | `Copper.scala` (R5) | DONE |
+| Copper coprocessor (512×16 RAM, WAIT/WRITE/WRITE_SEQ/JUMP) | `Copper.scala` (R5) | DONE; JUMP unconditional only; SKIP missing |
 | HDMA engine (4 channels × 8 entries) | `Copper.scala` (Task 33) | DONE |
 | Raster trigger unit (single trigger) | `RasterTriggerUnit.scala` (R1) | DONE |
 | IRQ/status bank (raster, sprite overflow, DMA, blit) | `VdpTop.scala:1165–1218` (Task 35) | DONE |
@@ -170,7 +170,7 @@ This assessment evaluates three shared `Mode0` primitives against their intended
 |---|---|---|---|
 | C64 | Constrained 16-color; no runtime RAM needed for basic | None | Raster splits (basic; current RasterTrigger sufficient) |
 | NES | 4 palettes × 8 sprites; needs runtime RAM | None | None |
-| Genesis | Shadow/highlight; 4 sprite palettes; runtime RAM | 2 windows + sprite window | H-int per-line updates (current HDMA sufficient) |
+| Genesis | Shadow/highlight; 4 shared palette lines; runtime RAM | 2 windows + sprite window | H-int per-line updates (current HDMA sufficient) |
 | SNES | Color math between layers; 8 sprite palettes; runtime RAM | 2 windows + combinations + per-layer masking | HDMA indirect; multiple IRQ types |
 | Amiga | 32-color (OCS); Copper palette cycling | None | Pixel-precision Copper WAIT; Copper blitter sync |
 | Atari ST | 16-color (low-res); palette at vsync | None | Raster bars (line-only WAIT sufficient) |

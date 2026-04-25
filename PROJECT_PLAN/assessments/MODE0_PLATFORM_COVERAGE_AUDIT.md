@@ -95,8 +95,8 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 ### Hardware Summary
 - Resolution: 320×224 (NTSC) / 320×240 (PAL)
 - Background: 2 tile layers (A, B), 1 plane (W), per-tile priority
-- Sprites: 80 sprites/line, 16×16 to 32×32, 4 palettes, priority bit
-- Colors: 61-color master palette, 4 palettes × 16 colors, shadow/highlight
+- Sprites: 80 sprites total, 20/line (H40/320px) or 16/line (H32/256px), sizes 8×8 to 32×32, priority bit
+- Colors: 64 9-bit CRAM entries = 4 palette lines × 16 colors (shared BG+sprite), shadow/highlight
 - Window: 2 windows + sprite window, per-layer masking
 - Beam-driven: H-int (horizontal interrupt), V-int, per-line scroll tables
 
@@ -109,9 +109,9 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 | Window plane (W) | Usable | Gap | Single window only; no per-layer masking |
 | Per-tile priority | Strong | None | L0 priority bit from SDRAM path |
 | Per-line scroll tables | Strong | None | `LinestateStore` supports this |
-| 80 sprites/line | Usable | Gap | `visiblePerLine=32` after Stage B; still short of 80 |
+| 80 sprites total, 20/line | Strong | None | `visiblePerLine=32` exceeds Genesis 20/line limit |
 | Sprite sizes 8–32 | Strong | None | `sizeSel` covers 8/16/32/64 |
-| Sprite 4 palettes | Strong | Gap | Sprite palette bank wired but unused |
+| Sprite 4 palette lines | Strong | Gap | Sprite palette bank wired but unused; Genesis shares 4 palettes between BG+sprites |
 | Sprite priority bit | Usable | Gap | Compositor ignores `activePriority` |
 | Shadow/highlight | Usable | Gap | ColorMath has shadow but no highlight |
 | 2 windows + sprite window | Gap | Gap | Only 1 window; cannot mask sprites |
@@ -119,14 +119,14 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 | H-int per-line | Usable | None | HDMA + RasterTrigger sufficient |
 
 ### Gaps
-1. **Sprite visiblePerLine=32 vs 80**: Genesis allows 80 sprites/line. Mode0 will have 32 after Stage B. This is a hard stop-line gap.
+1. ~~Sprite visiblePerLine=32 vs 80~~ **CORRECTION**: Genesis allows 80 sprites total, but only 20 per scanline (H40 mode). Mode0's `visiblePerLine=32` already exceeds this. **No gap here.**
 2. **Sprite palette bank unused**: Genesis needs 4 sprite palettes. Currently forced to bank 0.
 3. **Sprite priority bit unused**: Genesis uses per-sprite priority for sprite-vs-sprite and sprite-vs-BG ordering.
 4. **Shadow/highlight incomplete**: ColorMath has shadow but no highlight mode.
 5. **Window insufficient**: Genesis needs 2 windows + sprite window + per-layer masking + combinations.
 
 ### Verdict
-**USABLE with gaps.** Honest Genesis adapter needs Color/Window Hardening + sprite priority/palette plumbing. The 80 sprite/line limit is a hard gap requiring PM decision on whether to expand beyond 32.
+**USABLE with gaps.** Honest Genesis adapter needs Color/Window Hardening + sprite priority/palette plumbing. Sprite count is **not** a gap — Mode0 already exceeds Genesis per-line limits.
 
 ---
 
@@ -176,7 +176,7 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 ### Hardware Summary
 - Resolution: 320×200 to 320×400 (interlaced)
 - Background: 1–6 bitplanes (2–64 colors), HAM mode (4096 colors)
-- Sprites: 8 hardware sprites, 16×16, 3 colors + transparent, attach for 15 colors
+- Sprites: 8 hardware sprite engines (max 8/line), 16×wide × any height, 3 colors + transparent, attach for 15 colors
 - Colors: 32-color palette (OCS), 64-color (ECS), 4096 (HAM)
 - Beam-driven: Copper (pixel-precision), blitter synchronization
 - No window/mask system
@@ -191,15 +191,16 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 | 8 sprites | Strong | None | 32 slots available |
 | Sprite attach (15 colors) | Usable | Gap | No attach mechanism; could emulate with descriptor pairing |
 | 32/64-color palette | Strong | None | 128-entry palette covers this |
-| Copper pixel-precision | Gap | Gap | Copper WAIT is line-only |
-| Copper blitter sync | Gap | Gap | No beam-driven DMA/blitter trigger |
+| Copper pixel-precision (WAIT X,Y) | Gap | Gap | Copper WAIT is line-only |
+| Copper SKIP instruction | Gap | Gap | Mode0 Copper lacks conditional SKIP |
 | Display resolution switching | Usable | None | Mode0 output scaler handles this |
 
 ### Gaps
 1. **Bitplane architecture**: Mode0 is fundamentally tile-based with SDRAM tile fetch. Amiga is bitplane-based with direct DMA from chip RAM. This is an architectural mismatch.
 2. **HAM mode**: Requires 6 bitplanes and hold-and-modify logic. Not feasible with current tile-based substrate.
-3. **Copper pixel-precision**: WAIT is line-only; Amiga Copper does pixel-precision WAIT.
-4. **Copper blitter sync**: No beam-driven blitter trigger.
+3. **Copper pixel-precision**: WAIT is line-only; Amiga Copper does pixel-precision WAIT (X,Y).
+4. **Copper SKIP**: Mode0 Copper lacks the SKIP instruction (conditional skip based on beam position).
+5. **Copper blitter sync**: No beam-driven DMA/blitter trigger.
 
 ### Verdict
 **GAP — architectural mismatch.** Honest Amiga adapter requires either a bitplane fetch mode (new substrate primitive) or a translation layer that maps Amiga bitplanes to Mode0 tiles. The latter is possible but not trivial. Pixel-precision Copper and blitter sync are secondary to the bitplane gap.
@@ -214,7 +215,8 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 - Resolution: 320×200 (low), 640×200 (med), 640×400 (high)
 - Background: Bitplane-based (2–4 bitplanes), no tiles
 - Sprites: None (software sprites only)
-- Colors: 16-color (low), 4-color (med), 2-color (high)
+- Colors: 16-color (low, 4 bitplanes), 4-color (med, 2 bitplanes), 2-color (high, 1 bitplane)
+- Palette: 512 colors (9-bit RGB, 16 palette registers); STE expanded to 4096 colors
 - Beam-driven: Raster bars via sync-level manipulation, border tricks
 
 ### Mode0 Coverage
@@ -301,11 +303,10 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 - **Fix:** Extend WAIT to support X,Y pixel compare
 - **Effort:** Small
 
-### Gap 7: Genesis 80 Sprites/Line
-- **Platforms affected:** Genesis
-- **Current state:** `visiblePerLine=32` after Stage B
-- **Fix:** Expand evaluator slot buffers and compositor loop
-- **Effort:** Medium-Large; PM decision needed on stop-line
+### Gap 7: ~~Genesis 80 Sprites/Line~~ REMOVED
+- **Platforms affected:** None
+- **Correction:** Genesis allows 80 sprites total, but only 20 per scanline (H40 mode) / 16 per scanline (H32 mode). Mode0's `visiblePerLine=32` already exceeds this. No gap exists.
+- **Sources:** Sega Genesis Software Manual, Sega Retro sprites page, Copetti Mega Drive architecture analysis
 
 ---
 
@@ -326,7 +327,6 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 
 ### Separate Assessment Required
 8. **Bitplane fetch mode** — for Amiga/Atari ST (architectural decision)
-9. **Genesis 80 sprites/line** — PM stop-line decision required
 
 ---
 
