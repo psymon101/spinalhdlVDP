@@ -130,6 +130,17 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
   val fetchStartPixD = RegNext(io.fetchGrant) init False
   val fetchStartRise = io.fetchGrant && !fetchStartPixD
 
+  // Mode0 Hardening — H-3: route the existing 2-plane planar decode through
+  // the parameterized `BitplaneReconstruct` primitive. Behaviour is
+  // bit-identical to the prior inline `(plane1Bits[15-idx] ## plane0Bits[15-idx])`
+  // form (planes(0) is pixel LSB; MSB-first bitIdx). Future 5-plane work
+  // will swap this to `planeCount = 5`.
+  val planarRecon = BitplaneReconstruct(planeCount = 2, planeWidth = 16)
+  planarRecon.io.planes(0) := unpackRow(15 downto  0)
+  planarRecon.io.planes(1) := unpackRow(47 downto 32)
+  planarRecon.io.bitIdx    := unpackIdx                  // 4 bits, matches idxWidth
+  val px4PlanarOut         = planarRecon.io.pixel.resize(4)
+
   when(io.fetchGrant) {
     tileCountReg := 0
     subOffsetReg := io.fetchScrollX(3 downto 0)
@@ -155,18 +166,15 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     //   packed (mode=0): row = 16 × 4bpp pixels in unpackRow(63:0)
     //   planar (mode=1): plane0 = unpackRow(15:0), plane1 = unpackRow(47:32)
     //                    pixel x = {plane1(15-x), plane0(15-x)} (2 bits, 0..3)
-    val px4Packed = unpackRow.subdivideIn(4 bits)(unpackIdx)
-    val plane0Bits = unpackRow(15 downto 0)
-    val plane1Bits = unpackRow(47 downto 32)
-    val planarBitIdx = (U(15, 4 bits) - unpackIdx).resize(4)
-    val px2Planar = (plane1Bits(planarBitIdx) ## plane0Bits(planarBitIdx)).asBits
-    val px4Planar = px2Planar.resize(4)
-    // R4.1d Checkpoint B: shuffled mode uses the same pixel reconstruction as
-    // planar (plane1[bit] ## plane0[bit]) — the difference is only at the
-    // fetch layer (plane 1 read redirected to Plane1SdramBase). Bit[1] OR
-    // bit[0] selects the 2bpp decode path.
+    // R4.1d Checkpoint B: shuffled mode uses the same pixel reconstruction
+    // as planar — the difference is only at the fetch layer (plane 1 read
+    // redirected to Plane1SdramBase). Bit[1] OR bit[0] selects the 2bpp
+    // decode path.
+    // H-3: planar reconstruction now lives in the `planarRecon` instance
+    // outside this when-block; output is `px4PlanarOut`.
+    val px4Packed   = unpackRow.subdivideIn(4 bits)(unpackIdx)
     val useTwoPlane = io.tileDecodeMode(0) || io.tileDecodeMode(1)
-    val px4 = Mux(useTwoPlane, px4Planar, px4Packed)
+    val px4         = Mux(useTwoPlane, px4PlanarOut, px4Packed)
     val pxPacked = (unpackPrio ## unpackBank.asBits ## px4).asBits
     val shifted = ((tileCountReg * U(16, 6 bits)).resize(11)
                     + unpackIdx.resize(11)
