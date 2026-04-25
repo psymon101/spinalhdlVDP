@@ -1198,3 +1198,81 @@ Every new implementation lane must open with one authoritative packet. Copy this
 ```
 
 Apply this template starting with Task 19 immediately.
+
+---
+
+## Active Side Lanes
+
+Side lanes are tracked here when they reach the implementation phase. Planning-only discussion stays in mail.
+
+### HDMI Output Compatibility (Option A)
+
+**Status:** IN-PROGRESS — Slice C authorized
+**PM authority:** BronzeGate #8486
+**Audit owner:** CyanPeak
+
+**Goal:** Improve HDMI observation-path robustness by migrating Tang Nano 20K output from VESA 640×480 to CEA-861 720p60, with a clean architectural seam between fixed transport and internal render geometry.
+
+**Phased plan:** `PROJECT_PLAN/artifacts/TASK_HDMI_OUTPUT_COMPATIBILITY_OPTION_A.md` (commit `d60b38b`)
+
+**Completed slices:**
+
+| Slice | Description | Commit | Audit | Evidence |
+|-------|-------------|--------|-------|----------|
+| A | HDMI clean-start mute on `pll.LOCK` rise | `7f00a37` | PASS #8481 | Sim 6/6; 3× reflash hardware lock/re-lock PASS |
+| B | 720p output-shell synthetic-source proof | `f0b774b` | PASS #8485 | Sim 6/6; 3× reflash 720p SMPTE bars lock PASS |
+
+**Authorized next slice:**
+- **Slice C** — Output Mapper / Presentation Stage: centered 640×480-in-1280×720 bridge mode with black borders. Top-level only; `VdpTop.scala` untouched. (BronzeGate #8486)
+
+**Paused dependencies:**
+- Fun-demo F2 QSPI-burst investigation paused at `e0f8078`
+
+**Key research:**
+- CoralReef #8475: PLL path, serializer headroom, bridge mode, proof scenarios
+
+---
+
+## Agent Rules for This File
+
+- Do not begin a task if any entry in its `depends_on` list is not `DONE`.
+- Do not implement anything described in a task's `scope_boundary` as excluded.
+- A task is only `DONE` when its `validation` criteria are met on hardware (or simulation, for tasks not yet at hardware stage).
+- When marking a task `IN-PROGRESS` or `DONE`, update the status field in this file.
+- Do not modify `depends_on` or `scope_boundary` fields without explicit instruction.
+
+---
+
+## Lane-Open Packet Template
+
+Every new implementation lane must open with one authoritative packet. Copy this template into the kick-off mail or doc update.
+
+```markdown
+## Lane Open: [Task Name]
+
+### Scope Boundary
+- in scope: ...
+- in scope: ...
+- out of scope: ...
+- out of scope: ...
+
+### Required Proof
+- sim: ...
+- hardware: ...
+
+### Audit Focus
+- ...
+
+### Checkpoints
+- A: control/register contract
+- B: simulation proof
+- C: hardware proof
+
+### Expected Next Deliverable
+- [checkpoint name] by [owner]
+
+### Coding Authorized
+- YES / NO — [mail id]
+```
+
+Apply this template starting with Task 19 immediately.
