@@ -319,6 +319,22 @@ Examples:
 Do not pause a lane for a fresh PM packet between routine in-scope
 continuations.
 
+### Batched Workflow Cycle
+
+Batching is preferred when the work shares the same approved lane and the same
+proof boundary.
+
+Working rule:
+
+- `BrightForge`, `CyanPeak`, and `CoralReef` may batch multiple tightly related
+  sub-slices into one workflow cycle when those sub-slices:
+  - are in scope for the same lane
+  - do not require separate ownership decisions
+  - can still be audited and proven cleanly as one bounded result
+- do not batch across different lanes
+- do not batch across proof boundaries where a failure in one step would
+  invalidate the others or make audit ambiguous
+
 ### Coding-Blocker Escalation
 
 `BrightForge` is the default coding owner and is expected to work through

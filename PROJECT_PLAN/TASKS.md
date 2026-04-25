@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Sprite Pattern Memory Foundation** |
-| **Status** | **ARTIFACT — pending CyanPeak audit** |
-| **Phase** | artifact |
-| **Owner** | CoralReef |
-| **Latest Commit** | `1fba7b9` (Sprite Hardening closeout + Pattern Memory Foundation artifact) |
-| **Latest Auth Mail** | #8593 (CyanPeak: audit lane closed; next lane authorized) |
-| **Next Deliverable** | CyanPeak audit of this artifact |
-| **Coding Authorized** | **NO** — awaiting artifact audit
+| **Task** | **Sprite Pattern Memory Foundation — Implementation** |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | implement |
+| **Owner** | BrightForge |
+| **Latest Commit** | `39aa2c7` (artifact v1.0-draft) |
+| **Latest Auth Mail** | #8596 (CyanPeak: artifact PASS; implementation authorized) |
+| **Next Deliverable** | BrightForge implementation packet (SpritePatternRamSim + hardware proof) |
+| **Coding Authorized** | **YES** — CyanPeak #8596
 
 **Previous lane:** Mode0 Sprite Envelope Hardening — Implementation | DONE | `d44a9c0` | Audit PASS #8589
 
