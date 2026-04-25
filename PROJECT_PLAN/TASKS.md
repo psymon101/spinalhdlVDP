@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement |
 | **Owner** | BrightForge |
-| **Latest Commit** | `31e3de0` (assessment report v1.0) |
+| **Latest Commit** | `119d61c` (Stage A: evaluator + 5 new fields) |
 | **Latest Auth Mail** | #8577 (CyanPeak: assessment PASS; implementation authorized) |
-| **Next Deliverable** | BrightForge Sprite Descriptor Extension implementation packet |
+| **Next Deliverable** | BrightForge Stage B (visiblePerLine 8→32 + compositor priority/palette + pattern fetch flip/size) |
 | **Coding Authorized** | **YES** — CyanPeak #8577
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_SPRITE_ENVELOPE_HARDENING.md` (v1.0-draft)

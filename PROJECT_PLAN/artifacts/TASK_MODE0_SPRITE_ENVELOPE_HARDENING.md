@@ -16,7 +16,8 @@
 | S-2 | Descriptor field extension assessment (size, flip, priority, palette) | `31e3de0` | PASS #8577 | 5 shared fields identified; 2 adapter-local |
 | S-3 | Evaluator capacity / visible-per-line scaling analysis | `31e3de0` | PASS #8577 | 8→32 recommended; architecture sound |
 | S-4 | Stop-line-aware recommendation for any growth | `31e3de0` | PASS #8577 | +~900 LUT / +~1,200 FF; stays green zone |
-| S-5 | Sprite Descriptor Extension implementation | — | **pending** | BrightForge authorized per #8577 |
+| S-5a | Sprite Descriptor Extension — Stage A (evaluator + 5 new fields) | `119d61c` | **pending audit** | 12/12 sim PASS; VdpTopSim regression PASS; back-compat verified |
+| S-5b | Sprite Descriptor Extension — Stage B (visiblePerLine 8→32 + compositor priority/palette + pattern fetch flip/size) | — | **pending** | Next sub-slice |
 
 ---
 
