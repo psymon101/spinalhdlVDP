@@ -3,8 +3,8 @@
 **Artifact version:** 1.1  
 **Author:** BronzeGate  
 **Date:** 2026-04-23  
-**Status:** in progress — implementation  
-**Coding authorized:** YES — CyanPeak audit PASS #8546, BronzeGate #8547
+**Status:** complete — pending PM closeout  
+**Coding authorized:** YES — CyanPeak audit PASS #8546/#8553
 
 ---
 
@@ -15,8 +15,9 @@
 | H-1 | `BitplaneReconstruct` — generic N-plane (1..8) reconstruction | `bc6f5d4` | PASS #8539 | 5/5 sim cases PASS |
 | H-2 | `BitplaneRowFetch` — per-scanline `dout32` bitplane fetcher | `7a62faa` | PASS #8546 | 301 cycles for 50 reads; sim PASS |
 | H-3 | `SdramTileAttributeFetch` planar decode → `BitplaneReconstruct` | `07a5507` | PASS #8546 | Bit-identical regression; 17/17 sim cases PASS |
-| H-3b | `PlanarLineFetch` — composite H-1 + H-2 end-to-end | `350a3e9` | **pending** | 320/320 pixels correct; rowReady at 301 cycles |
-| H-4 | SDRAM bandwidth proof under concurrent load | — | — | Deferred |
+| H-3b | `PlanarLineFetch` — composite H-1 + H-2 end-to-end | `350a3e9` | PASS #8553 | 320/320 pixels correct; rowReady at 301 cycles |
+| H-4 | Bandwidth pre-verification (cycle budget vs. H-Blank window) | `350a3e9` | PASS #8553 | ~4.7 µs fetch fits in ~7 µs H-Blank |
+| H-5 | Hardware proof on Tang Nano 20K (`Hdmi720pPlanarProofTop`) | `dcb5b2f` | PASS #8553 | 3× reflash 8-bar SMPTE lock; 0 timing violations |
 
 ---
 

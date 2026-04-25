@@ -27,13 +27,13 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Mode0 Fetch Envelope Hardening** |
-| **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
+| **Status** | **COMPLETE — pending PM closeout** |
+| **Phase** | closeout |
 | **Owner** | BrightForge |
-| **Latest Commit** | `350a3e9` (H-3b PlanarLineFetch) |
-| **Latest Auth Mail** | #8547 (BronzeGate: audit + ledger sync) |
-| **Next Deliverable** | CyanPeak audit of H-3b; then H-4 bandwidth proof |
-| **Coding Authorized** | **YES** — CyanPeak audit PASS #8546, BronzeGate #8547
+| **Latest Commit** | `dcb5b2f` (H-5 planar HW proof on Tang Nano 20K) |
+| **Latest Auth Mail** | #8553 (CyanPeak: H-3b/H-4/H-5 audit PASS) |
+| **Next Deliverable** | BronzeGate formal lane closeout + next roadmap priority |
+| **Coding Authorized** | **YES** — CyanPeak audit PASS #8546/#8553
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_FETCH_ENVELOPE_HARDENING.md` (v1.0-draft)
 
