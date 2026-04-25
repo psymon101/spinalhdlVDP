@@ -1234,7 +1234,7 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 
 | Slice | Description | Commit | Audit | Evidence |
 |-------|-------------|--------|-------|----------|
-| D-B1-L | Dual-clock CDC seam: native-rate 4-pixel-pack writer → StreamFifoCC → 720p reader + centered bridge | `f942c3a` | **Awaiting CyanPeak audit** | Build 0 violations; 3× reflash 8-bar SMPTE lock PASS |
+| D-B1-L | Dual-clock CDC seam: native-rate 4-pixel-pack writer → StreamFifoCC → 720p reader + centered bridge | `f942c3a` | PASS #8520 | Build 0 violations; 3× reflash 8-bar SMPTE lock PASS; 4-pixel-pack rate-matches 25.2→74.25 MHz |
 
 **Active slice:**
 - **None** — D-B1-L completed, awaiting audit. Next slice to be authorized by PM.
