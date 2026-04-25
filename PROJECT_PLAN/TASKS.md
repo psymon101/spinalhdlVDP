@@ -1221,9 +1221,10 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 |-------|-------------|--------|-------|----------|
 | A | HDMI clean-start mute on `pll.LOCK` rise | `7f00a37` | PASS #8481 | Sim 6/6; 3× reflash hardware lock/re-lock PASS |
 | B | 720p output-shell synthetic-source proof | `f0b774b` | PASS #8485 | Sim 6/6; 3× reflash 720p SMPTE bars lock PASS |
+| C | Output mapper / centered 640×480-in-1280×720 bridge | `9b3fd85` + `70dd6ca` | PASS #8490 | Sim 6/6 + 8 boundary checks; 3× reflash 720p bridge lock PASS |
 
 **Authorized next slice:**
-- **Slice C** — Output Mapper / Presentation Stage: centered 640×480-in-1280×720 bridge mode with black borders. Top-level only; `VdpTop.scala` untouched. (BronzeGate #8486)
+- **Slice D** — Mode0-under-720p compatibility proof: drive the proven 720p shell + bridge from real `VdpTop` / Mode0 content. Top-level integration only; `VdpTop.scala` untouched. (BronzeGate #8491)
 
 **Paused dependencies:**
 - Fun-demo F2 QSPI-burst investigation paused at `e0f8078`
