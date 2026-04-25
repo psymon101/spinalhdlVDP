@@ -15,6 +15,7 @@ project/target/
 project/project/
 simWorkspace/
 fpga/tang20k/impl/
+fpga/tang20k/impl_720p_proof/
 fpga/tang20k/gwlog/
 fpga/tang20k/*.fs
 fpga/tang20k/*.tmp

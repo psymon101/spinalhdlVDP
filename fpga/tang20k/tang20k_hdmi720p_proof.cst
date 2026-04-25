@@ -1,0 +1,37 @@
+// Tang Nano 20K pin constraints — BronzeGate #8482 Slice B
+// (720p output-shell synthetic-source proof). Only the pins driven
+// by Hdmi720pProofTop are listed: clock, LEDs, TMDS clock + 3 data.
+// QSPI and SDRAM pads are intentionally omitted — the proof has no
+// such logic.
+//
+// Board: Sipeed Tang Nano 20K
+// FPGA:  GW2AR-LV18QN88C8/I7
+
+IO_LOC "I_clk" 4;
+IO_PORT "I_clk" IO_TYPE=LVCMOS33 PULL_MODE=UP BANK_VCCIO=3.3;
+CLOCK_LOC "I_clk_d" LOCAL_CLOCK;
+
+IO_LOC "O_led[0]" 15;
+IO_PORT "O_led[0]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "O_led[1]" 16;
+IO_PORT "O_led[1]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "O_led[2]" 17;
+IO_PORT "O_led[2]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "O_led[3]" 18;
+IO_PORT "O_led[3]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "O_led[4]" 19;
+IO_PORT "O_led[4]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+IO_LOC "O_led[5]" 20;
+IO_PORT "O_led[5]" IO_TYPE=LVCMOS33 PULL_MODE=UP DRIVE=8 BANK_VCCIO=3.3;
+
+// Same TMDS pin pairs and 16 mA drive setting as the main HDMI path
+// (Task 44b iter 6i-r1 / CyanPeak #8166): SLEW omitted — Gowin DS226
+// dropped the attribute.
+IO_LOC "O_tmds_clk_p" 33,34;
+IO_PORT "O_tmds_clk_p" PULL_MODE=NONE DRIVE=16 BANK_VCCIO=3.3;
+IO_LOC "O_tmds_data_p[0]" 35,36;
+IO_PORT "O_tmds_data_p[0]" PULL_MODE=NONE DRIVE=16 BANK_VCCIO=3.3;
+IO_LOC "O_tmds_data_p[1]" 37,38;
+IO_PORT "O_tmds_data_p[1]" PULL_MODE=NONE DRIVE=16 BANK_VCCIO=3.3;
+IO_LOC "O_tmds_data_p[2]" 39,40;
+IO_PORT "O_tmds_data_p[2]" PULL_MODE=NONE DRIVE=16 BANK_VCCIO=3.3;

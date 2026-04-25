@@ -40,3 +40,34 @@ flash: $(BITSTREAM)
 
 clean:
 	rm -rf $(BUILD_DIR) ../../simWorkspace ../../target ../../project/target
+
+# ---------------------------------------------------------------------------
+# BronzeGate #8482 Slice B — 720p output-shell proof (synthetic colour bars).
+# Separate top, separate CST/SDC, separate impl directory so it cannot
+# disturb the main HDMI build artefacts.
+# ---------------------------------------------------------------------------
+PROOF_BUILD_DIR := impl_720p_proof
+PROOF_TCL       := build_hdmi720p_proof.tcl
+PROOF_BITSTREAM := $(PROOF_BUILD_DIR)/pnr/project.fs
+PROOF_GEN       := spinalhdlvdp.Hdmi720pProofTopVerilog
+
+.PHONY: gen-720p-proof prog-720p-proof flash-720p-proof clean-720p-proof
+
+gen-720p-proof:
+	$(SBT) "runMain $(PROOF_GEN)"
+
+$(PROOF_BITSTREAM): gen-720p-proof $(PROOF_TCL) tang20k_hdmi720p_proof.cst tang20k_hdmi720p_proof.sdc
+	rm -rf $(BUILD_DIR) $(PROOF_BUILD_DIR)
+	$(GW_ENV) $(GW_SH) $(PROOF_TCL)
+	mv $(BUILD_DIR) $(PROOF_BUILD_DIR)
+
+720p-proof: $(PROOF_BITSTREAM)
+
+prog-720p-proof: $(PROOF_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) --bitstream $(PROOF_BITSTREAM)
+
+flash-720p-proof: $(PROOF_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) -f --verify $(PROOF_BITSTREAM)
+
+clean-720p-proof:
+	rm -rf $(PROOF_BUILD_DIR)
