@@ -38,7 +38,10 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
   val AttrBytesPerRow    = 128
   val BitmapBufferDepth  = 128
   val AttrBufferDepth    = 128
-  val MaxLines           = 32
+  // Fun-demo friendly generalization: keep the existing proof fetcher shape
+  // (80 active bytes inside a 128-byte row stride), but cover a full 240-row
+  // source image by repeating each fetched row for two HDMI scanlines.
+  val MaxLines           = 240
   val TotalBitmapBytes   = BitmapBytesPerRow * MaxLines
   val TotalAttrBytes     = AttrBytesPerRow   * MaxLines
   val FifoDepth          = 256
@@ -69,6 +72,10 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
     val dbgBusyDroppedEver   = out Bool()  // sticky: !sdramBusy observed by FSM at least once
     val dbgDataReadyEver     = out Bool()  // sticky: sdramDataReady observed at least once
     val dbgWrAssertedEver    = out Bool()  // sticky: cmdWr asserted at least once
+    // Fun-demo data-path discriminator (BronzeGate #8392): sticky-high once
+    // any read bitmap byte observed in pixel-domain has been non-zero.
+    // Distinguishes "SDRAM returns valid data" from "SDRAM returns zeros".
+    val dbgDataNonZeroEver   = out Bool()
   }
 
   case class RowByte() extends Bundle {
@@ -292,7 +299,9 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
         cmdRd := False; cmdWr := False
         sdramActiveR := False
         when(fetchGrantEdge) {
-          lineReg := fetchLineSync & U(MaxLines - 1, 10 bits)
+          // Each source row is displayed for two screen lines so a 240-row
+          // bitmap fills the 480-line HDMI output without adding a scaler.
+          lineReg := (fetchLineSync >> 1).resize(10)
           byteIdx := 0
           bootCounter := 0
           sdramActiveR := True
@@ -398,6 +407,15 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
   io.dbgBusyDroppedEver := BufferCC(sd.dbgBusyDroppedEver, False)
   io.dbgDataReadyEver   := BufferCC(sd.dbgDataReadyOursR, False)
   io.dbgWrAssertedEver  := BufferCC(sd.dbgWrAssertedEver, False)
+
+  // BronzeGate #8392 fun-demo data-path discriminator: pixel-domain sticky
+  // that latches True the first time io.bitmapByte (the fetcher's output to
+  // BitmapFetch) is observed non-zero. Drives a Sc45 canary so black vs.
+  // bright on that canary answers "does SDRAM read return non-zero data?"
+  // without having to decode the whole pipeline.
+  val dbgDataNonZeroR = RegInit(False)
+  when(io.bitmapByte =/= B(0, 8 bits)) { dbgDataNonZeroR := True }
+  io.dbgDataNonZeroEver := dbgDataNonZeroR
 
   io.bootDone    := BufferCC(sd.bootDoneR, False)
   io.sdramActive := BufferCC(sd.sdramActiveR, False)

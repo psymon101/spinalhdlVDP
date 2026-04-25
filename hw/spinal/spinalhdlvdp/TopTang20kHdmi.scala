@@ -1124,6 +1124,11 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       val busyDropped  = bitmapRowFetch.io.dbgBusyDroppedEver
       val dataReady    = bitmapRowFetch.io.dbgDataReadyEver
       val wrAsserted   = bitmapRowFetch.io.dbgWrAssertedEver
+      // BronzeGate #8392 discriminator: sticky "bitmap byte ever non-zero".
+      // Repurpose sc45RedCanary slot (previously !enableSeen, always dark
+      // under normal Sc45) so its lit-state directly answers "does the
+      // SDRAM read path return non-zero bitmap bytes?"
+      val dataNonZero  = bitmapRowFetch.io.dbgDataNonZeroEver
       val inTop = video.io.y < U(40, 10 bits)
       val in0 = video.io.x < U(40, 10 bits)
       val in1 = video.io.x >= U(40,  10 bits) && video.io.x < U(80,  10 bits)
@@ -1131,12 +1136,55 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       val in3 = video.io.x >= U(120, 10 bits) && video.io.x < U(160, 10 bits)
       val in4 = video.io.x >= U(160, 10 bits) && video.io.x < U(200, 10 bits)
       val in5 = video.io.x >= U(200, 10 bits) && video.io.x < U(240, 10 bits)
-      sc45RedCanary    := inTop && in0 && !enableSeen
+      // BronzeGate #8395 follow-on bounded discriminator: two additional
+      // sticky-latched probes downstream of io.bitmapByte. Computed at the
+      // scenario level (no VdpTop touch). Repurposes purple (was
+      // dbgBusyDroppedEver) and orange (was dbgWrAssertedEver) — both
+      // already proven lit and redundant per #8394.
+      //
+      // Purple = "attribute byte ever non-zero" — tells us whether the
+      // attribute read path also returns data. If it stays dark while red
+      // lights, BitmapFetch's 1bpp decode resolves to ink=0/paper=0 and
+      // every pixel renders as palette index 0 / black regardless of
+      // bitmap content.
+      //
+      // Orange = "BitmapFetch-equivalent pixel index ever non-zero" —
+      // mirrors the BitmapFetch 1bpp decode locally:
+      //   bit  = bitmapByte[7 - x[2:0]]
+      //   ink  = attrByte[2:0]; paper = attrByte[5:3]
+      //   pi   = bit ? ink : paper
+      // Sticky-latches if pi ever != 0. If this stays dark while red+purple
+      // are lit, BitmapFetch's decode collapses to zero on the actual
+      // (line, col, bit) tuples even with both bytes carrying data — points
+      // to attribute layout / pairing alignment downstream.
+      val attrNonZeroR = RegInit(False)
+      when(bitmapRowFetch.io.attrByte =/= B(0, 8 bits)) { attrNonZeroR := True }
+
+      // BronzeGate #8403 B3 discriminator: sticky "bitmap byte ever == 0xFF".
+      // Synth-init writes bytes `(lineReg + col) & 0xFF` where lineReg<=239 and
+      // col<=127; max possible byte value is 0xEF (=239+0... actually 239+127=
+      // 0x16E -> 0x6E mod 256). Therefore synth-init can never produce 0xFF,
+      // and 0xFF is uniquely present in Pico-uploaded Bad Apple bitmap runs
+      // (`0xFFFF` words). Repurposes blue canary slot (was `fifoActiveEver`,
+      // now redundantly proven by red + yellow + orange).
+      val ffSeenR = RegInit(False)
+      when(bitmapRowFetch.io.bitmapByte === B(0xFF, 8 bits)) { ffSeenR := True }
+
+      val sc45PwByte = video.io.x(2 downto 0)
+      val sc45BitIdx = U(7, 3 bits) - sc45PwByte
+      val sc45Bit    = bitmapRowFetch.io.bitmapByte(sc45BitIdx)
+      val sc45Ink    = bitmapRowFetch.io.attrByte(2 downto 0).asUInt
+      val sc45Paper  = bitmapRowFetch.io.attrByte(5 downto 3).asUInt
+      val sc45PiMir  = Mux(sc45Bit, sc45Ink, sc45Paper)
+      val pixelNonZeroR = RegInit(False)
+      when(sc45PiMir =/= U(0, 3 bits)) { pixelNonZeroR := True }
+
+      sc45RedCanary    := inTop && in0 && dataNonZero
       sc45GreenCanary  := inTop && in1 && bootDoneSeen
-      sc45BlueCanary   := inTop && in2 && fifoActive
-      sc45PurpleCanary := inTop && in3 && busyDropped
+      sc45BlueCanary   := inTop && in2 && ffSeenR
+      sc45PurpleCanary := inTop && in3 && attrNonZeroR
       sc45YellowCanary := inTop && in4 && dataReady
-      sc45OrangeCanary := inTop && in5 && wrAsserted
+      sc45OrangeCanary := inTop && in5 && pixelNonZeroR
     } else {
       sc45RedCanary    := False
       sc45GreenCanary  := False

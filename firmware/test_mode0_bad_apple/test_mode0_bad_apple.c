@@ -1,0 +1,138 @@
+/**
+ * test_mode0_bad_apple.c — fun-demo static bitmap proof.
+ *
+ * Loads one preprocessed monochrome Bad Apple frame into the existing
+ * SDRAM-backed bitmap path, then enables bitmap mode. This is a bounded
+ * host-side demo app only; it does not widen the formal roadmap.
+ */
+#include <stdio.h>
+#include <string.h>
+
+#include "pico/stdlib.h"
+#include "vdp_qspi.h"
+
+#include "bad_apple_frame.h"
+
+#define VDP_SDRAM_WRITE_MAX_WORDS 253u
+
+/* BronzeGate #8460 / F1.5: inter-burst probes are removed because they
+ * appear to cause QSPI transport desync (GPIO PIO<->SIO mux ping-pong on
+ * SCK/IO during the upload loop emits transients that the slave samples
+ * as phantom headers — see #8458 §"physical cause"). Only boundary
+ * `dump_qspi_state` calls remain (already at safe points outside the
+ * burst loop). The total-burst count is recorded locally so the post-
+ * upload dump still tells us whether all expected bursts ran. */
+static uint32_t s_last_burst_count = 0;
+
+static void upload_words_fast(uint32_t base_addr,
+                              const uint16_t *words,
+                              uint32_t word_count)
+{
+    uint32_t sent = 0;
+    uint32_t burst_idx = 0;
+    while (sent < word_count) {
+        uint16_t chunk = VDP_SDRAM_WRITE_MAX_WORDS;
+        if (sent + chunk > word_count) {
+            chunk = (uint16_t)(word_count - sent);
+        }
+        vdp_sdram_write(base_addr + sent * 2u, &words[sent], chunk);
+        sent += chunk;
+        burst_idx += 1u;
+    }
+    s_last_burst_count = burst_idx;
+}
+
+static void upload_attr_plane_fast(uint32_t base_addr)
+{
+    uint16_t chunk[VDP_SDRAM_WRITE_MAX_WORDS];
+    for (uint32_t i = 0; i < VDP_SDRAM_WRITE_MAX_WORDS; ++i) {
+        chunk[i] = ((uint16_t)BAD_APPLE_ATTR_BYTE << 8) | BAD_APPLE_ATTR_BYTE;
+    }
+
+    const uint32_t total_words =
+        (BAD_APPLE_ROW_STRIDE_BYTES * BAD_APPLE_FRAME_HEIGHT) / 2u;
+    uint32_t sent = 0;
+    while (sent < total_words) {
+        uint16_t words_this_burst = VDP_SDRAM_WRITE_MAX_WORDS;
+        if (sent + words_this_burst > total_words) {
+            words_this_burst = (uint16_t)(total_words - sent);
+        }
+        vdp_sdram_write(base_addr + sent * 2u, chunk, words_this_burst);
+        sent += words_this_burst;
+    }
+}
+
+static void program_bitmap_mode(void)
+{
+    /* Hide layers during bootstrap/upload so the proof-pattern init and
+     * fast SDRAM writes do not flicker on screen. */
+    vdp_reg_write(0x0300u, 0x0000u);
+
+    /* Program the Task 44 bitmap register block even though Scenario 45's
+     * current row fetcher still uses its fixed proof addresses internally.
+     * That keeps the demo aligned with the intended host contract. */
+    vdp_reg_write(0x0351u, (uint16_t)(BAD_APPLE_BITMAP_BASE & 0xFFFFu));
+    vdp_reg_write(0x0352u, (uint16_t)((BAD_APPLE_BITMAP_BASE >> 16) & 0x007Fu));
+    vdp_reg_write(0x0353u, (uint16_t)(BAD_APPLE_ATTR_BASE & 0xFFFFu));
+    vdp_reg_write(0x0354u, (uint16_t)((BAD_APPLE_ATTR_BASE >> 16) & 0x007Fu));
+    vdp_reg_write(0x0355u, BAD_APPLE_ROW_STRIDE_BYTES);
+    vdp_reg_write(0x0356u, BAD_APPLE_ROW_STRIDE_BYTES);
+    vdp_reg_write(0x0350u, 0x0081u); /* enable | 1bpp | useSdram */
+}
+
+static void dump_qspi_state(const char *tag)
+{
+    uint32_t magic = vdp_read_status(0);
+    uint32_t rx_cnt = vdp_read_status(1);
+    uint32_t last_addr = vdp_read_status(2);
+    uint32_t last_data = vdp_read_status(3);
+    uint32_t last_error = vdp_read_status(4);
+    uint32_t sticky = vdp_read_status(5);
+    uint32_t upload = vdp_read_status(6);   /* path A: busy/done flags */
+    printf("[%s] magic=0x%08lx rx_cnt=%lu last_addr=0x%04lx last_data=0x%04lx last_error=0x%08lx sticky=0x%08lx upload=0x%08lx busy=%lu done=%lu\n",
+           tag,
+           (unsigned long)magic,
+           (unsigned long)rx_cnt,
+           (unsigned long)last_addr,
+           (unsigned long)last_data,
+           (unsigned long)last_error,
+           (unsigned long)sticky,
+           (unsigned long)upload,
+           (unsigned long)((upload >> 0) & 1u),
+           (unsigned long)((upload >> 1) & 1u));
+}
+
+int main(void)
+{
+    stdio_init_all();
+    vdp_qspi_init();
+    sleep_ms(100);
+
+    printf("Bad Apple demo source: %s\n", BAD_APPLE_SOURCE_URL);
+    printf("Frame time: %.3f s\n", (double)BAD_APPLE_FRAME_TIME_SEC);
+    printf("Arming Scenario 45 bitmap path and waiting for proof init to finish\n");
+    program_bitmap_mode();
+    dump_qspi_state("after_program_bitmap_mode");
+    sleep_ms(1500);
+
+    printf("Uploading bitmap plane (%u words)\n", BAD_APPLE_BITMAP_WORD_COUNT);
+    upload_words_fast(BAD_APPLE_BITMAP_BASE,
+                      bad_apple_bitmap_words,
+                      BAD_APPLE_BITMAP_WORD_COUNT);
+    printf("Bitmap upload: %lu bursts issued (expected 61)\n",
+           (unsigned long)s_last_burst_count);
+    dump_qspi_state("after_bitmap_upload");
+
+    printf("Uploading attribute plane\n");
+    upload_attr_plane_fast(BAD_APPLE_ATTR_BASE);
+    dump_qspi_state("after_attr_upload");
+
+    /* Reveal the loaded frame after both planes are fully in SDRAM. */
+    vdp_reg_write(0x0300u, 0x0001u);
+    dump_qspi_state("after_reveal");
+
+    printf("Static Bad Apple frame armed\n");
+    while (true) {
+        tight_loop_contents();
+    }
+}

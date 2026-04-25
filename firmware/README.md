@@ -15,6 +15,9 @@ the Pico SDK 2.2.0.
 - `test_qspi_smoke/` — smoke test exercising the full libvdp surface.
   Boot-time reg writes, one SDRAM_WRITE asset upload, and a rapid-fire
   stress loop (Task 36 CP-C). Primary cross-task validation target.
+- `test_mode0_bad_apple/` — fun-demo app that uploads one preprocessed
+  monochrome Bad Apple frame into the Scenario 45 SDRAM-backed bitmap
+  path, then enables bitmap mode.
 - `test_qspi_wire/`, `test_qspi_wire_read/` — low-level wire-level
   probes used during the Task 26/27/38 hardening cycles. Useful when
   the `libvdp`-layer smoke test fails and you need to localise the
