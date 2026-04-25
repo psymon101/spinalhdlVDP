@@ -900,7 +900,13 @@ case class VdpTop() extends Component {
   // 28 bus-programmable extended slots.
   val spriteEval = SpriteEvaluator(
     descCount      = 32,
-    visiblePerLine = 32,   // Sprite Envelope Hardening B-1 (CyanPeak #8577): 8 → 32
+    // Sprite Envelope Hardening B-1 (CyanPeak #8577) fallback per assessment
+    // §9.3: visiblePerLine=32 exceeds the GW2AR-18 logic budget (51 k of 20.7 k
+    // available — replicated AffineSteppers + pattern-Mem read ports). 16
+    // slots cover Genesis-class (20/line, with overflow flag for honest
+    // visibility) and partial SNES. Promotion to 32 needs an Affine-share
+    // refactor or a separate-engine architecture, both out of #8577 scope.
+    visiblePerLine = 16,
     patternSelBits = 4,
     legacyIoCount  = 4)
   spriteEval.io.descX(0)          := io.sprite0X
@@ -972,7 +978,7 @@ case class VdpTop() extends Component {
   // patternIndex is now 4 bits; the low bit selects pattern Mem 0 vs 1 for
   // this task. Wider pattern-Mem banks land in a future sprite-attribute
   // extension task (Task 37), so bits [3:1] are ignored here.
-  val NUM_SLOTS = 32  // Sprite Envelope Hardening B-1: matches visiblePerLine=32
+  val NUM_SLOTS = 16  // Sprite Envelope Hardening B-1 fallback: matches visiblePerLine=16
   val slotVisible = Vec(Bool(), NUM_SLOTS)
   val slotPixel   = Vec(Bits(4 bits), NUM_SLOTS)
   for (s <- 0 until NUM_SLOTS) {
