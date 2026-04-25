@@ -1207,8 +1207,8 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 
 ### HDMI Output Compatibility (Option A)
 
-**Status:** IN-PROGRESS — Slice C authorized
-**PM authority:** BronzeGate #8486
+**Status:** IN-PROGRESS — D-B1-L authorized
+**PM authority:** BronzeGate #8505
 **Audit owner:** CyanPeak
 
 **Goal:** Improve HDMI observation-path robustness by migrating Tang Nano 20K output from VESA 640×480 to CEA-861 720p60, with a clean architectural seam between fixed transport and internal render geometry.
@@ -1223,14 +1223,26 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 | B | 720p output-shell synthetic-source proof | `f0b774b` | PASS #8485 | Sim 6/6; 3× reflash 720p SMPTE bars lock PASS |
 | C | Output mapper / centered 640×480-in-1280×720 bridge | `9b3fd85` + `70dd6ca` | PASS #8490 | Sim 6/6 + 8 boundary checks; 3× reflash 720p bridge lock PASS |
 
+**Blocked / informative slices:**
+
+| Slice | Description | Commit | Blocker | Outcome |
+|-------|-------------|--------|---------|---------|
+| D-A | VdpTop test-pattern under 720p shell (clock-enable @ 74.25 MHz) | `7f8e46d` | Timing: 8,873 setup violations, TNS −27.5 µs, worst slack −20.7 ns on `vCounter → lineBuf/DI` | Closed as BLOCKED. Proves VdpTop cannot run at 74.25 MHz without substrate pipelining. |
+| D-B1-A | Synthetic SDRAM frame-buffer proof | — | SDRAM controller sustained write bandwidth ~13 MB/s; full-frame write exceeds budget by ~3× | Closed as BLOCKED before implementation. BrightForge #8504. BronzeGate #8505. |
+
 **Authorized next slice:**
-- **Slice D** — Mode0-under-720p compatibility proof: drive the proven 720p shell + bridge from real `VdpTop` / Mode0 content. Top-level integration only; `VdpTop.scala` untouched. (BronzeGate #8491)
+- **D-B1-L** — Dual-clock line-buffer CDC proof: native-rate synthetic writer → dual-clock BRAM line buffer / FIFO seam → 720p reader + proven centered presentation bridge. No SDRAM frame buffer. No VdpTop changes. (BronzeGate #8505)
+
+**Planning artifacts:**
+- CoralReef #8500: D-B planning packet (options D-B1 SDRAM frame buffer, D-B2 pipelining, D-B3 480p fallback)
+- CyanPeak #8501: D-B planning audit PASS; D-B1 strategy approved, D-B2 rejected, D-B1-A implementation authorized
 
 **Paused dependencies:**
 - Fun-demo F2 QSPI-burst investigation paused at `e0f8078`
 
 **Key research:**
 - CoralReef #8475: PLL path, serializer headroom, bridge mode, proof scenarios
+- CoralReef #8502: SDRAM arbiter interface recon, CDC topology analysis
 
 ---
 
