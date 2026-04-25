@@ -172,6 +172,29 @@ Do not:
 - weaken a shared primitive just to match the least demanding platform
 - bypass a reusable `Mode0` primitive from an adapter merely to preserve platform naming
 
+### 0a. Transport Separation Rule
+
+Each external host transport must be internally complete and self-consistent. If a lane uses `QSPI`, then framing, synchronization, payload rules, completion, status, and error handling must all be defined and validated inside the `QSPI` transport contract itself.
+
+Required interpretation:
+
+- `QSPI` is one complete transport contract.
+- a future parallel address/data bus is a separate complete transport contract.
+- both transports may target the same shared `Mode0` host/control surface.
+- transports must not borrow hidden timing, framing, or completion assumptions from each other.
+
+Do:
+
+- keep `CS`, header, payload-length, completion, and error semantics self-contained inside the `QSPI` path
+- define any future parallel-bus framing / handshake / completion rules independently, even if it targets the same registers or upload surface
+- debug transport failures at the transport boundary first before blaming `Mode0` primitives
+
+Do not:
+
+- mix `QSPI` framing rules with address/data-bus assumptions
+- rely on a second transport's handshake model to explain or complete a `QSPI` transaction
+- patch over a broken transport by leaning on side effects from another control path
+
 ### 1. Circuitry-Accurate Palettes
 
 Palettes MUST NOT use generic RGB approximations. They must be derived from hardware-level circuitry analysis, specifically considering:

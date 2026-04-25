@@ -84,6 +84,8 @@ Architectural rule:
 - the external host is a command/control owner, not a renderer
 - host-side firmware may upload assets, write registers, poll status, and respond to interrupts/events
 - per-pixel display processing, composition, fetch timing, and beam-synchronous behavior belong in the VDP-side video processor, not in the host firmware
+- each external host transport must be internally complete and self-consistent: `QSPI` framing/sync/completion belong to the `QSPI` contract, and any future parallel bus must define its own transport contract independently
+- multiple host transports may target the same `Mode0` control surface, but they must not depend on hidden assumptions from each other
 
 Example:
 
