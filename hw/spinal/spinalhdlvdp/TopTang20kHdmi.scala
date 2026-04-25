@@ -1082,10 +1082,24 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     hdmiTx.clk_pixel := clkdiv.CLKOUT
     hdmiTx.clk_pixel_x5 := pll.CLKOUT
     hdmiTx.reset := pixelReset
+    // HDMI Output Compatibility Slice A (BronzeGate #8476):
+    // 1-shot blanking window after pixel-domain reset deasserts. Holds
+    // hsync/vsync inactive (high, VESA negative-active) and de=0/RGB=0
+    // for ~80 ms at 25.2 MHz pixel clock so HDMI receivers (especially
+    // the Guermok USB2 capture card) see a clean no-signal → signal
+    // transition on every bitstream reflash. Pure top-level; no VdpTop
+    // changes. Outputs of the mute feed the rest of the canary/overlay
+    // mux chain unchanged via wires below.
+    val hdmiCleanStart = HdmiCleanStart(muteCycles = 2_000_000)
+    hdmiCleanStart.io.inHsync := video.io.hsync
+    hdmiCleanStart.io.inVsync := video.io.vsync
+    hdmiCleanStart.io.inDe    := video.io.de
+    // RGB pass-throughs are wired further down after the canary/overlay
+    // mux resolves muxedRed/Green/Blue; tap them in there.
     // Task 44b iter 6f: registered hsync/vsync/de at the TMDS boundary.
-    hdmiTx.hsync := RegNext(video.io.hsync) init True
-    hdmiTx.vsync := RegNext(video.io.vsync) init True
-    hdmiTx.de    := RegNext(video.io.de)    init False
+    hdmiTx.hsync := RegNext(hdmiCleanStart.io.outHsync) init True
+    hdmiTx.vsync := RegNext(hdmiCleanStart.io.outVsync) init True
+    hdmiTx.de    := RegNext(hdmiCleanStart.io.outDe)    init False
     // Task 29 Sc29 canary: top-left 40×40 corner shows a green block
     // iff STATUS_STICKY bit 4 (SPRITE_0_HIT) is latched. This gives a
     // firmware-free hardware confirmation that the collision flag
@@ -1228,9 +1242,18 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // outputs after the canary/overlay muxes, immediately before the TMDS
     // serializer. Removes combinational glitches on hsync/vsync/de/RGB that
     // strict HDMI receivers (Guermok USB2 capture card) reject.
-    hdmiTx.red   := RegNext(muxedRed)   init 0
-    hdmiTx.green := RegNext(muxedGreen) init 0
-    hdmiTx.blue  := RegNext(muxedBlue)  init 0
+    //
+    // Slice-A clean-start mute: feed the canary/overlay-muxed RGB through
+    // hdmiCleanStart so the same window that holds hsync/vsync inactive
+    // also forces RGB to 0. Avoids any coloured-pixel emission during the
+    // post-reset blanking window even if the mux tree resolves to a non-
+    // black value first.
+    hdmiCleanStart.io.inRed   := muxedRed
+    hdmiCleanStart.io.inGreen := muxedGreen
+    hdmiCleanStart.io.inBlue  := muxedBlue
+    hdmiTx.red   := RegNext(hdmiCleanStart.io.outRed)   init 0
+    hdmiTx.green := RegNext(hdmiCleanStart.io.outGreen) init 0
+    hdmiTx.blue  := RegNext(hdmiCleanStart.io.outBlue)  init 0
 
     O_tmds_clk_p := hdmiTx.tmds_clk_p
     O_tmds_clk_n := hdmiTx.tmds_clk_n
