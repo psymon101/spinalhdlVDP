@@ -9,6 +9,16 @@ import spinal.core._
   * and Q10.6 translation (transX/transY). Matches the AffineStepper
   * (Task 19) fixed-point contract exactly so the sprite affine path can
   * reuse the proven primitive without re-deriving precision.
+  *
+  * Sprite Envelope Hardening (CyanPeak #8577) — 5 new shared-substrate
+  * fields per assessment §4.3:
+  *   - flipH / flipV       : horizontal / vertical pattern mirror
+  *   - paletteBank (3 bits): per-sprite palette bank (0..7)
+  *   - priority            : 1 = sprite above-background, 0 = below
+  *   - sizeSel (2 bits)    : 00=8×8, 01=16×16 (default), 10=32×32, 11=64×64
+  * Genesis/SNES adapters can claim honest sprite substrate support after
+  * these land. Neo Geo's 96/line capacity and 16-bank palette space are
+  * out of scope (deferred per #8577).
   */
 case class SpriteDescriptor(patternSelBits: Int = 4) extends Bundle {
   val enabled      = Bool()
@@ -24,9 +34,29 @@ case class SpriteDescriptor(patternSelBits: Int = 4) extends Bundle {
   val matrixD      = Bits(16 bits)
   val transX       = Bits(16 bits)   // Q10.6 signed
   val transY       = Bits(16 bits)
+
+  // Sprite Envelope Hardening fields.
+  val flipH        = Bool()
+  val flipV        = Bool()
+  val paletteBank  = UInt(3 bits)
+  val priority     = Bool()
+  val sizeSel      = UInt(2 bits)
 }
 
 object SpriteDescriptor {
+  /** Pixel size for a given `sizeSel` encoding (00=8, 01=16, 10=32, 11=64). */
+  def sizeForSel(sel: Int): Int = sel match {
+    case 0 =>  8
+    case 1 => 16
+    case 2 => 32
+    case 3 => 64
+    case _ => throw new IllegalArgumentException(s"sizeSel must be 0..3, got $sel")
+  }
+
+  /** Default sizeSel encoding for back-compat with the pre-Hardening
+    * 16-pixel-tall sprite assumption. */
+  val DefaultSizeSel: Int = 1   // 16×16
+
   /** Structural default — disabled, positioned off-screen, flat path. */
   def disabled(patternSelBits: Int = 4): SpriteDescriptor = {
     val d = SpriteDescriptor(patternSelBits)
@@ -41,6 +71,11 @@ object SpriteDescriptor {
     d.matrixD      := B(0, 16 bits)
     d.transX       := B(0, 16 bits)
     d.transY       := B(0, 16 bits)
+    d.flipH        := False
+    d.flipV        := False
+    d.paletteBank  := U(0, 3 bits)
+    d.priority     := False
+    d.sizeSel      := U(DefaultSizeSel, 2 bits)
     d
   }
 }

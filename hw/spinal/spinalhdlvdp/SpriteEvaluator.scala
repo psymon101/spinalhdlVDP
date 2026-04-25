@@ -18,9 +18,10 @@ import spinal.lib._
   *
   * Descriptor storage architecture:
   *   - Slots `[0 .. legacyIoCount)` driven from io `desc*` input Vecs
-  *     (affineEnable hardwired False — legacy flat path).
+  *     (affineEnable hardwired False — legacy flat path; Hardening fields
+  *     hardwired to defaults).
   *   - Slots `[legacyIoCount .. descCount)` Reg-backed, programmable via
-  *     the `bus*` write port. Bus layout is 8 words per slot:
+  *     the `bus*` write port. Bus layout is 16 words per slot:
   *       word 0: {enabled[15], patIdx[14:11], affineEnable[10], y[9:0]}
   *       word 1: {_[15:10], x[9:0]}
   *       word 2: matrixA[15:0]   (Q8.8 signed)
@@ -29,8 +30,14 @@ import spinal.lib._
   *       word 5: matrixD[15:0]
   *       word 6: transX[15:0]    (Q10.6 signed)
   *       word 7: transY[15:0]
+  *       word 8: {sizeSel[15:14], paletteBank[13:11], priority[10],
+  *                flipH[9], flipV[8], _[7:0]}    — Sprite Envelope
+  *                Hardening fields (CyanPeak #8577 §4.3)
+  *       words 9..15: reserved (zeroed by hardware on read; ignored on
+  *                write so future extension can claim them without
+  *                breaking the host bus protocol).
   *
-  * Host maps the Mode0 bus block `0x0800 + slot*8 + word` to these words.
+  * Host maps the Mode0 bus block `0x0800 + slot*16 + word` to these words.
   */
 case class SpriteEvaluator(
     descCount: Int = 32,
@@ -45,7 +52,7 @@ case class SpriteEvaluator(
   val descIdxBits = log2Up(descCount)
   val slotBits    = log2Up(visiblePerLine)
   val extCount    = descCount - legacyIoCount
-  val busWordBits = 3
+  val busWordBits = 4   // bumped 3 → 4 to host word 8 (Hardening fields)
 
   val io = new Bundle {
     // Legacy IO descriptor ports — slots 0..legacyIoCount-1.
@@ -68,7 +75,7 @@ case class SpriteEvaluator(
     val activeValid        = out Vec(Bool(), visiblePerLine)
     val activeX            = out Vec(UInt(10 bits), visiblePerLine)
     val activeY            = out Vec(UInt(10 bits), visiblePerLine)
-    val activeRow          = out Vec(UInt(4 bits), visiblePerLine)
+    val activeRow          = out Vec(UInt(6 bits), visiblePerLine)   // 6 bits to span 64×64 sizeSel=11
     val activePatternIdx   = out Vec(UInt(patternSelBits bits), visiblePerLine)
     // Task 37 affine outputs.
     val activeAffineEnable = out Vec(Bool(), visiblePerLine)
@@ -78,6 +85,13 @@ case class SpriteEvaluator(
     val activeMatrixD      = out Vec(Bits(16 bits), visiblePerLine)
     val activeTransX       = out Vec(Bits(16 bits), visiblePerLine)
     val activeTransY       = out Vec(Bits(16 bits), visiblePerLine)
+
+    // Sprite Envelope Hardening (CyanPeak #8577) outputs.
+    val activeFlipH        = out Vec(Bool(), visiblePerLine)
+    val activeFlipV        = out Vec(Bool(), visiblePerLine)
+    val activePaletteBank  = out Vec(UInt(3 bits), visiblePerLine)
+    val activePriority     = out Vec(Bool(), visiblePerLine)
+    val activeSizeSel      = out Vec(UInt(2 bits), visiblePerLine)
 
     val overflowFlag = out Bool()
   }
@@ -96,6 +110,15 @@ case class SpriteEvaluator(
   val regMatrixD      = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
   val regTransX       = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
   val regTransY       = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
+
+  // Sprite Envelope Hardening (CyanPeak #8577) — default sizeSel = 1 (16×16)
+  // matches the pre-Hardening 16-pixel-tall Y-range, so existing scenes that
+  // never write word 8 retain bit-identical behaviour.
+  val regFlipH        = Vec.fill(extCount)(RegInit(False))
+  val regFlipV        = Vec.fill(extCount)(RegInit(False))
+  val regPaletteBank  = Vec.fill(extCount)(RegInit(U(0, 3 bits)))
+  val regPriority     = Vec.fill(extCount)(RegInit(False))
+  val regSizeSel      = Vec.fill(extCount)(RegInit(U(SpriteDescriptor.DefaultSizeSel, 2 bits)))
 
   // simPublic for integration sims.
   for (i <- 0 until extCount) {
@@ -142,6 +165,14 @@ case class SpriteEvaluator(
               is(U(5, busWordBits bits)) { regMatrixD(i) := io.busData }
               is(U(6, busWordBits bits)) { regTransX(i)  := io.busData }
               is(U(7, busWordBits bits)) { regTransY(i)  := io.busData }
+              is(U(8, busWordBits bits)) {
+                regSizeSel(i)     := io.busData(15 downto 14).asUInt
+                regPaletteBank(i) := io.busData(13 downto 11).asUInt
+                regPriority(i)    := io.busData(10)
+                regFlipH(i)       := io.busData(9)
+                regFlipV(i)       := io.busData(8)
+              }
+              // words 9..15 reserved — no write effect; reads omitted.
             }
           }
         }
@@ -174,6 +205,30 @@ case class SpriteEvaluator(
       case 5 => regTransY(i - legacyIoCount)
     }
   }
+  // Sprite Envelope Hardening — legacy slots get back-compat defaults.
+  def descFlipH(i: Int): Bool =
+    if (i < legacyIoCount) False else regFlipH(i - legacyIoCount)
+  def descFlipV(i: Int): Bool =
+    if (i < legacyIoCount) False else regFlipV(i - legacyIoCount)
+  def descPaletteBank(i: Int): UInt =
+    if (i < legacyIoCount) U(0, 3 bits) else regPaletteBank(i - legacyIoCount)
+  def descPriority(i: Int): Bool =
+    if (i < legacyIoCount) False else regPriority(i - legacyIoCount)
+  def descSizeSel(i: Int): UInt =
+    if (i < legacyIoCount) U(SpriteDescriptor.DefaultSizeSel, 2 bits)
+    else                   regSizeSel(i - legacyIoCount)
+
+  /** Pixel size for a sizeSel encoding. 00=8, 01=16, 10=32, 11=64. */
+  def sizeForSel(sel: UInt): UInt = {
+    val out = UInt(7 bits)
+    switch(sel) {
+      is(U(0, 2 bits)) { out :=  8 }
+      is(U(1, 2 bits)) { out := 16 }
+      is(U(2, 2 bits)) { out := 32 }
+      is(U(3, 2 bits)) { out := 64 }
+    }
+    out
+  }
 
   // ---------------------------------------------------------------------
   // Sequential Pass-1 FSM.
@@ -186,7 +241,7 @@ case class SpriteEvaluator(
   val activeValidReg        = Vec.fill(visiblePerLine)(RegInit(False))
   val activeXReg            = Vec.fill(visiblePerLine)(RegInit(U(0, 10 bits)))
   val activeYReg            = Vec.fill(visiblePerLine)(RegInit(U(0, 10 bits)))
-  val activeRowReg          = Vec.fill(visiblePerLine)(RegInit(U(0, 4 bits)))
+  val activeRowReg          = Vec.fill(visiblePerLine)(RegInit(U(0, 6 bits)))
   val activePatternReg      = Vec.fill(visiblePerLine)(RegInit(U(0, patternSelBits bits)))
   val activeAffineEnableReg = Vec.fill(visiblePerLine)(RegInit(False))
   val activeMatrixAReg      = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
@@ -195,6 +250,11 @@ case class SpriteEvaluator(
   val activeMatrixDReg      = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
   val activeTransXReg       = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
   val activeTransYReg       = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
+  val activeFlipHReg        = Vec.fill(visiblePerLine)(RegInit(False))
+  val activeFlipVReg        = Vec.fill(visiblePerLine)(RegInit(False))
+  val activePaletteBankReg  = Vec.fill(visiblePerLine)(RegInit(U(0, 3 bits)))
+  val activePriorityReg     = Vec.fill(visiblePerLine)(RegInit(False))
+  val activeSizeSelReg      = Vec.fill(visiblePerLine)(RegInit(U(SpriteDescriptor.DefaultSizeSel, 2 bits)))
   val overflowFlagReg       = Reg(Bool()) init False
 
   when(io.evalStart) {
@@ -219,6 +279,11 @@ case class SpriteEvaluator(
   val curMatrixD      = Bits(16 bits);            curMatrixD := 0
   val curTransX       = Bits(16 bits);            curTransX := 0
   val curTransY       = Bits(16 bits);            curTransY := 0
+  val curFlipH        = Bool();                   curFlipH := False
+  val curFlipV        = Bool();                   curFlipV := False
+  val curPaletteBank  = UInt(3 bits);             curPaletteBank := 0
+  val curPriority     = Bool();                   curPriority := False
+  val curSizeSel      = UInt(2 bits);             curSizeSel := U(SpriteDescriptor.DefaultSizeSel, 2 bits)
   when(scanBusy) {
     switch(scanIdx) {
       for (i <- 0 until descCount) {
@@ -234,13 +299,21 @@ case class SpriteEvaluator(
           curMatrixD      := descMatrix(i, 3)
           curTransX       := descMatrix(i, 4)
           curTransY       := descMatrix(i, 5)
+          curFlipH        := descFlipH(i)
+          curFlipV        := descFlipV(i)
+          curPaletteBank  := descPaletteBank(i)
+          curPriority     := descPriority(i)
+          curSizeSel      := descSizeSel(i)
         }
       }
     }
   }
-  val dOnLine = scanBusy && curEnabled(0) &&
-                (io.evalLine >= curY) &&
-                (io.evalLine < (curY + U(16, 10 bits)))
+  // Sprite Envelope Hardening: Y-range is now `[y, y + sizeForSel(sizeSel))`
+  // instead of the prior fixed-16 height. sizeForSel returns 8/16/32/64.
+  val curSize  = sizeForSel(curSizeSel)                          // 7 bits, max 64
+  val dOnLine  = scanBusy && curEnabled(0) &&
+                 (io.evalLine >= curY) &&
+                 (io.evalLine < (curY + curSize.resize(10)))
 
   when(scanBusy) {
     when(dOnLine) {
@@ -253,7 +326,7 @@ case class SpriteEvaluator(
               activeValidReg(s)        := True
               activeXReg(s)            := curX
               activeYReg(s)            := curY
-              activeRowReg(s)          := (io.evalLine - curY).resize(4)
+              activeRowReg(s)          := (io.evalLine - curY).resize(6)
               activePatternReg(s)      := curPat
               activeAffineEnableReg(s) := curAffineEnable
               activeMatrixAReg(s)      := curMatrixA
@@ -262,6 +335,11 @@ case class SpriteEvaluator(
               activeMatrixDReg(s)      := curMatrixD
               activeTransXReg(s)       := curTransX
               activeTransYReg(s)       := curTransY
+              activeFlipHReg(s)        := curFlipH
+              activeFlipVReg(s)        := curFlipV
+              activePaletteBankReg(s)  := curPaletteBank
+              activePriorityReg(s)     := curPriority
+              activeSizeSelReg(s)      := curSizeSel
             }
           }
         }
@@ -290,5 +368,10 @@ case class SpriteEvaluator(
   io.activeMatrixD      := activeMatrixDReg
   io.activeTransX       := activeTransXReg
   io.activeTransY       := activeTransYReg
+  io.activeFlipH        := activeFlipHReg
+  io.activeFlipV        := activeFlipVReg
+  io.activePaletteBank  := activePaletteBankReg
+  io.activePriority     := activePriorityReg
+  io.activeSizeSel      := activeSizeSelReg
   io.overflowFlag       := overflowFlagReg
 }

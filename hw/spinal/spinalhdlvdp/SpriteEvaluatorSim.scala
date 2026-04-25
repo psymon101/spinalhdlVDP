@@ -165,6 +165,87 @@ object SpriteEvaluatorSim extends App {
            s"Case 7: slot 10 bus-programmed descriptor should drive slot 0: $c7")
     println("[sim] Case 7 bus-programmed slot selection — OK")
 
+    // ====================================================================
+    // Sprite Envelope Hardening cases (CyanPeak #8577).
+    // ====================================================================
+
+    /** Pack the new word-8 control fields per the assessment §4.3 layout:
+      *   {sizeSel[15:14], paletteBank[13:11], priority[10], flipH[9], flipV[8], _[7:0]} */
+    def packWord8(sizeSel: Int, paletteBank: Int, priority: Boolean,
+                  flipH: Boolean, flipV: Boolean): Int =
+      ((sizeSel & 0x3) << 14) |
+      ((paletteBank & 0x7) << 11) |
+      ((if (priority) 1 else 0) << 10) |
+      ((if (flipH) 1 else 0) << 9) |
+      ((if (flipV) 1 else 0) << 8)
+
+    // --- Case 8: word-8 fields propagate to active outputs ---
+    for (d <- 0 until L) setLegacy(d, 0, 1023, enabled = false)
+    for (s <- L until D) setBusDesc(s, 0, 1023, enabled = false)
+    // Slot 12: sizeSel=10 (32×32), bank=5, priority=1, flipH=1, flipV=0.
+    setBusDesc(12, x = 100, y = 200, enabled = true, patIdx = 7)
+    pulseBus(12, 8, packWord8(sizeSel = 2, paletteBank = 5,
+                              priority = true, flipH = true, flipV = false))
+    pulseEval(210)
+    assert(dut.io.activeValid(0).toBoolean,                  "Case 8: slot 0 valid")
+    assert(dut.io.activeFlipH(0).toBoolean,                  "Case 8: flipH = true")
+    assert(!dut.io.activeFlipV(0).toBoolean,                 "Case 8: flipV = false")
+    assert(dut.io.activePaletteBank(0).toInt == 5,           "Case 8: paletteBank = 5")
+    assert(dut.io.activePriority(0).toBoolean,               "Case 8: priority = true")
+    assert(dut.io.activeSizeSel(0).toInt == 2,               "Case 8: sizeSel = 2 (32×32)")
+    println("[sim] Case 8 word-8 field propagation — OK")
+
+    // --- Case 9: sizeSel-aware Y-range, sizeSel=10 → 32 px tall ---
+    // Sprite at y=200, sizeSel=10 covers lines [200..232).
+    pulseEval(231)
+    assert(dut.io.activeValid(0).toBoolean,
+           "Case 9: line 231 must be in 32-px sprite Y-range [200..232)")
+    pulseEval(232)
+    assert(!dut.io.activeValid(0).toBoolean,
+           "Case 9: line 232 must be off-line (Y-range half-open)")
+    pulseEval(199)
+    assert(!dut.io.activeValid(0).toBoolean,
+           "Case 9: line 199 must be off-line")
+    println("[sim] Case 9 sizeSel=2 → Y-range 32 px — OK")
+
+    // --- Case 10: sizeSel=11 (64×64) — covers [Y..Y+64), activeRow up to 63 ---
+    setBusDesc(13, x = 0, y = 100, enabled = true, patIdx = 0)
+    pulseBus(13, 8, packWord8(sizeSel = 3, paletteBank = 0,
+                              priority = false, flipH = false, flipV = false))
+    // Disable slot 12 so this is the only active sprite.
+    pulseBus(12, 0, ((1 << 15) | (7 << 11) | 1023))   // enabled=1 stays, but y=1023 off-line
+    pulseEval(163)
+    val c10row = dut.io.activeRow(0).toInt
+    assert(dut.io.activeValid(0).toBoolean,        "Case 10: line 163 in [100..164)")
+    assert(c10row == 63,                           s"Case 10: 6-bit row should be 63, got $c10row")
+    pulseEval(164)
+    assert(!dut.io.activeValid(0).toBoolean,       "Case 10: line 164 off-line for 64-px sprite")
+    println(s"[sim] Case 10 sizeSel=3 → 64-px sprite, activeRow span 0..63 — OK")
+
+    // --- Case 11: sizeSel=00 (8×8) — Y-range half as tall as 16-px default ---
+    for (s <- L until D) setBusDesc(s, 0, 1023, enabled = false)
+    setBusDesc(14, x = 0, y = 50, enabled = true, patIdx = 0)
+    pulseBus(14, 8, packWord8(sizeSel = 0, paletteBank = 0,
+                              priority = false, flipH = false, flipV = false))
+    pulseEval(57)
+    assert(dut.io.activeValid(0).toBoolean,        "Case 11: 8-px sprite covers lines 50..57")
+    pulseEval(58)
+    assert(!dut.io.activeValid(0).toBoolean,       "Case 11: line 58 off-line for 8-px sprite")
+    println("[sim] Case 11 sizeSel=0 → 8-px sprite — OK")
+
+    // --- Case 12: legacy (IO) slot retains back-compat 16-px Y-range
+    //              even though the new sizeSel field exists ---
+    for (s <- L until D) setBusDesc(s, 0, 1023, enabled = false)
+    setLegacy(0, 50, 300, enabled = true, patIdx = 0)
+    pulseEval(315)
+    assert(dut.io.activeValid(0).toBoolean,        "Case 12: legacy sprite Y in [300..316)")
+    assert(dut.io.activeSizeSel(0).toInt == 1,     "Case 12: legacy sprite reports sizeSel=1 (16×16)")
+    assert(dut.io.activePaletteBank(0).toInt == 0, "Case 12: legacy sprite reports paletteBank=0")
+    assert(!dut.io.activePriority(0).toBoolean,    "Case 12: legacy sprite reports priority=False")
+    pulseEval(316)
+    assert(!dut.io.activeValid(0).toBoolean,       "Case 12: legacy sprite off-line at Y+16")
+    println("[sim] Case 12 legacy back-compat (sizeSel=1, paletteBank=0, priority=0) — OK")
+
     println("[sim] SpriteEvaluatorSim: PASS")
   }
 }

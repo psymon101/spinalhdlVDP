@@ -925,14 +925,30 @@ case class VdpTop() extends Component {
   // x, matA, matB, matC, matD, transX, transY). Task 45 restores full scale:
   // 32 slots × 8 words = 256 addresses (0x0800..0x08FF). slot = subAddr[7:3]
   // (5 bits → 32 slots), word = subAddr[2:0] (unchanged).
+  // Kept bit-identical for scenario 28 and any host firmware that hardcodes
+  // `slot*8 + word`.
   val spriteBusRangeHit = effWrite &&
     (effAddr >= U(0x0800, 15 bits)) &&
     (effAddr <  U(0x0900, 15 bits))
-  val spriteBusSub = (effAddr - U(0x0800, 15 bits))(7 downto 0)
-  spriteEval.io.busSlot := spriteBusSub(7 downto 3).resize(spriteEval.descIdxBits)
-  spriteEval.io.busWord := spriteBusSub(2 downto 0).resize(spriteEval.busWordBits)
+  val spriteBusSub    = (effAddr - U(0x0800, 15 bits))(7 downto 0)
+  val spriteBusSlot8  = spriteBusSub(7 downto 3).resize(spriteEval.descIdxBits)
+  val spriteBusWord8  = spriteBusSub(2 downto 0).resize(spriteEval.busWordBits)
+
+  // Sprite Envelope Hardening (CyanPeak #8577): word 8 lives in a
+  // separate bus block so the legacy 8-words-per-slot map above stays
+  // intact. 0x0900..0x091F = 32 slots × 1 word (word 8 only).
+  // slot = subAddr[4:0]. busWord forced to 8.
+  val spriteExtBusRangeHit = effWrite &&
+    (effAddr >= U(0x0900, 15 bits)) &&
+    (effAddr <  U(0x0920, 15 bits))
+  val spriteExtBusSlot = (effAddr - U(0x0900, 15 bits))(4 downto 0)
+    .resize(spriteEval.descIdxBits)
+
+  spriteEval.io.busSlot := Mux(spriteExtBusRangeHit, spriteExtBusSlot, spriteBusSlot8)
+  spriteEval.io.busWord := Mux(spriteExtBusRangeHit, U(8, spriteEval.busWordBits bits),
+                                                     spriteBusWord8)
   spriteEval.io.busData := effData
-  spriteEval.io.busWr   := spriteBusRangeHit
+  spriteEval.io.busWr   := spriteBusRangeHit || spriteExtBusRangeHit
 
   // Pass 1 strobe at end of line — evaluator takes descCount cycles to
   // complete (well under hBlank = 160 cycles at 640×480@60).
