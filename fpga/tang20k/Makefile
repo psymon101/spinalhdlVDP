@@ -158,3 +158,32 @@ flash-720p-linebuf: $(LINEBUF_BITSTREAM)
 
 clean-720p-linebuf:
 	rm -rf $(LINEBUF_BUILD_DIR)
+
+# ---------------------------------------------------------------------------
+# Mode0 Fetch Envelope Hardening — planar fetch primitives HW proof.
+# ---------------------------------------------------------------------------
+PLANAR_BUILD_DIR := impl_720p_planar
+PLANAR_TCL       := build_hdmi720p_planar.tcl
+PLANAR_BITSTREAM := $(PLANAR_BUILD_DIR)/pnr/project.fs
+PLANAR_GEN       := spinalhdlvdp.Hdmi720pPlanarProofTopVerilog
+
+.PHONY: gen-720p-planar prog-720p-planar flash-720p-planar clean-720p-planar 720p-planar
+
+gen-720p-planar:
+	$(SBT) "runMain $(PLANAR_GEN)"
+
+$(PLANAR_BITSTREAM): gen-720p-planar $(PLANAR_TCL) tang20k_hdmi720p_planar.cst tang20k_hdmi720p_planar.sdc
+	rm -rf $(BUILD_DIR) $(PLANAR_BUILD_DIR)
+	$(GW_ENV) $(GW_SH) $(PLANAR_TCL)
+	mv $(BUILD_DIR) $(PLANAR_BUILD_DIR)
+
+720p-planar: $(PLANAR_BITSTREAM)
+
+prog-720p-planar: $(PLANAR_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) --bitstream $(PLANAR_BITSTREAM)
+
+flash-720p-planar: $(PLANAR_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) -f --verify $(PLANAR_BITSTREAM)
+
+clean-720p-planar:
+	rm -rf $(PLANAR_BUILD_DIR)
