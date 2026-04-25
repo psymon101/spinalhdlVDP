@@ -18,6 +18,7 @@ fpga/tang20k/impl/
 fpga/tang20k/impl_720p_proof/
 fpga/tang20k/impl_720p_bridge/
 fpga/tang20k/impl_720p_mode0/
+fpga/tang20k/impl_720p_linebuf/
 fpga/tang20k/gwlog/
 fpga/tang20k/*.fs
 fpga/tang20k/*.tmp

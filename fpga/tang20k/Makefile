@@ -129,3 +129,32 @@ flash-720p-mode0: $(MODE0_BITSTREAM)
 
 clean-720p-mode0:
 	rm -rf $(MODE0_BUILD_DIR)
+
+# ---------------------------------------------------------------------------
+# BronzeGate #8505 Slice D-B1-L — dual-clock line-buffer CDC proof.
+# ---------------------------------------------------------------------------
+LINEBUF_BUILD_DIR := impl_720p_linebuf
+LINEBUF_TCL       := build_hdmi720p_linebuf.tcl
+LINEBUF_BITSTREAM := $(LINEBUF_BUILD_DIR)/pnr/project.fs
+LINEBUF_GEN       := spinalhdlvdp.Hdmi720pLineBufferProofTopVerilog
+
+.PHONY: gen-720p-linebuf prog-720p-linebuf flash-720p-linebuf clean-720p-linebuf 720p-linebuf
+
+gen-720p-linebuf:
+	$(SBT) "runMain $(LINEBUF_GEN)"
+
+$(LINEBUF_BITSTREAM): gen-720p-linebuf $(LINEBUF_TCL) tang20k_hdmi720p_linebuf.cst tang20k_hdmi720p_linebuf.sdc
+	rm -rf $(BUILD_DIR) $(LINEBUF_BUILD_DIR)
+	$(GW_ENV) $(GW_SH) $(LINEBUF_TCL)
+	mv $(BUILD_DIR) $(LINEBUF_BUILD_DIR)
+
+720p-linebuf: $(LINEBUF_BITSTREAM)
+
+prog-720p-linebuf: $(LINEBUF_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) --bitstream $(LINEBUF_BITSTREAM)
+
+flash-720p-linebuf: $(LINEBUF_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) -f --verify $(LINEBUF_BITSTREAM)
+
+clean-720p-linebuf:
+	rm -rf $(LINEBUF_BUILD_DIR)
