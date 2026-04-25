@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **None — HDMI side lane closed, awaiting PM decision** |
-| **Status** | **CLOSED** |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `f942c3a` (Slice D-B1-L PASS) |
-| **Latest Auth Mail** | #8521 (BronzeGate: close HDMI seam-proof, return to roadmap reassessment) |
-| **Next Deliverable** | PM decision on next formal roadmap phase |
-| **Coding Authorized** | **NO** — no live lane
+| **Task** | **Mode0 Fetch Envelope Hardening** |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | implement |
+| **Owner** | BrightForge |
+| **Latest Commit** | `350a3e9` (H-3b PlanarLineFetch) |
+| **Latest Auth Mail** | #8547 (BronzeGate: audit + ledger sync) |
+| **Next Deliverable** | CyanPeak audit of H-3b; then H-4 bandwidth proof |
+| **Coding Authorized** | **YES** — CyanPeak audit PASS #8546, BronzeGate #8547
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_FETCH_ENVELOPE_HARDENING.md` (v1.0-draft)
 
