@@ -238,6 +238,59 @@ Ledger sync is part of closeout, not a later cleanup step:
 
 - audit PASS should be followed immediately by `TASKS.md` / live-lane sync
 - a lane is not functionally closed until repo state matches authoritative mail
+
+### In-Lane Continuation
+
+Once a lane is approved, clearly in-scope sub-slices are auto-approved by
+default.
+
+Working rule:
+
+- `BrightForge` should continue through obvious in-scope sub-slices without
+  waiting for a fresh BronzeGate packet every time
+- `CyanPeak` audits completed checkpoints and evidence, rather than gating each
+  micro-step in advance
+- `CoralReef` supports with research, hardware/ledger sync, and blocker
+  assistance, but should not become a routine blocker on the coding critical
+  path
+- `BronzeGate` is only reintroduced for scope changes, priority changes,
+  hardware-risk pivots, contradictory evidence, or genuine ambiguity
+
+Examples:
+
+- if an approved lane contains bounded follow-on sub-slices such as `H-1`,
+  `H-2`, `H-3`, those are auto-approved continuations unless the lane boundary
+  is crossed
+- after one bounded sub-slice completes, if the next sub-slice is obvious and
+  still in scope, continue immediately
+
+Do not pause a lane for a fresh PM packet between routine in-scope
+continuations.
+
+### Coding-Blocker Escalation
+
+`BrightForge` is the default coding owner and is expected to work through
+routine bugs or unexpected results before escalating.
+
+Default escalation policy:
+
+- for a locally tractable bug or unexpected result, `BrightForge` should make
+  up to **3 serious fix attempts / reasoning passes**
+- if it becomes obvious earlier that the issue is not locally tractable, stop
+  early and ask for help instead of spending attempts mechanically
+- after those attempts, or earlier when clearly justified, `CyanPeak` should be
+  pulled in first to help reason through the problem
+- if `BrightForge` and `CyanPeak` still cannot resolve the issue, escalate to
+  the rest of the group with the relevant evidence and blocker summary
+
+Escalation packets should include:
+
+- what was attempted
+- what evidence was gathered
+- why the issue still appears blocked or ambiguous
+
+Do not escalate on the first ordinary bug. Do not spin indefinitely once local
+attempts are exhausted.
 - post-audit ledger sync is owned work, not optional cleanup
 
 If task order is already converged, the next listed lane is the default next
