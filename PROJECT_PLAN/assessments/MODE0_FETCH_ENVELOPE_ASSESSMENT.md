@@ -180,7 +180,7 @@ No substrate fork is required. The adapter would configure existing bitmap+attri
 |---|---|---|---|
 | **Planar plane count limit (2 max)** | Hardcoded in `SdramTileAttributeFetch` pixel reconstruction | Blocks Amiga 3-5bp and ST low-res 4bp | Extend to 5–6 planes with configurable plane count |
 | **No dedicated bitplane row fetcher** | Planar is a tile-decode mode, not a scanline fetcher | Amiga/ST expect scanline-oriented bitplane DMA | Add `BitplaneRowFetch` primitive or restructure planar as standalone fetcher |
-| **No burst SDRAM reads** | All fetches are individual byte/word transactions | Inefficient for multi-plane; wastes SDRAM cycles | Add burst-read path for contiguous row data |
+| **No wide-read SDRAM path** | All fetches use 8-bit `dout`; `dout32` 32-bit aperture unused | Inefficient for multi-plane; wastes SDRAM cycles | Add arbiter FSM path that uses `dout32` for contiguous row reads (4 bytes/transaction, no controller change) |
 | **Only L0 has SDRAM fetch** | L1–L3 are on-chip `BasicPatternSource` only | Multi-layer Amiga/ST needs multiple SDRAM-backed layers | Extend arbiter to support multi-layer SDRAM fetch (high architectural cost) |
 | **Scheduler slots underutilized** | 2 of 8 slots used; both for client 0 (tile) | Headroom exists but no multi-client allocation policy | Define slot allocation for multi-fetch scenarios |
 
@@ -211,7 +211,7 @@ No substrate fork is required. The adapter would configure existing bitmap+attri
 Bounded scope:
 1. Extend planar pixel reconstruction from 2 planes to **5 planes** (covers Amiga OCS standard and ST low-res)
 2. Add a **dedicated `BitplaneRowFetch` primitive** that fetches scanline-oriented bitplane data from SDRAM
-3. Add **burst-read support** for contiguous bitplane rows (reduces transaction count)
+3. Add **burst-read support** for contiguous bitplane rows using the existing `dout32` 32-bit read aperture (4 bytes per read transaction, no controller change)
 4. Prove SDRAM bandwidth for 5-plane fetch at 320×200 within the existing 640×480@60 timing
 5. Do NOT implement multi-layer SDRAM fetch (out of scope for this hardening step)
 
@@ -237,9 +237,12 @@ Current baseline (per line at 640×480@60):
 Proposed 5-plane bitplane fetch (320×200 active window within 640×480 frame):
 - 320 pixels / 8 = 40 bytes per plane
 - 5 planes = 200 bytes per line
-- Burst read of 40 bytes × 5 planes = 5 burst transactions
-- Estimated burst cost: ~5 transactions × ~20 cycles (burst overhead + data) = ~100 SDRAM cycles
-- **Well within budget.** Even with concurrent sprite and L0 tile fetch, the burst path dramatically reduces cycle consumption vs. individual byte reads.
+- Using `dout32` 32-bit read aperture: each read transaction yields 4 bytes
+- 200 bytes / 4 bytes per transaction = **50 read transactions**
+- 50 transactions × ~5 cycles = **~250 SDRAM cycles**
+- **Well within budget.** (~250 cycles vs. ~2050 available per line, leaving ~1800 for sprite/L0/concurrent load)
+
+**Correction note:** An earlier version of this assessment assumed a true burst-mode controller (multiple bytes per row activation without precharge). The current nand2mario controller is byte-based and non-bursting. The feasible interpretation is using the existing `dout32[31:0]` 32-bit read port, which gives 4 bytes per transaction without controller modification. True burst mode would require controller replacement or redesign and is explicitly out of scope per PM #8505.
 
 ### 6.4 Follow-On Task Recommendation
 
@@ -271,7 +274,7 @@ If Planar Fetch Hardening is deferred:
 
 2. **Affine fetch tuning:** Task 19 / Scenario 37 proved affine groundwork, but deeper affine tuning (SNES Mode 7 pressure) is intentionally deferred per `MODE0_COVERAGE_MATRIX.md`.
 
-3. **Burst read infrastructure:** The recommended burst path for bitplane fetch does not yet exist in the SDRAM arbiter. Adding it requires arbiter FSM changes.
+3. **Wide-read arbiter path:** The recommended `dout32`-based read path for bitplane fetch does not yet exist in the SDRAM arbiter. Adding it requires arbiter FSM changes only — no SDRAM controller modification.
 
 4. **DSP yellow zone:** DSP is already at 75% (yellow). Any future feature adding DSP usage (e.g., more affine math) needs explicit justification.
 
@@ -283,7 +286,7 @@ The Mode0 fetch envelope is **strong for tile+attribute and bitmap+attribute**, 
 
 The project should:
 1. **Accept** that bitmap+attribute and tile+attribute are ready for adapter lanes now
-2. **Open a bounded Planar Fetch Hardening task** (5 planes, burst reads, dedicated row fetcher) before serious Amiga/ST adapter claims
+2. **Open a bounded Planar Fetch Hardening task** (5 planes, `dout32` wide reads via arbiter FSM, dedicated row fetcher) before serious Amiga/ST adapter claims
 3. **Defer** multi-layer SDRAM fetch to a later task with its own stop-line review
 
 This preserves the architectural rule that `Mode0` owns the reusable superset while adapters own platform-specific semantics.
