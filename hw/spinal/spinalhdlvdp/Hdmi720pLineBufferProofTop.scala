@@ -126,45 +126,59 @@ case class Hdmi720pLineBufferProofTop() extends Component {
   // bursty 74.25 MHz consumer (which only consumes one pixel per
   // centered-active reader cycle, not every reader cycle).
   // ----------------------------------------------------------------------
+  // P-2 (per #8511): pack 4 pixels per FIFO entry so writer's effective
+  // rate (25.2 M × 4 = 100.8 M pixels/s) outpaces reader's 74.4 M
+  // pixels/s instantaneous demand. 96 bits per entry, MSB = oldest pixel.
+  val PixPack = 4
+  val PixPackBits = 24 * PixPack
   val pixelFifo = StreamFifoCC(
-    dataType  = Bits(24 bits),
-    depth     = 64,
+    dataType  = Bits(PixPackBits bits),
+    depth     = 32,
     pushClock = writerCd,
     popClock  = readerCd
   )
 
   // ----------------------------------------------------------------------
-  // Writer clocking area (25.2 MHz): cycles a synthetic-pattern counter
-  // 0..639 and pushes RGB pixels to the FIFO. The counter only advances
-  // on a successful FIFO push (`fire`), so the writer naturally throttles
-  // to the consumer's average rate via backpressure. The pattern is
-  // line-invariant — the reader gets the same 8-bar lookup regardless
-  // of which "writer line" the FIFO front belongs to.
+  // Writer clocking area (25.2 MHz): produces ALL `PixPack` pixels per
+  // cycle in parallel from `xCount`, packs them into one FIFO entry, and
+  // pushes one entry per cycle (rate-matched to reader's centered demand).
+  // xCount advances by `PixPack` per push, wrapping at 640 → 0. With
+  // PixPack=4, effective rate is 25.2 M × 4 = 100.8 M pixels/s, ≥ the
+  // reader's 74.4 M instantaneous pop rate.
   // ----------------------------------------------------------------------
   val writerArea = new ClockingArea(writerCd) {
-    val xCount = Reg(UInt(10 bits)) init 0
+    val xCount = Reg(UInt(10 bits)) init 0  // base index of the current pack
 
-    val stripeIdx = (xCount / U(80, 10 bits)).resize(3)
-    val r = Bits(8 bits); r := B(0, 8 bits)
-    val g = Bits(8 bits); g := B(0, 8 bits)
-    val b = Bits(8 bits); b := B(0, 8 bits)
-    val palette = Seq(
-      (0xFF, 0xFF, 0xFF), (0xFF, 0xFF, 0x00), (0x00, 0xFF, 0xFF), (0x00, 0xFF, 0x00),
-      (0xFF, 0x00, 0xFF), (0xFF, 0x00, 0x00), (0x00, 0x00, 0xFF), (0x00, 0x00, 0x00)
-    )
-    switch(stripeIdx) {
-      for ((c, i) <- palette.zipWithIndex) {
-        is(U(i, 3 bits)) {
-          r := B(c._1, 8 bits); g := B(c._2, 8 bits); b := B(c._3, 8 bits)
+    // Combinational 8-SMPTE-bar lookup over a 10-bit x.
+    def patternFor(x: UInt): Bits = {
+      val palette = Seq(
+        (0xFF, 0xFF, 0xFF), (0xFF, 0xFF, 0x00), (0x00, 0xFF, 0xFF), (0x00, 0xFF, 0x00),
+        (0xFF, 0x00, 0xFF), (0xFF, 0x00, 0x00), (0x00, 0x00, 0xFF), (0x00, 0x00, 0x00)
+      )
+      val si = (x / U(80, 10 bits)).resize(3)
+      val r = Bits(8 bits); r := B(0, 8 bits)
+      val g = Bits(8 bits); g := B(0, 8 bits)
+      val b = Bits(8 bits); b := B(0, 8 bits)
+      switch(si) {
+        for ((c, i) <- palette.zipWithIndex) {
+          is(U(i, 3 bits)) {
+            r := B(c._1, 8 bits); g := B(c._2, 8 bits); b := B(c._3, 8 bits)
+          }
         }
       }
+      r ## g ## b
     }
-    val packed = (r ## g ## b)
+
+    val p0 = patternFor(xCount)
+    val p1 = patternFor((xCount + U(1, 10 bits)).resize(10))
+    val p2 = patternFor((xCount + U(2, 10 bits)).resize(10))
+    val p3 = patternFor((xCount + U(3, 10 bits)).resize(10))
 
     pixelFifo.io.push.valid   := True
-    pixelFifo.io.push.payload := packed
+    pixelFifo.io.push.payload := p0 ## p1 ## p2 ## p3   // 96 bits, MSB=oldest
+
     when(pixelFifo.io.push.fire) {
-      when(xCount === U(639, 10 bits)) { xCount := 0 } otherwise { xCount := xCount + 1 }
+      xCount := Mux(xCount === U(636, 10 bits), U(0, 10 bits), xCount + U(4, 10 bits))
     }
   }
 
@@ -180,16 +194,31 @@ case class Hdmi720pLineBufferProofTop() extends Component {
     bridge.io.y  := timing.io.y
     bridge.io.de := timing.io.de
 
-    // Drain the FIFO once per centered-active reader cycle. The pattern
-    // is line-invariant, so order alignment is preserved automatically
-    // as long as the FIFO never underruns: writer pushes 8-bar pattern
-    // [0..639] forever, reader pops 640 per centered active row.
-    // FIFO depth 64 absorbs the small instantaneous-rate jitter.
-    pixelFifo.io.pop.ready := bridge.io.inWindow
-    val rdData = pixelFifo.io.pop.payload
-    bridge.io.contentRed   := rdData(23 downto 16)
-    bridge.io.contentGreen := rdData(15 downto  8)
-    bridge.io.contentBlue  := rdData( 7 downto  0)
+    // Demux the 4-pack: phase counter cycles 0..3 across each FIFO entry;
+    // pop fires on phase==3 (last pixel of current entry) so on the next
+    // cycle (phase 0) `pop.payload` shows the next entry. Phase resets to
+    // 0 outside the centered window so each row starts pixel-aligned with
+    // a new entry.
+    val phase = Reg(UInt(log2Up(PixPack) bits)) init 0
+    val needPop = bridge.io.inWindow && phase === U(3, 2 bits)
+    pixelFifo.io.pop.ready := needPop
+
+    when(bridge.io.inWindow) {
+      phase := phase + 1                                 // wraps 0..3
+    } otherwise {
+      phase := 0
+    }
+
+    val pack = pixelFifo.io.pop.payload
+    val pix = phase.mux(
+      U(0, 2 bits) -> pack(95 downto 72),
+      U(1, 2 bits) -> pack(71 downto 48),
+      U(2, 2 bits) -> pack(47 downto 24),
+      default      -> pack(23 downto  0)
+    )
+    bridge.io.contentRed   := pix(23 downto 16)
+    bridge.io.contentGreen := pix(15 downto  8)
+    bridge.io.contentBlue  := pix( 7 downto  0)
 
     // Clean-start mute (~80 ms at 74.25 MHz).
     val cleanStart = HdmiCleanStart(muteCycles = 6_000_000)
