@@ -3,7 +3,8 @@
 **Assessment version:** 1.0  
 **Author:** CoralReef  
 **Date:** 2026-04-25  
-**Commit:** TBD  
+**Commit:** `31e3de0`  
+**Audit:** PASS #8577  
 **Scope:** Assessment / analysis only; no substrate implementation changes authorized
 
 ---

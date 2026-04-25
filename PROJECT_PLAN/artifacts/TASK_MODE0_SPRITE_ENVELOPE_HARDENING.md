@@ -3,8 +3,8 @@
 **Artifact version:** 1.0-draft  
 **Author:** CoralReef  
 **Date:** 2026-04-25  
-**Status:** artifact audit PASS — assessment phase pending PM authorization  
-**Coding authorized:** NO — awaiting BronzeGate authorization of assessment phase
+**Status:** assessment PASS #8577 — implementation phase open  
+**Coding authorized:** YES — CyanPeak #8577
 
 ---
 
@@ -13,9 +13,10 @@
 | Sub-Slice | Description | Commit | Audit | Evidence |
 |-----------|-------------|--------|-------|----------|
 | S-1 | Artifact creation — sprite envelope hardening scope & gap analysis plan | `863f6dc` | PASS #8566 | Artifact v1.0-draft approved by CyanPeak |
-| S-2 | Descriptor field extension assessment (size, flip, priority, palette) | TBD | **pending** | Assessment report delivered; awaiting CyanPeak audit |
-| S-3 | Evaluator capacity / visible-per-line scaling analysis | TBD | **pending** | Assessment report delivered; awaiting CyanPeak audit |
-| S-4 | Stop-line-aware recommendation for any growth | TBD | **pending** | Assessment report delivered; awaiting CyanPeak audit |
+| S-2 | Descriptor field extension assessment (size, flip, priority, palette) | `31e3de0` | PASS #8577 | 5 shared fields identified; 2 adapter-local |
+| S-3 | Evaluator capacity / visible-per-line scaling analysis | `31e3de0` | PASS #8577 | 8→32 recommended; architecture sound |
+| S-4 | Stop-line-aware recommendation for any growth | `31e3de0` | PASS #8577 | +~900 LUT / +~1,200 FF; stays green zone |
+| S-5 | Sprite Descriptor Extension implementation | — | **pending** | BrightForge authorized per #8577 |
 
 ---
 
