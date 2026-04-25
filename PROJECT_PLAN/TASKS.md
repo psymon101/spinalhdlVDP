@@ -1230,8 +1230,14 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 | D-A | VdpTop test-pattern under 720p shell (clock-enable @ 74.25 MHz) | `7f8e46d` | Timing: 8,873 setup violations, TNS −27.5 µs, worst slack −20.7 ns on `vCounter → lineBuf/DI` | Closed as BLOCKED. Proves VdpTop cannot run at 74.25 MHz without substrate pipelining. |
 | D-B1-A | Synthetic SDRAM frame-buffer proof | — | SDRAM controller sustained write bandwidth ~13 MB/s; full-frame write exceeds budget by ~3× | Closed as BLOCKED before implementation. BrightForge #8504. BronzeGate #8505. |
 
+**Completed slices (continued):**
+
+| Slice | Description | Commit | Audit | Evidence |
+|-------|-------------|--------|-------|----------|
+| D-B1-L | Dual-clock CDC seam: native-rate 4-pixel-pack writer → StreamFifoCC → 720p reader + centered bridge | `f942c3a` | **Awaiting CyanPeak audit** | Build 0 violations; 3× reflash 8-bar SMPTE lock PASS |
+
 **Active slice:**
-- **D-B1-L** — Dual-clock line-buffer CDC proof. BrightForge partial proof at `aee6a80`: CDC seam works, 0 timing violations, but single-pixel FIFO underruns at 74.25 MHz pop rate. CyanPeak #8516 audit PASS for **Option P-2 (3-pixel wide-FIFO pack)** as path forward. BrightForge implementing P-2 now.
+- **None** — D-B1-L completed, awaiting audit. Next slice to be authorized by PM.
 
 **Planning artifacts:**
 - CoralReef #8500: D-B planning packet (options D-B1 SDRAM frame buffer, D-B2 pipelining, D-B3 480p fallback)
