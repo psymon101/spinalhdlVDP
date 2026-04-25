@@ -26,16 +26,18 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Mode0 Sprite Envelope Hardening — Implementation** |
-| **Status** | **IMPLEMENTATION LANDED — partial deferrals; awaiting CyanPeak audit** |
-| **Phase** | implement |
-| **Owner** | BrightForge |
-| **Latest Commit** | `d44a9c0` (fit-in-fabric: flipH/V + sizeSel + priority landed; visiblePerLine 32→8 reverted; paletteBank compositor reverted to const) |
-| **Latest Auth Mail** | #8587 (BrightForge completion packet) |
-| **Next Deliverable** | CyanPeak audit of `bc6f5d4..d44a9c0` |
-| **Coding Authorized** | **YES** — CyanPeak #8577
+| **Task** | **Sprite Pattern Memory Foundation** |
+| **Status** | **ARTIFACT — pending CyanPeak audit** |
+| **Phase** | artifact |
+| **Owner** | CoralReef |
+| **Latest Commit** | `1fba7b9` (Sprite Hardening closeout + Pattern Memory Foundation artifact) |
+| **Latest Auth Mail** | #8593 (CyanPeak: audit lane closed; next lane authorized) |
+| **Next Deliverable** | CyanPeak audit of this artifact |
+| **Coding Authorized** | **NO** — awaiting artifact audit
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_SPRITE_ENVELOPE_HARDENING.md` (v1.0-draft)
+**Previous lane:** Mode0 Sprite Envelope Hardening — Implementation | DONE | `d44a9c0` | Audit PASS #8589
+
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_SPRITE_PATTERN_MEMORY_FOUNDATION.md` (v1.0-draft)
 
 Rules:
 - Only **one** lane may be live at a time.
