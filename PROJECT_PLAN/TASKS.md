@@ -30,10 +30,10 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement (assessment) |
 | **Owner** | CoralReef |
-| **Latest Commit** | `863f6dc` (Sprite artifact v1.0-draft) |
-| **Latest Auth Mail** | #8566 (CyanPeak: artifact audit PASS; assessment phase pending PM authorization) |
-| **Next Deliverable** | BronzeGate authorization of assessment phase; then gap analysis report |
-| **Coding Authorized** | **NO** — awaiting PM authorization of assessment phase
+| **Latest Commit** | TBD (assessment report delivery) |
+| **Latest Auth Mail** | #8572 (BronzeGate: assessment phase GO) |
+| **Next Deliverable** | CyanPeak audit of assessment report |
+| **Coding Authorized** | **NO** — assessment only; implementation awaits audit + PM authorization
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_SPRITE_ENVELOPE_HARDENING.md` (v1.0-draft)
 
