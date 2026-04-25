@@ -100,3 +100,32 @@ flash-720p-bridge: $(BRIDGE_BITSTREAM)
 
 clean-720p-bridge:
 	rm -rf $(BRIDGE_BUILD_DIR)
+
+# ---------------------------------------------------------------------------
+# BronzeGate #8496 Slice D-A — VdpTop test-pattern under 720p shell.
+# ---------------------------------------------------------------------------
+MODE0_BUILD_DIR := impl_720p_mode0
+MODE0_TCL       := build_hdmi720p_mode0.tcl
+MODE0_BITSTREAM := $(MODE0_BUILD_DIR)/pnr/project.fs
+MODE0_GEN       := spinalhdlvdp.Hdmi720pMode0ProofTopVerilog
+
+.PHONY: gen-720p-mode0 prog-720p-mode0 flash-720p-mode0 clean-720p-mode0 720p-mode0
+
+gen-720p-mode0:
+	$(SBT) "runMain $(MODE0_GEN)"
+
+$(MODE0_BITSTREAM): gen-720p-mode0 $(MODE0_TCL) tang20k_hdmi720p_mode0.cst tang20k_hdmi720p_mode0.sdc
+	rm -rf $(BUILD_DIR) $(MODE0_BUILD_DIR)
+	$(GW_ENV) $(GW_SH) $(MODE0_TCL)
+	mv $(BUILD_DIR) $(MODE0_BUILD_DIR)
+
+720p-mode0: $(MODE0_BITSTREAM)
+
+prog-720p-mode0: $(MODE0_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) --bitstream $(MODE0_BITSTREAM)
+
+flash-720p-mode0: $(MODE0_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) -f --verify $(MODE0_BITSTREAM)
+
+clean-720p-mode0:
+	rm -rf $(MODE0_BUILD_DIR)
