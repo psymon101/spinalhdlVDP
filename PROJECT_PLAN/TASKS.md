@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Mode0 Fetch Envelope Hardening** |
-| **Status** | **COMPLETE — pending PM closeout** |
-| **Phase** | closeout |
-| **Owner** | BrightForge |
-| **Latest Commit** | `dcb5b2f` (H-5 planar HW proof on Tang Nano 20K) |
-| **Latest Auth Mail** | #8553 (CyanPeak: H-3b/H-4/H-5 audit PASS) |
-| **Next Deliverable** | BronzeGate formal lane closeout + next roadmap priority |
-| **Coding Authorized** | **YES** — CyanPeak audit PASS #8546/#8553
+| **Task** | **Mode0 Sprite Envelope Hardening** |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | artifact |
+| **Owner** | CoralReef |
+| **Latest Commit** | `14f8c06` (Fetch Hardening closeout + Sprite artifact draft) |
+| **Latest Auth Mail** | #8563 (BronzeGate: close Fetch Hardening, open Sprite Hardening) |
+| **Next Deliverable** | CyanPeak audit of sprite artifact; then BrightForge implementation |
+| **Coding Authorized** | **NO** — artifact awaits CyanPeak audit
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_FETCH_ENVELOPE_HARDENING.md` (v1.0-draft)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_SPRITE_ENVELOPE_HARDENING.md` (v1.0-draft)
 
 Rules:
 - Only **one** lane may be live at a time.
