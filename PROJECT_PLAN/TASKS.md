@@ -26,13 +26,13 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **None — assessment complete** |
+| **Task** | **None — HDMI side lane closed, awaiting PM decision** |
 | **Status** | **CLOSED** |
 | **Phase** | — |
 | **Owner** | — |
-| **Latest Commit** | `05476f3` (CoralReef assessment report v1.0) |
-| **Latest Auth Mail** | #8366 (CyanPeak assessment audit PASS) |
-| **Next Deliverable** | PM decision on opening recommended Planar Fetch Hardening task |
+| **Latest Commit** | `f942c3a` (Slice D-B1-L PASS) |
+| **Latest Auth Mail** | #8521 (BronzeGate: close HDMI seam-proof, return to roadmap reassessment) |
+| **Next Deliverable** | PM decision on next formal roadmap phase |
 | **Coding Authorized** | **NO** — no live lane
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_FETCH_ENVELOPE_HARDENING.md` (v1.0-draft)
