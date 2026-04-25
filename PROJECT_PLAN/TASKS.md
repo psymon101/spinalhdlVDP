@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Mode0 Sprite Envelope Hardening** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | artifact |
+| **Phase** | implement (assessment) |
 | **Owner** | CoralReef |
-| **Latest Commit** | `14f8c06` (Fetch Hardening closeout + Sprite artifact draft) |
-| **Latest Auth Mail** | #8563 (BronzeGate: close Fetch Hardening, open Sprite Hardening) |
-| **Next Deliverable** | CyanPeak audit of sprite artifact; then BrightForge implementation |
-| **Coding Authorized** | **NO** — artifact awaits CyanPeak audit
+| **Latest Commit** | `863f6dc` (Sprite artifact v1.0-draft) |
+| **Latest Auth Mail** | #8566 (CyanPeak: artifact audit PASS; assessment phase pending PM authorization) |
+| **Next Deliverable** | BronzeGate authorization of assessment phase; then gap analysis report |
+| **Coding Authorized** | **NO** — awaiting PM authorization of assessment phase
 
 **Artifact file:** `PROJECT_PLAN/artifacts/TASK_MODE0_SPRITE_ENVELOPE_HARDENING.md` (v1.0-draft)
 

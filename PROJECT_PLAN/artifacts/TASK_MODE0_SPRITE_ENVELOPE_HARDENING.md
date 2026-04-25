@@ -3,8 +3,8 @@
 **Artifact version:** 1.0-draft  
 **Author:** CoralReef  
 **Date:** 2026-04-25  
-**Status:** artifact draft — awaiting audit  
-**Coding authorized:** NO
+**Status:** artifact audit PASS — assessment phase pending PM authorization  
+**Coding authorized:** NO — awaiting BronzeGate authorization of assessment phase
 
 ---
 
@@ -12,7 +12,7 @@
 
 | Sub-Slice | Description | Commit | Audit | Evidence |
 |-----------|-------------|--------|-------|----------|
-| S-1 | Gap analysis — sprite envelope vs. Amiga/Genesis/Neo Geo pressure | — | **pending** | — |
+| S-1 | Artifact creation — sprite envelope hardening scope & gap analysis plan | `863f6dc` | PASS #8566 | Artifact v1.0-draft approved by CyanPeak |
 | S-2 | Descriptor field extension assessment (size, flip, priority, palette) | — | **pending** | — |
 | S-3 | Evaluator capacity / visible-per-line scaling analysis | — | **pending** | — |
 | S-4 | Stop-line-aware recommendation for any growth | — | **pending** | — |
