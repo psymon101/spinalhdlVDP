@@ -1207,13 +1207,15 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 
 ### HDMI Output Compatibility (Option A)
 
-**Status:** IN-PROGRESS — D-B1-L partial proof landed, P-2 authorized by audit
-**PM authority:** BronzeGate #8505
+**Status:** CLOSED — seam proof converged at `f942c3a` / #8520
+**PM authority:** BronzeGate #8521
 **Audit owner:** CyanPeak
 
 **Goal:** Improve HDMI observation-path robustness by migrating Tang Nano 20K output from VESA 640×480 to CEA-861 720p60, with a clean architectural seam between fixed transport and internal render geometry.
 
 **Phased plan:** `PROJECT_PLAN/artifacts/TASK_HDMI_OUTPUT_COMPATIBILITY_OPTION_A.md` (commit `d60b38b`)
+
+**Outcome:** The HDMI compatibility seam-proof objective is **successfully demonstrated**. Native-rate (25.2 MHz) writer side can feed the proven 720p transport shell (74.25 MHz) via a 4-pixel-pack `StreamFifoCC` CDC seam, with zero VdpTop changes and zero timing violations.
 
 **Completed slices:**
 
@@ -1222,6 +1224,7 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 | A | HDMI clean-start mute on `pll.LOCK` rise | `7f00a37` | PASS #8481 | Sim 6/6; 3× reflash hardware lock/re-lock PASS |
 | B | 720p output-shell synthetic-source proof | `f0b774b` | PASS #8485 | Sim 6/6; 3× reflash 720p SMPTE bars lock PASS |
 | C | Output mapper / centered 640×480-in-1280×720 bridge | `9b3fd85` + `70dd6ca` | PASS #8490 | Sim 6/6 + 8 boundary checks; 3× reflash 720p bridge lock PASS |
+| D-B1-L | Dual-clock CDC seam: native-rate 4-pixel-pack writer → StreamFifoCC → 720p reader + centered bridge | `f942c3a` | PASS #8520 | Build 0 violations; 3× reflash 8-bar SMPTE lock PASS; 4-pixel-pack rate-matches 25.2→74.25 MHz |
 
 **Blocked / informative slices:**
 
@@ -1230,14 +1233,8 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 | D-A | VdpTop test-pattern under 720p shell (clock-enable @ 74.25 MHz) | `7f8e46d` | Timing: 8,873 setup violations, TNS −27.5 µs, worst slack −20.7 ns on `vCounter → lineBuf/DI` | Closed as BLOCKED. Proves VdpTop cannot run at 74.25 MHz without substrate pipelining. |
 | D-B1-A | Synthetic SDRAM frame-buffer proof | — | SDRAM controller sustained write bandwidth ~13 MB/s; full-frame write exceeds budget by ~3× | Closed as BLOCKED before implementation. BrightForge #8504. BronzeGate #8505. |
 
-**Completed slices (continued):**
-
-| Slice | Description | Commit | Audit | Evidence |
-|-------|-------------|--------|-------|----------|
-| D-B1-L | Dual-clock CDC seam: native-rate 4-pixel-pack writer → StreamFifoCC → 720p reader + centered bridge | `f942c3a` | PASS #8520 | Build 0 violations; 3× reflash 8-bar SMPTE lock PASS; 4-pixel-pack rate-matches 25.2→74.25 MHz |
-
 **Active slice:**
-- **None** — D-B1-L completed, awaiting audit. Next slice to be authorized by PM.
+- **None** — Side lane closed. Team returning to formal roadmap reassessment per BronzeGate #8521.
 
 **Planning artifacts:**
 - CoralReef #8500: D-B planning packet (options D-B1 SDRAM frame buffer, D-B2 pipelining, D-B3 480p fallback)
