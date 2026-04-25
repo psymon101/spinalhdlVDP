@@ -1,6 +1,6 @@
 # BAD_APPLE_MODE0_DEMO.md
 
-**Updated:** 2026-04-23  
+**Updated:** 2026-04-25  
 **Purpose:** Define a bounded, explicitly non-roadmap demo experiment for playing a monochrome Bad Apple-style video directly on `Mode0` using the existing host-upload and bitmap-fetch infrastructure.
 
 ---
@@ -17,11 +17,11 @@
 
 This demo asks a simple question:
 
-> Can we stream a monochrome preprocessed video into `Mode0` and display it on-screen using the current host + SDRAM + bitmap infrastructure?
+> Can we preload a monochrome preprocessed video into SDRAM and display it on-screen using the current host + SDRAM + bitmap infrastructure?
 
 This is **not** a C64 adapter goal and **not** a formal new `Mode0` primitive. It is a bounded experiment that may still teach useful lessons about:
 
-- host upload throughput
+- host preload throughput
 - SDRAM write/update cadence
 - bitmap fetch practicality
 - what kinds of lightweight effects are possible on top of streamed content
@@ -34,7 +34,8 @@ This is **not** a C64 adapter goal and **not** a formal new `Mode0` primitive. I
 
 - monochrome video playback
 - direct `Mode0` bitmap presentation
-- preprocessed host-streamed frames or frame deltas
+- preprocessed packed-monochrome frame playback from SDRAM
+- one-shot preload or chunked rolling-buffer preload
 - low-fps proof first
 - optional visual effects layered on top later
 
@@ -54,6 +55,7 @@ This is **not** a C64 adapter goal and **not** a formal new `Mode0` primitive. I
 
 - resolution: `320x200`
 - bit depth: `1bpp`
+- packing: **packed monochrome**, `8 pixels per byte`, row-major
 - palette: black / white
 - source: offline-converted Bad Apple video frames
 
@@ -76,9 +78,9 @@ This is **not** a C64 adapter goal and **not** a formal new `Mode0` primitive. I
 ```text
 Bad Apple source video
   -> offline frame extraction + monochrome conversion
-  -> frame packing / delta generation
-  -> Pico 2 host upload over QSPI
-  -> SDRAM bitmap region
+  -> packed 1bpp frame generation
+  -> Pico 2 preload upload over QSPI
+  -> SDRAM frame/chunk region
   -> Mode0 bitmap fetch
   -> fixed HDMI output
 ```
@@ -88,17 +90,19 @@ Bad Apple source video
 Start with the simplest viable path:
 
 1. preprocess source video into `320x200 1bpp` frames
-2. upload full frames at low fps if necessary
-3. once proven, move to row-delta or block-delta upload
+2. preload full frames into SDRAM before playback begins
+3. play locally from SDRAM at low fps
+4. once proven, move to chunked rolling-buffer playback if the whole clip does not fit
 
 ### Better Practical Strategy
 
-After first proof, switch to **delta updates**:
+If the whole clip does not fit, switch to **chunked rolling-buffer preload**:
 
-- changed rows, or
-- changed `8x8` / `16x16` blocks
+- preload several chunks before playback starts
+- while chunk `N` is playing, upload future chunks
+- reclaim already-consumed chunks and keep rotating through SDRAM
 
-This reduces upload bandwidth and is much more realistic for a sustained demo.
+This keeps playback local to the Tang while only requiring the host link to stay ahead on average.
 
 ---
 
@@ -118,13 +122,14 @@ This makes it a much cleaner stress/demo case.
 
 ### First-Cut Memory Model
 
-- one SDRAM region for the current bitmap frame
-- `Mode0` bitmap fetch reads from that region
-- host overwrites the region with the next frame or delta updates
+- one or more SDRAM regions for packed-monochrome frames
+- `Mode0` bitmap fetch reads from the active frame region
+- playback logic advances frame/chunk pointers locally
 
 ### Optional Future Improvement
 
 - dual frame regions with explicit swap control
+- chunk ring-buffer with descriptor table for longer clips
 
 This is not required for the first proof.
 
@@ -145,7 +150,8 @@ These numbers exclude protocol overhead and control traffic.
 
 - low-fps monochrome playback is plausibly within reach
 - raw full-frame `30 fps` should **not** be assumed without measurement
-- delta upload is the preferred real path after initial proof
+- preload-first playback is the preferred real path after initial proof
+- chunked rolling-buffer preload is preferred over naive live streaming for larger clips
 
 ---
 
@@ -185,27 +191,29 @@ Exit:
 
 - clear visible static image on the HDMI output
 
-### Phase B — Low-FPS Full-Frame Playback
+### Phase B — Low-FPS Local Playback
 
 Goal:
 
-- host uploads successive full frames
+- host preloads successive packed-monochrome frames
+- Tang plays locally from SDRAM
 - playback is visibly recognizable as motion
 
 Exit:
 
 - a short recognizable monochrome animation at low fps
 
-### Phase C — Delta-Update Playback
+### Phase C — Chunked Rolling-Buffer Playback
 
 Goal:
 
-- host sends only changed rows or blocks
-- effective playback smoothness improves without naive full-frame resend
+- host preloads several chunks ahead
+- Tang consumes them locally while the host refills freed chunks
+- full clip length exceeds one-shot SDRAM capacity
 
 Exit:
 
-- visibly improved motion at the same or lower link budget
+- stable longer-form playback beyond one-shot SDRAM fit
 
 ### Phase D — Fun Effects
 

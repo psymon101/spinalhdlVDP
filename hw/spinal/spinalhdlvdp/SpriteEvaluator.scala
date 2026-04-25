@@ -218,17 +218,8 @@ case class SpriteEvaluator(
     if (i < legacyIoCount) U(SpriteDescriptor.DefaultSizeSel, 2 bits)
     else                   regSizeSel(i - legacyIoCount)
 
-  /** Pixel size for a sizeSel encoding. 00=8, 01=16, 10=32, 11=64. */
-  def sizeForSel(sel: UInt): UInt = {
-    val out = UInt(7 bits)
-    switch(sel) {
-      is(U(0, 2 bits)) { out :=  8 }
-      is(U(1, 2 bits)) { out := 16 }
-      is(U(2, 2 bits)) { out := 32 }
-      is(U(3, 2 bits)) { out := 64 }
-    }
-    out
-  }
+  // sizeForSel lives on the SpriteDescriptor companion so VdpTop's
+  // per-slot pattern-fetch loop can share the same encoding.
 
   // ---------------------------------------------------------------------
   // Sequential Pass-1 FSM.
@@ -310,7 +301,7 @@ case class SpriteEvaluator(
   }
   // Sprite Envelope Hardening: Y-range is now `[y, y + sizeForSel(sizeSel))`
   // instead of the prior fixed-16 height. sizeForSel returns 8/16/32/64.
-  val curSize  = sizeForSel(curSizeSel)                          // 7 bits, max 64
+  val curSize  = SpriteDescriptor.sizeForSel(curSizeSel)         // 7 bits, max 64
   val dOnLine  = scanBusy && curEnabled(0) &&
                  (io.evalLine >= curY) &&
                  (io.evalLine < (curY + curSize.resize(10)))

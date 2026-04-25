@@ -53,6 +53,18 @@ object SpriteDescriptor {
     case _ => throw new IllegalArgumentException(s"sizeSel must be 0..3, got $sel")
   }
 
+  /** Runtime version of sizeForSel — returns a 7-bit UInt (max 64). */
+  def sizeForSel(sel: UInt): UInt = {
+    val out = UInt(7 bits)
+    switch(sel) {
+      is(U(0, 2 bits)) { out :=  8 }
+      is(U(1, 2 bits)) { out := 16 }
+      is(U(2, 2 bits)) { out := 32 }
+      is(U(3, 2 bits)) { out := 64 }
+    }
+    out
+  }
+
   /** Default sizeSel encoding for back-compat with the pre-Hardening
     * 16-pixel-tall sprite assumption. */
   val DefaultSizeSel: Int = 1   // 16×16

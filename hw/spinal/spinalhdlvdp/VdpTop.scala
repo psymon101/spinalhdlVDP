@@ -900,7 +900,7 @@ case class VdpTop() extends Component {
   // 28 bus-programmable extended slots.
   val spriteEval = SpriteEvaluator(
     descCount      = 32,
-    visiblePerLine = 8,
+    visiblePerLine = 32,   // Sprite Envelope Hardening B-1 (CyanPeak #8577): 8 → 32
     patternSelBits = 4,
     legacyIoCount  = 4)
   spriteEval.io.descX(0)          := io.sprite0X
@@ -972,20 +972,31 @@ case class VdpTop() extends Component {
   // patternIndex is now 4 bits; the low bit selects pattern Mem 0 vs 1 for
   // this task. Wider pattern-Mem banks land in a future sprite-attribute
   // extension task (Task 37), so bits [3:1] are ignored here.
-  val NUM_SLOTS = 8   // Task 45: restored to match visiblePerLine=8
+  val NUM_SLOTS = 32  // Sprite Envelope Hardening B-1: matches visiblePerLine=32
   val slotVisible = Vec(Bool(), NUM_SLOTS)
   val slotPixel   = Vec(Bits(4 bits), NUM_SLOTS)
   for (s <- 0 until NUM_SLOTS) {
     val x       = spriteEval.io.activeX(s)
-    val row     = spriteEval.io.activeRow(s)
+    val row     = spriteEval.io.activeRow(s)               // 6 bits (Hardening)
     val valid   = spriteEval.io.activeValid(s)
     val patIdx  = spriteEval.io.activePatternIdx(s)
     val affEn   = spriteEval.io.activeAffineEnable(s)
+    val flipH   = spriteEval.io.activeFlipH(s)
+    val flipV   = spriteEval.io.activeFlipV(s)
+    val sizeSel = spriteEval.io.activeSizeSel(s)
 
-    // Flat path (Task 28 baseline).
+    // Sprite Envelope Hardening B-3: hitbox width = sizeForSel(sizeSel).
+    val width   = SpriteDescriptor.sizeForSel(sizeSel)     // 7 bits, max 64
+
+    // Flat path: hitbox uses width; pattern memory remains 16×16 (pattern
+    // expansion is OUT of #8577 scope) so col/row are masked to 4 bits and
+    // sprite slot of size > 16 effectively tiles the pattern. flipH/flipV
+    // mirror the masked col/row so legacy 16×16 cases produce mirrored output.
     val col      = (fillX - x).resize(10)
-    val flatOn   = fillX >= x && fillX < (x + 16)
-    val flatAddr = (row(3 downto 0) ## col(3 downto 0)).asUInt
+    val flatOn   = fillX >= x && fillX < (x + width.resize(10))
+    val flippedCol = Mux(flipH, ~col(3 downto 0), col(3 downto 0))
+    val flippedRow = Mux(flipV, ~row(3 downto 0), row(3 downto 0))
+    val flatAddr   = (flippedRow ## flippedCol).asUInt
 
     // Task 37 affine path: per-slot AffineStepper (replication, per
     // CyanPeak #7904 §8). Host pre-computes transX/Y so that hotspot
@@ -1046,15 +1057,31 @@ case class VdpTop() extends Component {
   // Iterate slots low→high with last-hit-wins. In SpinalHDL's
   // sequential-assignment semantics the highest-index visible slot
   // overrides lower ones. When a sprite wins, layerSource flips to SPRITE.
+  //
+  // Sprite Envelope Hardening B-4/B-5: per-sprite palette bank and
+  // priority. Low-priority sprites (priority=False) only override the
+  // background where the BG pixel is transparent (idx == 0); high-priority
+  // sprites override unconditionally. This matches Genesis's
+  // priority-bit-as-above-bg-or-below-bg semantic.
+  val anyHighPrioVisible = (0 until NUM_SLOTS).map { s =>
+    slotVisible(s) && spriteEval.io.activePriority(s)
+  }.reduce(_ || _)
+  val anyLowPrioOverBgGap = (0 until NUM_SLOTS).map { s =>
+    slotVisible(s) && !spriteEval.io.activePriority(s) && !bgOpaque
+  }.reduce(_ || _)
+  val spriteWins = anyHighPrioVisible || anyLowPrioOverBgGap
+
   for (s <- 0 until NUM_SLOTS) {
-    when(slotVisible(s)) {
+    val showSprite = slotVisible(s) &&
+                     (spriteEval.io.activePriority(s) || !bgOpaque)
+    when(showSprite) {
       fillIdx    := slotPixel(s)
-      fillBank   := U(0, 3 bits)
+      fillBank   := spriteEval.io.activePaletteBank(s)
       fillSource := U(PixelMetadata.SourceSprite, 3 bits)
     }
   }
   val fillPrio = Bool()
-  when(anySlotVisible) {
+  when(spriteWins) {
     fillPrio := False
   }.otherwise {
     // L0 priority wins unless a higher-index BG layer is opaque. On a

@@ -156,7 +156,7 @@ decision depends on it.
 
 - `BrightForge`: implementation, validation, proof packets
 - `CyanPeak`: audit outcomes and explicit sign-off
-- `CoralReef`: routine coordination, hardware support, ledger/doc sync
+- `CoralReef`: routine coordination, hardware support, ledger/doc sync, and preflight research for upcoming lanes
 - `BronzeGate`: sequencing, stall intervention, scope control
 
 Routine lane mechanics stay with `CoralReef`.
@@ -164,6 +164,24 @@ Routine lane mechanics stay with `CoralReef`.
 blocker decisions, or priority changes.
 If the next owner is obvious and standing policy already covers the handoff,
 `BronzeGate` should stay silent by default.
+
+### Preflight Requirements Research
+
+`CoralReef` is the default owner for forward-looking requirement work on likely
+next tasks or proposed features while the current implementation/audit lane is
+still active.
+
+Expected preflight coverage:
+
+- what existing primitives or prior tasks the feature depends on
+- what new primitives, interfaces, or assets would be required
+- what board, timing, SDRAM, bandwidth, or controller limits matter
+- what proof would be needed to claim success cleanly the first time
+- what follow-on task split is recommended before coding starts
+
+This research lane should reduce first-pass surprises for implementation, but
+it does not itself authorize coding or bypass the normal mail + `TASKS.md`
+lane activation rules.
 
 ### Mutual Coverage Check
 
@@ -224,6 +242,40 @@ For low-risk bounded lanes:
 - `CyanPeak` audits as soon as the artifact lands
 - `BrightForge` starts immediately after audit GO
 - no extra PM message is required between those routine steps
+
+Artifact fast-path rule:
+
+- for a routine bounded lane, `CoralReef` should land one compact artifact
+  packet that already includes:
+  - exact scope boundary
+  - dependency statement
+  - exact validation/proof requirement
+  - recommended next owner
+- `CyanPeak` should answer with one compact ruling:
+  - `PASS`
+  - or `HOLD` with the exact missing requirement
+- if the ruling is `PASS` and the next owner is `BrightForge`, coding starts
+  immediately with no second authorization round
+- if the ruling is `HOLD`, name the single cheapest missing correction or
+  clarification instead of reopening broad planning by default
+- if an approved assessment packet names a bounded implementation follow-on
+  with clear scope and next owner `BrightForge`, treat that follow-on as the
+  next active coding slice by default unless `CyanPeak` or `BronzeGate`
+  explicitly places it on `HOLD`
+
+Proof-packet rule:
+
+- `BrightForge` should prefer one complete proof packet over multiple partial
+  follow-ups
+- the default proof packet should already include:
+  - exact task/checkpoint
+  - commit
+  - files/subsystems touched
+  - simulation result
+  - hardware result when applicable
+  - next expected owner
+- if evidence is incomplete, do not send a placeholder completion mail unless
+  the lane is actually blocked and the missing proof cannot be produced yet
 
 Start-immediately rule:
 
@@ -373,6 +425,16 @@ Default rule:
 - do not reconstruct full lane history in routine status mail when the
   live-lane block and latest mail already preserve it
 
+Direct owner-to-owner retrieval rule:
+
+- if a teammate needs routine facts, evidence, proof artifacts, or task-state
+  clarification from another teammate, ask that owner directly by default
+- do not route ordinary information-fetch requests through `BronzeGate` when
+  the requesting owner can obtain the answer directly in one step
+- reintroduce `BronzeGate` only when the issue affects priority, scope,
+  approval, lane ownership, or blocker resolution, or when direct retrieval
+  produced contradictory/ambiguous results
+
 Routine ACK-only or no-change mail should be minimized. Use it only when:
 
 - blocker receipt needs explicit confirmation
@@ -442,6 +504,22 @@ Default audit behavior:
   - ruling
   - exact reason
   - exact next corrective requirement when not PASS
+- when issuing `HOLD`, request one smallest sufficient correction first unless
+  multiple missing items are inseparable
+
+Evidence retrieval rule:
+
+- `CyanPeak` is allowed and expected to ask directly for missing evidence from
+  the teammate most likely to provide it when the gap appears locally
+  recoverable
+- ask `BrightForge` directly for reruns, proof packets, exact test method,
+  commit tie-back, or missing artifacts when implementation evidence is the gap
+- ask `CoralReef` directly for missing ledger/artifact mapping when the scope
+  or task-state tie-back is the gap
+- prefer this direct evidence retrieval path before escalating a broader
+  blocker to BronzeGate when the lane remains otherwise clear
+- if the evidence remains unavailable, contradictory, or still scope-ambiguous
+  after that direct ask, escalate with a blocker packet
 
 Required immediate HOLD conditions:
 
@@ -481,10 +559,18 @@ Default coordination behavior:
 
 - artifact drafting should start immediately once dependencies and ownership are
   clear; do not wait for another PM nudge when the next step is already obvious
+- when the next backlog-priority lane is already known, draft the next artifact
+  before the previous lane is formally closed so it can be finalized in the same
+  progression cycle once closeout converges
 - ledger sync should happen immediately after audit PASS unless BronzeGate has
   explicitly ordered a temporary hold
+- when practical, land the repo doc/ledger update in the same commit as the
+  authoritative state change instead of leaving a separate trailing sync step
 - live-lane metadata should always reflect the newest authoritative state once
   a lane has materially advanced
+- when a lane closes and the next lane is obvious, combine closeout sync and
+  next-lane open in the same progression cycle rather than parking in an
+  intermediate waiting state
 
 Preferred default outputs:
 
