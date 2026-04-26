@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement |
 | **Owner** | BrightForge |
-| **Latest Commit** | `39a7242` (Scenario 50 HW proof; see #8634) |
+| **Latest Commit** | `cde4025` (CW-5 dual window + combination logic; CW-1/3/4/5 complete) |
 | **Latest Auth Mail** | #8629 (CyanPeak audit PASS: artifact v1.0-draft) |
-| **Next Deliverable** | BrightForge implementation completion packet |
+| **Next Deliverable** | BrightForge implementation completion packet (CW-2 sprite palette bank, CW-6 per-layer masking, sim proofs, HW proof) |
 | **Coding Authorized** | **YES** — #8629 |
 
 **Previous lane:** Sprite Phase 2 + Phase 2-bis — Implementation | **HOLD** | `5a0b370` | Audit PASS #8625 → **HOLD #8627** pending hardware proof → **Proof packet delivered #8634** (`39a7242`, Scenario 50). CyanPeak pre-reviewed evidence as satisfying in #8629; formal audit PASS on #8634 pending.
@@ -41,7 +41,7 @@ This section tracks the single active lane so the team does not infer state from
 
 **Previous lane:** Mode0 Sprite Envelope Hardening — Implementation | DONE | `d44a9c0` | Audit PASS #8589
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_SPRITE_PATTERN_MEMORY_FOUNDATION.md` (v1.0-draft)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_COLOR_WINDOW_HARDENING.md` (v1.0-draft)
 
 Rules:
 - Only **one** lane may be live at a time.
