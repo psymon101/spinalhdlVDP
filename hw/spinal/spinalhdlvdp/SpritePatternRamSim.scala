@@ -10,8 +10,8 @@ import spinal.core.sim._
   *   1. Reset state — slot 0 (entries 0..255) holds the legacy diamond
   *      pattern, slot 1 (entries 256..511) holds the legacy cross,
   *      slots 2..15 are zero (transparent default).
-  *   2. Pointer write at 0x0B00 sets the next data-write address.
-  *   3. Streaming data writes at 0x0A00 fill consecutive RAM entries
+  *   2. Pointer write at 0x0D11 sets the next data-write address.
+  *   3. Streaming data writes at 0x0D10 fill consecutive RAM entries
   *      and increment the pointer (16-pixel run, slot 5).
   *   4. Slot 5 contents read back exactly the streamed pattern; slots
   *      0/1 unchanged (no cross-slot writes).
@@ -85,14 +85,14 @@ object SpritePatternRamSim extends App {
     println("[sim] Case 1 reset state — diamond at slot 0, cross at slot 1, 14 zero slots — OK")
 
     // --- Case 2: pointer write sets address ---
-    busPulse(0x0B00, 5 * 256)   // point at slot 5 base
+    busPulse(0x0D11, 5 * 256)   // point at slot 5 base
     // No way to read back patternRamPtr directly without simPublic, but we
     // verify behaviour via Case 3's data writes.
 
     // --- Case 3: stream a known pattern into slot 5 ---
     // Pattern: 16 unique values 0..15 repeated 16 times = 256 entries.
     val streamed = (0 until 256).map(i => i & 0xF)
-    for (px <- streamed) busPulse(0x0A00, px)
+    for (px <- streamed) busPulse(0x0D10, px)
 
     // --- Case 4: slot 5 read-back; slots 0/1 unchanged ---
     for (i <- 0 until 256) {
@@ -108,9 +108,9 @@ object SpritePatternRamSim extends App {
 
     // --- Case 5: pointer wrap at 0xFFF → 0x000. Write a sentinel after wrap
     // and verify it lands at slot 0 entry 0 (overwriting diamond[0]). ---
-    busPulse(0x0B00, 0xFFF)
-    busPulse(0x0A00, 0xA)        // writes RAM[0xFFF] = 0xA, ptr → 0x000
-    busPulse(0x0A00, 0xB)        // writes RAM[0x000] = 0xB, ptr → 0x001
+    busPulse(0x0D11, 0xFFF)
+    busPulse(0x0D10, 0xA)        // writes RAM[0xFFF] = 0xA, ptr → 0x000
+    busPulse(0x0D10, 0xB)        // writes RAM[0x000] = 0xB, ptr → 0x001
     assert(ramAt(0xFFF) == 0xA, s"Case 5: wrap-write at 0xFFF: expected 0xA, got ${ramAt(0xFFF)}")
     assert(ramAt(0x000) == 0xB, s"Case 5: post-wrap write at 0x000: expected 0xB, got ${ramAt(0x000)}")
     println("[sim] Case 5 pointer wrap 0xFFF → 0x000 — OK")

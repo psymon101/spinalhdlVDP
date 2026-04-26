@@ -944,14 +944,15 @@ case class VdpTop() extends Component {
 
   // Sprite Envelope Hardening (CyanPeak #8577): word 8 lives in a
   // separate bus block so the legacy 8-words-per-slot map above stays
-  // intact. 0x0C00..0x0C1F = 32 slots × 1 word (word 8 only).
+  // intact. 0x0D20..0x0D3F = 32 slots × 1 word (word 8 only).
   // slot = subAddr[4:0]. busWord forced to 8.
-  // (Phase 2 P2-3b correction: relocated from 0x0900..0x091F which
-  // conflicts with the L0 scroll-table block in TopTang20kHdmi sc31.)
+  // (Phase 2 fix: original 0x0900..0x091F conflicted with L0 scroll
+  // table; 0x0C00..0x0C1F conflicted with the Blitter control range
+  // 0x0C00..0x0D0F; 0x0D20 is in the free post-Blitter region.)
   val spriteExtBusRangeHit = effWrite &&
-    (effAddr >= U(0x0C00, 15 bits)) &&
-    (effAddr <  U(0x0C20, 15 bits))
-  val spriteExtBusSlot = (effAddr - U(0x0C00, 15 bits))(4 downto 0)
+    (effAddr >= U(0x0D20, 15 bits)) &&
+    (effAddr <  U(0x0D40, 15 bits))
+  val spriteExtBusSlot = (effAddr - U(0x0D20, 15 bits))(4 downto 0)
     .resize(spriteEval.descIdxBits)
 
   spriteEval.io.busSlot := Mux(spriteExtBusRangeHit, spriteExtBusSlot, spriteBusSlot8)
@@ -1006,8 +1007,12 @@ case class VdpTop() extends Component {
   //                         the pointer (wraps mod 4096). Stream out a
   //                         16×16 pattern with one pointer-set + 256
   //                         data writes.
-  val patternRamPtrWriteHit  = effWrite && (effAddr === U(0x0B00, 15 bits))
-  val patternRamDataWriteHit = effWrite && (effAddr === U(0x0A00, 15 bits))
+  // Bus addresses relocated to 0x0D10/0x0D11 — Phase 1's original
+  // 0x0A00/0x0B00 collided with V-scroll-table (0x0A00..0x0AFF) and
+  // the DMA control range (0x0B00..0x0B4F). 0x0D10 is free per the
+  // Blitter range ending at 0x0D0F.
+  val patternRamPtrWriteHit  = effWrite && (effAddr === U(0x0D11, 15 bits))
+  val patternRamDataWriteHit = effWrite && (effAddr === U(0x0D10, 15 bits))
   val patternRamPtr = Reg(UInt(12 bits)) init 0
   when(patternRamPtrWriteHit) {
     patternRamPtr := effData(11 downto 0).asUInt
