@@ -1014,6 +1014,75 @@ Do not open an adapter lane until both are true:
 - the documentation/usability gate has passed for the current Mode0 substrate
 - the substrate gaps required by the chosen platform have been explicitly closed
 
+**Closed hardening lanes (not numbered in original task sequence):**
+
+### Hardening Lane — Mode0 Fetch Envelope Hardening
+
+**Status:** DONE
+**depends_on:** [17, 32a, 43]
+**scope_boundary:** Strengthen planar, shuffled, and bitmap fetch paths for adapter readiness. No adapter-specific register maps.
+**delivers:**
+
+- Gap analysis of planar fetch vs. Amiga/ST pressure
+- Gap analysis of shuffled/bitmap+attribute fetch vs. ZX Spectrum pressure
+- Strengthened fetch paths still within `MODE0_STOPLINES.md`
+
+**validation:** Hardware proof on Tang Nano 20K; all existing regressions pass.
+
+### Hardening Lane — Mode0 Sprite Envelope Hardening
+
+**Status:** DONE (`d44a9c0`)
+**depends_on:** [28, 29, 30]
+**scope_boundary:** Strengthen sprite descriptor envelope and pattern memory. No platform-exact sprite semantics.
+**delivers:**
+
+- Expanded sprite descriptor fields
+- Strengthened visibility/priority/metadata envelope
+- Stop-line-aware growth recommendation
+
+**validation:** Hardware proof on Tang Nano 20K; audit PASS #8589.
+
+### Hardening Lane — Sprite Pattern Memory Foundation
+
+**Status:** DONE (`e86fe49`)
+**depends_on:** [Sprite Envelope Hardening]
+**scope_boundary:** Rebuild sprite pattern storage with BSRAM-backed Mem. No new sprite evaluation logic.
+**delivers:**
+
+- BSRAM-backed sprite pattern RAM with bus write port
+- Backward-compatible default pattern content
+
+**validation:** Hardware proof; audit PASS #8605.
+
+### Hardening Lane — Sprite Phase 2 + 2-bis
+
+**Status:** HOLD (proof delivered, pending CyanPeak formal audit PASS on #8634)
+**depends_on:** [Pattern Memory Foundation]
+**scope_boundary:** Per-sprite bppSel, priority levels, palette bank plumbing. No new sprite count expansion.
+**delivers:**
+
+- Per-sprite bppSel (4bpp/2bpp/1bpp)
+- 4-level priority in compositor
+- Palette bank wired through to compositor
+
+**validation:** Hardware proof Scenario 50 (`39a7242`); CyanPeak pre-reviewed as satisfying in #8629; formal audit PASS pending.
+
+### Hardening Lane — Color/Window Hardening
+
+**Status:** IN-PROGRESS (`cde4025`)
+**depends_on:** [Pattern Memory Foundation, Phase 2]
+**scope_boundary:** Runtime palette RAM, dual window + combinations, per-layer masking, color math enhancement. No inter-palette blending, no post-compositor effects beyond ColorMath.
+**delivers:**
+
+- Runtime-writable palette RAM (CW-1 ✅)
+- Sprite palette bank consumer in compositor (CW-2 pending)
+- `mathEnable` metadata → ColorMath gate (CW-3 ✅)
+- Highlight mode in ColorMath (CW-4 ✅)
+- Second window comparator + combination logic (CW-5 ✅)
+- Per-layer window masking (CW-6 pending)
+
+**validation:** Sim proofs + hardware proof; resource report confirming green zone.
+
 For the current roadmap, the remaining broad substrate closure order is:
 
 1. **Task 45** — Sprite Capacity Hardening

@@ -1,6 +1,6 @@
 # MODE0_HARDENING_BACKLOG.md
 
-**Updated:** 2026-04-23  
+**Updated:** 2026-04-26  
 **Purpose:** Prioritized backlog for closing the most important remaining shared `Mode0` gaps before opening harder future adapter lanes. This file converts the max-capabilities spec and coverage matrix into a practical work order.
 
 ---
@@ -36,7 +36,9 @@ This file is planning guidance, not status authority. `TASKS.md` remains the liv
 
 ## Priority Order
 
-### Priority A — Fetch Envelope Hardening
+### Priority A — Fetch Envelope Hardening ✅ DONE
+
+*Status: Implemented, audited, and closed. See `TASKS.md` live-lane history.*
 
 **Why first:**
 
@@ -51,25 +53,17 @@ This file is planning guidance, not status authority. `TASKS.md` remains the liv
 - ZX Spectrum
 - stronger bitmap/C64 cases
 
-**Main question to answer:**
+**Outcome:**
 
-- are the current planar / shuffled / bitmap+attribute fetch paths strong enough for serious adapter work, or only for bounded proof scenes?
-
-**Expected outputs from the future task lane:**
-
-- explicit gap analysis of planar fetch versus Amiga/ST pressure
-- explicit gap analysis of shuffled/bitmap+attribute fetch versus ZX Spectrum pressure
-- confirmation of what is adapter-local and what still belongs in substrate hardening
-- evidence that the resulting strengthened path still fits `MODE0_STOPLINES.md`
-
-**Why this is not an adapter lane:**
-
-- the same strengthened fetch envelope benefits multiple platforms
-- this is the clearest example of "shared primitive first, adapter later"
+- Planar, shuffled, and bitmap+attribute fetch paths were strengthened and hardware-proven
+- Tasks 44/44B (raw bitmap + SDRAM fetch) completed and closed
+- Gap analysis confirmed substrate is adapter-ready for fetch-dependent platforms
 
 ---
 
-### Priority B — Sprite Envelope Hardening
+### Priority B — Sprite Envelope Hardening ✅ DONE
+
+*Status: Implemented, audited, and closed. See `TASKS.md` live-lane history. Followed by Sprite Phase 2 + 2-bis (pattern memory foundation + bppSel/priority hardening, also DONE).*
 
 **Why second:**
 
@@ -83,25 +77,18 @@ This file is planning guidance, not status authority. `TASKS.md` remains the liv
 - Neo Geo
 - stronger NES/C64/console edge cases
 
-**Main question to answer:**
+**Outcome:**
 
-- is the current sprite envelope strong enough to serve higher-pressure adapters without splitting into multiple platform-specific sprite engines?
-
-**Expected outputs from the future task lane:**
-
-- measure current descriptor/visibility/priority/metadata envelope against stronger target pressure
-- identify which missing fields or rules belong in shared sprite machinery
-- identify which platform quirks should remain adapter-local
-- produce a clear stop-line-aware recommendation for any growth
-
-**Why this is not just "do an Amiga adapter":**
-
-- if the sprite envelope is weak, an Amiga adapter will either cheat or demand substrate rework mid-lane
-- the same strengthening benefits several platforms
+- Sprite descriptor envelope expanded (bppSel, priority levels, palette bank plumbing)
+- Sprite pattern memory foundation rebuilt with BSRAM-backed storage
+- Hardware proof delivered (Scenario 50, commit `39a7242`)
+- Stop-line confirmed: envelope fits within Tang Nano 20K limits
 
 ---
 
-### Priority C — Color / Window Envelope Hardening
+### Priority C — Color / Window Envelope Hardening 🔄 IN-PROGRESS
+
+*Status: Implementation active. BrightForge owner. CW-1/3/4/5 complete (`cde4025`).*
 
 **Why third:**
 
@@ -113,15 +100,15 @@ This file is planning guidance, not status authority. `TASKS.md` remains the liv
 - SNES
 - Genesis
 
-**Main question to answer:**
+**Current progress:**
 
-- is the current color-math / window / post-compositor stage broad enough for honest SNES/Genesis-style semantics?
-
-**Expected outputs from the future task lane:**
-
-- enumerate what is already generic enough
-- identify missing shared hooks
-- quantify cost/risk against stop-lines before broadening this stage
+- CW-1: Runtime-writable palette RAM ✅
+- CW-3: `mathEnable` metadata → ColorMath gate ✅
+- CW-4: Highlight mode ✅
+- CW-5: Dual window + combination logic ✅
+- CW-2: Sprite palette bank consumer (pending)
+- CW-6: Per-layer window masking (pending)
+- Sim proofs + hardware proof (pending)
 
 ---
 
@@ -190,18 +177,17 @@ That means:
 
 ## Current PM Recommendation
 
-If the project opens exactly one next bounded planning/engineering lane, it should be:
+The hardening backlog execution order has been:
 
-- **Mode0 Fetch Envelope Hardening**
+1. **Mode0 Fetch Envelope Hardening** — DONE
+2. **Mode0 Sprite Envelope Hardening** — DONE (including Phase 2 + 2-bis)
+3. **Color / Window Envelope Hardening** — IN-PROGRESS (BrightForge)
 
-If the project opens a second after that, it should be:
+The next expected lane after Color/Window closes is:
 
-- **Mode0 Sprite Envelope Hardening**
+- **Beam-Driven Automation Hardening** — Copper/HDMA edge cases, raster-cycle timing, linestate robustness
 
-This keeps work aligned with the new project rule:
-
-- shared capability first
-- adapter-specific semantics second
+Only after Beam Hardening closes should adapter lanes open.
 
 ---
 
