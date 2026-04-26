@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Sprite Phase 2: Format, Priority, and Tile Counter** |
-| **Status** | **ARTIFACT — pending CyanPeak audit** |
-| **Phase** | artifact |
-| **Owner** | CoralReef |
-| **Latest Commit** | `0a89b8e` (Pattern Memory Foundation closeout + Phase 2 artifact) |
-| **Latest Auth Mail** | #8609 (BronzeGate: PM closeout, Phase 2 authorized) |
-| **Next Deliverable** | CyanPeak audit of this artifact |
-| **Coding Authorized** | **NO** — awaiting artifact audit
+| **Task** | **Sprite Phase 2: Format, Priority, and Tile Counter — Implementation** |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | implement |
+| **Owner** | BrightForge |
+| **Latest Commit** | `92fa8ca` (paletteBank pipelined into compositor; tile counter; 1-pixel shift fix) |
+| **Latest Auth Mail** | #8614 (CyanPeak: artifact PASS; implementation authorized) |
+| **Next Deliverable** | BrightForge completion packet (SpriteFormatSim + SpritePrioritySim + SpriteTileBudgetSim + resource report) |
+| **Coding Authorized** | **YES** — CyanPeak #8614
 
 **Previous lane:** Sprite Pattern Memory Foundation — Implementation | DONE | `e86fe49` | Audit PASS #8605
 

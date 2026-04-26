@@ -169,15 +169,26 @@ object SpriteEvaluatorSim extends App {
     // Sprite Envelope Hardening cases (CyanPeak #8577).
     // ====================================================================
 
-    /** Pack the new word-8 control fields per the assessment §4.3 layout:
-      *   {sizeSel[15:14], paletteBank[13:11], priority[10], flipH[9], flipV[8], _[7:0]} */
+    /** Pack the new word-8 control fields per the assessment §4.3 layout
+      * + Phase 2 (#8614) extensions:
+      *   {sizeSel[15:14], paletteBank[13:11], priority[10:9],
+      *    flipH[8], flipV[7], bppSel[6:5], _[4:0]}
+      *
+      * `priority` widened to 2 bits in Phase 2; this overload accepts a
+      * Boolean for legacy single-bit sites and zero-pads the high bit. */
     def packWord8(sizeSel: Int, paletteBank: Int, priority: Boolean,
                   flipH: Boolean, flipV: Boolean): Int =
+      packWord8(sizeSel, paletteBank, if (priority) 1 else 0,
+                flipH, flipV, bppSel = 0)
+
+    def packWord8(sizeSel: Int, paletteBank: Int, priority: Int,
+                  flipH: Boolean, flipV: Boolean, bppSel: Int): Int =
       ((sizeSel & 0x3) << 14) |
       ((paletteBank & 0x7) << 11) |
-      ((if (priority) 1 else 0) << 10) |
-      ((if (flipH) 1 else 0) << 9) |
-      ((if (flipV) 1 else 0) << 8)
+      ((priority & 0x3) << 9) |
+      ((if (flipH) 1 else 0) << 8) |
+      ((if (flipV) 1 else 0) << 7) |
+      ((bppSel & 0x3) << 5)
 
     // --- Case 8: word-8 fields propagate to active outputs ---
     for (d <- 0 until L) setLegacy(d, 0, 1023, enabled = false)

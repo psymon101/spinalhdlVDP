@@ -944,12 +944,14 @@ case class VdpTop() extends Component {
 
   // Sprite Envelope Hardening (CyanPeak #8577): word 8 lives in a
   // separate bus block so the legacy 8-words-per-slot map above stays
-  // intact. 0x0900..0x091F = 32 slots × 1 word (word 8 only).
+  // intact. 0x0C00..0x0C1F = 32 slots × 1 word (word 8 only).
   // slot = subAddr[4:0]. busWord forced to 8.
+  // (Phase 2 P2-3b correction: relocated from 0x0900..0x091F which
+  // conflicts with the L0 scroll-table block in TopTang20kHdmi sc31.)
   val spriteExtBusRangeHit = effWrite &&
-    (effAddr >= U(0x0900, 15 bits)) &&
-    (effAddr <  U(0x0920, 15 bits))
-  val spriteExtBusSlot = (effAddr - U(0x0900, 15 bits))(4 downto 0)
+    (effAddr >= U(0x0C00, 15 bits)) &&
+    (effAddr <  U(0x0C20, 15 bits))
+  val spriteExtBusSlot = (effAddr - U(0x0C00, 15 bits))(4 downto 0)
     .resize(spriteEval.descIdxBits)
 
   spriteEval.io.busSlot := Mux(spriteExtBusRangeHit, spriteExtBusSlot, spriteBusSlot8)
@@ -1144,11 +1146,17 @@ case class VdpTop() extends Component {
   // background where the BG pixel is transparent (idx == 0); high-priority
   // sprites override unconditionally. This matches Genesis's
   // priority-bit-as-above-bg-or-below-bg semantic.
+  // Phase 2 P2-3b: priority field is now 2 bits (UInt). The full
+  // compositor priority matrix is deferred — for this slice the
+  // existing binary above-/below-bg semantic continues to use
+  // `activePriority(s)(0)` (LSB). bit 1 is stored, exposed, and writable
+  // via bus word 8 for adapter probes; the matrix consumer lands in
+  // a follow-on slice.
   val anyHighPrioVisible = (0 until NUM_SLOTS).map { s =>
-    slotVisible(s) && spriteEval.io.activePriority(s)
+    slotVisible(s) && spriteEval.io.activePriority(s)(0)
   }.reduce(_ || _)
   val anyLowPrioOverBgGap = (0 until NUM_SLOTS).map { s =>
-    slotVisible(s) && !spriteEval.io.activePriority(s) && !bgOpaque
+    slotVisible(s) && !spriteEval.io.activePriority(s)(0) && !bgOpaque
   }.reduce(_ || _)
   val spriteWins = anyHighPrioVisible || anyLowPrioOverBgGap
 
@@ -1167,7 +1175,7 @@ case class VdpTop() extends Component {
 
   for (s <- 0 until NUM_SLOTS) {
     val showSprite = slotVisible(s) &&
-                     (spriteEval.io.activePriority(s) || !bgOpaque)
+                     (spriteEval.io.activePriority(s)(0) || !bgOpaque)
     when(showSprite) {
       fillIdx    := slotPixel(s)
       fillBank   := slotPaletteBank(s)

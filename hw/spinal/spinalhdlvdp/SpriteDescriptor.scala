@@ -39,8 +39,16 @@ case class SpriteDescriptor(patternSelBits: Int = 4) extends Bundle {
   val flipH        = Bool()
   val flipV        = Bool()
   val paletteBank  = UInt(3 bits)
-  val priority     = Bool()
+  // Phase 2: priority widened 1→2 bits (4 levels). Bit 0 preserves the
+  // pre-Phase-2 binary above-/below-bg semantic; bit 1 is reserved for
+  // the future compositor priority-matrix consumer.
+  val priority     = UInt(2 bits)
   val sizeSel      = UInt(2 bits)
+  // Phase 2: per-sprite pixel format selector. 00 = 4bpp (current /
+  // back-compat), 01 = 2bpp (NES/Amiga/C64 multicolor), 10 = 1bpp
+  // (C64 hires). Storage-only in this slice; the pattern-fetch
+  // unpacker lands in a follow-on sub-slice.
+  val bppSel       = UInt(2 bits)
 }
 
 object SpriteDescriptor {
@@ -86,8 +94,9 @@ object SpriteDescriptor {
     d.flipH        := False
     d.flipV        := False
     d.paletteBank  := U(0, 3 bits)
-    d.priority     := False
+    d.priority     := U(0, 2 bits)
     d.sizeSel      := U(DefaultSizeSel, 2 bits)
+    d.bppSel       := U(0, 2 bits)            // 4bpp default
     d
   }
 }

@@ -30,14 +30,22 @@ import spinal.lib._
   *       word 5: matrixD[15:0]
   *       word 6: transX[15:0]    (Q10.6 signed)
   *       word 7: transY[15:0]
-  *       word 8: {sizeSel[15:14], paletteBank[13:11], priority[10],
-  *                flipH[9], flipV[8], _[7:0]}    — Sprite Envelope
-  *                Hardening fields (CyanPeak #8577 §4.3)
+  *       word 8: {sizeSel[15:14], paletteBank[13:11], priority[10:9],
+  *                flipH[8], flipV[7], bppSel[6:5], _[4:0]}
+  *                — Sprite Envelope Hardening fields (CyanPeak #8577 §4.3)
+  *                + Phase 2 extensions (CyanPeak #8614): priority widened
+  *                  1→2 bits, bppSel new (4/2/1 bpp pattern format).
   *       words 9..15: reserved (zeroed by hardware on read; ignored on
   *                write so future extension can claim them without
   *                breaking the host bus protocol).
   *
-  * Host maps the Mode0 bus block `0x0800 + slot*16 + word` to these words.
+  * Host maps:
+  *   - words 0..7  via `0x0800 + slot*8 + word`     (legacy slot block)
+  *   - word 8      via `0x0C00 + slot`              (Hardening extension
+  *                                                   relocated from
+  *                                                   0x0900 to avoid the
+  *                                                   L0 scroll-table
+  *                                                   block in sc31).
   */
 case class SpriteEvaluator(
     descCount: Int = 32,
@@ -86,12 +94,13 @@ case class SpriteEvaluator(
     val activeTransX       = out Vec(Bits(16 bits), visiblePerLine)
     val activeTransY       = out Vec(Bits(16 bits), visiblePerLine)
 
-    // Sprite Envelope Hardening (CyanPeak #8577) outputs.
+    // Sprite Envelope Hardening (CyanPeak #8577) + Phase 2 (#8614) outputs.
     val activeFlipH        = out Vec(Bool(), visiblePerLine)
     val activeFlipV        = out Vec(Bool(), visiblePerLine)
     val activePaletteBank  = out Vec(UInt(3 bits), visiblePerLine)
-    val activePriority     = out Vec(Bool(), visiblePerLine)
+    val activePriority     = out Vec(UInt(2 bits), visiblePerLine)   // P2-3b: 1→2 bits
     val activeSizeSel      = out Vec(UInt(2 bits), visiblePerLine)
+    val activeBppSel       = out Vec(UInt(2 bits), visiblePerLine)   // P2-2: new field
 
     val overflowFlag = out Bool()
   }
@@ -117,8 +126,9 @@ case class SpriteEvaluator(
   val regFlipH        = Vec.fill(extCount)(RegInit(False))
   val regFlipV        = Vec.fill(extCount)(RegInit(False))
   val regPaletteBank  = Vec.fill(extCount)(RegInit(U(0, 3 bits)))
-  val regPriority     = Vec.fill(extCount)(RegInit(False))
+  val regPriority     = Vec.fill(extCount)(RegInit(U(0, 2 bits)))    // P2-3b: 1→2 bits
   val regSizeSel      = Vec.fill(extCount)(RegInit(U(SpriteDescriptor.DefaultSizeSel, 2 bits)))
+  val regBppSel       = Vec.fill(extCount)(RegInit(U(0, 2 bits)))    // P2-2: 4bpp default
 
   // simPublic for integration sims.
   for (i <- 0 until extCount) {
@@ -168,9 +178,10 @@ case class SpriteEvaluator(
               is(U(8, busWordBits bits)) {
                 regSizeSel(i)     := io.busData(15 downto 14).asUInt
                 regPaletteBank(i) := io.busData(13 downto 11).asUInt
-                regPriority(i)    := io.busData(10)
-                regFlipH(i)       := io.busData(9)
-                regFlipV(i)       := io.busData(8)
+                regPriority(i)    := io.busData(10 downto 9).asUInt   // P2-3b: 2 bits
+                regFlipH(i)       := io.busData(8)
+                regFlipV(i)       := io.busData(7)
+                regBppSel(i)      := io.busData(6 downto 5).asUInt    // P2-2: new
               }
               // words 9..15 reserved — no write effect; reads omitted.
             }
@@ -212,11 +223,13 @@ case class SpriteEvaluator(
     if (i < legacyIoCount) False else regFlipV(i - legacyIoCount)
   def descPaletteBank(i: Int): UInt =
     if (i < legacyIoCount) U(0, 3 bits) else regPaletteBank(i - legacyIoCount)
-  def descPriority(i: Int): Bool =
-    if (i < legacyIoCount) False else regPriority(i - legacyIoCount)
+  def descPriority(i: Int): UInt =
+    if (i < legacyIoCount) U(0, 2 bits) else regPriority(i - legacyIoCount)
   def descSizeSel(i: Int): UInt =
     if (i < legacyIoCount) U(SpriteDescriptor.DefaultSizeSel, 2 bits)
     else                   regSizeSel(i - legacyIoCount)
+  def descBppSel(i: Int): UInt =
+    if (i < legacyIoCount) U(0, 2 bits) else regBppSel(i - legacyIoCount)
 
   // sizeForSel lives on the SpriteDescriptor companion so VdpTop's
   // per-slot pattern-fetch loop can share the same encoding.
@@ -262,8 +275,9 @@ case class SpriteEvaluator(
   val activeFlipHReg        = Vec.fill(visiblePerLine)(RegInit(False))
   val activeFlipVReg        = Vec.fill(visiblePerLine)(RegInit(False))
   val activePaletteBankReg  = Vec.fill(visiblePerLine)(RegInit(U(0, 3 bits)))
-  val activePriorityReg     = Vec.fill(visiblePerLine)(RegInit(False))
+  val activePriorityReg     = Vec.fill(visiblePerLine)(RegInit(U(0, 2 bits)))   // P2-3b
   val activeSizeSelReg      = Vec.fill(visiblePerLine)(RegInit(U(SpriteDescriptor.DefaultSizeSel, 2 bits)))
+  val activeBppSelReg       = Vec.fill(visiblePerLine)(RegInit(U(0, 2 bits)))   // P2-2
   val overflowFlagReg       = Reg(Bool()) init False
 
   when(io.evalStart) {
@@ -292,8 +306,9 @@ case class SpriteEvaluator(
   val curFlipH        = Bool();                   curFlipH := False
   val curFlipV        = Bool();                   curFlipV := False
   val curPaletteBank  = UInt(3 bits);             curPaletteBank := 0
-  val curPriority     = Bool();                   curPriority := False
+  val curPriority     = UInt(2 bits);             curPriority := U(0, 2 bits)
   val curSizeSel      = UInt(2 bits);             curSizeSel := U(SpriteDescriptor.DefaultSizeSel, 2 bits)
+  val curBppSel       = UInt(2 bits);             curBppSel := U(0, 2 bits)
   when(scanBusy) {
     switch(scanIdx) {
       for (i <- 0 until descCount) {
@@ -314,6 +329,7 @@ case class SpriteEvaluator(
           curPaletteBank  := descPaletteBank(i)
           curPriority     := descPriority(i)
           curSizeSel      := descSizeSel(i)
+          curBppSel       := descBppSel(i)
         }
       }
     }
@@ -355,6 +371,7 @@ case class SpriteEvaluator(
               activePaletteBankReg(s)  := curPaletteBank
               activePriorityReg(s)     := curPriority
               activeSizeSelReg(s)      := curSizeSel
+              activeBppSelReg(s)       := curBppSel
             }
           }
         }
@@ -395,5 +412,6 @@ case class SpriteEvaluator(
   io.activePaletteBank  := activePaletteBankReg
   io.activePriority     := activePriorityReg
   io.activeSizeSel      := activeSizeSelReg
+  io.activeBppSel       := activeBppSelReg
   io.overflowFlag       := overflowFlagReg
 }
