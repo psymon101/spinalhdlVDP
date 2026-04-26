@@ -1,8 +1,10 @@
 # Task — Sprite Pattern Memory Foundation
 
-**Artifact version:** 1.0-draft  
+**Artifact version:** 1.0  
 **Author:** CoralReef  
 **Date:** 2026-04-25  
+**Implementation commit:** `e86fe49` (BrightForge)  
+**Audit:** PASS #8605 (CyanPeak)  
 **Scope:** Bounded substrate primitive — replace on-chip ROM with BSRAM-backed pattern RAM
 
 ---
