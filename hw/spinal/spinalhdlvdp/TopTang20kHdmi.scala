@@ -302,6 +302,52 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 50 =>
+        // Sprite Phase 2 HW proof (CyanPeak #8627). Programs slots 4..7
+        // with explicit word-8 Hardening field writes covering both the
+        // bppSel and 4-level priority axes:
+        //
+        //   Slot 4  x= 60  patIdx=0  4bpp  priority=2  → diamond, always-above
+        //   Slot 5  x=160  patIdx=1  4bpp  priority=0  → cross, only-on-transparent
+        //   Slot 6  x=280  patIdx=0  2bpp  priority=2  → diamond as 2bpp, always-above
+        //   Slot 7  x=380  patIdx=1  1bpp  priority=0  → cross as 1bpp, only-on-transparent
+        //
+        // Word 8 bus addresses live at 0x0D20+slot per the Phase 2
+        // bus-map (de63ede). Word-8 layout:
+        //   {sizeSel[15:14], paletteBank[13:11], priority[10:9],
+        //    flipH[8], flipV[7], bppSel[6:5], _[4:0]}
+        // sizeSel=01 (16×16 default) and paletteBank=0 throughout so the
+        // proof isolates bppSel + priority differences from sizeSel /
+        // bank effects.
+        def w8(sizeSel: Int, paletteBank: Int, priority: Int,
+               flipH: Boolean, flipV: Boolean, bppSel: Int): Int =
+          ((sizeSel & 0x3) << 14) | ((paletteBank & 0x7) << 11) |
+            ((priority & 0x3) << 9) |
+            ((if (flipH) 1 else 0) << 8) | ((if (flipV) 1 else 0) << 7) |
+            ((bppSel & 0x3) << 5)
+        // sizeSel=11 (64×64) so sprites are visible to off-axis camera
+        // captures (Wyze RTSP). Spread across 1280px so all four are
+        // unambiguously distinct.
+        Seq(
+          (0 << 14) | 0,                                     // WAIT y=0
+          // Slot 4 — 4bpp diamond, priority=2 (always above).
+          (1 << 14) | 0x0820, 0x8000 | 320,
+          (1 << 14) | 0x0821, 160,
+          (1 << 14) | 0x0D24, w8(3, 0, 2, flipH = false, flipV = false, bppSel = 0),
+          // Slot 5 — 4bpp cross, priority=0 (only-on-transparent-BG).
+          (1 << 14) | 0x0828, 0x8000 | (1 << 11) | 320,
+          (1 << 14) | 0x0829, 400,
+          (1 << 14) | 0x0D25, w8(3, 0, 0, flipH = false, flipV = false, bppSel = 0),
+          // Slot 6 — 2bpp diamond, priority=2.
+          (1 << 14) | 0x0830, 0x8000 | 320,
+          (1 << 14) | 0x0831, 640,
+          (1 << 14) | 0x0D26, w8(3, 0, 2, flipH = false, flipV = false, bppSel = 1),
+          // Slot 7 — 1bpp cross, priority=0.
+          (1 << 14) | 0x0838, 0x8000 | (1 << 11) | 320,
+          (1 << 14) | 0x0839, 880,
+          (1 << 14) | 0x0D27, w8(3, 0, 0, flipH = false, flipV = false, bppSel = 2),
+          (3 << 14) | 0
+        )
       case 45 =>
         // Task 44b CP-B hardware proof: SDRAM-backed bitmap + attribute
         // fetch. Bootstrap writes BITMAP_CTRL = 0x0081 (enable | 1bpp
@@ -1443,4 +1489,7 @@ object TopTang20kHdmiScenario45Verilog extends App {
 }
 object TopTang20kHdmiScenario20Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 20))   // Task 40 first platform adapter (C64 raster+sprite smoke)
+}
+object TopTang20kHdmiScenario50Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 50))   // Phase 2 sprite hardening HW proof (bppSel + 4-level priority)
 }
