@@ -1,6 +1,6 @@
 # Task 34 — QSPI Host-Driven Asset Upload
 
-**Status:** Artifact phase
+**Status:** DONE — QSPI host-driven asset upload implemented and hardware-proven
 **depends_on:** [27, 38c]
 **scope_boundary:** Bulk SDRAM write via QSPI only. No new rendering primitives, no protocol redesign, no SDRAM controller replacement.
 **delivers:**

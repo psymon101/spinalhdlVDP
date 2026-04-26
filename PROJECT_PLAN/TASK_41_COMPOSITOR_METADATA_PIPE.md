@@ -1,6 +1,6 @@
 # Task 41 — Compositor Metadata Pipe
 
-**Status:** Artifact phase
+**Status:** DONE — Compositor metadata pipe implemented and integrated
 **depends_on:** [13]
 **scope_boundary:** Metadata pipe definition and wiring only. No new compositor math, no new fetch formats.
 **delivers:**

@@ -1,5 +1,7 @@
 # TASK_R1_RASTER_TRIGGER_UNIT.md
 
+**Status:** CLOSED — Raster trigger unit implemented and integrated (R1 deliverable)
+
 **Updated:** 2026-04-12  
 **Purpose:** First roadmap-derived execution task for `Mode0`. This task introduces the foundational raster-trigger primitive that later platform adapters and automation features will consume.
 

@@ -1,6 +1,6 @@
 # Task 37 — Affine Sprite Path
 
-**Status:** Artifact phase
+**Status:** DONE (`e4e53bc`) — Affine sprite path implemented and hardware-proven (Scenario 37)
 **depends_on:** [19, 28]
 **scope_boundary:** Affine-transformed sprites only. No new background affine features.
 **delivers:**

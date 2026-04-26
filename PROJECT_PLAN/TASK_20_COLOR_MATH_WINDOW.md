@@ -1,6 +1,6 @@
 # TASK_20_COLOR_MATH_WINDOW.md
 
-**Status:** OPEN  
+**Status:** DONE — Color math and window effects implemented and hardware-proven  
 **Classification:** Post-compositor Mode0 primitive  
 **Created:** 2026-04-15  
 **Coding Owner:** BrightForge  

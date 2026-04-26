@@ -1,6 +1,6 @@
 # Task 42 — Firmware + Platform Docs Hardening
 
-**Status:** Artifact phase
+**Status:** DONE — Firmware platform docs completed
 **depends_on:** [27]
 **scope_boundary:** Documentation and small firmware helpers only. No HDL changes. No new rendering primitives. No protocol changes.
 **delivers:**

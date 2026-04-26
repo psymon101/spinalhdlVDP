@@ -1,6 +1,6 @@
 # TASK_21_MIXED_SCENE_INTEGRATION.md
 
-**Status:** IN_REVIEW — Checkpoint C complete, awaiting final audit  
+**Status:** DONE — Mixed-scene integration completed and hardware-proven (Scenario 15) — Checkpoint C complete, awaiting final audit  
 **Classification:** Integration validation (no new primitives)  
 **Created:** 2026-04-16  
 **Coding Owner:** BrightForge  

@@ -1,6 +1,6 @@
 # Task 28 — Two-Pass Sprite Evaluator
 
-**Status:** Artifact phase
+**Status:** DONE (`9e07804`) — Sprite evaluator two-pass architecture implemented, audited, and hardware-proven
 **depends_on:** [12, 15]
 **scope_boundary:** Sprite evaluation pipeline only. No new compositor changes, no collision logic (Task 29), no attribute extension (Task 37), no affine transforms.
 **delivers:**

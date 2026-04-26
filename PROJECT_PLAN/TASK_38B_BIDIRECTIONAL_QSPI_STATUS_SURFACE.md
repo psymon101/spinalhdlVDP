@@ -1,5 +1,7 @@
 # Task 38b — Bidirectional QSPI: Status Surface Expansion
 
+**Status:** DONE (`1294614`) — Bidirectional QSPI status surface implemented
+
 **Opened:** 2026-04-19  
 **Opened by:** BronzeGate #7607  
 **Coding Owner:** BrightForge  

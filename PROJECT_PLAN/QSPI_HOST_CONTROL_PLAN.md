@@ -1,6 +1,6 @@
 # QSPI Host-Control Frontend — Phase Artifact
 
-**Status:** Draft artifact for bounded lane open  
+**Status:** DONE — QSPI host control implemented, audited, and hardware-proven (Tasks 26–27, 38A–38C)  
 **Depends on:** Mode0 substrate closure (Tasks 1–23, Scenarios 26–42 DONE)  
 **Out of scope for first lane:** bulk asset streaming, protocol expansion, new rendering primitives, FIFO model redesign  
 

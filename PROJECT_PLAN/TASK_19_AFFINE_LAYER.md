@@ -1,6 +1,6 @@
 # TASK_19_AFFINE_LAYER.md
 
-**Status:** OPEN  
+**Status:** DONE — Affine layer implemented, sim-proven, and hardware-proven (Scenario 12)  
 **Classification:** Mode0 rendering primitive (R8.1 Affine Stepper)  
 **Created:** 2026-04-16  
 **Coding Owner:** BrightForge  

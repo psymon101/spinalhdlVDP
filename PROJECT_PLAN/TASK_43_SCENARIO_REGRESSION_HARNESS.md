@@ -1,6 +1,6 @@
 # Task 43 — Scenario Regression Harness
 
-**Status:** Artifact phase
+**Status:** DONE — Scenario regression harness implemented and operational
 **depends_on:** [21]
 **scope_boundary:** Test infrastructure only. No new HDL, no new features. No new compositor math or fetch formats.
 **delivers:**

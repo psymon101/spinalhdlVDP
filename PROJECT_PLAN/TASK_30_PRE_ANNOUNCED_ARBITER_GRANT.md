@@ -1,6 +1,6 @@
 # Task 30 — Pre-Announced Arbiter Grant
 
-**Status:** Artifact phase
+**Status:** DONE (`734ffb6`) — Pre-announced arbiter grant implemented and integrated
 **depends_on:** [15]
 **scope_boundary:** SDRAM arbitration lookahead only. No new fetch engines, no new memory types.
 **delivers:**

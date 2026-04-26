@@ -1,6 +1,6 @@
 # Task 36 — Register Write Concurrency Stress Test
 
-**Status:** Artifact phase
+**Status:** DONE — Concurrency stress test implemented and passed
 **depends_on:** [26, 33]
 **scope_boundary:** Validation-only task. No new HDL, no new firmware features. No new rendering primitives. Existing bus arbiter and safe-boundary commit logic are exercised but not modified.
 **delivers:**

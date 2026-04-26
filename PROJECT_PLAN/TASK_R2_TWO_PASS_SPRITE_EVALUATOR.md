@@ -1,5 +1,7 @@
 # TASK_R2_TWO_PASS_SPRITE_EVALUATOR.md
 
+**Status:** CLOSED — Two-pass sprite evaluator implemented and integrated (R2 deliverable)
+
 **Updated:** 2026-04-12  
 **Purpose:** Second roadmap-derived execution task for `Mode0`. This task upgrades the current minimal two-sprite proof into a bounded two-pass sprite evaluation primitive that later sprite flags and platform adapters can reuse.
 

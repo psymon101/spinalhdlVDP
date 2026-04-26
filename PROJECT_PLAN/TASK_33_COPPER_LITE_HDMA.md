@@ -1,6 +1,6 @@
 # Task 33 — Copper-lite / HDMA Automator
 
-**Status:** Artifact phase
+**Status:** DONE — Copper-lite HDMA implemented and hardware-proven
 **depends_on:** [32a]
 **scope_boundary:** Beam-synchronous micro-engine only. No new fetch engines, no new output stages, no new rendering primitives.
 **delivers:**

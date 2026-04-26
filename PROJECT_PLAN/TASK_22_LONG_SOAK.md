@@ -1,6 +1,6 @@
 # TASK_22_LONG_SOAK.md
 
-**Status:** OPEN  
+**Status:** DONE — Long soak validation completed (Scenario 16)  
 **Classification:** Runtime stability testing (no new primitives)  
 **Created:** 2026-04-17  
 **Coding Owner:** BrightForge  

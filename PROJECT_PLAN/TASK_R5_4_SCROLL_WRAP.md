@@ -1,6 +1,6 @@
 # TASK_R5_4_SCROLL_WRAP.md
 
-**Status:** OPEN (CyanPeak drafting)
+**Status:** CLOSED (`d580dcb`) — Scroll wrap implemented and integrated (CyanPeak drafting)
 **Created:** 2026-04-14
 **Coding Owner:** BrightForge
 **Audit Owner:** CyanPeak

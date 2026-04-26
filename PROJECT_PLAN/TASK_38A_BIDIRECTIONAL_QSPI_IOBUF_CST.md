@@ -1,5 +1,7 @@
 # Task 38a — Bidirectional QSPI: HDL IOBUF + CST
 
+**Status:** DONE (`f49880f`) — Bidirectional QSPI IOBUF/CST implemented and hardware-proven
+
 **Opened:** 2026-04-18  
 **Opened by:** BronzeGate #7591  
 **Coding Owner:** BrightForge  

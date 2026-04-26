@@ -1,5 +1,7 @@
 # Task 38c — Bidirectional QSPI: Firmware Read Helper + Bit-3 Proof
 
+**Status:** DONE (`4cee22e`) — Bidirectional QSPI firmware read implemented
+
 **Opened:** 2026-04-19  
 **Opened by:** CoralReef (auto-progression per BronzeGate fast-lane policy #7620)  
 **Coding Owner:** BrightForge  

@@ -1,6 +1,6 @@
 # Task 32b — Mode0 Register Bus: Master Refactor
 
-**Status:** Artifact phase
+**Status:** DONE — Register bus refactor completed and integrated
 **depends_on:** [32a]
 **scope_boundary:** Refactor existing masters to the named bus. No new primitives, no new rendering features, no protocol changes.
 **delivers:**

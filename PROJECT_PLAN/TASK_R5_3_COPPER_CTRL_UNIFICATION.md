@@ -1,6 +1,6 @@
 # TASK_R5_3_COPPER_CTRL_UNIFICATION.md
 
-**Status:** OPEN (CyanPeak drafting)
+**Status:** CLOSED (`32a87ff`) — Copper control unification completed (CyanPeak drafting)
 **Created:** 2026-04-15
 **Coding Owner:** BrightForge
 **Audit Owner:** CyanPeak

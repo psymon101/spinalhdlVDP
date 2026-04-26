@@ -1,6 +1,6 @@
 # Task 31 — Scroll Table Primitive
 
-**Status:** Artifact phase
+**Status:** DONE (`ac3fb87`) — Scroll table primitive implemented and hardware-proven
 **depends_on:** [7, 15]
 **scope_boundary:** Scroll tables only. No new tile fetch formats, no new compositor math.
 **delivers:**

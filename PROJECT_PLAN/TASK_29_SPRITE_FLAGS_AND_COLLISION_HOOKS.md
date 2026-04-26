@@ -1,6 +1,6 @@
 # Task 29 — Sprite Flags and Collision Hooks
 
-**Status:** Artifact phase  
+**Status:** DONE (`ad9857e`) — Sprite flags and collision hooks implemented and hardware-proven  
 **depends_on:** [28]  
 **scope_boundary:** Sprite-side status flags only. No new compositor, no new fetch formats.  
 **delivers:**

@@ -1,6 +1,6 @@
 # Task 39 — Host Driver Library
 
-**Status:** Artifact phase
+**Status:** DONE (`684e3dd`) — Host driver library implemented and delivered
 **depends_on:** [34, 35, 38c]
 **scope_boundary:** Host-side library only. No HDL changes, no new rendering primitives, no new protocol opcodes.
 **delivers:**

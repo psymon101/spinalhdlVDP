@@ -1,5 +1,7 @@
 # Task 35 — Host-Facing IRQ and Status Registers
 
+**Status:** DONE — Host IRQ status registers implemented and integrated
+
 **Opened:** 2026-04-19  
 **Opened by:** CoralReef (auto-progression per BronzeGate fast-lane policy #7620 + CyanPeak #7637 directive)  
 **Coding Owner:** BrightForge  
