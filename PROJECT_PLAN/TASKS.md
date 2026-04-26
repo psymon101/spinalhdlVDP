@@ -27,13 +27,13 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Color/Window Hardening — Implementation** |
-| **Status** | **ARTIFACT — pending CyanPeak audit** |
-| **Phase** | artifact |
-| **Owner** | CoralReef |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | implement |
+| **Owner** | BrightForge |
 | **Latest Commit** | `5a0b370` (Phase 2-bis landed; see #8623) |
-| **Latest Auth Mail** | #8622 (CoralReef PM: Phase 2-bis auto-authorized) |
-| **Next Deliverable** | CyanPeak audit of Color/Window artifact |
-| **Coding Authorized** | **NO** — awaiting artifact audit
+| **Latest Auth Mail** | #8629 (CyanPeak audit PASS: artifact v1.0-draft) |
+| **Next Deliverable** | BrightForge implementation completion packet |
+| **Coding Authorized** | **YES** — #8629 |
 
 **Previous lane:** Sprite Phase 2 + Phase 2-bis — Implementation | **HOLD** | `5a0b370` | Audit PASS #8625 → **HOLD #8627** pending hardware proof (bppSel 2bpp/1bpp + priority tier HW capture)
 
