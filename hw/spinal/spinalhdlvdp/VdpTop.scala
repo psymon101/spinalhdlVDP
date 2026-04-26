@@ -1109,8 +1109,38 @@ case class VdpTop() extends Component {
     // sprite output one pixel right of where the prior readAsync path
     // would have placed it; that's an acceptable proof-stage difference
     // (visible scenes still correctly show the patterns).
-    val ramAddr = (patIdx(3 downto 0).asBits ## addr.asBits.resize(8)).asUInt
-    val pixel   = spritePatternRams(s).readSync(ramAddr)
+    // Phase 2-bis (CoralReef #8622): bppSel-aware address generation.
+    // 2bpp packs 2 pixels per RAM word (col>>1 indexes the word, col(0)
+    // selects within); 1bpp packs 4 pixels per word (col>>2, col(1:0)
+    // selects). At 4bpp the address is unchanged. The RAM remains
+    // 12-bit addressed; sub-4bpp modes simply leave the low col bits
+    // dont-care in the address and rely on the unpack mux below.
+    val bppSel = spriteEval.io.activeBppSel(s)
+    val colShifted: UInt = bppSel.mux(
+      U(0, 2 bits) -> col(3 downto 0),
+      U(1, 2 bits) -> (B"0"  ## col(3 downto 1)).asUInt,
+      U(2, 2 bits) -> (B"00" ## col(3 downto 2)).asUInt,
+      default      -> col(3 downto 0)
+    )
+    val flatAddrBpp = (flippedRow ## colShifted.asBits.resize(4)).asUInt
+    val effFlatAddr = Mux(bppSel === U(0, 2 bits), flatAddr, flatAddrBpp)
+    val finalAddr   = Mux(affEn, affAddr, effFlatAddr)
+    val ramAddr     = (patIdx(3 downto 0).asBits ## finalAddr.asBits.resize(8)).asUInt
+    val rawPixel    = spritePatternRams(s).readSync(ramAddr)
+
+    // Pixel unpack: register the 2 LSBs of col so they align with the
+    // 1-cycle readSync result.
+    val colLowR  = RegNext(col(1 downto 0)) init U(0, 2 bits)
+    val bppSelR  = RegNext(bppSel) init U(0, 2 bits)
+    val twoBpp   = Mux(colLowR(0), rawPixel(3 downto 2), rawPixel(1 downto 0)).asBits.resize(4)
+    val oneBpp   = rawPixel(colLowR).asBits.resize(4)
+    val pixel: Bits = bppSelR.mux(
+      U(0, 2 bits) -> rawPixel,
+      U(1, 2 bits) -> twoBpp,
+      U(2, 2 bits) -> oneBpp,
+      default      -> rawPixel
+    )
+
     val activeR = RegNext(active) init False
     slotPixel(s)   := pixel
     slotVisible(s) := activeR && pixel =/= B(0, 4 bits)
@@ -1151,17 +1181,33 @@ case class VdpTop() extends Component {
   // background where the BG pixel is transparent (idx == 0); high-priority
   // sprites override unconditionally. This matches Genesis's
   // priority-bit-as-above-bg-or-below-bg semantic.
-  // Phase 2 P2-3b: priority field is now 2 bits (UInt). The full
-  // compositor priority matrix is deferred — for this slice the
-  // existing binary above-/below-bg semantic continues to use
-  // `activePriority(s)(0)` (LSB). bit 1 is stored, exposed, and writable
-  // via bus word 8 for adapter probes; the matrix consumer lands in
-  // a follow-on slice.
+  // Phase 2-bis (CoralReef #8622): full 4-level priority matrix consuming
+  // the 2-bit `activePriority` field. Tiers:
+  //   0 (lowest)  : sprite only shows where BG is transparent
+  //   1 (medium)  : sprite above BG except where BG has high-priority
+  //                 (matches the old binary above-BG semantic for prior=0)
+  //   2 (high)    : sprite always above BG
+  //   3 (highest) : sprite always above BG (reserved for future tiers)
+  // bgPriorityHigh = "any BG layer asserts priority over sprite by default"
+  // is the same predicate the no-sprite fillPrio branch uses below; both
+  // share `bgOpaque` semantics for the transparent-BG case.
+  val bgPriorityHigh = layer0PrioGated && layer0Opaque &&
+                       !layer1Opaque && !layer2Opaque && !layer3Opaque
+
+  def spriteWinsAt(prio: UInt): Bool = {
+    val tier  = prio(1 downto 0)
+    val above = tier.msb                                  // tier 2 or 3 → always above
+    val mediumOk = tier === U(1, 2 bits) && (!bgOpaque || !bgPriorityHigh)
+    val lowOk    = tier === U(0, 2 bits) && !bgOpaque
+    above || mediumOk || lowOk
+  }
+
   val anyHighPrioVisible = (0 until NUM_SLOTS).map { s =>
-    slotVisible(s) && spriteEval.io.activePriority(s)(0)
+    slotVisible(s) && spriteEval.io.activePriority(s).msb
   }.reduce(_ || _)
   val anyLowPrioOverBgGap = (0 until NUM_SLOTS).map { s =>
-    slotVisible(s) && !spriteEval.io.activePriority(s)(0) && !bgOpaque
+    slotVisible(s) && !spriteEval.io.activePriority(s).msb &&
+      spriteWinsAt(spriteEval.io.activePriority(s))
   }.reduce(_ || _)
   val spriteWins = anyHighPrioVisible || anyLowPrioOverBgGap
 
@@ -1179,8 +1225,7 @@ case class VdpTop() extends Component {
   }
 
   for (s <- 0 until NUM_SLOTS) {
-    val showSprite = slotVisible(s) &&
-                     (spriteEval.io.activePriority(s)(0) || !bgOpaque)
+    val showSprite = slotVisible(s) && spriteWinsAt(spriteEval.io.activePriority(s))
     when(showSprite) {
       fillIdx    := slotPixel(s)
       fillBank   := slotPaletteBank(s)
