@@ -26,14 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Sprite Phase 2: Format, Priority, and Tile Counter — Implementation** |
-| **Status** | **IMPLEMENTATION LANDED — partial deferrals; awaiting CyanPeak audit** |
-| **Phase** | implement |
-| **Owner** | BrightForge |
-| **Latest Commit** | `de63ede` (all 4 sub-items + bus-map fix; see #8619) |
-| **Latest Auth Mail** | #8619 (BrightForge completion packet) |
-| **Next Deliverable** | CyanPeak audit of `7ad262f..de63ede`; then Phase 2-bis consumer deferrals |
-| **Coding Authorized** | **YES** — CyanPeak #8614
+| **Task** | **Color/Window Hardening — Implementation** |
+| **Status** | **ARTIFACT — pending CyanPeak audit** |
+| **Phase** | artifact |
+| **Owner** | CoralReef |
+| **Latest Commit** | `5a0b370` (Phase 2-bis landed; see #8623) |
+| **Latest Auth Mail** | #8622 (CoralReef PM: Phase 2-bis auto-authorized) |
+| **Next Deliverable** | CyanPeak audit of Color/Window artifact |
+| **Coding Authorized** | **NO** — awaiting artifact audit
+
+**Previous lane:** Sprite Phase 2 + Phase 2-bis — Implementation | DONE | `5a0b370` | Audit pending CyanPeak
 
 **Previous lane:** Sprite Pattern Memory Foundation — Implementation | DONE | `e86fe49` | Audit PASS #8605
 
