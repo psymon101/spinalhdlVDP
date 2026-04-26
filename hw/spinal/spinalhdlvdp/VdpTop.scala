@@ -436,6 +436,25 @@ case class VdpTop() extends Component {
     winCombPend    := effData
     winCombPendHit := True
   }
+  // CW-6: Per-layer window mask enable. When a layer's bit is set AND the
+  // combined window effect is active for the current pixel, that layer's
+  // contribution is masked at display time (forced to black). Bit layout
+  // matches PixelMetadata.SourceXxx encoding so `layerMaskReg(source)`
+  // selects the correct mask:
+  //   bit[0] = mask SourceBG0
+  //   bit[1] = mask SourceBG1
+  //   bit[2] = mask SourceBG2
+  //   bit[3] = mask SourceBG3
+  //   bit[4] = mask SourceSprite
+  //   bits[7:5] = reserved
+  // Default 0 → no masking (legacy behavior).
+  val layerMaskReg     = Reg(Bits(16 bits)) init 0
+  val layerMaskPend    = Reg(Bits(16 bits)) init 0
+  val layerMaskPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x033B, 15 bits)) {
+    layerMaskPend    := effData
+    layerMaskPendHit := True
+  }
   // Task 19 Checkpoint A: Affine Layer matrix + control registers.
   // Addresses 0x0340..0x0346, same safe-boundary shadow + commit pattern.
   //   0x0340 AFFINE_A    16b  signed 8.8 fixed point
@@ -594,6 +613,7 @@ case class VdpTop() extends Component {
     when(win2Y1PendHit)    { win2Y1Reg    := win2Y1Pend;    win2Y1PendHit    := False }
     when(win2CtrlPendHit)  { win2CtrlReg  := win2CtrlPend;  win2CtrlPendHit  := False }
     when(winCombPendHit)   { winCombReg   := winCombPend;   winCombPendHit   := False }
+    when(layerMaskPendHit) { layerMaskReg := layerMaskPend; layerMaskPendHit := False }
     // Task 19 affine registers (safe-boundary commit).
     when(affineAPendHit)    { affineAReg    := affineAPend;    affineAPendHit    := False }
     when(affineBPendHit)    { affineBReg    := affineBPend;    affineBPendHit    := False }
@@ -1531,8 +1551,17 @@ case class VdpTop() extends Component {
     default      -> effect1
   )
 
+  // CW-6: per-layer window mask. drainMeta.layerSource carries the
+  // winning source ID (BG0..BG3=0..3, Sprite=4) selected at compose
+  // time; if that layer's mask bit is set AND the combined window
+  // effect is active here, the pixel is forced to black before
+  // ColorMath. Default layerMaskReg=0 means no masking.
+  val layerMaskBit    = layerMaskReg(drainMeta.layerSource(2 downto 0))
+  val layerMaskActive = layerMaskBit && combinedWindowEffect
+  val maskedRgb       = Mux(layerMaskActive, B(0, 24 bits), paletteRgb)
+
   val colorMath = ColorMath()
-  colorMath.io.rgbIn    := paletteRgb
+  colorMath.io.rgbIn    := maskedRgb
   colorMath.io.op       := colorMathReg(15 downto 14).asUInt
   colorMath.io.constant := colorMathReg(7  downto 0).asUInt
   // CW-3: per-pixel mathEnable metadata OR'd with the (possibly combined)

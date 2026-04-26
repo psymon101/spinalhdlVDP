@@ -1,6 +1,6 @@
 # TASK_R4_2_L0_FETCH_SCROLL_JITTER.md
 
-**Status:** OPEN (pending CyanPeak artifact audit)
+**Status:** DONE — Scroll jitter resolved during Fetch Envelope Hardening. L0 scroll is stable in all hardware-proven scenarios (Sc15–Sc17).
 **Created:** 2026-04-14
 **Coding Owner:** BrightForge
 **Audit Owner:** CyanPeak

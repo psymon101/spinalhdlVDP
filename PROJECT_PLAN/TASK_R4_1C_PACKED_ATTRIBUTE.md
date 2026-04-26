@@ -1,6 +1,6 @@
 # TASK_R4_1C_PACKED_ATTRIBUTE.md
 
-**Status:** DONE — Packed attribute mode implemented and hardware-proven (CyanPeak drafting)
+**Status:** DONE — Packed attribute mode implemented and hardware-proven
 **Created:** 2026-04-14
 **Coding Owner:** BrightForge
 **Audit Owner:** CyanPeak

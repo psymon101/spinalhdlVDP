@@ -1,6 +1,6 @@
 # TASK_R4_1B_PLANAR_FETCH.md
 
-**Status:** DONE — Planar fetch mode implemented and hardware-proven (Scenario 9) (pending CyanPeak artifact audit per #7095)
+**Status:** DONE — Planar fetch mode implemented and hardware-proven (Scenario 9)
 **Created:** 2026-04-14
 **Coding Owner:** BrightForge
 **Audit Owner:** CyanPeak
