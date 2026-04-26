@@ -1295,8 +1295,43 @@ case class VdpTop() extends Component {
 
   // Palette: 128-entry × 24-bit banked RGB lookup from TileAttributeAssets.
   // Bank 0 reproduces the pre-R4 16-color palette so the legacy L1 path and
-  // sprite rendering are unchanged.
+  // sprite rendering are unchanged. Color/Window Hardening (#8629) makes the
+  // RAM runtime-writable while preserving the legacy init content.
+  //
+  // Bus protocol (mirrors the sprite pattern RAM scheme at 0x0D10/0x0D11):
+  //   0x0601 PALETTE_PTR  : sets paletteWritePtr[7:0] (entry × 2 + half)
+  //   0x0600 PALETTE_DATA : auto-incrementing two-write entry commit
+  //                          half=0 (even ptr): low 16 bits = G[7:0]:B[7:0]
+  //                          half=1 (odd  ptr): low 8 bits  = R[7:0],
+  //                                            commits {R,G,B} into entry
+  // Two writes per entry; pointer wraps modulo 256. Hosts should sequence
+  // bulk palette uploads inside vblank to avoid mid-frame visible flicker
+  // (the readAsync pixel path will see the new entry on the very next
+  // pixel after the second write).
+  val paletteWritePtr  = Reg(UInt(8 bits)) init 0
+  val paletteWriteAcc  = Reg(Bits(16 bits)) init 0
+  val palettePtrHit    = effWrite && (effAddr === U(0x0601, 15 bits))
+  val paletteDataHit   = effWrite && (effAddr === U(0x0600, 15 bits))
+  val paletteHalfHi    = paletteWritePtr(0)
+  val paletteEntryIdx  = paletteWritePtr(7 downto 1)
+  val paletteCommitNow = paletteDataHit && paletteHalfHi
+  val paletteCommitData = effData(7 downto 0) ## paletteWriteAcc
+  when(palettePtrHit) {
+    paletteWritePtr := effData(7 downto 0).asUInt
+  }.elsewhen(paletteDataHit) {
+    when(!paletteHalfHi) {
+      paletteWriteAcc := effData
+    }
+    paletteWritePtr := paletteWritePtr + 1
+  }
+
   val palette = Mem(Bits(24 bits), initialContent = TileAttributeAssets.paletteInit)
+  palette.simPublic()
+  palette.write(
+    address = paletteEntryIdx.resize(log2Up(TileAttributeAssets.PaletteDepth)),
+    data    = paletteCommitData,
+    enable  = paletteCommitNow
+  )
   val paletteRgb = palette.readAsync(paletteAddr)
 
   // R1 Raster Trigger Unit. Pending status is used below as a visible split

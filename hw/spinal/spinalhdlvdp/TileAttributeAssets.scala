@@ -235,7 +235,7 @@ object TileAttributeAssets {
     0x959595  // 15: Light Grey
   ).map(BigInt(_))
 
-  private def ramp(bank: Int): Seq[BigInt] = (0 until PaletteEntries).map { i =>
+  def ramp(bank: Int): Seq[BigInt] = (0 until PaletteEntries).map { i =>
     val t = math.min(i * 85, 255)   // 0, 85, 170, 255, 255, ..., 255
     bank match {
       case 0 => legacyPalette(i)
