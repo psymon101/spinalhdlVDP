@@ -1024,6 +1024,15 @@ case class VdpTop() extends Component {
 
   val fillX = hCounter.resize(10)
 
+  // Sprite Phase 2 — P2-1 (CyanPeak #8614): the 1-cycle latency from
+  // `readSync` on the per-slot pattern Mems would otherwise shift sprite
+  // output right by 1 pixel relative to the line-buffer write address.
+  // Pre-advance the address-gen / hitbox `fillX` by 1 so the pixel that
+  // arrives at cycle T+1 corresponds to lineBuf write position T+1
+  // (rather than T+1's read of T-cycle content). Pixel-accurate vs.
+  // pre-Pattern-Memory baseline.
+  val fillXAhead = (fillX + 1).resize(10)
+
   // Per active-slot pixel resolution (Task 28 — widened 2 → 8 slots).
   // patternIndex is now 4 bits; the low bit selects pattern Mem 0 vs 1 for
   // this task. Wider pattern-Mem banks land in a future sprite-attribute
@@ -1048,8 +1057,11 @@ case class VdpTop() extends Component {
     // expansion is OUT of #8577 scope) so col/row are masked to 4 bits and
     // sprite slot of size > 16 effectively tiles the pattern. flipH/flipV
     // mirror the masked col/row so legacy 16×16 cases produce mirrored output.
-    val col      = (fillX - x).resize(10)
-    val flatOn   = fillX >= x && fillX < (x + width.resize(10))
+    // Address gen and hitbox use `fillXAhead` (= fillX + 1) so the
+    // 1-cycle `readSync` latency on the pattern RAM lines up with the
+    // lineBuf write address downstream — see P2-1 note above.
+    val col      = (fillXAhead - x).resize(10)
+    val flatOn   = fillXAhead >= x && fillXAhead < (x + width.resize(10))
     val flippedCol = Mux(flipH, ~col(3 downto 0), col(3 downto 0))
     val flippedRow = Mux(flipV, ~row(3 downto 0), row(3 downto 0))
     val flatAddr   = (flippedRow ## flippedCol).asUInt
@@ -1059,7 +1071,7 @@ case class VdpTop() extends Component {
     // (sprite center) maps to texture (8, 8). Out-of-bounds (u,v) outside
     // [0..15] → clamp to transparent.
     val stepper = AffineStepper()
-    stepper.io.x       := fillX
+    stepper.io.x       := fillXAhead   // P2-1: pre-roll affine path too
     stepper.io.y       := fillLine.resize(10)
     stepper.io.matrixA := spriteEval.io.activeMatrixA(s)
     stepper.io.matrixB := spriteEval.io.activeMatrixB(s)
