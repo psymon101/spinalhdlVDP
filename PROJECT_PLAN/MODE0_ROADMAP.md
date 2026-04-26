@@ -1,6 +1,6 @@
 # MODE0_ROADMAP.md
 
-**Updated:** 2026-04-12  
+**Updated:** 2026-04-26  
 **Purpose:** Strategic capability roadmap for `Mode0` as the superset rendering substrate that future platform adapter modes will consume. This document is not the same as `TASKS.md`: it defines the long-range primitive build order needed to cover the target platform set.
 
 ---
@@ -95,16 +95,26 @@ After those, the larger platform-enabling expansions remain:
 
 ## Proven Base
 
-The current hardware-proven baseline already covers:
+The current hardware-proven baseline covers the **entire R1–R6 substrate** plus R7 and R8:
 
-- deterministic raster timing
-- palette lookup
-- multi-layer composition
-- per-line linestate commit
-- SDRAM-backed tile fetch for Layer 0
-- hardware-proven Tang Nano 20K HDMI output
+- **R1** — Raster trigger unit (`beam compare` + raster IRQ/status)
+- **R2** — Two-pass sprite evaluator with sprite-0 hit, overflow, collision hooks
+- **R3** — Static fetch-slot scheduler + pre-announced arbiter grant
+- **R4** — Tile+attribute fetch (linear, packed, planar, shuffled variants) + scroll-table primitive
+- **R5** — Mode0 register bus + Copper-lite / HDMA automator
+- **R6** — Window mask unit + color-math / shadow-highlight stage
+- **R7** — Planar fetch engine + shuffled / bitmap+attribute fetch engine
+- **R8** — Affine stepper (background + sprite paths)
 
-This means the roadmap should not restart from first principles. The next primitives should extend the current substrate, not replace it.
+Additional closed primitives:
+- Raw bitmap fetch + SDRAM-backed bitmap (Tasks 44/44B)
+- QSPI bidirectional host control (Tasks 38A–38C)
+- Host driver library (Task 39)
+- Sprite palette bank plumbing (Sprite Phase 2)
+
+This means the roadmap **substrate construction phase is complete**. The strategic focus has shifted to:
+1. **Substrate hardening** (Color/Window Hardening is IN-PROGRESS)
+2. **Platform adapter development**
 
 ---
 
@@ -157,7 +167,9 @@ Working rule:
 
 The order below is chosen for cross-platform leverage, implementation risk, and reuse.
 
-### Phase R1 — Raster Control Primitive
+### Phase R1 — Raster Control Primitive ✅ CLOSED
+
+*Status: Implemented, audited, and hardware-proven. Task doc closed.*
 
 These are the cheapest missing hooks and unlock a large amount of platform behavior.
 
@@ -184,7 +196,9 @@ These are the cheapest missing hooks and unlock a large amount of platform behav
 
 **Build note:** This remains a cheap primitive and must not be gated on Copper/HDMA-style automation.
 
-### Phase R2 — Sprite System Upgrade
+### Phase R2 — Sprite System Upgrade ✅ CLOSED
+
+*Status: Implemented, audited, and hardware-proven. Task doc closed.*
 
 The current sprite proof is not enough for most target systems.
 
@@ -221,7 +235,9 @@ The current sprite proof is not enough for most target systems.
 
 **Why here:** These are direct by-products of the stronger evaluator and are cheaper to add once the evaluator is rebuilt.
 
-### Phase R3 — Fetch Scheduling and Memory Discipline
+### Phase R3 — Fetch Scheduling and Memory Discipline ✅ CLOSED
+
+*Status: Implemented, audited, and hardware-proven. Task doc closed.*
 
 The current memory path is proven, but the long-term substrate needs a more explicit fetch schedule.
 
@@ -257,7 +273,9 @@ The current memory path is proven, but the long-term substrate needs a more expl
 
 **Why now:** This is a substrate-quality improvement that makes later planar/shuffled/Copper work less fragile.
 
-### Phase R4 — Tile/Attribute Generalization
+### Phase R4 — Tile/Attribute Generalization ✅ CLOSED
+
+*Status: Implemented, audited, and hardware-proven. Task doc closed.*
 
 The repo already has tile fetch. The next step is to make it flexible enough for more systems.
 
@@ -313,7 +331,9 @@ The repo already has tile fetch. The next step is to make it flexible enough for
 
 **Architectural rule:** Do not widen `LinestateStore` to fake per-column scroll.
 
-### Phase R5 — Beam-Driven Automation
+### Phase R5 — Beam-Driven Automation ✅ CLOSED
+
+*Status: Implemented, audited, and hardware-proven. Task doc closed.*
 
 This is where Amiga Copper and SNES HDMA-class behavior enters the design.
 
@@ -342,7 +362,9 @@ This is where Amiga Copper and SNES HDMA-class behavior enters the design.
 
 **Constraint:** This should be introduced only after the register bus exists.
 
-### Phase R6 — Post-Compositor Primitives
+### Phase R6 — Post-Compositor Primitives ✅ CLOSED
+
+*Status: Implemented, audited, and hardware-proven. Task doc closed.*
 
 These are relatively small compared to fetch engines and unlock SNES/Genesis-style output behavior.
 
@@ -415,23 +437,23 @@ These are narrower in platform coverage but essential for the computer-class tar
 
 This is the condensed task progression that future task creation should follow.
 
-1. Add raster trigger unit (`beam compare` + raster IRQ/status).
-2. Rebuild sprite path into a 2-pass evaluator with sprite-0 / overflow / collision / per-line limit hooks.
-3. Re-evaluate whether current reactive fetch remains acceptable under the stronger sprite/fetch load.
-4. If needed from step 3, add static fetch-slot scheduler.
-5. Add pre-announced arbiter grant / lookahead.
-6. Generalize tile fetch into tile+attribute fetch with 2/4/8bpp support and palette-bank / metadata hooks.
-7. Add packed-attribute variant support.
-8. Split scroll into per-line linestate scroll and separate scroll-table primitive.
-9. Define a uniform internal Mode0 register bus.
-10. Add Copper-lite / HDMA automator on top of the register bus.
-11. Add window mask unit.
-12. Add color-math / shadow-highlight stage.
-13. Add planar fetch engine.
-14. Add shuffled / bitmap+attribute fetch engine.
-15. Add affine stepper.
-16. Run mixed-scene proof that combines tile, sprite, raster, window, alternate fetch paths, and beam-driven state changes.
-17. Run long soak and maximum-load validation.
+1. ✅ Add raster trigger unit (`beam compare` + raster IRQ/status).
+2. ✅ Rebuild sprite path into a 2-pass evaluator with sprite-0 / overflow / collision / per-line limit hooks.
+3. ✅ Re-evaluate whether current reactive fetch remains acceptable under the stronger sprite/fetch load.
+4. ✅ Add static fetch-slot scheduler.
+5. ✅ Add pre-announced arbiter grant / lookahead.
+6. ✅ Generalize tile fetch into tile+attribute fetch with 2/4/8bpp support and palette-bank / metadata hooks.
+7. ✅ Add packed-attribute variant support.
+8. ✅ Split scroll into per-line linestate scroll and separate scroll-table primitive.
+9. ✅ Define a uniform internal Mode0 register bus.
+10. ✅ Add Copper-lite / HDMA automator on top of the register bus.
+11. ✅ Add window mask unit.
+12. ✅ Add color-math / shadow-highlight stage.
+13. ✅ Add planar fetch engine.
+14. ✅ Add shuffled / bitmap+attribute fetch engine.
+15. ✅ Add affine stepper.
+16. ✅ Run mixed-scene proof that combines tile, sprite, raster, window, alternate fetch paths, and beam-driven state changes.
+17. ✅ Run long soak and maximum-load validation.
 
 ### Dependency Notes
 
@@ -476,13 +498,13 @@ These are not promises of cycle-accurate emulation. They are readiness checkpoin
 
 ## Immediate Planning Recommendation
 
-Based on the current proven repo state and the reference-core RTL study, the next three planning targets should be:
+Based on the current proven repo state, the next strategic targets are:
 
-1. **Raster trigger unit (`beam compare` + raster IRQ)**
-2. **2-pass sprite evaluator**
-3. **Checkpoint on fetch pressure, then static fetch-slot scheduler with pre-announce if the stronger sprite/fetch load justifies it**
+1. **Color/Window Hardening** (IN-PROGRESS) — runtime palette RAM, sprite palette bank, dual window + combinations, per-layer masking
+2. **Beam Hardening** — Copper/HDMA edge cases, raster-cycle timing, linestate robustness
+3. **Platform adapter development** — C64, NES, Genesis/MD, SNES adapters over the proven Mode0 substrate
 
-Those three add the most cross-platform leverage for the least architectural disruption, and they prepare the repo for the later Copper/HDMA and planar work instead of competing with it.
+The R1–R6 substrate construction phase is complete. Adapter work may begin for platforms whose minimum milestone is "through R6" once Color/Window Hardening closes out.
 
 ---
 
@@ -503,12 +525,8 @@ The exact proof scenario can evolve, but it must map to real target-platform beh
 
 ## First Execution Target
 
-The first roadmap-derived execution task is now defined in:
+The substrate construction phases (R1–R8) are complete. Current execution targets:
 
-- `PROJECT_PLAN/TASK_R1_RASTER_TRIGGER_UNIT.md`
-
-The next bounded execution task is now defined in:
-
-- `PROJECT_PLAN/TASK_R2_TWO_PASS_SPRITE_EVALUATOR.md`
-
-Those documents are the bounded planning artifacts for opening the first two real post-roadmap implementation lanes.
+- **Active lane:** `PROJECT_PLAN/artifacts/TASK_COLOR_WINDOW_HARDENING.md` (IN-PROGRESS, BrightForge)
+- **Next expected lane:** Beam Hardening (pending artifact drafting)
+- **Adapter work:** May begin once Color/Window and Beam hardening are closed

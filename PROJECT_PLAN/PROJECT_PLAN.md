@@ -1,6 +1,6 @@
 # PROJECT_PLAN.md
 
-**Updated:** 2026-04-11
+**Updated:** 2026-04-26
 **Purpose:** Entry point for the `PROJECT_PLAN/` documentation set. Read this file first, then read the other files in the order listed below.
 
 ---
@@ -40,10 +40,10 @@ The currently validated slice is:
 - Generated HDL target directory: `hw/gen`
 - Board flow: `fpga/tang20k/`
 - Top-level board entry: `TopTang20kHdmi.scala`
-- Current visible hardware output: deterministic memory-backed tiled pattern generated from on-chip tile and tilemap ROMs
-- Current validated output path: Tang Nano 20K HDMI output captured locally on this machine through `/dev/video2`
+- Current visible hardware output: **SDRAM-backed Mode0 rendering** with tile, planar, shuffled, bitmap, affine, sprite, color-math, window, Copper, and QSPI host control — 17 hardware-proven scenarios
+- Current validated output path: Tang Nano 20K HDMI output captured locally on this machine through `/dev/video2` and via RTSP stream
 
-Do not treat this repository as if it were still at the "empty stub" stage. The task list below is organized around the implementation that already exists.
+Do not treat this repository as if it were still at the "empty stub" stage. Tasks 1–43, R1–R6, and multiple hardening lanes are **DONE**. The active lane is **Color/Window Hardening — Implementation** (IN-PROGRESS, BrightForge).
 
 ---
 
@@ -60,15 +60,17 @@ Do not treat this repository as if it were still at the "empty stub" stage. The 
 
 ## Current Architecture Snapshot
 
-The current hardware-proven path is intentionally small:
+The current hardware-proven path is a **full Mode0 rendering substrate**:
 
-- `VdpTop.scala` owns visible raster timing and the direct test-pattern pixel generator
-- `TopTang20kHdmi.scala` owns board clocking, reset, LEDs, and wiring into the HDMI transport
+- `VdpTop.scala` owns raster timing, SDRAM fetch scheduler, tile/planar/shuffled/bitmap decoders, sprite evaluator, affine stepper, compositor, color math, dual window comparator, and palette RAM
+- `TopTang20kHdmi.scala` owns board clocking, reset, LEDs, scenario bootstrap, sprite animators, and HDMI transport wiring
 - `Tang20kHdmiTx.scala` is the SpinalHDL black-box boundary for the board-specific TMDS transport
 - `fpga/tang20k/tang20k_hdmi_tx.sv` owns TMDS encode / serializer / LVDS output details
 - `fpga/tang20k/Makefile` owns HDL generation, Gowin build, and board programming
+- QSPI slave (`QspiSlave.scala`) enables runtime host control and asset upload
+- Copper-lite coprocessor enables mid-frame register updates for raster effects
 
-This is a vertical slice for output bring-up, not yet a full Mode0 implementation.
+This is a full Mode0 implementation, not a bring-up slice. The strategic focus has shifted from **substrate construction** to **substrate hardening** and **platform adapter development**.
 
 Architectural rule:
 
@@ -102,35 +104,36 @@ The following are already proven on this repository state:
 - SBT generation from the repo root succeeds
 - Gowin synthesis / place-and-route succeeds in a headless environment
 - Board flash programming succeeds with explicit FTDI serial binding when required
-- Direct local capture confirms the intended current tiled pattern is what the FPGA renders
-- `VdpTopSim.scala` checks the same on-chip pattern source in simulation
+- Direct local capture confirms the intended output is what the FPGA renders
+- `VdpTopSim.scala` regression suite passes for all closed substrate paths
+- 17 scenarios (Sc0–Sc11, Sc12–Sc17) have been hardware-proven on Tang Nano 20K
+- Sprite Phase 2 + 2-bis hardening is hardware-proven (Scenario 50, commit `39a7242`)
+- Fetch Envelope Hardening is complete and audited
+- Sprite Envelope Hardening is complete and audited
+- Color/Window Hardening is IN-PROGRESS (CW-1/3/4/5 complete at `cde4025`)
 
 ---
 
 ## Next Practical Work
 
-The current validated baseline is now past the early on-chip pipeline tasks:
+The current validated baseline is **past the entire mainline substrate construction phase**. Tasks 1–43, R1–R6, and the first three hardening lanes are complete.
 
-- Task 8: wraparound / seam correctness
-- Task 9: line buffer path
-- Task 10: palette lookup
-- Task 11: single-sprite proof
-- Task 12: sprite priority / transparency
-- Task 13: two-layer background composition
-- Task 14: per-line linestate prepare / commit
+**Active lane:**
+- **Color/Window Hardening — Implementation** (IN-PROGRESS, BrightForge, commit `cde4025`)
+  - CW-1: Runtime-writable palette RAM ✅
+  - CW-3: `mathEnable` metadata → ColorMath gate ✅
+  - CW-4: Highlight mode ✅
+  - CW-5: Dual window + combination logic ✅
+  - Remaining: CW-2 sprite palette bank, CW-6 per-layer masking, sim proofs, hardware proof
 
-The next unfinished mainline task is:
+**Previous lanes (all closed):**
+- Sprite Phase 2 + 2-bis — HOLD pending CyanPeak formal audit on proof packet #8634
+- Sprite Pattern Memory Foundation — DONE (`e86fe49`)
+- Mode0 Sprite Envelope Hardening — DONE (`d44a9c0`)
+- Mode0 Fetch Envelope Hardening — DONE
 
-- Task 15: memory-backed fetch path using the Tang Nano 20K embedded SDR SDRAM
+**Next expected work after Color/Window closeout:**
+- Beam Hardening lane (Copper/HDMA edge cases, raster-cycle timing)
+- Platform adapter development (C64, NES, Genesis/MD, SNES)
 
-Task 15 must stay tightly bounded:
-
-- use the embedded 64 Mbit SDR SDRAM SiP, not PSRAM / HyperRAM
-- use the corrected 32-bit SDRAM model from `PLATFORM.md`
-- keep sprites on-chip
-- keep planar and shuffled fetch out of scope
-- preserve the current on-chip path as a comparison baseline until SDRAM fetch is proven
-
-The current visible output path is known-good and must remain the comparison reference while the SDRAM-backed fetch path is brought up.
-
-For the longer-range `Mode0` build order beyond the currently validated slice, use `MODE0_ROADMAP.md`. It defines the strategic primitive progression needed to support the target platform adapters without turning `Mode0` into a platform-specific renderer.
+For the strategic `Mode0` build order and adapter roadmap, use `MODE0_ROADMAP.md`. For the authoritative execution ledger, use `TASKS.md`.
