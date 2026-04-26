@@ -5,7 +5,7 @@
 **Depends on:** Scenarios 6, 8, 15, 16  
 **Capture protocol:** 30 s, 720×480 YUYV @ 50 fps lossless x264 qp=0 yuv444p  
 **Owner:** BrightForge / CyanPeak  
-**Status:** DRAFT — awaiting CyanPeak audit
+**Status:** DONE — audited by CyanPeak
 
 ---
 

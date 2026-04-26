@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-26 (Color/Window Hardening implementation IN-PROGRESS #8629; Sprite Phase 2 + 2-bis HOLD #8627 pending CyanPeak audit)
+**Updated:** 2026-04-26 (Color/Window Hardening implementation IN-PROGRESS #8629; Sprite Phase 2 + 2-bis formally DONE #8638)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -35,7 +35,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Next Deliverable** | BrightForge implementation completion packet (CW-2 sprite palette bank, CW-6 per-layer masking, sim proofs, HW proof) |
 | **Coding Authorized** | **YES** — #8629 |
 
-**Previous lane:** Sprite Phase 2 + Phase 2-bis — Implementation | **HOLD** | `5a0b370` | Audit PASS #8625 → **HOLD #8627** pending hardware proof → **Proof packet delivered #8634** (`39a7242`, Scenario 50). CyanPeak pre-reviewed evidence as satisfying in #8629; formal audit PASS on #8634 pending.
+**Previous lane:** Sprite Phase 2 + Phase 2-bis — Implementation | DONE | `39a7242` | Audit PASS #8625 / #8638 (Lifting HOLD #8627 via Scenario 50 proof)
 
 **Previous lane:** Sprite Pattern Memory Foundation — Implementation | DONE | `e86fe49` | Audit PASS #8605
 

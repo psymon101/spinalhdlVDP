@@ -5,7 +5,7 @@
 **Depends on:** Scenario 15 (Task 21, closed)  
 **Capture protocol:** Three 30 s snapshots at T=0, T=30 min, T=60 min; 720×480 YUYV @ 50 fps lossless x264 qp=0 yuv444p  
 **Owner:** BrightForge / CyanPeak  
-**Status:** DRAFT — awaiting CyanPeak audit
+**Status:** DONE — audited by CyanPeak
 
 ---
 

@@ -4,7 +4,7 @@
 **Validates:** Tasks 5, 6, 10 (legacy L1 `BasicPatternSource` + palette + L1 path)
 **Capture protocol:** 30 s, 720×480 YUYV @ 50 fps lossless x264 qp=0 yuv444p
 **Owner:** BrightForge (coding) / CyanPeak (audit)
-**Status:** DRAFT — awaiting CyanPeak audit of pass criteria
+**Status:** DONE — audited by CyanPeak
 
 ---
 

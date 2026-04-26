@@ -5,7 +5,7 @@
 **Depends on:** Scenario 2 (scroll works) + Scenario 8 (packed-mode L0 works) + R5 copper (closed)
 **Capture protocol:** 30 s, 720×480 YUYV @ 50 fps lossless x264 qp=0 yuv444p
 **Owner:** BrightForge / CyanPeak
-**Status:** DRAFT — awaiting CyanPeak audit of pass criteria
+**Status:** DONE — audited by CyanPeak
 
 ---
 

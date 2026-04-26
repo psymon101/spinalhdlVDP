@@ -5,7 +5,7 @@
 **Depends on:** Scenario 4 (single sprite must work first) + Scenario 8 (L0 background must work first)
 **Capture protocol:** 30 s, 720×480 YUYV @ 50 fps lossless x264 qp=0 yuv444p
 **Owner:** BrightForge (coding) / CyanPeak (audit)
-**Status:** DONE — hardware-proven at Task 19 close
+**Status:** DONE — audited by CyanPeak; hardware-proven at Task 19 close
 
 ---
 

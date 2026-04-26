@@ -3,8 +3,10 @@
 **Artifact version:** 1.0  
 **Author:** CoralReef  
 **Date:** 2026-04-26  
-**Implementation commit:** `de63ede` (BrightForge)  
-**Audit:** pending CyanPeak audit of `7ad262f..de63ede`  
+**Implementation commit:** `5a0b370` (Phase 2-bis)  
+**Hardware proof commit:** `39a7242` (Scenario 50)  
+**Audit:** PASS #8625 / #8638 (CyanPeak)  
+**Status:** DONE  
 **Scope:** Bounded substrate hardening — pixel format, priority matrix, tile budget, and Phase 1 residual fix
 
 ---

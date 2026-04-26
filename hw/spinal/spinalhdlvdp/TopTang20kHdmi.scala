@@ -302,6 +302,61 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 51 =>
+        // Color/Window Hardening HW proof (CyanPeak audit PASS #8629).
+        // Single frame demonstrates four CW sub-features at once via the
+        // copper program's idempotent-writes-then-JUMP loop:
+        //
+        //   CW-1 runtime palette RAM   — bank-0 entries 1..3 rewritten
+        //                                 to RED/GREEN/BLUE sentinels.
+        //   CW-4 highlight mode        — ColorMath op=10 (channel<<1
+        //                                 clamp 0xFF), enabled by the
+        //                                 combined window effect.
+        //   CW-5 dual window + XOR     — win1 = top half (0..640 ×
+        //                                 0..240); win2 = left half
+        //                                 (0..320 × 0..480); combMode
+        //                                 = XOR ⇒ effect=True in TR
+        //                                 and BL quadrants only.
+        //   CW-6 per-layer mask        — LAYER_MASK bit[4]=1 masks the
+        //                                 sprite source in the window
+        //                                 region (TR + BL).
+        //
+        // Expected visual on the 640×480 capture:
+        //   TL quadrant : normal scene  (effect=False, sprite visible)
+        //   TR quadrant : sprite gone + BG highlighted (palette<<1)
+        //   BL quadrant : sprite gone + BG highlighted (palette<<1)
+        //   BR quadrant : normal scene  (effect=False, sprite visible)
+        // The diagonal-pair contrast is unambiguous to OpenCV motion
+        // detectors and direct visual comparison.
+        Seq(
+          (0 << 14) | 0,                                     // WAIT y=0 (sync)
+          // ---- CW-1: rewrite bank-0 palette entries 1..3 -------------------
+          // Auto-incrementing pointer protocol (see VdpTop CW-1 wiring).
+          // Each entry takes 2 data writes (low half = G:B, high half = R).
+          (1 << 14) | 0x0601, 2,                             // PALETTE_PTR = 2 (entry 1, low)
+          (1 << 14) | 0x0600, 0x0000,                        // entry 1 G:B = 00:00
+          (1 << 14) | 0x0600, 0x00FF,                        // entry 1 R    = FF (commits 0xFF0000 RED)
+          (1 << 14) | 0x0600, 0xFF00,                        // entry 2 G:B = FF:00
+          (1 << 14) | 0x0600, 0x0000,                        // entry 2 R    = 00 (commits 0x00FF00 GREEN)
+          (1 << 14) | 0x0600, 0x00FF,                        // entry 3 G:B = 00:FF
+          (1 << 14) | 0x0600, 0x0000,                        // entry 3 R    = 00 (commits 0x0000FF BLUE)
+          // ---- CW-5: window 1 = top half, window 2 = left half -------------
+          (1 << 14) | 0x0330, 0,                             // WIN1_X0 = 0
+          (1 << 14) | 0x0331, 640,                           // WIN1_X1 = 640 (full width)
+          (1 << 14) | 0x0332, 0,                             // WIN1_Y0 = 0
+          (1 << 14) | 0x0333, 240,                           // WIN1_Y1 = 240 (top half)
+          (1 << 14) | 0x0335, 0,                             // WIN2_X0 = 0
+          (1 << 14) | 0x0336, 320,                           // WIN2_X1 = 320 (left half)
+          (1 << 14) | 0x0337, 0,                             // WIN2_Y0 = 0
+          (1 << 14) | 0x0338, 480,                           // WIN2_Y1 = 480 (full height)
+          (1 << 14) | 0x0339, 0x0000,                        // WIN2_CTRL invert2=0
+          (1 << 14) | 0x033A, 0x0003,                        // WIN_COMB = 011 (XOR)
+          // ---- CW-6: mask sprite in window region --------------------------
+          (1 << 14) | 0x033B, 0x0010,                        // LAYER_MASK bit[4] = mask Sprite
+          // ---- CW-4: highlight mode, enabled by window effect --------------
+          (1 << 14) | 0x0334, 0x8000,                        // op=10 highlight, invert1=0, k=0
+          (3 << 14) | 0                                      // JUMP 0 (idempotent loop)
+        )
       case 50 =>
         // Sprite Phase 2 HW proof (CyanPeak #8627). Programs slots 4..7
         // with explicit word-8 Hardening field writes covering both the
@@ -575,7 +630,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 51) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -597,6 +652,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 31          => 0x0001  // Sc31: L0 only — on-chip BasicPatternSource for per-column scroll shear
       case 37          => 0x0005  // Sc37: L0 background + sprite (affine proof)
       case 20          => 0x0005  // Sc20 (Task 40): L0 + sprite; adapter toggles DEN
+      case 51          => 0x0005  // Sc51 (CW HW proof): L0 + sprite (sprite is masked in window region)
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
@@ -1495,4 +1551,7 @@ object TopTang20kHdmiScenario20Verilog extends App {
 }
 object TopTang20kHdmiScenario50Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 50))   // Phase 2 sprite hardening HW proof (bppSel + 4-level priority)
+}
+object TopTang20kHdmiScenario51Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 51))   // Color/Window Hardening HW proof (CW-1/4/5/6 in one frame)
 }
