@@ -462,7 +462,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
         // producing 4 full-screen tint bands independent of layer content.
         //
         // COLOR_MATH_CTRL bit layout (see VdpTop.scala:825-831, ColorMath.scala):
-        //   bits[15:14] = op  (00=pass, 01=shadow, 10=add const)
+        //   bits[15:14] = op (00=pass, 01=shadow, 10=highlight, 11=add const)
+        //                 NOTE: encoding changed in CW-4 to put add-const at
+        //                 11; this scenario was updated from 0xA080 → 0xC080
+        //                 to keep the same visual band plan.
         //   bit[13]     = windowUnit.invert — with scenario's zero-sized
         //                 window this is equivalent to "effect=True
         //                 everywhere," so ColorMath runs full-screen.
@@ -471,14 +474,14 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
         // Band plan (4 visually distinct tints):
         //   line 0   : 0x2000 invert+pass     → passthrough band (baseline bright)
         //   line 120 : 0x6000 invert+shadow   → dim band (>>1)
-        //   line 240 : 0xA080 invert+add 0x80 → bright saturated band
+        //   line 240 : 0xC080 invert+add 0x80 → bright saturated band (op=11)
         //   line 360 : 0x6000 invert+shadow   → dim band again
         Seq(
           (0 << 14) | 0,                                              // WAIT y=0 (paces once/frame)
           (1 << 14) | 0x0382, 0x0334,                                 // chAddr0 = COLOR_MATH_CTRL
           (1 << 14) | 0x038A, 0x8000 | 0,    (1 << 14) | 0x038B, 0x2000,
           (1 << 14) | 0x038C, 0x8000 | 120,  (1 << 14) | 0x038D, 0x6000,
-          (1 << 14) | 0x038E, 0x8000 | 240,  (1 << 14) | 0x038F, 0xA080,
+          (1 << 14) | 0x038E, 0x8000 | 240,  (1 << 14) | 0x038F, 0xC080,
           (1 << 14) | 0x0390, 0x8000 | 360,  (1 << 14) | 0x0391, 0x6000,
           (1 << 14) | 0x0380, 0x0003,                                 // HDMA_CTRL = enable + ch0 mask
           (3 << 14) | 0                                               // JUMP 0 (back to WAIT)

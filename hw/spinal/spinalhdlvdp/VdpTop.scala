@@ -1446,7 +1446,11 @@ case class VdpTop() extends Component {
   colorMath.io.rgbIn    := paletteRgb
   colorMath.io.op       := colorMathReg(15 downto 14).asUInt
   colorMath.io.constant := colorMathReg(7  downto 0).asUInt
-  colorMath.io.enable   := windowUnit.io.effect
+  // CW-3: per-pixel mathEnable metadata OR'd with the global window
+  // effect, so individual line-buffer pixels can opt into color math
+  // independent of the rectangular window. Defaults all-zero (line
+  // buffer drives False), so existing scenes are unaffected.
+  colorMath.io.enable   := windowUnit.io.effect || drainMeta.mathEnable
   val mathRgb = colorMath.io.rgbOut
 
   io.hsync := !(hCounter >= hSyncStart && hCounter < hSyncEnd)
