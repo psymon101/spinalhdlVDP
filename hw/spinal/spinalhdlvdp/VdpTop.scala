@@ -1560,32 +1560,58 @@ case class VdpTop() extends Component {
   val layerMaskActive = layerMaskBit && combinedWindowEffect
   val maskedRgb       = Mux(layerMaskActive, B(0, 24 bits), paletteRgb)
 
+  // CW Option 1 pipeline (CyanPeak #8649): register the new dual-window
+  // / layer-mask combinational outputs before they enter ColorMath, so
+  // the post-palette stage's combinational depth no longer pushes legacy
+  // BG-layer paths over the line. Mirrors the P2-3a `slotPaletteBank`
+  // pipeline that recovered Phase 2 timing. The 1-cycle latency at
+  // ColorMath's input is matched by a 1-cycle shift on the display-side
+  // sync/de/primed/raster-pending signals so the displayed pixel and
+  // its sync envelope stay aligned.
+  val combinedWindowEffectR = RegNext(combinedWindowEffect) init False
+  val maskedRgbR            = RegNext(maskedRgb)            init B(0, 24 bits)
+  val drainMetaMathEnR      = RegNext(drainMeta.mathEnable) init False
+  val colorMathOpR          = RegNext(colorMathReg(15 downto 14).asUInt) init U(0, 2 bits)
+  val colorMathConstR       = RegNext(colorMathReg(7 downto 0).asUInt)   init U(0, 8 bits)
+
   val colorMath = ColorMath()
-  colorMath.io.rgbIn    := maskedRgb
-  colorMath.io.op       := colorMathReg(15 downto 14).asUInt
-  colorMath.io.constant := colorMathReg(7  downto 0).asUInt
+  colorMath.io.rgbIn    := maskedRgbR
+  colorMath.io.op       := colorMathOpR
+  colorMath.io.constant := colorMathConstR
   // CW-3: per-pixel mathEnable metadata OR'd with the (possibly combined)
   // window effect, so individual line-buffer pixels can opt into color
   // math independent of the rectangular windows. Defaults all-zero
   // (line buffer drives False, combMode=0), so existing scenes are
   // unaffected.
-  colorMath.io.enable   := combinedWindowEffect || drainMeta.mathEnable
+  colorMath.io.enable   := combinedWindowEffectR || drainMetaMathEnR
   val mathRgb = colorMath.io.rgbOut
 
-  io.hsync := !(hCounter >= hSyncStart && hCounter < hSyncEnd)
-  io.vsync := !(vCounter >= vSyncStart && vCounter < vSyncEnd)
-  io.de := activeVideo
+  // Display-side sync / DE / gating signals delayed 1 cycle to track
+  // the ColorMath input pipeline. hsync/vsync are active-low so reset
+  // value is True (inactive).
+  val hsyncR         = RegNext(!(hCounter >= hSyncStart && hCounter < hSyncEnd)) init True
+  val vsyncR         = RegNext(!(vCounter >= vSyncStart && vCounter < vSyncEnd)) init True
+  val deR            = RegNext(activeVideo)           init False
+  val primedR        = RegNext(primed)                init False
+  val rasterPendingR = RegNext(rasterTrigger.io.pending) init False
+
+  io.hsync := hsyncR
+  io.vsync := vsyncR
+  io.de := deR
   io.red := B(0, 8 bits)
   io.green := B(0, 8 bits)
   io.blue := B(0, 8 bits)
-  when(activeVideo && primed) {
+  when(deR && primedR) {
     val redRaw = mathRgb(23 downto 16)
-    io.red   := Mux(rasterTrigger.io.pending, ~redRaw, redRaw)
+    io.red   := Mux(rasterPendingR, ~redRaw, redRaw)
     io.green := mathRgb(15 downto 8)
     io.blue  := mathRgb(7 downto 0)
   }
-  io.x := hCounter.resize(10)
-  io.y := vCounter.resize(10)
+  // io.x/y are the displayed-pixel coordinates and must track the same
+  // 1-cycle pipeline shift as io.de / io.red / io.green / io.blue (CW
+  // Option 1 pipeline above).
+  io.x := RegNext(hCounter.resize(10)) init 0
+  io.y := RegNext(vCounter.resize(10)) init 0
 }
 
 object VdpTop {
