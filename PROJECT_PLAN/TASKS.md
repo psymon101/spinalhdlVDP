@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-23 (Mode0 Fetch Envelope Hardening assessment PASS #8366; no live lane)
+**Updated:** 2026-04-26 (Color/Window Hardening implementation IN-PROGRESS #8629; Sprite Phase 2 + 2-bis HOLD #8627 pending CyanPeak audit)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`

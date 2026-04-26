@@ -377,6 +377,65 @@ case class VdpTop() extends Component {
     colorMathPend    := effData
     colorMathPendHit := True
   }
+  // CW-5: Window 2 + combination logic registers.
+  //   0x0335 win2X0 (inclusive)
+  //   0x0336 win2X1 (exclusive)
+  //   0x0337 win2Y0 (inclusive)
+  //   0x0338 win2Y1 (exclusive)
+  //   0x0339 win2Ctrl  bit[0] = invert2
+  //   0x033A winCombMode bits[2:0]
+  //                       000 = window1 only (legacy default)
+  //                       001 = AND (e1 && e2)
+  //                       010 = OR  (e1 || e2)
+  //                       011 = XOR (e1 ^^ e2)
+  //                       100 = INV_AND (!(e1 && e2))
+  //                       101 = INV_OR  (!(e1 || e2))
+  //                       11x = reserved (treated as window1 only)
+  // All defaults are zero so existing scenes are bit-identical: with
+  // win2 X/Y all zero and invert2=0 → effect2 = False; combMode=0 → use
+  // effect1 unchanged.
+  val win2X0Reg     = Reg(UInt(10 bits)) init 0
+  val win2X0Pend    = Reg(UInt(10 bits)) init 0
+  val win2X0PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0335, 15 bits)) {
+    win2X0Pend    := effData(9 downto 0).asUInt
+    win2X0PendHit := True
+  }
+  val win2X1Reg     = Reg(UInt(10 bits)) init 0
+  val win2X1Pend    = Reg(UInt(10 bits)) init 0
+  val win2X1PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0336, 15 bits)) {
+    win2X1Pend    := effData(9 downto 0).asUInt
+    win2X1PendHit := True
+  }
+  val win2Y0Reg     = Reg(UInt(10 bits)) init 0
+  val win2Y0Pend    = Reg(UInt(10 bits)) init 0
+  val win2Y0PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0337, 15 bits)) {
+    win2Y0Pend    := effData(9 downto 0).asUInt
+    win2Y0PendHit := True
+  }
+  val win2Y1Reg     = Reg(UInt(10 bits)) init 0
+  val win2Y1Pend    = Reg(UInt(10 bits)) init 0
+  val win2Y1PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0338, 15 bits)) {
+    win2Y1Pend    := effData(9 downto 0).asUInt
+    win2Y1PendHit := True
+  }
+  val win2CtrlReg     = Reg(Bits(16 bits)) init 0
+  val win2CtrlPend    = Reg(Bits(16 bits)) init 0
+  val win2CtrlPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0339, 15 bits)) {
+    win2CtrlPend    := effData
+    win2CtrlPendHit := True
+  }
+  val winCombReg     = Reg(Bits(16 bits)) init 0
+  val winCombPend    = Reg(Bits(16 bits)) init 0
+  val winCombPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x033A, 15 bits)) {
+    winCombPend    := effData
+    winCombPendHit := True
+  }
   // Task 19 Checkpoint A: Affine Layer matrix + control registers.
   // Addresses 0x0340..0x0346, same safe-boundary shadow + commit pattern.
   //   0x0340 AFFINE_A    16b  signed 8.8 fixed point
@@ -529,6 +588,12 @@ case class VdpTop() extends Component {
     when(winY0PendHit)     { winY0Reg     := winY0Pend;     winY0PendHit     := False }
     when(winY1PendHit)     { winY1Reg     := winY1Pend;     winY1PendHit     := False }
     when(colorMathPendHit) { colorMathReg := colorMathPend; colorMathPendHit := False }
+    when(win2X0PendHit)    { win2X0Reg    := win2X0Pend;    win2X0PendHit    := False }
+    when(win2X1PendHit)    { win2X1Reg    := win2X1Pend;    win2X1PendHit    := False }
+    when(win2Y0PendHit)    { win2Y0Reg    := win2Y0Pend;    win2Y0PendHit    := False }
+    when(win2Y1PendHit)    { win2Y1Reg    := win2Y1Pend;    win2Y1PendHit    := False }
+    when(win2CtrlPendHit)  { win2CtrlReg  := win2CtrlPend;  win2CtrlPendHit  := False }
+    when(winCombPendHit)   { winCombReg   := winCombPend;   winCombPendHit   := False }
     // Task 19 affine registers (safe-boundary commit).
     when(affineAPendHit)    { affineAReg    := affineAPend;    affineAPendHit    := False }
     when(affineBPendHit)    { affineBReg    := affineBPend;    affineBPendHit    := False }
@@ -1442,15 +1507,40 @@ case class VdpTop() extends Component {
   windowUnit.io.winY1    := winY1Reg
   windowUnit.io.invert   := colorMathReg(13)
 
+  // CW-5: second window comparator + combination logic. Defaults reduce
+  // to legacy single-window behavior (combMode=0 → use window1 effect).
+  val windowUnit2 = WindowUnit()
+  windowUnit2.io.hCounter := hCounter.resize(10)
+  windowUnit2.io.vCounter := vCounter.resize(10)
+  windowUnit2.io.winX0    := win2X0Reg
+  windowUnit2.io.winX1    := win2X1Reg
+  windowUnit2.io.winY0    := win2Y0Reg
+  windowUnit2.io.winY1    := win2Y1Reg
+  windowUnit2.io.invert   := win2CtrlReg(0)
+
+  val combMode = winCombReg(2 downto 0).asUInt
+  val effect1  = windowUnit.io.effect
+  val effect2  = windowUnit2.io.effect
+  val combinedWindowEffect = combMode.mux(
+    U(0, 3 bits) -> effect1,
+    U(1, 3 bits) -> (effect1 && effect2),
+    U(2, 3 bits) -> (effect1 || effect2),
+    U(3, 3 bits) -> (effect1 ^ effect2),
+    U(4, 3 bits) -> !(effect1 && effect2),
+    U(5, 3 bits) -> !(effect1 || effect2),
+    default      -> effect1
+  )
+
   val colorMath = ColorMath()
   colorMath.io.rgbIn    := paletteRgb
   colorMath.io.op       := colorMathReg(15 downto 14).asUInt
   colorMath.io.constant := colorMathReg(7  downto 0).asUInt
-  // CW-3: per-pixel mathEnable metadata OR'd with the global window
-  // effect, so individual line-buffer pixels can opt into color math
-  // independent of the rectangular window. Defaults all-zero (line
-  // buffer drives False), so existing scenes are unaffected.
-  colorMath.io.enable   := windowUnit.io.effect || drainMeta.mathEnable
+  // CW-3: per-pixel mathEnable metadata OR'd with the (possibly combined)
+  // window effect, so individual line-buffer pixels can opt into color
+  // math independent of the rectangular windows. Defaults all-zero
+  // (line buffer drives False, combMode=0), so existing scenes are
+  // unaffected.
+  colorMath.io.enable   := combinedWindowEffect || drainMeta.mathEnable
   val mathRgb = colorMath.io.rgbOut
 
   io.hsync := !(hCounter >= hSyncStart && hCounter < hSyncEnd)
