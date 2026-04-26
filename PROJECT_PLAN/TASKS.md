@@ -35,7 +35,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Next Deliverable** | CyanPeak audit of Color/Window artifact |
 | **Coding Authorized** | **NO** — awaiting artifact audit
 
-**Previous lane:** Sprite Phase 2 + Phase 2-bis — Implementation | DONE | `5a0b370` | Audit PASS #8625
+**Previous lane:** Sprite Phase 2 + Phase 2-bis — Implementation | **HOLD** | `5a0b370` | Audit PASS #8625 → **HOLD #8627** pending hardware proof (bppSel 2bpp/1bpp + priority tier HW capture)
 
 **Previous lane:** Sprite Pattern Memory Foundation — Implementation | DONE | `e86fe49` | Audit PASS #8605
 
