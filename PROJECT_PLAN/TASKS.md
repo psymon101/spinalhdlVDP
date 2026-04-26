@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement |
 | **Owner** | BrightForge |
-| **Latest Commit** | `cde4025` (CW-5 dual window + combination logic; CW-1/3/4/5 complete) |
+| **Latest Commit** | `95f6215` (Scenario 51 HW proof scenario; CW-1/2/3/4/5/6 all implemented) |
 | **Latest Auth Mail** | #8629 (CyanPeak audit PASS: artifact v1.0-draft) |
-| **Next Deliverable** | BrightForge implementation completion packet (CW-2 sprite palette bank, CW-6 per-layer masking, sim proofs, HW proof) |
+| **Next Deliverable** | BrightForge implementation completion packet (sim proofs + HW flash/capture of Scenario 51) |
 | **Coding Authorized** | **YES** — #8629 |
 
 **Previous lane:** Sprite Phase 2 + Phase 2-bis — Implementation | DONE | `39a7242` | Audit PASS #8625 / #8638 (Lifting HOLD #8627 via Scenario 50 proof)
@@ -1056,7 +1056,7 @@ Do not open an adapter lane until both are true:
 
 ### Hardening Lane — Sprite Phase 2 + 2-bis
 
-**Status:** HOLD (proof delivered, pending CyanPeak formal audit PASS on #8634)
+**Status:** DONE (`39a7242`)
 **depends_on:** [Pattern Memory Foundation]
 **scope_boundary:** Per-sprite bppSel, priority levels, palette bank plumbing. No new sprite count expansion.
 **delivers:**
@@ -1065,23 +1065,23 @@ Do not open an adapter lane until both are true:
 - 4-level priority in compositor
 - Palette bank wired through to compositor
 
-**validation:** Hardware proof Scenario 50 (`39a7242`); CyanPeak pre-reviewed as satisfying in #8629; formal audit PASS pending.
+**validation:** Hardware proof Scenario 50 (`39a7242`); audit PASS #8638.
 
 ### Hardening Lane — Color/Window Hardening
 
-**Status:** IN-PROGRESS (`cde4025`)
+**Status:** IN-PROGRESS (`95f6215`)
 **depends_on:** [Pattern Memory Foundation, Phase 2]
 **scope_boundary:** Runtime palette RAM, dual window + combinations, per-layer masking, color math enhancement. No inter-palette blending, no post-compositor effects beyond ColorMath.
 **delivers:**
 
 - Runtime-writable palette RAM (CW-1 ✅)
-- Sprite palette bank consumer in compositor (CW-2 pending)
+- Sprite palette bank consumer in compositor (CW-2 ✅ — wired during Sprite Phase 2 P2-3a)
 - `mathEnable` metadata → ColorMath gate (CW-3 ✅)
 - Highlight mode in ColorMath (CW-4 ✅)
 - Second window comparator + combination logic (CW-5 ✅)
-- Per-layer window masking (CW-6 pending)
+- Per-layer window masking (CW-6 ✅)
 
-**validation:** Sim proofs + hardware proof; resource report confirming green zone.
+**validation:** Sim proofs + hardware proof (Scenario 51 prepared, pending flash/capture); resource report confirming green zone.
 
 For the current roadmap, the remaining broad substrate closure order is:
 
