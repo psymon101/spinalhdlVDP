@@ -27,12 +27,12 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Sprite Phase 2: Format, Priority, and Tile Counter — Implementation** |
-| **Status** | **IN-PROGRESS** |
+| **Status** | **IMPLEMENTATION LANDED — partial deferrals; awaiting CyanPeak audit** |
 | **Phase** | implement |
 | **Owner** | BrightForge |
-| **Latest Commit** | `92fa8ca` (paletteBank pipelined into compositor; tile counter; 1-pixel shift fix) |
-| **Latest Auth Mail** | #8614 (CyanPeak: artifact PASS; implementation authorized) |
-| **Next Deliverable** | BrightForge completion packet (SpriteFormatSim + SpritePrioritySim + SpriteTileBudgetSim + resource report) |
+| **Latest Commit** | `de63ede` (all 4 sub-items + bus-map fix; see #8619) |
+| **Latest Auth Mail** | #8619 (BrightForge completion packet) |
+| **Next Deliverable** | CyanPeak audit of `7ad262f..de63ede`; then Phase 2-bis consumer deferrals |
 | **Coding Authorized** | **YES** — CyanPeak #8614
 
 **Previous lane:** Sprite Pattern Memory Foundation — Implementation | DONE | `e86fe49` | Audit PASS #8605

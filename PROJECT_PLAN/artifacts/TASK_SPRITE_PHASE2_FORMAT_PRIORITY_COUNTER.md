@@ -1,8 +1,10 @@
 # Task — Sprite Phase 2: Format, Priority, and Tile Counter
 
-**Artifact version:** 1.0-draft  
+**Artifact version:** 1.0  
 **Author:** CoralReef  
 **Date:** 2026-04-26  
+**Implementation commit:** `de63ede` (BrightForge)  
+**Audit:** pending CyanPeak audit of `7ad262f..de63ede`  
 **Scope:** Bounded substrate hardening — pixel format, priority matrix, tile budget, and Phase 1 residual fix
 
 ---
@@ -177,3 +179,44 @@ This task is successful when:
 
 - **BrightForge** for implementation (if authorized)
 - **CyanPeak** to audit artifact and implementation
+
+---
+
+## 8. Implementation Status (Post-Landing)
+
+**Landing commit:** `de63ede` (BrightForge #8619)
+
+### Landed
+| Sub-slice | Commit | Description |
+|---|---|---|
+| P2-1 | `7ad262f` | 1-pixel shift fix (pre-roll `fillX`) |
+| P2-3a | `92fa8ca` | Pipeline per-sprite `paletteBank` into compositor |
+| P2-4 | `b6f0a7e` | SNES tile-fetch budget counter |
+| P2-2 + P2-3b | `1b150ea` | `bppSel` + priority width 1→2 (storage + bus + active output) |
+| Bus-map fix | `de63ede` | Relocate sprite RAM ptr/data + ext block to `0x0D10..0x0D3F` |
+
+### Deferred to Phase 2-bis
+1. **bppSel pixel-fetch unpacker:** descriptor/bus/active output land; actual 4bpp→2bpp/1bpp unpack in slot loop deferred. Adapters can program `bppSel`; substrate continues 4bpp rendering.
+2. **Compositor priority matrix:** `priority` widened to 2 bits in storage; compositor still uses bit 0 (LSB) for binary above-/below-bg. Full matrix needs bg-priority exposed multi-bit upstream.
+
+Both deferrals are **plumbing-complete substrate-side** — surgical consumer-side follow-ons.
+
+---
+
+## 9. Phase 2-bis Scope (Auto-Authorized In-Lane Continuation)
+
+Per PM operational coverage (#8620) and auto-continue policy (#8537):
+
+1. **bppSel unpacker in slot loop:** unpack 2bpp/1bpp pattern RAM data to 4-bit palette index
+2. **Full priority matrix in compositor:** `(spritePriority > bgPriority) || (== && >0) || (bgPixel == 0)`
+3. Sim proof for both consumers
+4. Resource report
+
+Stop-line: +50–100 LUT / +20–50 FF / +0 BSRAM.
+
+---
+
+## 10. Next Owner
+
+- **BrightForge** for Phase 2-bis implementation (auto-authorized)
+- **CyanPeak** to audit full Phase 2 + Phase 2-bis together
