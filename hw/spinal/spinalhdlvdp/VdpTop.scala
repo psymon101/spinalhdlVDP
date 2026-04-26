@@ -1152,19 +1152,25 @@ case class VdpTop() extends Component {
   }.reduce(_ || _)
   val spriteWins = anyHighPrioVisible || anyLowPrioOverBgGap
 
+  // Sprite Phase 2 — P2-3a: per-sprite paletteBank now wired into the
+  // compositor fill path. The 3-bit last-hit-wins mux through 8 slots
+  // had previously blown the vCounter→lineBuf timing path by 2.7 ns
+  // (deferred in #8577 with bank constant-0). Pipeline it via a per-slot
+  // RegNext so the fan-in mux's inputs are short, locally-routed
+  // registered signals instead of cross-area combinational paths into
+  // SpriteEvaluator. The 1-cycle delay aligns naturally with the
+  // already-registered `slotVisible(s)` and `slotPixel(s)` so no
+  // additional pipeline shift is needed.
+  val slotPaletteBank = (0 until NUM_SLOTS).map { s =>
+    RegNext(spriteEval.io.activePaletteBank(s)) init U(0, 3 bits)
+  }
+
   for (s <- 0 until NUM_SLOTS) {
     val showSprite = slotVisible(s) &&
                      (spriteEval.io.activePriority(s) || !bgOpaque)
     when(showSprite) {
       fillIdx    := slotPixel(s)
-      // Sprite Envelope Hardening B-4 (per-sprite paletteBank) was deferred
-      // for #8577 to keep timing closure on the existing fabric: the 3-bit
-      // last-hit-wins mux through 8 slots blew the vCounter→lineBuf path
-      // by ~2.7 ns. The field IS stored and exposed via
-      // `spriteEval.io.activePaletteBank` so adapters can probe it; the
-      // compositor uses bank 0 until a follow-on slice pipelines this
-      // merge.
-      fillBank   := U(0, 3 bits)
+      fillBank   := slotPaletteBank(s)
       fillSource := U(PixelMetadata.SourceSprite, 3 bits)
     }
   }
