@@ -229,6 +229,24 @@ case class SpriteEvaluator(
   val totalOnLine    = Reg(UInt(log2Up(descCount + 1) bits)) init 0
   val scanBusy       = Reg(Bool()) init False
 
+  // Sprite Phase 2 — P2-4 (CyanPeak #8614): SNES-style tile-fetch budget
+  // counter. Sums (size/8)² 8×8-tile equivalents per on-line sprite,
+  // overflows when the line demand exceeds 34 tiles. Sized at 10 bits to
+  // hold up to descCount × 64 = 32 × 64 = 2048 worst-case (all 64×64
+  // sprites on the same line).
+  val TileBudget    = 34
+  val tileCountReg  = Reg(UInt(11 bits)) init 0
+  def tilesForSize(sel: UInt): UInt = {
+    val out = UInt(7 bits)
+    switch(sel) {
+      is(U(0, 2 bits)) { out := 1  }   //  8×8 →  1 tile
+      is(U(1, 2 bits)) { out := 4  }   // 16×16 →  4 tiles
+      is(U(2, 2 bits)) { out := 16 }   // 32×32 → 16 tiles
+      is(U(3, 2 bits)) { out := 64 }   // 64×64 → 64 tiles
+    }
+    out
+  }
+
   val activeValidReg        = Vec.fill(visiblePerLine)(RegInit(False))
   val activeXReg            = Vec.fill(visiblePerLine)(RegInit(U(0, 10 bits)))
   val activeYReg            = Vec.fill(visiblePerLine)(RegInit(U(0, 10 bits)))
@@ -249,10 +267,11 @@ case class SpriteEvaluator(
   val overflowFlagReg       = Reg(Bool()) init False
 
   when(io.evalStart) {
-    scanIdx     := 0
-    activeCount := 0
-    totalOnLine := 0
-    scanBusy    := True
+    scanIdx      := 0
+    activeCount  := 0
+    totalOnLine  := 0
+    tileCountReg := 0    // Phase 2 P2-4: reset tile-budget counter per line
+    scanBusy     := True
     for (s <- 0 until visiblePerLine) {
       activeValidReg(s) := False
     }
@@ -308,7 +327,12 @@ case class SpriteEvaluator(
 
   when(scanBusy) {
     when(dOnLine) {
-      totalOnLine := totalOnLine + 1
+      totalOnLine  := totalOnLine + 1
+      // Phase 2 P2-4: every on-line sprite contributes its tile demand to
+      // the budget regardless of whether it gets a visible slot — this
+      // matches the SNES OAM evaluation cost model where the limit is on
+      // tile fetches, not on visible-slot allocation.
+      tileCountReg := tileCountReg + tilesForSize(curSizeSel).resize(11)
       when(activeCount < U(visiblePerLine, activeCount.getWidth bits)) {
         val slot = activeCount.resize(slotBits)
         switch(slot) {
@@ -339,9 +363,16 @@ case class SpriteEvaluator(
     }
     when(scanIdx === U(descCount - 1, descIdxBits bits)) {
       scanBusy := False
-      overflowFlagReg := (totalOnLine +
+      // Phase 2 P2-4: overflow now fires on EITHER (a) more sprites on
+      // line than visiblePerLine, or (b) per-line tile demand > 34 (SNES
+      // budget). The two cases share the same status bit.
+      val finalTileCount = tileCountReg +
+        Mux(dOnLine, tilesForSize(curSizeSel).resize(11), U(0, 11 bits))
+      val capacityOver   = (totalOnLine +
         Mux(dOnLine, U(1, totalOnLine.getWidth bits), U(0, totalOnLine.getWidth bits))) >
         U(visiblePerLine, totalOnLine.getWidth bits)
+      val tileBudgetOver = finalTileCount > U(TileBudget, 11 bits)
+      overflowFlagReg := capacityOver || tileBudgetOver
     } otherwise {
       scanIdx := scanIdx + 1
     }

@@ -246,6 +246,31 @@ object SpriteEvaluatorSim extends App {
     assert(!dut.io.activeValid(0).toBoolean,       "Case 12: legacy sprite off-line at Y+16")
     println("[sim] Case 12 legacy back-compat (sizeSel=1, paletteBank=0, priority=0) — OK")
 
+    // ====================================================================
+    // Phase 2 P2-4 — tile-fetch budget counter (CyanPeak #8614)
+    // ====================================================================
+    // Place 1 32×32 sprite (16 tiles) + 7 16×16 sprites (4 tiles each =
+    // 28 tiles) on the same line. Total: 8 visible sprites (capacity OK
+    // at visiblePerLine=8) but 44 tiles > 34 SNES budget → overflow flag
+    // must fire on the tile-budget condition alone.
+    for (d <- 0 until L) setLegacy(d, 0, 1023, enabled = false)
+    for (s <- L until D) setBusDesc(s, 0, 1023, enabled = false)
+    setBusDesc(15, x = 0,   y = 200, enabled = true, patIdx = 0)
+    pulseBus(15, 8, packWord8(sizeSel = 2, paletteBank = 0,
+                              priority = false, flipH = false, flipV = false))
+    for (k <- 0 until 7) {
+      setBusDesc(16 + k, x = 64 + 32*k, y = 200, enabled = true, patIdx = 0)
+      pulseBus(16 + k, 8, packWord8(sizeSel = 1, paletteBank = 0,
+                                    priority = false, flipH = false, flipV = false))
+    }
+    pulseEval(210)
+    val activeAtP24 = (0 until V).count(s => dut.io.activeValid(s).toBoolean)
+    assert(activeAtP24 == V,
+      s"Case 13: expected $V visible sprites (capacity met), got $activeAtP24")
+    assert(dut.io.overflowFlag.toBoolean,
+      "Case 13: tile budget = 44 > 34 must trigger overflow")
+    println(s"[sim] Case 13 tile-budget overflow @ 44 tiles (capacity OK) — OK")
+
     println("[sim] SpriteEvaluatorSim: PASS")
   }
 }
