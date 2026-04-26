@@ -172,23 +172,21 @@ object SpriteEvaluatorSim extends App {
     /** Pack the new word-8 control fields per the assessment §4.3 layout
       * + Phase 2 (#8614) extensions:
       *   {sizeSel[15:14], paletteBank[13:11], priority[10:9],
-      *    flipH[8], flipV[7], bppSel[6:5], _[4:0]}
-      *
-      * `priority` widened to 2 bits in Phase 2; this overload accepts a
-      * Boolean for legacy single-bit sites and zero-pads the high bit. */
-    def packWord8(sizeSel: Int, paletteBank: Int, priority: Boolean,
-                  flipH: Boolean, flipV: Boolean): Int =
-      packWord8(sizeSel, paletteBank, if (priority) 1 else 0,
-                flipH, flipV, bppSel = 0)
-
-    def packWord8(sizeSel: Int, paletteBank: Int, priority: Int,
-                  flipH: Boolean, flipV: Boolean, bppSel: Int): Int =
+      *    flipH[8], flipV[7], bppSel[6:5], _[4:0]} */
+    def packWord8Full(sizeSel: Int, paletteBank: Int, priority: Int,
+                      flipH: Boolean, flipV: Boolean, bppSel: Int): Int =
       ((sizeSel & 0x3) << 14) |
       ((paletteBank & 0x7) << 11) |
       ((priority & 0x3) << 9) |
       ((if (flipH) 1 else 0) << 8) |
       ((if (flipV) 1 else 0) << 7) |
       ((bppSel & 0x3) << 5)
+
+    /** Legacy single-bit-priority shim used by Stage A test cases. */
+    def packWord8(sizeSel: Int, paletteBank: Int, priority: Boolean,
+                  flipH: Boolean, flipV: Boolean): Int =
+      packWord8Full(sizeSel, paletteBank, if (priority) 1 else 0,
+                    flipH, flipV, bppSel = 0)
 
     // --- Case 8: word-8 fields propagate to active outputs ---
     for (d <- 0 until L) setLegacy(d, 0, 1023, enabled = false)
@@ -202,7 +200,8 @@ object SpriteEvaluatorSim extends App {
     assert(dut.io.activeFlipH(0).toBoolean,                  "Case 8: flipH = true")
     assert(!dut.io.activeFlipV(0).toBoolean,                 "Case 8: flipV = false")
     assert(dut.io.activePaletteBank(0).toInt == 5,           "Case 8: paletteBank = 5")
-    assert(dut.io.activePriority(0).toBoolean,               "Case 8: priority = true")
+    assert(dut.io.activePriority(0).toInt == 1,              "Case 8: priority bit 0 set (legacy boolean true → priority=1)")
+    assert(dut.io.activeBppSel(0).toInt == 0,                "Case 8: bppSel default 4bpp (00)")
     assert(dut.io.activeSizeSel(0).toInt == 2,               "Case 8: sizeSel = 2 (32×32)")
     println("[sim] Case 8 word-8 field propagation — OK")
 
@@ -252,7 +251,8 @@ object SpriteEvaluatorSim extends App {
     assert(dut.io.activeValid(0).toBoolean,        "Case 12: legacy sprite Y in [300..316)")
     assert(dut.io.activeSizeSel(0).toInt == 1,     "Case 12: legacy sprite reports sizeSel=1 (16×16)")
     assert(dut.io.activePaletteBank(0).toInt == 0, "Case 12: legacy sprite reports paletteBank=0")
-    assert(!dut.io.activePriority(0).toBoolean,    "Case 12: legacy sprite reports priority=False")
+    assert(dut.io.activePriority(0).toInt == 0,    "Case 12: legacy sprite reports priority=0 (2-bit)")
+    assert(dut.io.activeBppSel(0).toInt == 0,      "Case 12: legacy sprite reports bppSel=0 (4bpp)")
     pulseEval(316)
     assert(!dut.io.activeValid(0).toBoolean,       "Case 12: legacy sprite off-line at Y+16")
     println("[sim] Case 12 legacy back-compat (sizeSel=1, paletteBank=0, priority=0) — OK")
@@ -281,6 +281,20 @@ object SpriteEvaluatorSim extends App {
     assert(dut.io.overflowFlag.toBoolean,
       "Case 13: tile budget = 44 > 34 must trigger overflow")
     println(s"[sim] Case 13 tile-budget overflow @ 44 tiles (capacity OK) — OK")
+
+    // ====================================================================
+    // Phase 2 P2-2 + P2-3b — bppSel and 2-bit priority field round-trip
+    // ====================================================================
+    for (d <- 0 until L) setLegacy(d, 0, 1023, enabled = false)
+    for (s <- L until D) setBusDesc(s, 0, 1023, enabled = false)
+    setBusDesc(20, x = 0, y = 100, enabled = true, patIdx = 0)
+    pulseBus(20, 8, packWord8Full(sizeSel = 1, paletteBank = 0, priority = 3,
+                                   flipH = false, flipV = false, bppSel = 2))
+    pulseEval(105)
+    assert(dut.io.activeValid(0).toBoolean,                    "Case 14: slot 0 active")
+    assert(dut.io.activePriority(0).toInt == 3,                "Case 14: priority = 3 (full 2-bit)")
+    assert(dut.io.activeBppSel(0).toInt == 2,                  "Case 14: bppSel = 2 (1bpp)")
+    println("[sim] Case 14 P2-2/P2-3b — priority=3 + bppSel=2 (1bpp) round-trip — OK")
 
     println("[sim] SpriteEvaluatorSim: PASS")
   }
