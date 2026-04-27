@@ -26,22 +26,27 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Color/Window Hardening — Implementation** |
+| **Task** | **Beam-Driven Automation Hardening — Artifact** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
-| **Owner** | BrightForge |
-| **Latest Commit** | `95f6215` (Scenario 51 HW proof scenario; CW-1/2/3/4/5/6 all implemented) |
-| **Latest Auth Mail** | #8629 (CyanPeak audit PASS: artifact v1.0-draft) |
-| **Next Deliverable** | BrightForge implementation completion packet (sim proofs + HW flash/capture of Scenario 51) |
-| **Coding Authorized** | **YES** — #8629 |
+| **Phase** | artifact |
+| **Owner** | CoralReef |
+| **Latest Commit** | `0f5dc65` (Color/Window closeout; Beam artifact drafted) |
+| **Latest Auth Mail** | #8654 (CyanPeak audit PASS: Color/Window implementation complete) |
+| **Next Deliverable** | CyanPeak artifact audit → BrightForge implementation |
+| **Coding Authorized** | **NO** — pending artifact audit |
 
-**Previous lane:** Sprite Phase 2 + Phase 2-bis — Implementation | DONE | `39a7242` | Audit PASS #8625 / #8638 (Lifting HOLD #8627 via Scenario 50 proof)
+**Previous lane:** Color/Window Hardening — Implementation | DONE | `0f5dc65` | Audit PASS #8654, CW-1/2/3/4/5/6 all proven, sc51+sc52 HW evidence
+
+**Previous lane:** Sprite Phase 2 + Phase 2-bis — Implementation | DONE | `39a7242` | Audit PASS #8625 / #8638
 
 **Previous lane:** Sprite Pattern Memory Foundation — Implementation | DONE | `e86fe49` | Audit PASS #8605
 
-**Previous lane:** Mode0 Sprite Envelope Hardening — Implementation | DONE | `d44a9c0` | Audit PASS #8589
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_BEAM_HARDENING.md` (v1.0-draft)
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_COLOR_WINDOW_HARDENING.md` (v1.0-draft)
+Rules:
+- Only **one** lane may be live at a time.
+- When the lane changes, update this block in the **same commit** as the artifact/state change.
+- Phase values: `artifact`, `audit`, `implement`, `capture`, `closeout`.
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -1069,7 +1074,7 @@ Do not open an adapter lane until both are true:
 
 ### Hardening Lane — Color/Window Hardening
 
-**Status:** IN-PROGRESS (`95f6215`)
+**Status:** DONE (`0f5dc65`)
 **depends_on:** [Pattern Memory Foundation, Phase 2]
 **scope_boundary:** Runtime palette RAM, dual window + combinations, per-layer masking, color math enhancement. No inter-palette blending, no post-compositor effects beyond ColorMath.
 **delivers:**
@@ -1081,7 +1086,7 @@ Do not open an adapter lane until both are true:
 - Second window comparator + combination logic (CW-5 ✅)
 - Per-layer window masking (CW-6 ✅)
 
-**validation:** Sim proofs + hardware proof (Scenario 51 prepared, pending flash/capture); resource report confirming green zone.
+**validation:** Sim proofs + hardware proof (Scenario 51 + 52 captured); resource report confirming green zone; audit PASS #8654.
 
 For the current roadmap, the remaining broad substrate closure order is:
 
