@@ -86,9 +86,9 @@ This file is planning guidance, not status authority. `TASKS.md` remains the liv
 
 ---
 
-### Priority C — Color / Window Envelope Hardening 🔄 IN-PROGRESS
+### Priority C — Color / Window Envelope Hardening ✅ DONE
 
-*Status: Implementation active. BrightForge owner. CW-1/3/4/5 complete (`cde4025`).*
+*Status: Implemented, audited, and closed. BrightForge owner. All six sub-features proven (CW-1 through CW-6). Commit `0f5dc65`.*
 
 **Why third:**
 
@@ -100,19 +100,20 @@ This file is planning guidance, not status authority. `TASKS.md` remains the liv
 - SNES
 - Genesis
 
-**Current progress:**
+**Outcome:**
 
 - CW-1: Runtime-writable palette RAM ✅
+- CW-2: Sprite palette bank consumer ✅
 - CW-3: `mathEnable` metadata → ColorMath gate ✅
 - CW-4: Highlight mode ✅
 - CW-5: Dual window + combination logic ✅
-- CW-2: Sprite palette bank consumer (pending)
-- CW-6: Per-layer window masking (pending)
-- Sim proofs + hardware proof (pending)
+- CW-6: Per-layer window masking ✅
+- Hardware proof: Scenarios 51 and 52 with RTSP capture evidence
+- CyanPeak audit PASS #8654
 
 ---
 
-### Priority D — Beam-Driven Automation Hardening
+### Priority D — Beam-Driven Automation Hardening 🔄 IN-PROGRESS
 
 **Why fourth:**
 
@@ -181,11 +182,8 @@ The hardening backlog execution order has been:
 
 1. **Mode0 Fetch Envelope Hardening** — DONE
 2. **Mode0 Sprite Envelope Hardening** — DONE (including Phase 2 + 2-bis)
-3. **Color / Window Envelope Hardening** — IN-PROGRESS (BrightForge)
-
-The next expected lane after Color/Window closes is:
-
-- **Beam-Driven Automation Hardening** — Copper/HDMA edge cases, raster-cycle timing, linestate robustness
+3. **Color / Window Envelope Hardening** — DONE (BrightForge, audit PASS #8654)
+4. **Beam-Driven Automation Hardening** — IN-PROGRESS (CoralReef artifact, pending CyanPeak audit)
 
 Only after Beam Hardening closes should adapter lanes open.
 
