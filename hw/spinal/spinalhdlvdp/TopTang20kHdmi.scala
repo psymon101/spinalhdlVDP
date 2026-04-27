@@ -302,6 +302,55 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 52 =>
+        // Color/Window Hardening HW proof — CW-6 sprite-mask companion to
+        // sc51 (CyanPeak audit PASS #8629). Same copper-driven palette /
+        // window / mask / highlight setup as sc51, plus an explicit
+        // 64×64 bus-programmed sprite straddling the TL/TR quadrant
+        // boundary so the per-layer mask has something visible to mask.
+        //
+        // Sprite slot 4: x=288, y=80, sizeSel=11 (64×64), patIdx=0
+        // (diamond), paletteBank=0, priority=2 (always-above). Spans
+        // 288..352 horizontally so the LEFT 32px land in TL (effect=
+        // False ⇒ visible) and the RIGHT 32px land in TR (effect=True
+        // ⇒ masked-to-black). The visible-in-TL / masked-in-TR split
+        // is the unambiguous proof that LAYER_MASK[4] gates SourceSprite
+        // under combinedWindowEffect.
+        //
+        // Word 8 layout per sc50 / Phase 2 bus-map:
+        //   {sizeSel[15:14], paletteBank[13:11], priority[10:9],
+        //    flipH[8], flipV[7], bppSel[6:5], _[4:0]}
+        Seq(
+          (0 << 14) | 0,                                     // WAIT y=0 (sync)
+          // ---- CW-1: rewrite bank-0 palette entries 1..3 (same as sc51) ----
+          (1 << 14) | 0x0601, 2,
+          (1 << 14) | 0x0600, 0x0000,
+          (1 << 14) | 0x0600, 0x00FF,
+          (1 << 14) | 0x0600, 0xFF00,
+          (1 << 14) | 0x0600, 0x0000,
+          (1 << 14) | 0x0600, 0x00FF,
+          (1 << 14) | 0x0600, 0x0000,
+          // ---- CW-5: dual windows + XOR (same as sc51) --------------------
+          (1 << 14) | 0x0330, 0,
+          (1 << 14) | 0x0331, 640,
+          (1 << 14) | 0x0332, 0,
+          (1 << 14) | 0x0333, 240,
+          (1 << 14) | 0x0335, 0,
+          (1 << 14) | 0x0336, 320,
+          (1 << 14) | 0x0337, 0,
+          (1 << 14) | 0x0338, 480,
+          (1 << 14) | 0x0339, 0x0000,
+          (1 << 14) | 0x033A, 0x0003,
+          // ---- CW-6: mask sprite in window region (same as sc51) ----------
+          (1 << 14) | 0x033B, 0x0010,
+          // ---- CW-4: highlight mode (same as sc51) ------------------------
+          (1 << 14) | 0x0334, 0x8000,
+          // ---- Sprite slot 4 — 64×64 diamond straddling x=288..352 --------
+          (1 << 14) | 0x0820, 0x8000 | 80,                   // word 0: enabled, patIdx=0, y=80
+          (1 << 14) | 0x0821, 288,                           // word 1: x=288
+          (1 << 14) | 0x0D24, (3 << 14) | (2 << 9),          // word 8: sizeSel=11, priority=2
+          (3 << 14) | 0                                      // JUMP 0 (idempotent loop)
+        )
       case 51 =>
         // Color/Window Hardening HW proof (CyanPeak audit PASS #8629).
         // Single frame demonstrates four CW sub-features at once via the
@@ -630,7 +679,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 51) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 51 || scenarioId == 52) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -653,6 +702,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 37          => 0x0005  // Sc37: L0 background + sprite (affine proof)
       case 20          => 0x0005  // Sc20 (Task 40): L0 + sprite; adapter toggles DEN
       case 51          => 0x0005  // Sc51 (CW HW proof): L0 + sprite (sprite is masked in window region)
+      case 52          => 0x0005  // Sc52 (CW-6 sprite proof): L0 + sprite, programmed sprite at x=288/y=80
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
@@ -1554,4 +1604,7 @@ object TopTang20kHdmiScenario50Verilog extends App {
 }
 object TopTang20kHdmiScenario51Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 51))   // Color/Window Hardening HW proof (CW-1/4/5/6 in one frame)
+}
+object TopTang20kHdmiScenario52Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 52))   // Color/Window CW-6 sprite-mask companion to sc51
 }
