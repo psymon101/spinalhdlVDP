@@ -127,7 +127,7 @@ The current validated baseline is **past the entire mainline substrate construct
   - Remaining: CW-2 sprite palette bank, CW-6 per-layer masking, sim proofs, hardware proof
 
 **Previous lanes (all closed):**
-- Sprite Phase 2 + 2-bis — HOLD pending CyanPeak formal audit on proof packet #8634
+- Sprite Phase 2 + 2-bis — DONE (`39a7242`, audit PASS #8638)
 - Sprite Pattern Memory Foundation — DONE (`e86fe49`)
 - Mode0 Sprite Envelope Hardening — DONE (`d44a9c0`)
 - Mode0 Fetch Envelope Hardening — DONE

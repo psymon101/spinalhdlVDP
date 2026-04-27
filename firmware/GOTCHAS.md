@@ -108,3 +108,39 @@ silent. A silent stress firmware is statistically indistinguishable
 from a Pico-halted baseline (stddev ~0.4 ms in both cases, 1 late
 frame per 30 s in both cases). Task 36 CP-C refinement commit
 `864f7d4` captures this fix.
+
+---
+
+## 6. UF2 family-ID mismatch boots silently into bootrom
+
+**Symptom:** Pico is flashed (`** Verified OK **`), reset, but never
+reaches `main`. Halt-then-`reg pc` reports a low address (e.g.
+`0x00005e74`) — the chip is sitting in bootrom, not in flash code.
+Capture-side QSPI tests look like the link is dead because no
+firmware is actually running on the Pico.
+
+**Cause:** Pico 2 is RP2350. The build directory was previously
+configured for RP2040 (or `cmake` defaulted there). The resulting
+`.uf2` carries `family ID 'rp2040'`; the RP2350 bootrom's image
+loader rejects it and idles in bootrom.
+
+**Diagnosis:** `picotool info path/to/firmware.uf2` shows the family
+ID at the top of the output. For Pico 2 it must read `'rp2350-arm-s'`
+(or `rp2350-riscv` if you go that route). Anything else means the
+build isn't targeting the right chip.
+
+**Fix:** `rm -rf build && mkdir build && cd build` then
+```
+cmake .. -G "Unix Makefiles" \
+  -DPICO_PLATFORM=rp2350-arm-s \
+  -DPICO_BOARD=pico2
+make -j$(nproc)
+```
+Re-running `make` alone reuses the stale `CMakeCache.txt` and won't
+fix the platform — you have to delete the build dir.
+
+**Rule of thumb:** before debugging any "Pico is bricked / firmware
+isn't running" symptom, run `picotool info` on the .uf2 and confirm
+the family ID matches the chip. This costs one second and rules out
+an entire failure mode that otherwise looks identical to a dead QSPI
+link.
