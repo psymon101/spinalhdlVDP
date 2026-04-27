@@ -45,11 +45,12 @@ object CopperHdmaSim extends App {
       dut.clockDomain.waitSampling()
     }
 
-    /** Populate channel `ch` at entry slot `ent` with {valid, line, data}. */
+    /** Populate channel `ch` at entry slot `ent` with {valid, line, data}.
+      * Per BH-3, the line field is 9 bits (covers 0..511). */
     def writeEntry(ch: Int, ent: Int, line: Int, data: Int): Unit = {
       val slot = 0x0A + ch * 16 + ent * 2
-      hdmaWrite(slot,     (1 << 15) | (line & 0xFF))  // valid + line
-      hdmaWrite(slot + 1, data & 0xFFFF)              // data
+      hdmaWrite(slot,     (1 << 15) | (line & 0x1FF))  // valid + line[8:0]
+      hdmaWrite(slot + 1, data & 0xFFFF)               // data
     }
 
     // -- Configure HDMA: ch0 target = 0x1000, ch1 target = 0x2000 --
@@ -149,6 +150,54 @@ object CopperHdmaSim extends App {
     }
     println(f"Case 5 PASS: data integrity — all 4 ch0 entries carry correct data every frame")
 
-    println(s"CopperHdmaSim: all 5 cases PASS — HDMA engine produces correct per-frame per-line writes")
+    // -- Case 6 (BH-3): 9-bit line compare reaches lines 256..479. Aliased
+    // pre-BH-3 (8-bit line compare) would mistakenly fire at line 0/100
+    // because 256 & 0xFF = 0, 356 & 0xFF = 100. Verify those low-byte-
+    // aliased lines produce NO writes (anti-alias check), and the true
+    // high-line targets DO fire. --
+    hdmaWrite(0x06, 0x4000)               // chAddr2 retargeted to 0x4000
+    hdmaWrite(0x00, 0x0000)               // disable HDMA while reprogramming
+    // Disable previous ch2 entry by clearing its valid bit at slot 0.
+    hdmaWrite(0x0A + 2 * 16 + 0 * 2, 0x0000)
+    writeEntry(2, 1, line = 256, data = 0x9100)
+    writeEntry(2, 2, line = 356, data = 0x9164)
+    hdmaWrite(0x00, 0x0001 | (0x7 << 1))  // re-enable, mask = ch0+ch1+ch2
+
+    val observed2 = scala.collection.mutable.ArrayBuffer.empty[(Int, Int, Int, Int)]
+    fork {
+      var frame = 0
+      while (frame < 2) {
+        var line = 0
+        while (line < 480) {
+          dut.io.vCounter #= line
+          var h = 0
+          while (h < hTotal) {
+            dut.io.hCounter #= h
+            dut.clockDomain.waitSampling()
+            if (dut.io.regWr.toBoolean) {
+              observed2.append((frame, line, dut.io.regAddr.toInt, dut.io.regData.toInt))
+            }
+            h += 1
+          }
+          line += 1
+        }
+        frame += 1
+      }
+    }.join()
+
+    val ch2Targets = Map(256 -> 0x9100, 356 -> 0x9164)
+    val ch2Writes2 = observed2.filter(_._3 == 0x4000)
+    val aliasLines = Set(0, 100)
+    for (frame <- 0 until 2; (line, expData) <- ch2Targets.toSeq.sortBy(_._1)) {
+      val hits = ch2Writes2.filter(w => w._1 == frame && w._2 == line)
+      assert(hits.exists(_._4 == expData),
+        f"Case 6 FAIL: frame $frame line $line expected data=0x$expData%04X — 9-bit line compare did not fire")
+    }
+    val aliasHits = ch2Writes2.filter(w => aliasLines.contains(w._2))
+    assert(aliasHits.isEmpty,
+      s"Case 6 FAIL: 8-bit-aliased lines fired (would indicate compare still using vCounter[7:0]): $aliasHits")
+    println(f"Case 6 PASS: 9-bit line compare fires at 256/356 and does NOT alias to 0/100")
+
+    println(s"CopperHdmaSim: all 6 cases PASS — HDMA 9-bit line compare verified")
   }
 }

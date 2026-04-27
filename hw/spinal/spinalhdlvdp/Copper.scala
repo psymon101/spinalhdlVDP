@@ -173,16 +173,27 @@ case class Copper() extends Component {
     }
   }
 
-  // Entry table: 25-bit words {valid[24], line[23:16], data[15:0]}.
+  // Entry table: 26-bit words {valid[25], line[24:16], data[15:0]}. BH-3
+  // widens the line field 8→9 bits so HDMA can target the full 480-line
+  // visible region (lines 0..479) instead of only 0..255.
+  //
+  // Control-word bus layout (`isData == False`):
+  //   bit[15]   = valid
+  //   bit[8:0]  = line[8:0]
+  //   bit[14:9] = reserved (zero)
+  //
+  // Backward compatible with pre-BH-3 host code: programs that wrote
+  // line[7:0] only and bit[15]=valid still produce a valid 9-bit line
+  // value (the new bit[8]=0 ⇒ unchanged behavior for lines 0..255).
   // Initialised to all-zeros so `valid==0` for every entry at power-on;
   // guarantees sweep cannot produce phantom hits from undefined Mem state
   // (Verilator models uninitialised readAsync as random).
-  val tbl = Mem(Bits(25 bits), NUM_CH * NUM_ENT).initBigInt(Seq.fill(NUM_CH * NUM_ENT)(BigInt(0)))
+  val tbl = Mem(Bits(26 bits), NUM_CH * NUM_ENT).initBigInt(Seq.fill(NUM_CH * NUM_ENT)(BigInt(0)))
   val tblWrAddr = UInt(log2Up(NUM_CH * NUM_ENT) bits)
-  val tblWrData = Bits(25 bits)
+  val tblWrData = Bits(26 bits)
   val tblWrEn   = Bool()
   tblWrAddr := 0
-  tblWrData := B(0, 25 bits)
+  tblWrData := B(0, 26 bits)
   tblWrEn   := False
 
   when(io.hdmaWr) {
@@ -195,9 +206,9 @@ case class Copper() extends Component {
       val ix     = (ch.resize(log2Up(NUM_CH * NUM_ENT)) * U(NUM_ENT, log2Up(NUM_CH * NUM_ENT) bits) +
                     ent.resize(log2Up(NUM_CH * NUM_ENT))).resize(log2Up(NUM_CH * NUM_ENT))
       val cur       = tbl.readAsync(ix)
-      val nextValid = Mux(isData, cur(24), io.hdmaData(15))
-      val nextLine  = Mux(isData, cur(23 downto 16), io.hdmaData(7 downto 0))
-      val nextData  = Mux(isData, io.hdmaData, cur(15 downto 0))
+      val nextValid = Mux(isData, cur(25),                     io.hdmaData(15))
+      val nextLine  = Mux(isData, cur(24 downto 16),           io.hdmaData(8 downto 0))
+      val nextData  = Mux(isData, io.hdmaData,                 cur(15 downto 0))
       tblWrAddr := ix
       tblWrData := nextValid ## nextLine ## nextData
       tblWrEn   := True
@@ -236,10 +247,10 @@ case class Copper() extends Component {
   val chi      = sweepCh.resize(log2Up(NUM_CH))
   val masked   = hdmaChMask(chi)
   val curEntry = tbl.readAsync(tidx(chi, sweepEnt))
-  val entValid = curEntry(24)
-  val entLine  = curEntry(23 downto 16).asUInt
+  val entValid = curEntry(25)
+  val entLine  = curEntry(24 downto 16).asUInt    // BH-3: 9-bit line field
   val entData  = curEntry(15 downto 0)
-  val hit      = entValid && (entLine === io.vCounter(7 downto 0))
+  val hit      = entValid && (entLine === io.vCounter(8 downto 0))
 
   when(sweepActive) {
     when(masked && hit) {

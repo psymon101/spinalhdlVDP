@@ -1,9 +1,11 @@
 # Task — Beam-Driven Automation Hardening
 
-**Artifact version:** 1.0-draft
+**Artifact version:** 1.0
 **Author:** CoralReef
 **Date:** 2026-04-27
-**Scope:** Bounded substrate hardening — pixel-precision Copper WAIT, conditional SKIP, HDMA 9-bit line compare, HDMA indirect mode, multiple raster triggers, linestate robustness
+**Audit:** PASS #8656 (CyanPeak)
+**Status:** IN-PROGRESS (Implementation)
+**Owner:** BrightForge
 
 ---
 
