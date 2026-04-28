@@ -40,10 +40,25 @@ case class LinestateStore(lineCount: Int) extends Component {
     prepare.write(io.writeAddr, io.writeData)
   }
 
+  // BH-6 (Beam Hardening artifact §3.6): same-cycle host write + commit
+  // collision robustness. If a Copper/HDMA bus write lands on the same
+  // cycle as commitStrobe AND targets the same line being committed,
+  // the readAsync(commitLine) here would have implementation-defined
+  // behavior (Gowin BSRAM may surface old or new data depending on
+  // inference). Detect the collision and forward `io.writeData` into
+  // commit alongside the prepare write, so the host's update reaches
+  // the live render path on the SAME line it was issued for, rather
+  // than being lost to the read-old-value race.
+  //
+  // Non-colliding cases are unchanged: different address → readAsync
+  // returns the stable stored value at commitLine; no write at all →
+  // commit just reads prepare.
+  val commitCollide = io.commitStrobe && io.writeEnable && (io.writeAddr === io.commitLine)
+  val commitData    = Mux(commitCollide, io.writeData, prepare.readAsync(io.commitLine))
+
   // Atomic per-line commit: copy one prepare entry to commit at line boundary.
   when(io.commitStrobe) {
-    val prepData = prepare.readAsync(io.commitLine)
-    commit.write(io.commitLine, prepData)
+    commit.write(io.commitLine, commitData)
   }
 
   // Read from commit side.
