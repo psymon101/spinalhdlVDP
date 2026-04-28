@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement (v3) |
 | **Owner** | BrightForge |
-| **Latest Commit** | `40f2315` (Task 50 v3 Slices 2+3: display mux + sc50 wiring) |
-| **Latest Auth Mail** | #8693 (BrightForge v3 packet — geometry ✅, color bug surfaced) |
-| **Next Deliverable** | v3.1 Debug: root-cause palette slot 24 color-stuck-at-white |
+| **Latest Commit** | `c3b9e37` (Task 50 v3.1 diagnostic: copperFifo overflow root cause) |
+| **Latest Auth Mail** | #8696 (CyanPeak bug fix report + BrightForge `c3b9e37` diagnostic) |
+| **Next Deliverable** | v3.2 Fix: bump copperFifo 32→128 + restore canonical sc50 ordering + re-capture
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
