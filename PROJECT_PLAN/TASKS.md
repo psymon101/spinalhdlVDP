@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `5e3fcb1` (Task 50 v3.2: copperFifo 32→128 + sc50 ordering restored) |
-| **Latest Auth Mail** | #8698 (CyanPeak v3.2 readiness — FIFO bump landed) |
-| **Next Deliverable** | HW re-capture: verify cycling border + visible bitmap on silicon
+| **Latest Auth Mail** | #8700 (BrightForge BLOCKER — v3.2 all-black, v3.3 border LUT proposed) |
+| **Next Deliverable** | v3.3: dedicated 8-entry border-color Reg LUT, drop second palette.readAsync
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
