@@ -47,7 +47,7 @@ This section tracks the single active lane so the team does not infer state from
 
 **Previous lane:** Sprite Pattern Memory Foundation — Implementation | DONE | `e86fe49` | Audit PASS #8605
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_BEAM_HARDENING.md` (v1.0, audit PASS #8656)
+**Artifact file:** `PROJECT_PLAN/archive/artifacts/TASK_BEAM_HARDENING.md` (v1.0, audit PASS #8656)
 
 Rules:
 - Only **one** lane may be live at a time.
@@ -492,36 +492,36 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 ### R1 — Raster Trigger Unit
 
 **Status:** DONE  
-**Task doc:** `PROJECT_PLAN/TASK_R1_RASTER_TRIGGER_UNIT.md`
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R1_RASTER_TRIGGER_UNIT.md`
 
 ### R2 — Two-Pass Sprite Evaluator
 
 **Status:** Initial primitive closed; stronger variant pending via **Task 28**  
-**Task doc:** `PROJECT_PLAN/TASK_R2_TWO_PASS_SPRITE_EVALUATOR.md`
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R2_TWO_PASS_SPRITE_EVALUATOR.md`
 
 ### R3 — Static Fetch-Slot Scheduler
 
 **Status:** Initial primitive closed; stronger variant pending via **Task 30**  
-**Task doc:** `PROJECT_PLAN/TASK_R3_FETCH_SLOT_SCHEDULER.md`
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R3_FETCH_SLOT_SCHEDULER.md`
 
 ### R4 — Tile + Attribute Fetch Primitive
 
 **Status:** CLOSED (`df7af63`)  
-**Task doc:** `PROJECT_PLAN/TASK_R4_TILE_ATTRIBUTE_FETCH.md`  
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R4_TILE_ATTRIBUTE_FETCH.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
 ### R4.1 — Multi-Slot Scheduler Coupling
 
 **Status:** CLOSED (`9dfeb9f`)  
-**Task doc:** `PROJECT_PLAN/TASK_R4_1_MULTI_SLOT_SCHEDULER_COUPLING.md`  
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R4_1_MULTI_SLOT_SCHEDULER_COUPLING.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
 ### R4.1c — Packed-Attribute Decode (NES-style)
 
 **Status:** CLOSED (`0e4d9dc`)  
-**Task doc:** `PROJECT_PLAN/TASK_R4_1C_PACKED_ATTRIBUTE.md`  
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R4_1C_PACKED_ATTRIBUTE.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
@@ -530,7 +530,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 ### R4.1d — Shuffled Fetch Path (Amiga-style)
 
 **Status:** CLOSED (`0087920`)  
-**Task doc:** `PROJECT_PLAN/TASK_R4_1D_SHUFFLED_FETCH.md`  
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R4_1D_SHUFFLED_FETCH.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
@@ -541,7 +541,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 ### R5 — Host Interface + Copper Coprocessor
 
 **Status:** CLOSED (`32a87ff`) — initial host interface + Copper primitive  
-**Task doc:** `PROJECT_PLAN/TASK_R5_HOST_INTERFACE_AND_COPPER.md`  
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R5_HOST_INTERFACE_AND_COPPER.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
@@ -550,21 +550,21 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 ### R5.3 — Copper Control Unification (`VDP_CTRL` register)
 
 **Status:** CLOSED (`32a87ff`)  
-**Task doc:** `PROJECT_PLAN/TASK_R5_3_COPPER_CTRL_UNIFICATION.md`  
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R5_3_COPPER_CTRL_UNIFICATION.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
 ### R5.4 — Scroll-Wrap Component Primitive
 
 **Status:** CLOSED (`d580dcb`)  
-**Task doc:** `PROJECT_PLAN/TASK_R5_4_SCROLL_WRAP.md`  
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R5_4_SCROLL_WRAP.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
 ### R6 — Color Math / Window Effects
 
 **Status:** CLOSED (`dd119ec`)  
-**Task doc:** `PROJECT_PLAN/TASK_20_COLOR_MATH_WINDOW.md`  
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_20_COLOR_MATH_WINDOW.md`  
 **Coding Owner:** BrightForge  
 **Audit Owner:** CyanPeak
 
@@ -609,7 +609,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - **`7534` (CyanPeak audit):** Checkpoint C formally PASSED. Fix 2 (IO2/IO3 wiring) DEFERRED to separate hardening lane. BrightForge authorized to revert debug artifacts (HUD/LED probes).
 - **`7526` (CoralReef SECONDARY issue):** spinalhdlVDP CST only wires IO0+IO1. PIO quad-mode sends 4 bits/nibble; FPGA ties IO2/IO3 to 0. Data bytes with bits 2/3 set in any nibble are corrupted (e.g. `0x05` → `0x01`). Verified by corrected `Qspi2WireSimV2`. Does NOT block Checkpoint C (opcode `0x01` correct, 2 payload bytes arrive with Fix 1, `regWriteEnable` fires). Fix deferred.
 
-**Task doc:** `PROJECT_PLAN/QSPI_HOST_CONTROL_PLAN.md`
+**Task doc:** `PROJECT_PLAN/archive/QSPI_HOST_CONTROL_PLAN.md`
 
 ---
 
@@ -658,7 +658,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - Sim: mixed scene with >8 sprites on a line proves correct selection and limit enforcement
 - Hardware: visual proof on Tang Nano 20K that sprite drop behavior matches expected limits
 
-**Task doc:** `PROJECT_PLAN/TASK_R2_TWO_PASS_SPRITE_EVALUATOR.md`
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_R2_TWO_PASS_SPRITE_EVALUATOR.md`
 
 ---
 
@@ -697,7 +697,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - Sim: mixed scene with tile + sprite + Copper fetch proves no arbitration glitches under lookahead
 - Hardware: long-soak validation (Task 22 class) with arbiter active
 
-**Task doc:** `PROJECT_PLAN/TASK_30_PRE_ANNOUNCED_ARBITER_GRANT.md`
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_30_PRE_ANNOUNCED_ARBITER_GRANT.md`
 
 ---
 
@@ -717,7 +717,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - Sim: scene with per-column scroll offsets proves correct addressing
 - Hardware: visible parallax effect on Tang Nano 20K
 
-**Task doc:** `PROJECT_PLAN/TASK_31_SCROLL_TABLE_PRIMITIVE.md`
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_31_SCROLL_TABLE_PRIMITIVE.md`
 
 ---
 
@@ -850,7 +850,7 @@ These tasks track the post-roadmap primitive build order defined in `MODE0_ROADM
 - Sim: affine sprite renders with correct transformed pixels
 - Hardware: visible rotated/scaled sprite on Tang Nano 20K
 
-**Task doc:** `PROJECT_PLAN/TASK_37_AFFINE_SPRITE_PATH.md`
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_37_AFFINE_SPRITE_PATH.md`
 
 ---
 
@@ -1361,7 +1361,7 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 
 **Goal:** Improve HDMI observation-path robustness by migrating Tang Nano 20K output from VESA 640×480 to CEA-861 720p60, with a clean architectural seam between fixed transport and internal render geometry.
 
-**Phased plan:** `PROJECT_PLAN/artifacts/TASK_HDMI_OUTPUT_COMPATIBILITY_OPTION_A.md` (commit `d60b38b`)
+**Phased plan:** `PROJECT_PLAN/archive/artifacts/TASK_HDMI_OUTPUT_COMPATIBILITY_OPTION_A.md` (commit `d60b38b`)
 
 **Outcome:** The HDMI compatibility seam-proof objective is **successfully demonstrated**. Native-rate (25.2 MHz) writer side can feed the proven 720p transport shell (74.25 MHz) via a 4-pixel-pack `StreamFifoCC` CDC seam, with zero VdpTop changes and zero timing violations.
 
