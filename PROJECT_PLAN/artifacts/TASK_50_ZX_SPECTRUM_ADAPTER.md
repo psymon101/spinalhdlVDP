@@ -1,0 +1,290 @@
+# Task 50 — ZX Spectrum Adapter (Bitmap + Attribute)
+
+**Artifact version:** 1.0-draft
+**Author:** CoralReef
+**Date:** 2026-04-28
+**Status:** artifact draft
+**Coding authorized:** NO — pending artifact audit
+
+---
+
+## 1. Executive Summary
+
+Task 50 is the first **serious** platform adapter after the C64 smoke-test (Task 40). Where Task 40 proved the substrate could support *any* adapter, Task 50 proves it can support a platform whose display identity is defined by **bitmap + attribute coloring** and **non-linear memory layout** — the ZX Spectrum.
+
+The ZX Spectrum adapter is a **thin translation layer** from ULA-style register semantics to the existing Mode0 substrate. It is not a cycle-accurate ULA emulator. It is an honest mapping that lets a host write familiar Spectrum-style control values and see correct 256×192 bitmap + 8×8 attribute cell behavior on the Tang Nano 20K.
+
+**Scope boundary:** First adapter only. No contention modeling. No 128K paging. No +3 disk. No AY audio. No full CPU integration.
+
+---
+
+## 2. Why This Task Exists
+
+The Mode0 substrate now has:
+- Bitmap + attribute fetch (Task 44, rated `Strong` in coverage matrix)
+- 1bpp Spectrum-style decode in `BitmapFetch` (ink/paper/bright)
+- Runtime-writable palette RAM (CW-1)
+- Dual-window + border logic (CW-5)
+- Raster triggers (BH-5)
+
+The question is not "do we have the primitives?" but "can we wire them together into a recognizable ZX Spectrum display?" Task 50 answers that.
+
+---
+
+## 3. ZX Spectrum Display Model
+
+| Property | Value |
+|---|---|
+| Resolution | 256 × 192 pixels |
+| Color depth | 1bpp + 8×8 attribute cells |
+| Colors | 8 base + 7 bright variants = 15 effective |
+| Attribute byte | `{flash, bright, paper[2:0], ink[2:0]}` |
+| Bitmap memory | 6144 bytes, non-linear / shuffled layout |
+| Attribute memory | 768 bytes (32 × 24), linear row-major |
+| Border | Single color, drawn by ULA around active area |
+| Refresh | 50 Hz |
+| Sprites | None (software only) |
+
+### 3.1 Bitmap memory shuffle
+
+The Spectrum bitmap is **not** row-major. Address calculation:
+```
+addr = 0x4000
+     + (pixel_row / 64) * 2048      // which third (0, 1, 2)
+     + (pixel_row % 8) * 256         // which char row within third
+     + ((pixel_row / 8) % 8) * 32   // which scanline within char
+     + (column_byte)                // 0..31 within the row
+```
+
+This is part of the platform's identity. The adapter must either:
+- **Option A:** Require host to pre-shuffle into linear row-major before SDRAM upload (simplest, no HDL change)
+- **Option B:** Add shuffled-address generator to `BitmapRowFetch` (more faithful, costs HDL)
+
+**Artifact decision:** Option A for the first proof. Option B is an honest gap (§7).
+
+---
+
+## 4. Mode0 Substrate Mapping
+
+| Spectrum Feature | Mode0 Primitive | How |
+|---|---|---|
+| 256×192 bitmap | `BitmapRowFetch` + `BitmapFetch` | `BITMAP_CTRL` = enable \| 1bpp, base = SDRAM region |
+| 8×8 attributes | `BitmapFetch` 1bpp mode | `attrByte` supplies ink/paper/bright per cell |
+| 15-color palette | Runtime palette RAM (CW-1) | Adapter loads Spectrum palette at init |
+| Border | Window logic + palette | Window defines active 256×192; outside = border color |
+| FLASH bit | Global frame counter | Adapter toggles ink/paper swap every N frames |
+| 50 Hz | Source frame rate | Tang outputs at source rate; no frame conversion needed |
+
+---
+
+## 5. Proposed Adapter Design
+
+```
+Host writes Spectrum-style registers
+         ↓
+    ZXSpectrumAdapter translates to Mode0 bus writes
+         ↓
+    VdpTop consumes effAddr/effData/effWrite
+         ↓
+    BitmapRowFetch reads linear bitmap + attribute rows from SDRAM
+         ↓
+    BitmapFetch decodes 1bpp + attributes → pixelIndex + paletteBank
+         ↓
+    Compositor displays centered 256×192 window + border
+```
+
+### 5.1 Integration policy (mirrors C64Adapter)
+
+- Adapter lives **outside** `VdpTop`, in the scenario wrapper.
+- Bus output is a peer master on `RegBusArbiter`.
+- Direct outputs (if any) bypass the bus and drive `VdpTop` IO.
+
+---
+
+## 6. Register Map
+
+The adapter exposes a small register surface. All registers are 8-bit, write-only.
+
+| Adapter Addr | Name | Bits | Description |
+|---|---|---|---|
+| `0x00` | `ZX_BORDER` | `[2:0]` | Border color (0..7) |
+| `0x01` | `ZX_FLASH_CTRL` | `[0]` | Flash enable (1 = active) |
+| `0x02` | `ZX_FLASH_RATE` | `[7:0]` | Frames per flash toggle (default 16 ≈ 0.32s @ 50Hz) |
+| `0x03` | `ZX_CTRL` | `[0]` | Adapter enable (1 = active, drives bus) |
+| `0x10` | `ZX_PAL_LOAD` | `[3:0]` | Write-only trigger: loads one palette entry from data[7:0] into palette RAM at index data[11:8] (needs 2 writes or 16-bit form) |
+
+**Note:** The adapter does NOT expose bitmap or attribute base addresses. Those are set once by scenario bootstrap via direct `BITMAP_CTRL` / `BITMAP_BASE` / `ATTR_BASE` writes. The adapter only handles dynamic per-frame values (border, flash).
+
+### 6.1 Mode0 bus writes generated by adapter
+
+When any adapter register changes, the adapter emits the corresponding Mode0 bus write:
+
+| Adapter event | Mode0 bus write |
+|---|---|
+| `ZX_BORDER` changed | Write `WIN0_COLOR` (or palette entry) |
+| `ZX_FLASH_CTRL` toggled | Write `COLOR_MATH_CTRL` or reconfigure palette |
+| Adapter enable → 1 | Write `LAYER_ENABLE` = 0x0001 (L0 only), `VDP_TILE_MODE` = bitmap |
+
+---
+
+## 7. Memory Layout & Upload Protocol
+
+### 7.1 SDRAM layout (Option A — pre-shuffled)
+
+```
+0x5000 .. 0x57FF  : 2048 bytes — bitmap row-major (not used, reserved)
+0x5800 .. 0x5AFF  : 768 bytes  — attributes row-major
+0x6000 .. 0x77FF  : 6144 bytes — bitmap PRE-SHUFFLED into linear row-major
+```
+
+The host (Pico firmware) must convert the Spectrum's shuffled bitmap into linear row-major order before upload. The adapter's `BITMAP_BASE` points to `0x6000`, `BITMAP_STRIDE` = 32.
+
+### 7.2 Attribute layout
+
+Attributes are already row-major in Spectrum memory. `ATTR_BASE` = `0x5800`, `ATTR_STRIDE` = 32.
+
+---
+
+## 8. Palette Setup
+
+The Spectrum has 15 effective colors (8 normal + 7 bright; bright-black is still black). These map to palette entries 0..15:
+
+| Index | Color | RGB (approx) | Notes |
+|---|---|---|---|
+| 0 | Black | `#000000` | Normal & bright both black |
+| 1 | Blue | `#0000CD` | |
+| 2 | Red | `#CD0000` | |
+| 3 | Magenta | `#CD00CD` | |
+| 4 | Green | `#00CD00` | |
+| 5 | Cyan | `#00CDCD` | |
+| 6 | Yellow | `#CDCD00` | |
+| 7 | White | `#CDCDCD` | Normal white |
+| 8 | Bright Black | `#000000` | Same as 0 |
+| 9 | Bright Blue | `#0000FF` | |
+| 10 | Bright Red | `#FF0000` | |
+| 11 | Bright Magenta | `#FF00FF` | |
+| 12 | Bright Green | `#00FF00` | |
+| 13 | Bright Cyan | `#00FFFF` | |
+| 14 | Bright Yellow | `#FFFF00` | |
+| 15 | Bright White | `#FFFFFF` | |
+
+**Loading:** Scenario bootstrap writes all 16 entries via the CW-1 `PALETTE_DATA` / `PALETTE_PTR` protocol (`0x0600` / `0x0601`). The adapter itself does not store the palette; it relies on the substrate's runtime palette RAM.
+
+---
+
+## 9. Border Handling
+
+The border is implemented using the existing **dual-window** logic:
+
+1. Configure `WIN0` to cover the active 256×192 area, centered in the output frame.
+2. Set `WIN0` to **invert** mode — the window region is the active picture; outside is border.
+3. The border color is a solid palette entry (e.g., entry 16 or a dedicated border slot).
+4. When `ZX_BORDER` changes, the adapter writes the new border color to the appropriate palette entry or window register.
+
+**For 640×480 output:** Center the 256×192 area at (192, 144) with 2× integer scaling to 512×384, or display at 1× with large borders.
+
+**For 1920×1080 output:** The existing letterbox behavior will show the 256×192 area centered with large black/letterbox borders.
+
+---
+
+## 10. FLASH Attribute
+
+The Spectrum FLASH bit (attribute bit 7) causes ink and paper to swap every ~0.32 seconds (16 frames @ 50Hz).
+
+**Implementation:**
+- Adapter maintains a free-running `flashCounter` (8-bit frame counter).
+- When `flashCounter >= ZX_FLASH_RATE`, toggle `flashState` and reset counter.
+- When `flashState` is active, the adapter reconfigures the palette so that entries 0..7 swap with entries 8..15 (or uses `COLOR_MATH` to invert).
+- **Simpler approach:** The adapter does nothing in HDL. The host firmware toggles a global palette-swap register every N frames via QSPI. The adapter artifact documents both options.
+
+**Artifact decision:** Option B (host-driven) for first proof. No HDL counter needed. Honest gap (§7).
+
+---
+
+## 11. Validation / Proof Criteria
+
+### 11.1 Simulation
+
+| Test | What it proves |
+|---|---|
+| `ZXSpectrumAdapterSim` case 1 | Border color write → correct bus address + data |
+| `ZXSpectrumAdapterSim` case 2 | Adapter enable → LAYER_ENABLE and VDP_TILE_MODE set correctly |
+| `ZXSpectrumAdapterSim` case 3 | `BitmapFetch` 1bpp mode produces correct pixelIndex + paletteBank for given bitmapByte + attrByte |
+| `VdpTopSim` regression | Adapter does not break existing scenarios when disabled |
+
+### 11.2 Hardware proof (Scenario 50)
+
+A single static frame proving recognizable Spectrum display:
+
+- **Bitmap:** A simple pattern (e.g., a chessboard or text) in pre-shuffled linear format.
+- **Attributes:** Colorful 8×8 attribute cells demonstrating ink/paper/bright.
+- **Border:** A visible non-black border color.
+- **Capture:** 30s RTSP capture at `rtsp://192.168.1.95:8554/live`.
+
+**Pass criteria (automated):**
+- 0 glitches, 0 freezes over 500+ frames.
+- Border color mean matches programmed border (±5%).
+- Active area contains non-zero pixel variance (not a blank screen).
+
+**Pass criteria (visual):**
+- Recognizable 256×192 bitmap centered in frame.
+- Attribute cells visible as 8×8 color blocks.
+- Border visible around active area.
+
+---
+
+## 12. Honest Gaps
+
+These are deliberately out of scope for Task 50:
+
+1. **On-the-fly bitmap shuffle:** The adapter requires pre-shuffled bitmap data. A future hardening item could add a shuffled-address generator to `BitmapRowFetch` for faithful Spectrum memory layout.
+2. **FLASH in HDL:** The FLASH attribute is host-driven (palette swap), not a free-running HDL counter. A future enhancement could add a frame counter in the adapter.
+3. **128K paging / +3 modes:** Only 48K Spectrum display model is in scope.
+4. **Contention / ULA timing:** No cycle-accurate memory contention modeling.
+5. **AY audio:** Out of scope entirely.
+6. **Exact aspect ratio:** The adapter centers the 256×192 area but does not enforce exact 4:3 PAL aspect. Integer scaling is preferred but not mandatory for first proof.
+7. **Color clash:** Color clash (when software writes conflicting attributes to the same 8×8 cell) is a natural consequence of the attribute model and does not need explicit adapter support.
+
+---
+
+## 13. Stop-Line / Resource Budget
+
+Current baseline (Beam Hardening complete, commit `6345fcc`):
+
+| Resource | Current | Green 65% | Headroom |
+|---|---|---|---|
+| LUT/ALU/ROM16 | 9,875 | 13,478 | ~3,600 |
+| Register | 6,274 | 10,109 | ~3,800 |
+| BSRAM | 17 | 23 | 6 |
+| DSP | 18 | — | — |
+
+**Adapter estimated cost:**
+- LUT: +50–100 (small state machine + register shadow)
+- FF: +50–100 (shadow registers + counters)
+- BSRAM: 0 (uses substrate palette RAM, no new storage)
+- DSP: 0
+
+**Verdict:** Deep green. The adapter is a thin translation layer with negligible resource impact.
+
+---
+
+## 14. Dependencies
+
+| Dependency | Status | Why needed |
+|---|---|---|
+| Task 44 (Bitmap + Attribute Fetch) | DONE | Core fetch primitive |
+| CW-1 (Runtime Palette RAM) | DONE | Spectrum palette loading |
+| CW-5 (Dual Window) | DONE | Border implementation |
+| BH-5 (4× Raster Triggers) | DONE | Optional 50Hz sync |
+| Task 40 (C64 Adapter) | DONE | Adapter pattern precedent |
+
+---
+
+## 15. Files
+
+- `hw/spinal/spinalhdlvdp/ZXSpectrumAdapter.scala` (NEW)
+- `hw/spinal/spinalhdlvdp/ZXSpectrumAdapterSim.scala` (NEW)
+- `hw/spinal/spinalhdlvdp/TopTang20kHdmi.scala` (case 50 + Verilog object)
+- `PROJECT_PLAN/scenarios/SCENARIO_50.md` (NEW)
+- `fpga/tang20k/impl/pnr/project.fs` (bitstream)
+- `captures/zx_sc50/` (HW capture)

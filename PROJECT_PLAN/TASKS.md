@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-28 (Beam Hardening DONE #8660; no active lane — all substrate + Task 40 complete; awaiting PM reassessment)
+**Updated:** 2026-04-28 (Task 50 ZX Spectrum Adapter artifact drafting IN-PROGRESS #8664; all substrate hardening DONE)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,14 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **None — all substrate hardening + Task 40 complete** |
-| **Status** | **CLOSED** |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | `6345fcc` (BH-1..BH-6 implementation + sc60 HW proof) |
-| **Latest Auth Mail** | #8660 (CyanPeak implementation audit PASS) |
-| **Next Deliverable** | PM reassessment for next adapter lane selection |
-| **Coding Authorized** | **NO** — no live lane |
+| **Task** | **Task 50 — ZX Spectrum Adapter — Artifact** |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | artifact |
+| **Owner** | CoralReef |
+| **Latest Commit** | `6345fcc` (Beam Hardening DONE #8660) |
+| **Latest Auth Mail** | #8664 (CyanPeak strategic decision: ZX Spectrum next) |
+| **Next Deliverable** | Task 50 planning artifact (`TASK_50_ZX_SPECTRUM_ADAPTER.md`) |
+| **Coding Authorized** | **NO** — pending artifact audit |
+
+**Previous lane:** Beam-Driven Automation Hardening — Implementation | DONE | `6345fcc` | Audit PASS #8660, BH-1/2/3/4/5/6 all proven, sc60 HW evidence
 
 **Previous lane:** Color/Window Hardening — Implementation | DONE | `0f5dc65` | Audit PASS #8654, CW-1/2/3/4/5/6 all proven, sc51+sc52 HW evidence
 
@@ -1088,6 +1090,22 @@ Do not open an adapter lane until both are true:
 
 **validation:** Sim proofs + hardware proof (Scenario 51 + 52 captured); resource report confirming green zone; audit PASS #8654.
 
+### Hardening Lane — Beam-Driven Automation Hardening
+
+**Status:** DONE (`6345fcc`)
+**depends_on:** [Color/Window Hardening]
+**scope_boundary:** Sub-scanline precision, control-flow instructions, full-frame HDMA, independent triggers. No full CPU software renderer.
+**delivers:**
+
+- Pixel-precise Copper WAIT (X,Y) (BH-1 ✅)
+- Copper conditional SKIP instruction (BH-2 ✅)
+- HDMA 9-bit line compare (BH-3 ✅)
+- HDMA Indirect mode (BH-4 ✅)
+- 4× independent raster triggers (BH-5 ✅)
+- Linestate robustness (write-commit collision) (BH-6 ✅)
+
+**validation:** `CopperSim`, `CopperHdmaSim`, `RasterTrigger4xSim`, `LinestateRobustnessSim` ALL PASS; HW smoke test Scenario 60 (`6345fcc`); audit PASS #8662.
+
 For the current roadmap, the remaining broad substrate closure order is:
 
 1. **Task 45** — Sprite Capacity Hardening
@@ -1219,6 +1237,26 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ## Phase 10 — Platform Adapters
 
+### Task 50 — ZX Spectrum Adapter (Bitmap + Attribute)
+
+**Status:** IN-PROGRESS — artifact drafting (CoralReef)
+**depends_on:** [40, 44, CW-1, CW-5]
+**scope_boundary:** Thin translation layer only. No cycle-accurate ULA. No 128K paging. No contention modeling. No AY audio. Pre-shuffled bitmap upload (host-side responsibility).
+**delivers:**
+
+- `ZXSpectrumAdapter` component translating ULA-style registers to Mode0 bus writes
+- Border implementation using existing dual-window logic
+- 15-color Spectrum palette loaded into runtime palette RAM
+- Hardware proof: recognizable 256×192 Spectrum display centered in HDMI frame
+
+**validation:**
+
+- Sim: `ZXSpectrumAdapterSim` produces correct bus writes for border/control changes
+- `VdpTopSim` regression passes with adapter present (disabled path)
+- Hardware: Scenario 50 static frame with visible bitmap + attributes + border, 30s capture stable
+
+**Task doc:** `PROJECT_PLAN/artifacts/TASK_50_ZX_SPECTRUM_ADAPTER.md`
+
 ---
 
 ## Deferred Items
@@ -1229,7 +1267,7 @@ The following items remain intentionally coarse or out of Mode0 scope. Where pos
 |------|--------|-------|
 | Additional output modes | DEFERRED | Not required for baseline bring-up |
 | Deep-angle affine tuning | DEFERRED | Only after affine base path is proven (Task 19, Task 37) |
-| Platform adapter modes | DEFERRED | Now tracked as **Task 40** (First Platform Adapter) in Phase 10 |
+| Platform adapter modes | DEFERRED | Task 40 (C64) DONE; Task 50 (ZX Spectrum) IN-PROGRESS |
 | Alternate memory strategies | DEFERRED | Only if baseline memory path becomes a blocker |
 | Parallel bus implementation | DEFERRED | After QSPI path is stable (Task 25) |
 
