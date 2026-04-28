@@ -20,8 +20,8 @@ This index tracks the per-platform VDP pipeline research and Mode0 adapter mappi
 | 2 | Commodore 64 | 1 | ✅ Complete | `artifacts/TASK_40_FIRST_PLATFORM_ADAPTER.md` | Smoke test proven; Task 40b gaps documented |
 | 3 | Atari ST | 1 | ✅ Complete | `artifacts/ADAPTER_ATARI_ST.md` | Lowest-cost Tier 1; planar + raster only |
 | 4 | NES / Famicom | 2 | ✅ Complete | `artifacts/ADAPTER_NES.md` | Highest leverage; needs sprite expansion |
-| 5 | TMS9918-family / MSX1 | 1 | ⏳ Pending | `artifacts/ADAPTER_TMS9918_FAMILY.md` | Family doc + MSX1 delta |
-| 6 | Master System / Game Gear | 2 | ⏳ Pending | (included in TMS-family doc or separate) | VDP evolution of TMS |
+| 5 | TMS9918-family / MSX1 | 1 | ✅ Complete | `artifacts/ADAPTER_TMS9918_FAMILY.md` | Family doc covers base + SMS delta + GG delta |
+| 6 | Master System / Game Gear | 2 | ✅ Complete | (covered in TMS-family doc) | VDP evolution of TMS |
 | 7 | PC Engine / TurboGrafx-16 | 2 | ⏳ Pending | `artifacts/ADAPTER_PC_ENGINE.md` | Standalone |
 | 8 | MSX2 | 2 | ⏳ Pending | `artifacts/ADAPTER_MSX2.md` | Standalone; V9938-based |
 | 9 | Genesis / Mega Drive | 3 | ⏳ Pending | `artifacts/ADAPTER_GENESIS.md` | Excluded from default bitstream until sprite expansion |
@@ -43,7 +43,7 @@ Every platform spec file MUST include these sections:
 ## 4. Batching Plan
 
 **Batch 1 (landing now):** Atari ST + NES  
-**Batch 2 (next):** TMS9918-family / MSX1 / SMS / GG (family doc)  
+**Batch 2 (done):** TMS9918-family / MSX1 / SMS / GG (family doc)  
 **Batch 3 (next):** PC Engine + MSX2  
 **Batch 4 (deferred):** Genesis, SNES, Amiga, Neo Geo (Tier 3/4; excluded from default bitstream)
 
