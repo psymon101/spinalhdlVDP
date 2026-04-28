@@ -302,6 +302,66 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 50 =>
+        // Task 50 — ZX Spectrum Adapter HW proof (v1 minimal).
+        //
+        // Reuses sc45's SDRAM-backed bitmap + attribute fetch path
+        // (BitmapRowFetch synth-init writes a diagonal-stripe 1bpp
+        // bitmap + Spectrum-format attribute cells into SDRAM at
+        // 0x3000 / 0x4000 at boot; on each line's fetchGrant the
+        // 1bpp+attr decode runs through BitmapFetch).
+        //
+        // Sc50's contribution on top of sc45:
+        // copper bootstrap loads the canonical 16-entry ZX Spectrum
+        // palette into the runtime palette RAM (CW-1) so the same
+        // bitmap+attribute pattern is repainted in authentic
+        // Spectrum colors (8 normal + 8 bright variants per artifact
+        // §8). The adapter Scala component itself (ZXSpectrumAdapter)
+        // is sim-verified at unit scope (ZXSpectrumAdapterSim 5/5);
+        // its scenario-wrapper integration (driving a bus master
+        // peer on RegBusArbiter) is a follow-on slice — for v1 the
+        // bitmap path proof is sufficient.
+        //
+        // Palette write protocol (CW-1, see VdpTop):
+        //   0x0601 PALETTE_PTR  = entry*2 + half (8 bits)
+        //   0x0600 PALETTE_DATA = half=0: low 16 bits = G:B
+        //                        half=1: low 8 bits = R, commits
+        // 16 entries × 3 writes = 48 program words; fits easily in
+        // the 512-word copper program RAM.
+        //
+        // Spectrum color set per artifact §8:
+        //   0..7  : black, blue, red, magenta, green, cyan, yellow, white  (0xCD level)
+        //   8..15 : same hues at "bright" 0xFF level (entry 8 = bright black = #000000)
+        def zxPalEntry(idx: Int, r: Int, g: Int, b: Int): Seq[Int] = Seq(
+          (1 << 14) | 0x0601, idx * 2,                          // ptr = entry idx, low half
+          (1 << 14) | 0x0600, ((g & 0xFF) << 8) | (b & 0xFF),    // low half = G:B
+          (1 << 14) | 0x0600, r & 0xFF                           // high half = R, commits
+        )
+        val zxPalette: Seq[Int] =
+          // Normal Spectrum palette (entries 0..7) at 0xCD level.
+          zxPalEntry( 0,  0x00, 0x00, 0x00) ++                  // black
+          zxPalEntry( 1,  0x00, 0x00, 0xCD) ++                  // blue
+          zxPalEntry( 2,  0xCD, 0x00, 0x00) ++                  // red
+          zxPalEntry( 3,  0xCD, 0x00, 0xCD) ++                  // magenta
+          zxPalEntry( 4,  0x00, 0xCD, 0x00) ++                  // green
+          zxPalEntry( 5,  0x00, 0xCD, 0xCD) ++                  // cyan
+          zxPalEntry( 6,  0xCD, 0xCD, 0x00) ++                  // yellow
+          zxPalEntry( 7,  0xCD, 0xCD, 0xCD) ++                  // white
+          // Bright Spectrum palette (entries 8..15) at 0xFF level.
+          zxPalEntry( 8,  0x00, 0x00, 0x00) ++                  // bright black
+          zxPalEntry( 9,  0x00, 0x00, 0xFF) ++                  // bright blue
+          zxPalEntry(10,  0xFF, 0x00, 0x00) ++                  // bright red
+          zxPalEntry(11,  0xFF, 0x00, 0xFF) ++                  // bright magenta
+          zxPalEntry(12,  0x00, 0xFF, 0x00) ++                  // bright green
+          zxPalEntry(13,  0x00, 0xFF, 0xFF) ++                  // bright cyan
+          zxPalEntry(14,  0xFF, 0xFF, 0x00) ++                  // bright yellow
+          zxPalEntry(15,  0xFF, 0xFF, 0xFF)                     // bright white
+        Seq((0 << 14) | 0) ++                                    // WAIT y=0
+          zxPalette ++
+          Seq(
+            (1 << 14) | 0x0350, 0x0081,                          // BITMAP_CTRL = en|1bpp|useSdram
+            (3 << 14) | 0                                        // JUMP 0
+          )
       case 60 =>
         // Beam Hardening BH-1 HW proof: pixel-precise Copper WAIT.
         // Single frame demonstrates sub-scanline scheduling — copper
@@ -443,52 +503,13 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0334, 0x8000,                        // op=10 highlight, invert1=0, k=0
           (3 << 14) | 0                                      // JUMP 0 (idempotent loop)
         )
-      case 50 =>
-        // Sprite Phase 2 HW proof (CyanPeak #8627). Programs slots 4..7
-        // with explicit word-8 Hardening field writes covering both the
-        // bppSel and 4-level priority axes:
-        //
-        //   Slot 4  x= 60  patIdx=0  4bpp  priority=2  → diamond, always-above
-        //   Slot 5  x=160  patIdx=1  4bpp  priority=0  → cross, only-on-transparent
-        //   Slot 6  x=280  patIdx=0  2bpp  priority=2  → diamond as 2bpp, always-above
-        //   Slot 7  x=380  patIdx=1  1bpp  priority=0  → cross as 1bpp, only-on-transparent
-        //
-        // Word 8 bus addresses live at 0x0D20+slot per the Phase 2
-        // bus-map (de63ede). Word-8 layout:
-        //   {sizeSel[15:14], paletteBank[13:11], priority[10:9],
-        //    flipH[8], flipV[7], bppSel[6:5], _[4:0]}
-        // sizeSel=01 (16×16 default) and paletteBank=0 throughout so the
-        // proof isolates bppSel + priority differences from sizeSel /
-        // bank effects.
-        def w8(sizeSel: Int, paletteBank: Int, priority: Int,
-               flipH: Boolean, flipV: Boolean, bppSel: Int): Int =
-          ((sizeSel & 0x3) << 14) | ((paletteBank & 0x7) << 11) |
-            ((priority & 0x3) << 9) |
-            ((if (flipH) 1 else 0) << 8) | ((if (flipV) 1 else 0) << 7) |
-            ((bppSel & 0x3) << 5)
-        // sizeSel=11 (64×64) so sprites are visible to off-axis camera
-        // captures (Wyze RTSP). Spread across 1280px so all four are
-        // unambiguously distinct.
-        Seq(
-          (0 << 14) | 0,                                     // WAIT y=0
-          // Slot 4 — 4bpp diamond, priority=2 (always above).
-          (1 << 14) | 0x0820, 0x8000 | 320,
-          (1 << 14) | 0x0821, 160,
-          (1 << 14) | 0x0D24, w8(3, 0, 2, flipH = false, flipV = false, bppSel = 0),
-          // Slot 5 — 4bpp cross, priority=0 (only-on-transparent-BG).
-          (1 << 14) | 0x0828, 0x8000 | (1 << 11) | 320,
-          (1 << 14) | 0x0829, 400,
-          (1 << 14) | 0x0D25, w8(3, 0, 0, flipH = false, flipV = false, bppSel = 0),
-          // Slot 6 — 2bpp diamond, priority=2.
-          (1 << 14) | 0x0830, 0x8000 | 320,
-          (1 << 14) | 0x0831, 640,
-          (1 << 14) | 0x0D26, w8(3, 0, 2, flipH = false, flipV = false, bppSel = 1),
-          // Slot 7 — 1bpp cross, priority=0.
-          (1 << 14) | 0x0838, 0x8000 | (1 << 11) | 320,
-          (1 << 14) | 0x0839, 880,
-          (1 << 14) | 0x0D27, w8(3, 0, 0, flipH = false, flipV = false, bppSel = 2),
-          (3 << 14) | 0
-        )
+      // Note: the legacy Phase 2 sprite hardening HW proof previously
+      // occupied scenario 50. The team repurposed scenario 50 for the
+      // ZX Spectrum adapter (Task 50, mail #8666/#8667/#8669). The
+      // Phase 2 historical proof is preserved at commit `39a7242` and
+      // captures/sprite_phase2_sc50/ — its bitstream is no longer
+      // rebuildable from this tree. See the new `case 50 =>` block
+      // earlier in this match for the active ZX Spectrum scenario.
       case 45 =>
         // Task 44b CP-B hardware proof: SDRAM-backed bitmap + attribute
         // fetch. Bootstrap writes BITMAP_CTRL = 0x0081 (enable | 1bpp
@@ -716,7 +737,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 51 || scenarioId == 52 || scenarioId == 60) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 50 || scenarioId == 51 || scenarioId == 52 || scenarioId == 60) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -741,6 +762,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 51          => 0x0005  // Sc51 (CW HW proof): L0 + sprite (sprite is masked in window region)
       case 52          => 0x0005  // Sc52 (CW-6 sprite proof): L0 + sprite, programmed sprite at x=288/y=80
       case 60          => 0x0001  // Sc60 (BH-1 pixel-precise WAIT proof): L0 only
+      case 50          => 0x0001  // Sc50 (Task 50 ZX Spectrum): L0 only — bitmap+attr fetch
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
@@ -1637,9 +1659,6 @@ object TopTang20kHdmiScenario45Verilog extends App {
 object TopTang20kHdmiScenario20Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 20))   // Task 40 first platform adapter (C64 raster+sprite smoke)
 }
-object TopTang20kHdmiScenario50Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 50))   // Phase 2 sprite hardening HW proof (bppSel + 4-level priority)
-}
 object TopTang20kHdmiScenario51Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 51))   // Color/Window Hardening HW proof (CW-1/4/5/6 in one frame)
 }
@@ -1648,4 +1667,7 @@ object TopTang20kHdmiScenario52Verilog extends App {
 }
 object TopTang20kHdmiScenario60Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 60))   // Beam Hardening BH-1 pixel-precise Copper WAIT proof
+}
+object TopTang20kHdmiScenario50Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 50))   // Task 50 ZX Spectrum Adapter HW proof
 }
