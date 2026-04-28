@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-28 (Beam Hardening implementation code-complete #8658; pending CyanPeak audit; Color/Window DONE #8654)
+**Updated:** 2026-04-28 (Beam Hardening DONE #8660; no active lane — all substrate + Task 40 complete; awaiting PM reassessment)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,14 +26,14 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Beam-Driven Automation Hardening — Implementation** |
-| **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
-| **Owner** | BrightForge |
+| **Task** | **None — all substrate hardening + Task 40 complete** |
+| **Status** | **CLOSED** |
+| **Phase** | — |
+| **Owner** | — |
 | **Latest Commit** | `6345fcc` (BH-1..BH-6 implementation + sc60 HW proof) |
-| **Latest Auth Mail** | #8658 (BrightForge implementation completion packet) |
-| **Next Deliverable** | CyanPeak implementation audit |
-| **Coding Authorized** | **YES** — #8656 |
+| **Latest Auth Mail** | #8660 (CyanPeak implementation audit PASS) |
+| **Next Deliverable** | PM reassessment for next adapter lane selection |
+| **Coding Authorized** | **NO** — no live lane |
 
 **Previous lane:** Color/Window Hardening — Implementation | DONE | `0f5dc65` | Audit PASS #8654, CW-1/2/3/4/5/6 all proven, sc51+sc52 HW evidence
 

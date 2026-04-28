@@ -113,7 +113,7 @@ This file is planning guidance, not status authority. `TASKS.md` remains the liv
 
 ---
 
-### Priority D — Beam-Driven Automation Hardening 🔄 IN-PROGRESS
+### Priority D — Beam-Driven Automation Hardening ✅ DONE
 
 **Why fourth:**
 
@@ -183,7 +183,7 @@ The hardening backlog execution order has been:
 1. **Mode0 Fetch Envelope Hardening** — DONE
 2. **Mode0 Sprite Envelope Hardening** — DONE (including Phase 2 + 2-bis)
 3. **Color / Window Envelope Hardening** — DONE (BrightForge, audit PASS #8654)
-4. **Beam-Driven Automation Hardening** — IN-PROGRESS (CoralReef artifact, pending CyanPeak audit)
+4. **Beam-Driven Automation Hardening** — DONE (BrightForge implementation `7c2a18b..6345fcc`; CyanPeak audit PASS #8660)
 
 Only after Beam Hardening closes should adapter lanes open.
 
