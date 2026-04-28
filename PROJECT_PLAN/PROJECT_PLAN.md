@@ -8,12 +8,8 @@
 ## Reading Order
 
 1. `PROJECT_PLAN.md` — current architecture snapshot, document precedence, and working rules
-2. `MODE0_ROADMAP.md` — strategic capability build order for the `Mode0` substrate
+2. `MODE0_PLANNING.md` — consolidated Mode0 strategy: capability envelope, stop-lines, roadmap, coverage, and backlog
 3. `ADAPTER_NUANCES.md` — platform-facing visual rules and adapter fidelity expectations
-4. `MODE0_STOPLINES.md` — quantified Tang Nano 20K growth limits for `Mode0`
-5. `MODE0_MAX_CAPABILITIES.md` — intended superset envelope for shared `Mode0` primitives
-6. `MODE0_COVERAGE_MATRIX.md` — current coverage state of the intended `Mode0` envelope
-7. `MODE0_HARDENING_BACKLOG.md` — prioritized shared-gap closure order before harder adapters
 8. `TASK_TEMPLATE.md` — reusable planning template for turning roadmap items into bounded execution tasks
 9. `TASKS.md` — authoritative execution order and task status
 10. `CONVENTIONS.md` — coding, naming, clock/reset, and simulation rules
@@ -140,4 +136,4 @@ The current validated baseline is **past the entire mainline substrate construct
 - Additional platform adapters (Amiga, Genesis/MD, SNES)
 - Substrate hardening if adapter gaps emerge
 
-For the strategic `Mode0` build order and adapter roadmap, use `MODE0_ROADMAP.md`. For the authoritative execution ledger, use `TASKS.md`.
+For the strategic `Mode0` build order and adapter roadmap, use `MODE0_PLANNING.md` §3 (Strategic Roadmap). For the authoritative execution ledger, use `TASKS.md`.

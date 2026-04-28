@@ -487,7 +487,7 @@ These are not implementation tasks. Each scenario must be run against hardware a
 
 ## R-Roadmap Execution Tasks
 
-These tasks track the post-roadmap primitive build order defined in `MODE0_ROADMAP.md`.
+These tasks track the post-roadmap primitive build order defined in `MODE0_PLANNING.md` §3 (Strategic Roadmap).
 
 ### R1 — Raster Trigger Unit
 
@@ -1036,7 +1036,7 @@ Do not open an adapter lane until both are true:
 
 - Gap analysis of planar fetch vs. Amiga/ST pressure
 - Gap analysis of shuffled/bitmap+attribute fetch vs. ZX Spectrum pressure
-- Strengthened fetch paths still within `MODE0_STOPLINES.md`
+- Strengthened fetch paths still within `MODE0_PLANNING.md` §2 (Resource Stop-Lines)
 
 **validation:** Hardware proof on Tang Nano 20K; all existing regressions pass.
 

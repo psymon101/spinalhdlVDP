@@ -18,7 +18,7 @@ It is a planning reference for:
 
 If this file and `TASKS.md` disagree on task ordering or status, `TASKS.md` wins.
 
-If this file and `MODE0_ROADMAP.md` disagree on substrate readiness, `MODE0_ROADMAP.md` wins.
+If this file and `MODE0_PLANNING.md` §3 (Strategic Roadmap) disagree on substrate readiness, `MODE0_PLANNING.md` §3 (Strategic Roadmap) wins.
 
 ---
 
@@ -85,7 +85,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### Commodore 64
 
-**Minimum readiness:** through `R3` per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:451)
+**Minimum readiness:** through `R3` per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -124,7 +124,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### ZX Spectrum
 
-**Minimum readiness:** through `R7.2` per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:462)
+**Minimum readiness:** through `R7.2` per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -161,7 +161,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### NES / Famicom
 
-**Minimum readiness:** through `R4` per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:452)
+**Minimum readiness:** through `R4` per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -197,7 +197,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### TMS9918-family (ColecoVision / SG-1000 / MSX1-class)
 
-**Minimum readiness:** through `R4` per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:453)
+**Minimum readiness:** through `R4` per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -228,7 +228,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### Master System / Game Gear
 
-**Minimum readiness:** through `R4` per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:454)
+**Minimum readiness:** through `R4` per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -259,7 +259,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### MSX2
 
-**Minimum readiness:** through `R5` per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:455)
+**Minimum readiness:** through `R5` per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -288,7 +288,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### PC Engine / TurboGrafx-16
 
-**Minimum readiness:** through `R5` per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:456)
+**Minimum readiness:** through `R5` per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -317,7 +317,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### Genesis / Mega Drive
 
-**Minimum readiness:** through `R6`, with scroll-table primitive complete, per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:457)
+**Minimum readiness:** through `R6`, with scroll-table primitive complete, per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -353,7 +353,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### SNES / Super Famicom
 
-**Minimum readiness:** through `R6`, plus `R8` for Mode 7, per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:458)
+**Minimum readiness:** through `R6`, plus `R8` for Mode 7, per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -390,7 +390,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### Amiga (OCS/ECS-class)
 
-**Minimum readiness:** through `R7`, with `R5` especially important, per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:459)
+**Minimum readiness:** through `R7`, with `R5` especially important, per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -426,7 +426,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### Atari ST
 
-**Minimum readiness:** through `R7` per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:460)
+**Minimum readiness:** through `R7` per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 
@@ -456,7 +456,7 @@ Artifacts or behaviors that are visible to the user even if they are not "featur
 
 ### Neo Geo
 
-**Minimum readiness:** through `R7` per [MODE0_ROADMAP.md](/home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/MODE0_ROADMAP.md:461)
+**Minimum readiness:** through `R7` per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
 
 **Pixel shape / scaling**
 

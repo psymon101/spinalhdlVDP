@@ -249,7 +249,7 @@ It does **not** need to prove:
 - Do not let this demo silently become a formal backlog commitment.
 - Do not treat success here as proof that full-framebuffer video streaming is generally cheap on Tang Nano 20K.
 - Do not widen `Mode0` for demo-only convenience without a separate architectural decision.
-- Do not let the fun demo override `MODE0_STOPLINES.md`.
+- Do not let the fun demo override `MODE0_PLANNING.md` §2 (Resource Stop-Lines).
 
 ---
 

@@ -7,7 +7,7 @@
 
 ## Why This Exists
 
-`MODE0_ROADMAP.md` defines strategic capability order.
+`MODE0_PLANNING.md` §3 (Strategic Roadmap) defines strategic capability order.
 
 `TASKS.md` is the authoritative execution/status ledger.
 
