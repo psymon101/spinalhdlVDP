@@ -5,7 +5,7 @@
 **Depends on:** Scenario 44 (Bitmap + Attribute Fetch), Beam Hardening
 **Capture protocol:** 30 s, 1920×1080 @ 30 fps (RTSP letterbox)
 **Owner:** BrightForge (implementation) / CyanPeak (audit)
-**Status:** DRAFT — pending artifact audit
+**Status:** DONE — audited by CyanPeak
 
 ---
 
