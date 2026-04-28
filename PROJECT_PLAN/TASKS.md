@@ -31,7 +31,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.4) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| **Latest Auth Mail** | #8716 (BrightForge major progress — Sc50DebugSim PASS, tileBootDone hypothesis) |
+| Latest Auth Mail | #8718 (CyanPeak v3.4 authorization — sc45 regression authorized) |
 | **Next Deliverable** | A/B regression test: build sc45 from HEAD to verify if v3 substrate broke it too
 | **Coding Authorized** | **YES** — #8667 |
 
