@@ -125,7 +125,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | 8 | `DMA_DONE` | `DmaEngine.io.done` — sticky pulse on transfer complete | **Task 47** |
 | 9 | `BLIT_DONE` | `BlitterEngine.io.done` — sticky pulse on block transfer complete | **Task 49** |
 | 10 | `BLIT_BUSY` | `BlitterEngine.io.busy` — live read-only; **not routed into `statusStickyReg`** | **Task 49** |
-| 6..7, 11..15 | *reserved* | — | — |
+| 11 | `MODE_SELECT_CHANGED` | `MODE_SELECT` committed at `V=0` | **Task 51** |
+| 6..7, 12..15 | *reserved* | — | — |
 
 `STATUS_ENABLE` (`0x0321`) is the per-bit IRQ mask using the same bit layout; commit is safe-boundary at `hCounter === 0`.
 

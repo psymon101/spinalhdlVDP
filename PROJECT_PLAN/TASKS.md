@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-28 (MODE_SELECT architecture v1.0 drafted; Task 51 added; Task 50 v3 remains IN-PROGRESS)
+**Updated:** 2026-04-28 (MODE_SELECT architecture audit PASS #8684; Task 50 v3 remains IN-PROGRESS)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -1265,7 +1265,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 51 — MODE_SELECT Runtime Adapter Selection
 
-**Status:** TODO
+**Status:** TODO (Architecture Audit PASS #8684)
 **depends_on:** [32b, 40, 50 v3]
 **scope_boundary:** Infrastructure only. No new platform adapter behavior. No new substrate primitives. No changes to QSPI packet format (reuse REG_WRITE). No adapter-specific register semantics beyond gating.
 **delivers:**

@@ -1,10 +1,10 @@
 # MODE_SELECT Architecture — Runtime Platform Adapter Selection
 
-**Version:** 1.0-draft  
-**Author:** CoralReef  
-**Date:** 2026-04-28  
-**Status:** Spec drafted — pending PM review / audit  
-**Governing directive:** BronzeGate #8679 / #8680
+**Version:** 1.1
+**Author:** CoralReef
+**Date:** 2026-04-28
+**Status:** Revised per PM #8687 (BronzeGate) + BrightForge #8685 + CyanPeak #8684. Awaiting audit of corrected spec.
+**Governing directive:** BronzeGate #8679 / #8680 / #8687 / #8688
 
 ---
 
@@ -92,28 +92,42 @@ Multiple adapters active simultaneously, each driving a different layer (e.g., C
 ### 4.1 High-level model
 
 ```
-Host QSPI
-   │ REG_WRITE addr/data
+All writers (QSPI, Copper, HDMA, Bootstrap)
+   │ Mode0RegBus(addr, data, enable)
    ▼
-┌──────────────────────────────────────┐
-│  AdapterRegRouter                    │  ← NEW
-│   - Splits QSPI writes:              │
-│      • Mode0 global regs → arbiter   │
-│      • Adapter-local regs → active   │
-│        adapter regAddr/regData/regWr │
-└──────────────────────────────────────┘
-   │                    │
-   │ Mode0 regs         │ Adapter regs
-   ▼                    ▼
-RegBusArbiter      ┌─────────────┐
-(master 0..2)      │   Adapter   │
-   │               │   Mux       │  ← NEW
-   ▼               │  (modeSel)  │
-VdpTop.io.regBus   └──────┬──────┘
-                          │ active adapter bus
-                          ▼
-                    RegBusArbiter master 2
+┌──────────────────────────────────────────┐
+│  RegBusArbiter (masters 0..2)            │
+│   master 0 = bootstrap                   │
+│   master 1 = QSPI                        │
+│   master 2 = animator (future: adapter)  │
+└──────────────────┬───────────────────────┘
+                   │ mixed Mode0RegBus
+                   ▼
+┌──────────────────────────────────────────┐
+│  VdpTop.io.regBus                        │
+│   ├─ Global registers → consumed inside  │
+│   │  VdpTop (safe-boundary commit)       │
+│   └─ AdapterRegRouter (NEW)              │
+│      ├─ Mode0 global regs → pass through │
+│      └─ Adapter-local regs → active      │
+│         adapter regAddr/regData/regWr    │
+└──────────────────┬───────────────────────┘
+                   │
+        ┌─────────┴──────────┐
+        ▼                    ▼
+   VdpTop logic      ┌─────────────┐
+                      │   Adapter   │
+                      │   Bus Mux   │ ← NEW
+                      │  (modeSel)  │
+                      └──────┬──────┘
+                             │ active adapter bus
+                             ▼
+                       RegBusArbiter master 2
+                              (future:
+                               replaces animator)
 ```
+
+**Critical correction (BrightForge #8685 §2.1):** `AdapterRegRouter` lives **inside `VdpTop` scope on the unified post-arbitration bus**, not as a QSPI-only splitter. Copper, HDMA, and bootstrap can all generate writes that fall in adapter-local address ranges; the router must be mode-aware for **all** writers, or the quiescence claim is false.
 
 ### 4.2 MODE_SELECT register
 
@@ -123,8 +137,13 @@ VdpTop.io.regBus   └──────┬──────┘
 | `MODE_SELECT` | `0x0313` | `[7:4]` | reserved (write 0) |
 | `MODE_SELECT` | `0x0313` | `[15:8]` | `MODE_FLAGS` — see §4.6 |
 
-- Safe-boundary committed at `hCounter === 0` (same as all global registers).
-- Default after reset: `0x0000` (Native Mode0).
+**Commit boundary:** `V = 0` (vertical blanking start / vsync rising edge). Frame-atomic only for v1.  
+**Write authority:** Host/QSPI-only for v1. Copper/HDMA writes to `0x0313` are silently dropped by `AdapterRegRouter`.  
+**Default after reset:** `0x0000` (Native Mode0).
+
+**Host observability (CyanPeak #8684 / BronzeGate #8687 §3):**
+- `LIVE_MODE` — live readback of the currently committed mode ID (e.g., mapped into a `READ_STATUS` response slot or exported as a `VdpTop.io` field).
+- `MODE_SELECT_CHANGED` — sticky status bit in `STATUS_STICKY` (`0x0320`), set when `MODE_SELECT` commits at `V=0`. Write-1-to-clear. Lets the host poll for commit completion before issuing platform-specific traffic.
 
 ### 4.3 Adapter-local register address map
 
@@ -140,6 +159,17 @@ Adapter registers are accessed through **Mode0 REG_WRITE** at the addresses belo
 | (future) SNES | `0x1300..0x13FF` | 256 bytes | `addr[7:0]` |
 | (future) Amiga | `0x1400..0x14FF` | 256 bytes | `addr[7:0]` |
 | (future) Atari ST | `0x1500..0x15FF` | 256 bytes | `addr[7:0]` |
+
+**Palette slot reservation (BrightForge #8685 §2.6):**
+
+Adapters may need dedicated palette entries for "border" or spare colors that do not collide with the platform's normal palette usage. Reserve slots 24..31:
+
+| Slot | Reserved for |
+|---|---|
+| 24 | ZX Spectrum border |
+| 25 | C64 border / spare |
+| 26 | NES border / spare |
+| 27..31 | Future adapters |
 
 **Rules:**
 - Writes to an adapter range when that adapter is **inactive** are silently dropped (router does not assert `regWr`).
@@ -158,12 +188,26 @@ io.busData := active ? busDataInternal | B(0, 16 bits)
 io.busWr   := active && busWrInternal
 ```
 
-Direct outputs (raster trigger, sprite pins, etc.) must also be gated:
-```scala
-io.rasterTriggerLine   := active ? rasterLineInternal | U(0, 10 bits)
-io.sprite0X            := active ? sprite0XInternal    | U(0, 10 bits)
-// etc.
-```
+Direct outputs must also be gated. The **full inventory** of `VdpTop.io` inputs that adapters may drive (BrightForge #8685 §2.4):
+
+| Signal | Width | Default when inactive |
+|---|---|---|
+| `sprite0X..sprite3X` | 10 bits each | `0` |
+| `sprite0Y..sprite3Y` | 10 bits each | `0` |
+| `sprite0Enabled..sprite3Enabled` | 1 bit each | `False` |
+| `sprite0PatternIdx..sprite3PatternIdx` | 1 bit each | `0` |
+| `rasterTriggerLine` | 10 bits | `0` |
+| `rasterTriggerEnable` | 1 bit | `False` |
+| `rasterTriggerClear` | 1 bit | `False` |
+| `layer0UseSdram` | 1 bit | `False` |
+| `layer0SdramPixel` | 4 bits | `0` |
+| `layer0SdramBank` | 3 bits | `0` |
+| `layer0SdramPriority` | 1 bit | `False` |
+| `layer0TestPatternEnable` | 1 bit | `False` |
+| `layer0TestPatternSelect` | 3 bits | `0` |
+| `layer0ScrollX/Y..layer3ScrollX/Y` | 10 bits each | `0` |
+
+**Critical:** If an adapter does not drive a given `VdpTop.io` input, that input must still receive a defined default when the adapter is inactive. Do not leave inputs floating or driven by stale state.
 
 This guarantees that an inactive adapter cannot:
 - Emit spurious bus writes
@@ -190,20 +234,52 @@ regBusArbiter.io.masters(2) <> adapterBusMux
 
 The old per-scenario `c64Demo`/`zxDemo` animator paths are replaced by always-instantiated adapters.
 
+**Demo wrapper deprecation (BrightForge #8685 §2.5 / BronzeGate #8687 §6):**
+`C64DemoAnimator` and `ZXSpectrumDemo` are temporary proof infrastructure, not the long-term runtime-control model. They synthesize host-style register writes from hardcoded programs for scenario-based hardware proof. With runtime `MODE_SELECT`, the long-term expectation is:
+- MCU firmware drives adapter-local registers via `AdapterRegRouter`.
+- Mode switching does not depend on permanent scenario-specific HDL demo animators.
+- Demo wrappers may be retained as optional compile-time test helpers, but they are **not** part of the production runtime model.
+
 ### 4.6 Mode-switch lifecycle
 
+**Frame-atomic commit at `V=0` (BronzeGate #8687 §1 / CyanPeak #8684):**
+
 1. **Host writes `MODE_SELECT`** via QSPI REG_WRITE to `0x0313`.
-2. **Safe-boundary commit** latches the new mode at next `hCounter === 0`.
-3. **Adapter mux switches** — new adapter's bus/direct outputs become active.
-4. **Host re-initializes** the target platform:
+2. **Shadow register latches** the new mode immediately in `VdpTop`.
+3. **Frame-atomic commit** transfers the shadow to the live register at the next `V=0` (vsync rising edge). `MODE_SELECT_CHANGED` sticky bit sets at this moment.
+4. **Copper auto-disable:** `copperEnable` is forced to `0` at `V=0` commit (mode switch stops the old copper program). The host must upload a new copper program before re-enabling.
+5. **Optional `MODE_FLAGS[0]` — auto-reset:** If set, the mode switch also triggers automatic `LAYER_ENABLE=0` at `V=0`. This gives the host a clean slate.
+6. **Host re-initializes** the target platform after observing `MODE_SELECT_CHANGED=1` (or polling `LIVE_MODE`):
    - Upload assets to SDRAM (tilemaps, patterns, bitmaps, attributes)
    - Write adapter-local registers (e.g., C64 $D011, ZX `ZX_BORDER`)
    - Write global Mode0 registers (scroll, layer enable, window)
-5. **Optional `MODE_FLAGS[0]` — auto-reset:** If bit 8 of `MODE_SELECT` is set, the mode switch also triggers an automatic `LAYER_ENABLE=0` and palette clear. This gives the host a clean slate without multiple writes.
+   - Upload new copper program to `0x0400..0x05FF` and re-enable copper
 
 **State preservation rule:**
 - Adapter shadow RAMs are **preserved** across mode switches. If the host switches from C64 to ZX and back to C64, the C64 shadow registers retain their last values. This is cheap (no reset logic) and harmless because the adapter is gated.
-- `VdpTop` internal state (palette RAM, linestate, scroll) is **NOT** auto-cleared. The host must reconfigure or rely on the auto-reset flag.
+- `VdpTop` internal state (palette RAM, linestate, scroll) is **NOT** auto-cleared unless `MODE_FLAGS[0]` is set. The host must reconfigure or rely on the auto-reset flag.
+
+**Copper program ownership (BrightForge #8685 §2.3):**
+- Each mode owns its copper program. The old mode's program is NOT automatically preserved or migrated.
+- On mode switch, copper stops (`copperEnable=0`). The host must upload the new program before re-enabling.
+- A `COPPER_RAM_CLEAR` flag in `MODE_FLAGS[1]` may be added in a future revision to zero the copper RAM before upload.
+
+### 4.8 Scenario/bootstrap caveat (BronzeGate #8687 §7)
+
+**Runtime mode select is NOT the same as automatic runtime scene migration.**
+
+`TopTang20kHdmi` contains dozens of compile-time `case scenarioId` blocks that drive bootstrap defaults: `layerData`, `tileModeData`, `attrModeData`, `copperProgram`, `winX0Data..winY1Data`, `colorMathData`, sprite defaults, animator selection, etc. These are baked at synthesis time.
+
+Migrating to genuine runtime mode-switch requires the host to take over the bootstrap role:
+- The host must upload the copper program, set scroll values, configure layers, and load assets **after** selecting a mode.
+- The FPGA bitstream provides the adapters and substrate; it does **not** provide pre-baked scenes for every mode.
+- A mode-switch without host re-initialization produces undefined rendering (stale palette, wrong tile mode, missing assets).
+
+**Implication:** The first hardware proof of runtime mode-switch needs either:
+- (a) Pico firmware that performs the full host re-init sequence, or
+- (b) a compile-time "dual-scenario stub" that pre-loads two minimal scenes so the mode switch is visible without full host firmware.
+
+Option (b) is acceptable for the initial Task 51 proof. Option (a) is the long-term target.
 
 ### 4.7 Shared-vs-adapter-local register policy
 
@@ -342,7 +418,7 @@ Adapters must NOT claim global Mode0 registers as their own. They translate plat
 |---|---|---|
 | **Tier 1 — lightweight** | ZX Spectrum, C64, TMS9918, Master System, Atari ST | ✅ Yes — combined adapter cost < 1,000 LUT |
 | **Tier 2 — medium** | NES, PC Engine, MSX2 | ✅ Yes — but need sprite expansion (32→64/80) |
-| **Tier 3 — heavy** | Genesis, Neo Geo | ⚠️ Maybe — requires sprite expansion; marginal with Tier 1+2 together |
+| **Tier 3 — heavy** | Genesis, Neo Geo | ❌ **Excluded** from default-image coexistence until sprite-capacity expansion (32→80/128) lands as a proven substrate task. BrightForge #8685 §4: current 32-descriptor evaluator already stressed LUT budget during prior bumps; doubling is not free. |
 | **Tier 4 — massive** | SNES, Amiga | ❌ No — likely needs dedicated bitstream or Option D build |
 
 **Recommendation:** Default `MODE_SELECT` bitstream includes Tier 1 + Tier 2. Tier 3 and 4 are either Option D build variants or future separate bitstreams.
@@ -417,7 +493,7 @@ Total MODE_SELECT infrastructure: **~100 LUT**.
 | 1 | Write `MODE_SELECT=0x2` → ZX adapter bus becomes active, C64 bus gated to 0 | PASS |
 | 2 | Write adapter reg to `0x0F05` while mode=0x2 → ZX adapter receives `regAddr=0x05` pulse | PASS |
 | 3 | Write adapter reg to `0x0E05` while mode=0x2 → no pulse to C64 adapter (dropped) | PASS |
-| 4 | Mode switch 0x2→0x1 mid-frame → no glitches on bus; outputs switch at safe boundary | PASS |
+| 4 | Mode switch 0x2→0x1 mid-frame → commit delayed to next `V=0`; no split-frame glitches | PASS |
 | 5 | All inactive adapters assert `busWr=False` simultaneously → arbiter sees only active adapter | PASS |
 
 ### 8.2 Regression simulation
@@ -443,24 +519,26 @@ Total MODE_SELECT infrastructure: **~100 LUT**.
 | **Adapter direct outputs not yet bus-mapped** | Raster trigger, sprite pins bypass bus; requires direct gating | Gate in adapter + mux at `TopTang20kHdmi` |
 | **Sprite descriptor count (32)** | NES needs 64, Genesis 80, SNES 128 | Substrate expansion task required before Tier 2/3 adapters |
 | **Mode7 / affine is proven but not adapter-wrapped** | SNES Mode 7 would need adapter-level matrix upload | Straightforward mapping once adapter exists |
-| **No host-visible "mode ready" status bit** | Host doesn't know when safe-boundary commit occurred | Could add `MODE_SELECT_CHANGED` sticky bit in `STATUS_STICKY` |
+| **Runtime scene migration** | `TopTang20kHdmi` bootstrap is compile-time scenarioId-dependent; runtime mode switch needs host-side re-init | Documented in §4.8; accept dual-scenario stub for initial proof, Pico firmware for long-term |
 | **Tier 3/4 adapter honesty** | Genesis/SNES/Amiga adapters need more substrate than currently proven | Do not claim these as runtime-selectable until substrate gaps close |
 
 ---
 
 ## 10. Open Questions
 
-1. **Should `MODE_SELECT` be writeable from Copper/HDMA?** Currently all global registers are. If Copper can switch modes mid-frame, the adapter mux changes mid-line — safe-boundary commit handles it, but the visual result may be a mode switch at line 0. Acceptable?
-2. **Should we add a `MODE_SELECT_CHANGED` sticky status bit?** This would let the host poll for safe-boundary commit completion instead of blind-waiting one frame.
-3. **Should adapter-local registers be readable via READ_STATUS?** The QSPI protocol supports READ_STATUS with `sel` byte. We could map adapter shadow read-back through this path, but it adds significant complexity.
-4. **Tier 2 ordering:** After MODE_SELECT infrastructure is proven, which Tier 2 adapter should be implemented first — NES (highest reuse) or Atari ST (lowest cost)?
+1. ~~Should `MODE_SELECT` be writeable from Copper/HDMA?~~ **DECIDED: NO for v1.** Host/QSPI-only. Copper/HDMA writes to `0x0313` are silently dropped.
+2. ~~Should we add a `MODE_SELECT_CHANGED` sticky status bit?~~ **DECIDED: YES.** Added to `STATUS_STICKY` (`0x0320`).
+3. ~~Should adapter-local registers be readable via READ_STATUS?~~ **DECIDED: NO for v1.** Host shadows in MCU RAM.
+4. **Tier 2 ordering:** After MODE_SELECT infrastructure is proven, which Tier 2 adapter should be implemented first? BrightForge recommends **Atari ST** (lowest cost, minimum substrate risk). NES second (highest leverage but needs sprite expansion).
+5. **Should `MODE_FLAGS[1]` add `COPPER_RAM_CLEAR`?** Proposed by BrightForge #8685 §2.3. Worth adding in v1.1 or defer to v2?
+6. **Should `LIVE_MODE` live in `READ_STATUS` or as a dedicated `VdpTop.io` output?** `READ_STATUS` is more host-friendly; `io` output is easier for on-FPGA test logic.
 
 ---
 
 ## 11. Recommendation
 
-1. **Approve this architecture** (Option B with Tier 1+2 default, Tier 3/4 as Option D builds).
-2. **Assign BrightForge** to implement `MODE_SELECT` infrastructure: `AdapterRegRouter`, `AdapterBusMux`, output gating on C64 + ZX adapters, `VdpTop` `0x0313` register.
-3. **Assign CyanPeak** to audit the architecture and sim plan before HDL merge.
-4. **After MODE_SELECT infra is proven**, open adapter lanes for Tier 1 platforms (Atari ST is cheapest; NES is highest leverage).
+1. **Approve this architecture** (Option B with Tier 1+2 default, Tier 3/4 excluded from default bitstream).
+2. **Assign CyanPeak** to audit this corrected spec (v1.1) before HDL work begins.
+3. **Assign BrightForge** to implement `MODE_SELECT` infrastructure ONLY after corrected spec audit PASS. Implementation order: register+V=0 commit → adapter gating → bus mux → unified-path router → pilot proof.
+4. **After MODE_SELECT infra is proven**, open adapter lanes for Tier 1 platforms. **Atari ST first** (BrightForge #8685 recommendation) due to lowest substrate risk.
 5. **Do NOT** claim Genesis/SNES/Amiga as runtime-selectable in the default bitstream until sprite-capacity expansion and other substrate gaps are closed.
