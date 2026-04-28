@@ -173,6 +173,19 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
         Some(d)
       } else None
 
+    // Task 50 v2 Slice B — Scenario 50: instantiate the ZX Spectrum demo
+    // animator only when selected. Owns ZXSpectrumAdapter; drives it
+    // through a small startup sequence (ZX_CTRL=1 once → LAYER_ENABLE
+    // emit) plus a per-vsync ZX_BORDER cycler. Its bus output is
+    // routed to the same RegBusArbiter animator slot as c64Demo (only
+    // one of the two scenarios runs at a time).
+    val zxDemo: Option[ZXSpectrumDemo] =
+      if (scenarioId == 50) {
+        val d = ZXSpectrumDemo()
+        d.io.vsyncRising := vsyncRising
+        Some(d)
+      } else None
+
     val frameCounter = Reg(UInt(10 bits)) init 0
     when(vsyncRising) {
       frameCounter := frameCounter + 1
@@ -907,6 +920,12 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       } else if (scenarioId == 20) {
         // Task 40 Sc20: animator bus slot is driven by C64Adapter output.
         (c64Demo.get.io.busAddr, c64Demo.get.io.busData, c64Demo.get.io.busWr)
+      } else if (scenarioId == 50) {
+        // Task 50 v2 Sc50: animator bus slot is driven by ZX Spectrum
+        // adapter output. Demo wrapper drives ZX_CTRL once + cycles
+        // ZX_BORDER per ~30 vsyncs so the adapter's emitter is
+        // exercised at runtime through RegBusArbiter master 2.
+        (zxDemo.get.io.busAddr, zxDemo.get.io.busData, zxDemo.get.io.busWr)
       } else {
         (U(0, 15 bits), B(0, 16 bits), False)
       }
