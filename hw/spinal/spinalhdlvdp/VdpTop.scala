@@ -237,7 +237,7 @@ case class VdpTop() extends Component {
   // Task 33: depth widened from 4 → 32 so a copper bootstrap script can fire
   // a burst of writes (e.g. HDMA config is 11 back-to-back writes) without
   // FIFO-full drops. Drain is still 1/line at hCounter===0.
-  val copperFifo = spinal.lib.StreamFifo(dataType = Bits(31 bits), depth = 32)
+  val copperFifo = spinal.lib.StreamFifo(dataType = Bits(31 bits), depth = 128)
   copperFifo.io.push.valid   := copper.io.regWr
   copperFifo.io.push.payload := (copper.io.regAddr.asBits ## copper.io.regData).asBits.resize(31)
   val extHit     = io.regBus.enable
