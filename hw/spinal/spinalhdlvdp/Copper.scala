@@ -226,28 +226,53 @@ case class Copper() extends Component {
   // ------------------------------------------------------------------
   val NUM_CH  = 4
   val NUM_ENT = 8
-  val hdmaEnable = Reg(Bool()) init False
-  val hdmaChMask = Reg(Bits(4 bits)) init 0
-  val hdmaDoneSt = Reg(Bool()) init False
+  val hdmaEnable   = Reg(Bool()) init False
+  val hdmaChMask   = Reg(Bits(4 bits)) init 0
+  val hdmaDoneSt   = Reg(Bool()) init False
+  // BH-4: indirect-mode enable. When set, the entry's `data` field is
+  // interpreted as a pointer into hdmaDataArray; the actual register
+  // value comes from a same-cycle async read of the data array. CTRL
+  // bit[5] is the host-visible enable.
+  val hdmaIndirect = Reg(Bool()) init False
 
   val chAddr0 = Reg(UInt(15 bits)) init 0
   val chAddr1 = Reg(UInt(15 bits)) init 0
   val chAddr2 = Reg(UInt(15 bits)) init 0
   val chAddr3 = Reg(UInt(15 bits)) init 0
 
+  // BH-4 data-array write pointer: auto-incremented on every write to
+  // HDMA_DATA_WRITE (0x51). HDMA_DATA_PTR (0x50) sets it. Wraps modulo
+  // 256 so a host can stream the full array with one pointer set + 256
+  // data writes.
+  val hdmaDataPtr = Reg(UInt(8 bits)) init 0
+
   when(io.hdmaWr) {
     switch(io.hdmaCtrlAddr) {
       is(U(0x00, 7 bits)) {
-        hdmaEnable := io.hdmaData(0)
-        hdmaChMask := io.hdmaData(4 downto 1)
+        hdmaEnable   := io.hdmaData(0)
+        hdmaChMask   := io.hdmaData(4 downto 1)
+        hdmaIndirect := io.hdmaData(5)            // BH-4
       }
       is(U(0x01, 7 bits)) { when(io.hdmaData(0)) { hdmaDoneSt := False } }
       is(U(0x02, 7 bits)) { chAddr0 := io.hdmaData(14 downto 0).asUInt }
       is(U(0x04, 7 bits)) { chAddr1 := io.hdmaData(14 downto 0).asUInt }
       is(U(0x06, 7 bits)) { chAddr2 := io.hdmaData(14 downto 0).asUInt }
       is(U(0x08, 7 bits)) { chAddr3 := io.hdmaData(14 downto 0).asUInt }
+      is(U(0x50, 7 bits)) { hdmaDataPtr := io.hdmaData(7 downto 0).asUInt }   // BH-4
       default {}
     }
+  }
+
+  // BH-4 indirect data array. 256 × 16 bits. Initialised to all-zeros.
+  // Inferred as BSRAM by Gowin (one block — 4 Kb fits a single BSRAM
+  // tile easily; +1 BSRAM vs the artifact's +0 line item is the only
+  // resource overage and stays well under the 23-block green ceiling).
+  val hdmaDataArray = Mem(Bits(16 bits), 256).initBigInt(Seq.fill(256)(BigInt(0)))
+  // Auto-increment data write at HDMA_DATA_WRITE (0x51).
+  val hdmaDataWriteHit = io.hdmaWr && (io.hdmaCtrlAddr === U(0x51, 7 bits))
+  hdmaDataArray.write(hdmaDataPtr, io.hdmaData, enable = hdmaDataWriteHit)
+  when(hdmaDataWriteHit) {
+    hdmaDataPtr := hdmaDataPtr + 1
   }
 
   // Entry table: 26-bit words {valid[25], line[24:16], data[15:0]}. BH-3
@@ -329,10 +354,18 @@ case class Copper() extends Component {
   val entData  = curEntry(15 downto 0)
   val hit      = entValid && (entLine === io.vCounter(8 downto 0))
 
+  // BH-4: in indirect mode, the entry's `data` field is the pointer
+  // into hdmaDataArray; the actual register value comes from a
+  // combinational async read of the array indexed by the low 8 bits
+  // of entData. Direct mode is unchanged: the entry's data field is
+  // written verbatim.
+  val hdmaIndirectVal = hdmaDataArray.readAsync(entData(7 downto 0).asUInt)
+  val hdmaWriteData   = Mux(hdmaIndirect, hdmaIndirectVal, entData)
+
   when(sweepActive) {
     when(masked && hit) {
       hdmaRegAddr := chAddrSel(chi)
-      hdmaRegData := entData
+      hdmaRegData := hdmaWriteData
       hdmaRegWr   := True
     }
     when(sweepEnt === U(NUM_ENT - 1, log2Up(NUM_ENT) bits)) {

@@ -198,6 +198,72 @@ object CopperHdmaSim extends App {
       s"Case 6 FAIL: 8-bit-aliased lines fired (would indicate compare still using vCounter[7:0]): $aliasHits")
     println(f"Case 6 PASS: 9-bit line compare fires at 256/356 and does NOT alias to 0/100")
 
-    println(s"CopperHdmaSim: all 6 cases PASS — HDMA 9-bit line compare verified")
+    // -- Case 7 (BH-4): HDMA indirect mode ---------------------------------
+    // In indirect mode, the entry's `data` field is interpreted as a
+    // pointer into the new 256x16 data array; the actual register
+    // value comes from dataArray[ptr]. This case loads three sentinels
+    // into the data array, programs ch3 entries that point at them by
+    // pointer (NOT by value), enables indirect mode, and verifies the
+    // sweep writes the dereferenced sentinel values to chAddr3 — proving
+    // both the pointer dereference and that the data array is gated
+    // correctly behind hdmaIndirect (the same entries in direct mode
+    // would write the literal pointers, not the sentinels).
+    hdmaWrite(0x00, 0x0000)               // disable HDMA while reprogramming
+    // Clear all ch2 entries so they don't fire during this case.
+    for (e <- 0 until 8) hdmaWrite(0x0A + 2 * 16 + e * 2, 0x0000)
+    // Retarget chAddr3 = 0x5000.
+    hdmaWrite(0x08, 0x5000)
+    // BH-4 data array: HDMA_DATA_PTR (0x50), HDMA_DATA_WRITE (0x51).
+    hdmaWrite(0x50, 0x10)                 // pointer = 0x10
+    hdmaWrite(0x51, 0xDA10)               // dataArray[0x10] = 0xDA10, ptr -> 0x11
+    hdmaWrite(0x51, 0xDA11)               // dataArray[0x11] = 0xDA11, ptr -> 0x12
+    hdmaWrite(0x51, 0xDA12)               // dataArray[0x12] = 0xDA12, ptr -> 0x13
+    // Program ch3 entries: each entry's data field is the POINTER, not
+    // the value. Lines kept inside 0..255 so they fire on every frame
+    // regardless of vCounter wrap behavior in this synthetic harness.
+    writeEntry(3, 0, line = 80,  data = 0x10)   // ptr → dataArray[0x10] = 0xDA10
+    writeEntry(3, 1, line = 82,  data = 0x11)   // ptr → dataArray[0x11] = 0xDA11
+    writeEntry(3, 2, line = 84,  data = 0x12)   // ptr → dataArray[0x12] = 0xDA12
+    // Enable HDMA with INDIRECT mode (CTRL bit[5]=1) and ch3 mask bit
+    // (mask[3]=1 → CTRL bits[4:1] = 0b1000).
+    hdmaWrite(0x00, 0x0001 | (0x8 << 1) | (1 << 5))
+
+    val observed3 = scala.collection.mutable.ArrayBuffer.empty[(Int, Int, Int, Int)]
+    fork {
+      var frame = 0
+      while (frame < 1) {
+        var line = 0
+        while (line < 100) {
+          dut.io.vCounter #= line
+          var h = 0
+          while (h < hTotal) {
+            dut.io.hCounter #= h
+            dut.clockDomain.waitSampling()
+            if (dut.io.regWr.toBoolean) {
+              observed3.append((frame, line, dut.io.regAddr.toInt, dut.io.regData.toInt))
+            }
+            h += 1
+          }
+          line += 1
+        }
+        frame += 1
+      }
+    }.join()
+
+    val ch3Writes = observed3.filter(_._3 == 0x5000)
+    val expectedIndirect = Map(80 -> 0xDA10, 82 -> 0xDA11, 84 -> 0xDA12)
+    for ((line, expVal) <- expectedIndirect.toSeq.sortBy(_._1)) {
+      val hits = ch3Writes.filter(_._2 == line)
+      assert(hits.exists(_._4 == expVal),
+        f"Case 7 FAIL: indirect-mode line $line expected dereferenced data=0x$expVal%04X, got hits=$hits")
+    }
+    // Verify the LITERAL pointer values (0x10/0x11/0x12) did NOT slip
+    // through — that would indicate the indirect mux failed.
+    val literalHits = ch3Writes.filter(w => Set(0x10, 0x11, 0x12).contains(w._4))
+    assert(literalHits.isEmpty,
+      s"Case 7 FAIL: indirect mode wrote literal pointer values: $literalHits")
+    println(f"Case 7 PASS: indirect mode dereferences pointers (lines 80/82/84 -> 0xDA10/0xDA11/0xDA12)")
+
+    println(s"CopperHdmaSim: all 7 cases PASS — HDMA 9-bit line + indirect mode verified")
   }
 }
