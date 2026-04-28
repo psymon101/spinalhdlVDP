@@ -339,12 +339,27 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
         //   0x0601 PALETTE_PTR  = entry*2 + half (8 bits)
         //   0x0600 PALETTE_DATA = half=0: low 16 bits = G:B
         //                        half=1: low 8 bits = R, commits
-        // 16 entries × 3 writes = 48 program words; fits easily in
+        //
+        // v2 Slice C: also load palette entries 16..23 with bright
+        // Spectrum variants. BitmapFetch addresses these slots when
+        // the per-cell `bright` attribute bit is set:
+        //   paletteAddr = {paletteBank, ink/paper}
+        //                 paletteBank = {2'b00, bright}
+        //   bright=0 → paletteAddr in 0..7 (entries 0..7)
+        //   bright=1 → paletteAddr in 16..23 (entries 16..23)
+        // The pre-Slice-C v1 mapping wrote 8..15 thinking those were
+        // "bright" — those slots are actually never addressed by
+        // 1bpp+attr and were dead. Entries 8..15 stay loaded as
+        // harmless leftovers.
+        //
+        // 24 entries × 3 writes = 72 program words; fits easily in
         // the 512-word copper program RAM.
         //
         // Spectrum color set per artifact §8:
-        //   0..7  : black, blue, red, magenta, green, cyan, yellow, white  (0xCD level)
-        //   8..15 : same hues at "bright" 0xFF level (entry 8 = bright black = #000000)
+        //   0..7   : black, blue, red, magenta, green, cyan, yellow, white  (0xCD level, normal)
+        //   8..15  : duplicate of 0..7 at 0xFF (legacy v1 — slot is
+        //            never addressed by BitmapFetch in 1bpp+attr mode)
+        //   16..23 : actual `bright=1` variants at 0xFF level
         def zxPalEntry(idx: Int, r: Int, g: Int, b: Int): Seq[Int] = Seq(
           (1 << 14) | 0x0601, idx * 2,                          // ptr = entry idx, low half
           (1 << 14) | 0x0600, ((g & 0xFF) << 8) | (b & 0xFF),    // low half = G:B
@@ -360,15 +375,21 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           zxPalEntry( 5,  0x00, 0xCD, 0xCD) ++                  // cyan
           zxPalEntry( 6,  0xCD, 0xCD, 0x00) ++                  // yellow
           zxPalEntry( 7,  0xCD, 0xCD, 0xCD) ++                  // white
-          // Bright Spectrum palette (entries 8..15) at 0xFF level.
-          zxPalEntry( 8,  0x00, 0x00, 0x00) ++                  // bright black
-          zxPalEntry( 9,  0x00, 0x00, 0xFF) ++                  // bright blue
-          zxPalEntry(10,  0xFF, 0x00, 0x00) ++                  // bright red
-          zxPalEntry(11,  0xFF, 0x00, 0xFF) ++                  // bright magenta
-          zxPalEntry(12,  0x00, 0xFF, 0x00) ++                  // bright green
-          zxPalEntry(13,  0x00, 0xFF, 0xFF) ++                  // bright cyan
-          zxPalEntry(14,  0xFF, 0xFF, 0x00) ++                  // bright yellow
-          zxPalEntry(15,  0xFF, 0xFF, 0xFF)                     // bright white
+          // (Skipping entries 8..15: BitmapFetch never addresses those
+          // slots in 1bpp+attr mode, so writing them was dead work.
+          // The v1 sc50 wrote them by mistake; v2 Slice C drops the
+          // dead writes to keep the copper program small and fit
+          // within the existing 7-bit bootstrap counter.)
+          // v2 Slice C: ACTUAL bright Spectrum variants at the slots
+          // BitmapFetch addresses for `bright=1` cells.
+          zxPalEntry(16,  0x00, 0x00, 0x00) ++                  // bright black (= 8)
+          zxPalEntry(17,  0x00, 0x00, 0xFF) ++                  // bright blue
+          zxPalEntry(18,  0xFF, 0x00, 0x00) ++                  // bright red
+          zxPalEntry(19,  0xFF, 0x00, 0xFF) ++                  // bright magenta
+          zxPalEntry(20,  0x00, 0xFF, 0x00) ++                  // bright green
+          zxPalEntry(21,  0x00, 0xFF, 0xFF) ++                  // bright cyan
+          zxPalEntry(22,  0xFF, 0xFF, 0x00) ++                  // bright yellow
+          zxPalEntry(23,  0xFF, 0xFF, 0xFF)                     // bright white
         Seq((0 << 14) | 0) ++                                    // WAIT y=0
           zxPalette ++
           Seq(
