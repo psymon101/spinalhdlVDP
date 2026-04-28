@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-28 (Task 50 ZX Spectrum Adapter implementation IN-PROGRESS #8667; all substrate hardening DONE)
+**Updated:** 2026-04-28 (Task 50 ZX Spectrum Adapter v1 code-complete #8672; pending CyanPeak audit; all substrate hardening DONE)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement |
 | **Owner** | BrightForge |
-| **Latest Commit** | `1d6c1b3` (Task 50 artifact drafted) |
-| **Latest Auth Mail** | #8667 (CyanPeak artifact audit PASS) |
-| **Next Deliverable** | BrightForge implementation packet (sim + HW proof) |
+| **Latest Commit** | `477bf24` (Task 50 v1 implementation + sc50 HW proof) |
+| **Latest Auth Mail** | #8672 (BrightForge v1 implementation completion) |
+| **Next Deliverable** | CyanPeak v1 implementation audit |
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Beam-Driven Automation Hardening — Implementation | DONE | `6345fcc` | Audit PASS #8660, BH-1/2/3/4/5/6 all proven, sc60 HW evidence
