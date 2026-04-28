@@ -461,6 +461,59 @@ case class VdpTop() extends Component {
     layerMaskPend    := effData
     layerMaskPendHit := True
   }
+  // Task 50 v3 — Visible-border-via-window registers.
+  //
+  // Defines a dedicated rectangular window at display coordinates. When
+  // BORDER_CTRL[0] is set, pixels OUTSIDE the rectangle are replaced at
+  // the final display stage with palette[BORDER_CTRL[12:8]] (typically
+  // slot 24, written by the ZX Spectrum adapter's border emitter — see
+  // ZXSpectrumAdapter.scala). The rectangle is independent from the
+  // CW-5 WIN1/WIN2 windows so existing scenarios using those for
+  // ColorMath effects are unaffected. Defaults are all-zero so v3-OFF
+  // scenarios continue to render bit-identically.
+  //
+  //   0x033C BORDER_X0   (10 bits, inclusive)
+  //   0x033D BORDER_X1   (10 bits, exclusive)
+  //   0x033E BORDER_Y0   (10 bits, inclusive)
+  //   0x033F BORDER_Y1   (10 bits, exclusive)
+  //   0x0347 BORDER_CTRL bit[0]    = enable
+  //                       bits[12:8] = palette index (0..31) for the
+  //                                    border source pixel
+  val borderX0Reg     = Reg(UInt(10 bits)) init 0
+  val borderX0Pend    = Reg(UInt(10 bits)) init 0
+  val borderX0PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x033C, 15 bits)) {
+    borderX0Pend    := effData(9 downto 0).asUInt
+    borderX0PendHit := True
+  }
+  val borderX1Reg     = Reg(UInt(10 bits)) init 0
+  val borderX1Pend    = Reg(UInt(10 bits)) init 0
+  val borderX1PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x033D, 15 bits)) {
+    borderX1Pend    := effData(9 downto 0).asUInt
+    borderX1PendHit := True
+  }
+  val borderY0Reg     = Reg(UInt(10 bits)) init 0
+  val borderY0Pend    = Reg(UInt(10 bits)) init 0
+  val borderY0PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x033E, 15 bits)) {
+    borderY0Pend    := effData(9 downto 0).asUInt
+    borderY0PendHit := True
+  }
+  val borderY1Reg     = Reg(UInt(10 bits)) init 0
+  val borderY1Pend    = Reg(UInt(10 bits)) init 0
+  val borderY1PendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x033F, 15 bits)) {
+    borderY1Pend    := effData(9 downto 0).asUInt
+    borderY1PendHit := True
+  }
+  val borderCtrlReg     = Reg(Bits(16 bits)) init 0
+  val borderCtrlPend    = Reg(Bits(16 bits)) init 0
+  val borderCtrlPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0347, 15 bits)) {
+    borderCtrlPend    := effData
+    borderCtrlPendHit := True
+  }
   // Task 19 Checkpoint A: Affine Layer matrix + control registers.
   // Addresses 0x0340..0x0346, same safe-boundary shadow + commit pattern.
   //   0x0340 AFFINE_A    16b  signed 8.8 fixed point
@@ -620,6 +673,12 @@ case class VdpTop() extends Component {
     when(win2CtrlPendHit)  { win2CtrlReg  := win2CtrlPend;  win2CtrlPendHit  := False }
     when(winCombPendHit)   { winCombReg   := winCombPend;   winCombPendHit   := False }
     when(layerMaskPendHit) { layerMaskReg := layerMaskPend; layerMaskPendHit := False }
+    // Task 50 v3 — visible-border window safe-boundary commits.
+    when(borderX0PendHit)   { borderX0Reg   := borderX0Pend;   borderX0PendHit   := False }
+    when(borderX1PendHit)   { borderX1Reg   := borderX1Pend;   borderX1PendHit   := False }
+    when(borderY0PendHit)   { borderY0Reg   := borderY0Pend;   borderY0PendHit   := False }
+    when(borderY1PendHit)   { borderY1Reg   := borderY1Pend;   borderY1PendHit   := False }
+    when(borderCtrlPendHit) { borderCtrlReg := borderCtrlPend; borderCtrlPendHit := False }
     // Task 19 affine registers (safe-boundary commit).
     when(affineAPendHit)    { affineAReg    := affineAPend;    affineAPendHit    := False }
     when(affineBPendHit)    { affineBReg    := affineBPend;    affineBPendHit    := False }
