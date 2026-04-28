@@ -302,6 +302,43 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0839, 300,                           // slot 7 x=300
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 60 =>
+        // Beam Hardening BH-1 HW proof: pixel-precise Copper WAIT.
+        // Single frame demonstrates sub-scanline scheduling — copper
+        // stalls until the exact (x=320, y=200) beam position, then
+        // writes COLOR_MATH=op=01 (shadow). The result is a sharp
+        // shadow boundary mid-line at x=320 of line 200, with shadow
+        // applied to every subsequent line until the next vsync wraps
+        // around to the WAIT y=0 reset.
+        //
+        // Expected 640x480 visual:
+        //   y=0..199                : full BRIGHT (passthrough)
+        //   y=200, x=0..319         : still bright (copper hasn't fired)
+        //   y=200, x>=320 onwards   : SHADOWED
+        //   y=201..479              : full SHADOW
+        //   wraps next frame.
+        //
+        // The sharp x=320 mid-line transition is the unambiguous BH-1
+        // signature; pre-BH-1 (line-only WAIT) would only have produced
+        // a clean horizontal boundary at line 200, never a vertical
+        // mid-line column boundary.
+        Seq(
+          (0 << 14) | 0,                                     // WAIT y=0 (sync)
+          // Full-screen window so COLOR_MATH applies globally on hit.
+          (1 << 14) | 0x0330, 0,                             // WIN1_X0 = 0
+          (1 << 14) | 0x0331, 640,                           // WIN1_X1 = 640
+          (1 << 14) | 0x0332, 0,                             // WIN1_Y0 = 0
+          (1 << 14) | 0x0333, 480,                           // WIN1_Y1 = 480
+          // Reset COLOR_MATH to passthrough at the start of every frame.
+          (1 << 14) | 0x0334, 0x0000,
+          // BH-1 pixel-precise WAIT (X=320, Y=200) — bit[13]=1 + X in
+          // word 0 bits[9:0], Y in word 1 bits[9:0].
+          (0 << 14) | (1 << 13) | 320,
+          200,
+          // Enable shadow op (op=01, no invert, no constant).
+          (1 << 14) | 0x0334, 0x4000,
+          (3 << 14) | 0                                      // JUMP 0
+        )
       case 52 =>
         // Color/Window Hardening HW proof — CW-6 sprite-mask companion to
         // sc51 (CyanPeak audit PASS #8629). Same copper-driven palette /
@@ -679,7 +716,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 51 || scenarioId == 52) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 51 || scenarioId == 52 || scenarioId == 60) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -703,6 +740,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 20          => 0x0005  // Sc20 (Task 40): L0 + sprite; adapter toggles DEN
       case 51          => 0x0005  // Sc51 (CW HW proof): L0 + sprite (sprite is masked in window region)
       case 52          => 0x0005  // Sc52 (CW-6 sprite proof): L0 + sprite, programmed sprite at x=288/y=80
+      case 60          => 0x0001  // Sc60 (BH-1 pixel-precise WAIT proof): L0 only
       case _           => 0x0001
     }, 16 bits)
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
@@ -1607,4 +1645,7 @@ object TopTang20kHdmiScenario51Verilog extends App {
 }
 object TopTang20kHdmiScenario52Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 52))   // Color/Window CW-6 sprite-mask companion to sc51
+}
+object TopTang20kHdmiScenario60Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 60))   // Beam Hardening BH-1 pixel-precise Copper WAIT proof
 }
