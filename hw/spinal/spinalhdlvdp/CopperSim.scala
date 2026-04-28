@@ -157,6 +157,52 @@ object CopperSim extends App {
     }
     println("[sim] case4 progWr gated when enabled — OK")
 
+    // -------- Case 5 (BH-1): pixel-precise WAIT X,Y --------
+    // Program: WAIT_PX (x=200, y=150); WRITE addr=0x0301 data=0xBE57; JUMP 0
+    // Encoded form per BH-1: word0 = (00 << 14) | (1 << 13) | x[9:0],
+    //                       word1 = y[9:0]. Bit[13]=1 selects extended.
+    def WAIT_PX_W0(x: Int): Int = (0 << 14) | (1 << 13) | (x & 0x3FF)
+    def WAIT_PX_W1(y: Int): Int = y & 0x3FF
+    dut.io.enabled #= false
+    step(5)
+    loadProgram(Seq(
+      WAIT_PX_W0(200), WAIT_PX_W1(150),
+      WRITE_OP(0x0301), 0xBE57,
+      JUMP(0)
+    ))
+    captured.clear()
+    dut.io.enabled #= true
+    runRaster(yFrom = 145, yTo = 155)
+    val case5Writes = captured.filter(_._1 == 0x0301).toList
+    assert(case5Writes.nonEmpty, "case5: WAIT X,Y never fired (no write to 0x0301)")
+    val (_, d5, wx5, wy5) = case5Writes.head
+    assert(d5 == 0xBE57, s"case5: expected data=0xBE57, got 0x${d5.toHexString}")
+    // Match should occur AT x=200 (vs legacy WAIT-Y firing at x=0). Allow
+    // a few cycles of FSM decode latency between match and the WRITE
+    // landing — the WRITE follows the WAIT in program order.
+    assert(wy5 == 150 && wx5 >= 200 && wx5 < 210,
+      s"case5: expected write at line 150, x in [200,210), got ($wx5, $wy5)")
+    println(f"[sim] case5 BH-1 WAIT(x=200,y=150) -> WRITE at ($wx5%d,$wy5%d) — OK")
+
+    // -------- Case 6 (BH-1): legacy WAIT-Y still uses hCounter==0 --------
+    dut.io.enabled #= false
+    step(5)
+    loadProgram(Seq(
+      WAIT(220),                // legacy 1-word WAIT y=220 (bit[13]=0)
+      WRITE_OP(0x0302), 0x1ECA,
+      JUMP(0)
+    ))
+    captured.clear()
+    dut.io.enabled #= true
+    runRaster(yFrom = 215, yTo = 225)
+    val case6Writes = captured.filter(_._1 == 0x0302).toList
+    assert(case6Writes.nonEmpty, "case6: legacy WAIT(220) never fired")
+    val (_, d6, wx6, wy6) = case6Writes.head
+    assert(d6 == 0x1ECA, s"case6: expected data=0x1ECA, got 0x${d6.toHexString}")
+    assert(wy6 == 220 && wx6 < 10,
+      s"case6: legacy WAIT-Y must fire near hCounter=0, got ($wx6, $wy6)")
+    println(f"[sim] case6 legacy WAIT(220) still fires at hCounter≈0 (got x=$wx6%d) — OK")
+
     println("[sim] CopperSim: PASS")
   }
 }

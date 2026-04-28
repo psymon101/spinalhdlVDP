@@ -7,8 +7,14 @@ import spinal.lib.fsm._
 /** R5 Copper coprocessor — mid-frame raster-effect engine.
   *
   * 512 × 16-bit program RAM (GT-022 safe). Four instructions:
-  *   - **WAIT** (1 word): `00 | 0000 | Y[9:0]` — stalls until `vCounter==Y`
-  *     and `hCounter==0`. Allows precise line-accurate scheduling.
+  *   - **WAIT** legacy (1 word): `00 | 0 | 000 | Y[9:0]` — stalls until
+  *     `vCounter==Y` and `hCounter==0`. Allows precise line-accurate
+  *     scheduling.
+  *   - **WAIT** extended (2 words, BH-1): `00 | 1 | 00 | X[9:0]` then
+  *     `000000 | Y[9:0]` — stalls until `vCounter==Y` and `hCounter==X`.
+  *     Pixel-precise scheduling. Word 0 bit[13]=1 selects the extended
+  *     form; bit[13]=0 keeps legacy 1-word semantics so pre-BH-1
+  *     programs are bit-identical.
   *   - **WRITE** (2 words): `01 | addr[13:0]` then `data[15:0]` — emits one
   *     register write on the unified bus.
   *   - **WRITE_SEQ** (≥2 words): `10 | count_m1[2:0] | addr[10:0]` then N
@@ -58,6 +64,11 @@ case class Copper() extends Component {
   // Latched operand registers for multi-word instructions
   val opAddr    = Reg(UInt(15 bits)) init 0
   val seqCount  = Reg(UInt(3 bits))  init 0  // remaining data words after current
+  // BH-1: pixel-precise WAIT — opXLatch holds the X (hCounter) target across
+  // the 2-word fetch. opWaitIsPx selects between legacy (hCounter==0) and
+  // pixel-precise (hCounter==opXLatch) compare in sWaitStall.
+  val opXLatch    = Reg(UInt(10 bits)) init 0
+  val opWaitIsPx  = Reg(Bool())        init False
 
   // Default outputs
   val regAddrR = Reg(UInt(15 bits)) init 0
@@ -85,7 +96,18 @@ case class Copper() extends Component {
       when(!io.enabled) { goto(sHalt) }.otherwise {
         switch(opcode) {
           is(B"00") {
-            // WAIT Y
+            // WAIT — bit[13] selects legacy 1-word vs BH-1 extended 2-word.
+            when(fetchWord(13)) {
+              // Extended WAIT X,Y: latch X from this word, advance pc so
+              // the next sWaitStall fetch reads Y from word 1.
+              opXLatch   := fetchWord(9 downto 0).asUInt
+              opWaitIsPx := True
+              pc := pc + 1
+            }.otherwise {
+              // Legacy 1-word WAIT Y: stay on this word; sWaitStall reads
+              // Y directly from fetchWord and matches hCounter==0.
+              opWaitIsPx := False
+            }
             goto(sWaitStall)
           }
           is(B"01") {
@@ -111,9 +133,17 @@ case class Copper() extends Component {
 
     sWaitStall.whenIsActive {
       when(!io.enabled) { goto(sHalt) }
-      .elsewhen(io.vCounter === fetchWord(9 downto 0).asUInt && io.hCounter === U(0, 10 bits)) {
-        pc := pc + 1
-        goto(sFetch)
+      .otherwise {
+        // Y always comes from the current fetchWord (word 0 for legacy,
+        // word 1 for extended after the sFetch pc bump).
+        val matchY = io.vCounter === fetchWord(9 downto 0).asUInt
+        val matchX = Mux(opWaitIsPx,
+                         io.hCounter === opXLatch,
+                         io.hCounter === U(0, 10 bits))
+        when(matchY && matchX) {
+          pc := pc + 1
+          goto(sFetch)
+        }
       }
     }
 
