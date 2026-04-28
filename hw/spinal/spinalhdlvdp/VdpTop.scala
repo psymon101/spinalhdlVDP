@@ -1422,6 +1422,25 @@ case class VdpTop() extends Component {
   // R1 Raster Trigger Unit. Pending status is used below as a visible split
   // indicator (inverts the red channel after the trigger fires), which is the
   // mandated hardware proof signature from TASK_R1_RASTER_TRIGGER_UNIT.md.
+  //
+  // Beam Hardening BH-5 (#8656) extends this to 4 independent triggers.
+  // TR0 keeps the existing top-level IO surface for backward compat with
+  // sc0 / RasterTriggerUnitSim / VdpTopSim. TR1..TR3 are bus-addressable:
+  //
+  //   0x0360  TRIGGER1_LINE   (10 bits)
+  //   0x0361  TRIGGER1_PIXEL  (10 bits)
+  //   0x0362  TRIGGER1_CTRL   (bit[0]=enable, bit[1]=pixelCmpEnable,
+  //                            bit[2]=clear-pending pulse)
+  //   0x0364..0x0366  TRIGGER2_*
+  //   0x0368..0x036A  TRIGGER3_*
+  //   (offset 3 in each block reserved)
+  //
+  // All four trigger pulses are OR'd into evRasterMatch so the host sees
+  // a single sticky bit (RASTER_MATCH) regardless of which trigger fired.
+  // Per-trigger granularity is observable via rasterPendingMask (4 bits)
+  // — wired to the existing top-level rasterTriggerPending IO output as
+  // its OR for backward compat, and exposed individually as a 4-bit
+  // bundle for downstream consumers.
   val rasterTrigger = RasterTriggerUnit()
   rasterTrigger.io.vCounter       := vCounter.resize(10)
   rasterTrigger.io.hCounter       := hCounter.resize(10)
@@ -1431,7 +1450,83 @@ case class VdpTop() extends Component {
   rasterTrigger.io.enable         := io.rasterTriggerEnable
   rasterTrigger.io.clear          := io.rasterTriggerClear
   io.rasterTriggerPulse           := rasterTrigger.io.triggerPulse
-  io.rasterTriggerPending         := rasterTrigger.io.pending
+
+  // BH-5: per-trigger control register banks for TR1..TR3. Direct
+  // (non-shadow) commits — the trigger compare is purely combinational
+  // on the registers, so a host write that lands mid-frame just changes
+  // the next-match condition without corrupting prior state.
+  val tr1LineReg     = Reg(UInt(10 bits)) init 0
+  val tr1PixelReg    = Reg(UInt(10 bits)) init 0
+  val tr1CtrlReg     = Reg(Bits(3 bits))  init 0
+  val tr2LineReg     = Reg(UInt(10 bits)) init 0
+  val tr2PixelReg    = Reg(UInt(10 bits)) init 0
+  val tr2CtrlReg     = Reg(Bits(3 bits))  init 0
+  val tr3LineReg     = Reg(UInt(10 bits)) init 0
+  val tr3PixelReg    = Reg(UInt(10 bits)) init 0
+  val tr3CtrlReg     = Reg(Bits(3 bits))  init 0
+  // Clear bits are pulse-style: they assert for one cycle when the host
+  // writes a `1` to bit[2]. The Reg holds the rest of CTRL persistently;
+  // the clear bit auto-deasserts the next cycle.
+  val tr1Clear       = Bool()
+  val tr2Clear       = Bool()
+  val tr3Clear       = Bool()
+  tr1Clear := False
+  tr2Clear := False
+  tr3Clear := False
+  when(effWrite && effAddr === U(0x0360, 15 bits)) { tr1LineReg  := effData(9 downto 0).asUInt }
+  when(effWrite && effAddr === U(0x0361, 15 bits)) { tr1PixelReg := effData(9 downto 0).asUInt }
+  when(effWrite && effAddr === U(0x0362, 15 bits)) {
+    tr1CtrlReg := effData(2 downto 0)
+    tr1Clear   := effData(2)
+  }
+  when(effWrite && effAddr === U(0x0364, 15 bits)) { tr2LineReg  := effData(9 downto 0).asUInt }
+  when(effWrite && effAddr === U(0x0365, 15 bits)) { tr2PixelReg := effData(9 downto 0).asUInt }
+  when(effWrite && effAddr === U(0x0366, 15 bits)) {
+    tr2CtrlReg := effData(2 downto 0)
+    tr2Clear   := effData(2)
+  }
+  when(effWrite && effAddr === U(0x0368, 15 bits)) { tr3LineReg  := effData(9 downto 0).asUInt }
+  when(effWrite && effAddr === U(0x0369, 15 bits)) { tr3PixelReg := effData(9 downto 0).asUInt }
+  when(effWrite && effAddr === U(0x036A, 15 bits)) {
+    tr3CtrlReg := effData(2 downto 0)
+    tr3Clear   := effData(2)
+  }
+
+  val rasterTrigger1 = RasterTriggerUnit()
+  rasterTrigger1.io.vCounter       := vCounter.resize(10)
+  rasterTrigger1.io.hCounter       := hCounter.resize(10)
+  rasterTrigger1.io.triggerLine    := tr1LineReg
+  rasterTrigger1.io.triggerPixel   := tr1PixelReg
+  rasterTrigger1.io.pixelCmpEnable := tr1CtrlReg(1)
+  rasterTrigger1.io.enable         := tr1CtrlReg(0)
+  rasterTrigger1.io.clear          := tr1Clear
+
+  val rasterTrigger2 = RasterTriggerUnit()
+  rasterTrigger2.io.vCounter       := vCounter.resize(10)
+  rasterTrigger2.io.hCounter       := hCounter.resize(10)
+  rasterTrigger2.io.triggerLine    := tr2LineReg
+  rasterTrigger2.io.triggerPixel   := tr2PixelReg
+  rasterTrigger2.io.pixelCmpEnable := tr2CtrlReg(1)
+  rasterTrigger2.io.enable         := tr2CtrlReg(0)
+  rasterTrigger2.io.clear          := tr2Clear
+
+  val rasterTrigger3 = RasterTriggerUnit()
+  rasterTrigger3.io.vCounter       := vCounter.resize(10)
+  rasterTrigger3.io.hCounter       := hCounter.resize(10)
+  rasterTrigger3.io.triggerLine    := tr3LineReg
+  rasterTrigger3.io.triggerPixel   := tr3PixelReg
+  rasterTrigger3.io.pixelCmpEnable := tr3CtrlReg(1)
+  rasterTrigger3.io.enable         := tr3CtrlReg(0)
+  rasterTrigger3.io.clear          := tr3Clear
+
+  // Aggregate pending across all four — top-level pending output is OR
+  // of the four for backward compat with the existing IO surface.
+  val rasterPendingMask = (rasterTrigger3.io.pending ##
+                           rasterTrigger2.io.pending ##
+                           rasterTrigger1.io.pending ##
+                           rasterTrigger.io.pending).asBits
+  rasterPendingMask.simPublic()
+  io.rasterTriggerPending := rasterPendingMask.orR
 
   // -------------------------------------------------------------------
   // Task 35 — Host-Facing IRQ + Sticky Status Register Bank.
@@ -1467,7 +1562,11 @@ case class VdpTop() extends Component {
   val statusEnablePendHit = Reg(Bool()) init False
 
   // Event sources (low byte).
-  val evRasterMatch    = rasterTrigger.io.triggerPulse
+  // BH-5: any of the four triggers firing sets the sticky RASTER_MATCH bit.
+  val evRasterMatch    = rasterTrigger.io.triggerPulse  ||
+                         rasterTrigger1.io.triggerPulse ||
+                         rasterTrigger2.io.triggerPulse ||
+                         rasterTrigger3.io.triggerPulse
   val evSpriteOverflow = spriteEval.io.overflowFlag
   val evQspiReady      = io.statusEvQspiReady
   val evQspiError      = io.statusEvQspiError
