@@ -86,9 +86,9 @@ case class ZXSpectrumDemo() extends Component {
     regWr   := True
     ctrlSent := True
   } elsewhen(borderTick) {
-    // Per-tick: write ZX_BORDER with the next code in the cycle.
+    // Per-tick: write ZX_BORDER with the current code in the cycle.
     regAddr := U(0x00, 8 bits)        // ZX_BORDER
-    regData := B(0, 5 bits) ## (borderColorReg + 1).asBits  // next code
+    regData := B(0, 5 bits) ## borderColorReg.asBits
     regWr   := True
   }
 

@@ -394,15 +394,25 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
         // area in the 640×480 output: x=[192, 448), y=[144, 336).
         // BORDER_CTRL = 0x1801 → enable + palette index 24 (the slot
         // the ZX adapter writes from ZX_BORDER updates).
+        // v3.1 root-cause workaround: copperFifo (depth=32, drain 1/line)
+        // overflows during the per-frame copper program burst. Writes
+        // beyond position 32 of the burst are silently dropped. By
+        // putting the BORDER_* + BITMAP_CTRL writes FIRST (small,
+        // guaranteed to land) and the 48-write palette load LAST,
+        // the critical control regs always commit. Some palette entries
+        // may drop on a given frame but they re-push next frame's
+        // burst, so the steady-state palette is still correct.
         Seq((0 << 14) | 0) ++                                    // WAIT y=0
-          zxPalette ++
           Seq(
             (1 << 14) | 0x0350, 0x0081,                          // BITMAP_CTRL = en|1bpp|useSdram
             (1 << 14) | 0x033C, 192,                             // BORDER_X0
             (1 << 14) | 0x033D, 448,                             // BORDER_X1
             (1 << 14) | 0x033E, 144,                             // BORDER_Y0
             (1 << 14) | 0x033F, 336,                             // BORDER_Y1
-            (1 << 14) | 0x0347, 0x1801,                          // BORDER_CTRL = en | idx=24
+            (1 << 14) | 0x0347, 0x1801                           // BORDER_CTRL = en | idx=24
+          ) ++
+          zxPalette ++
+          Seq(
             (3 << 14) | 0                                        // JUMP 0
           )
       case 60 =>

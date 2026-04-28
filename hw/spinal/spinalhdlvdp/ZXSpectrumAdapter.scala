@@ -127,10 +127,11 @@ case class ZXSpectrumAdapter() extends Component {
   // the new value this cycle; we observe the previous value via
   // RegNext to spot the transition.
   val borderPrev   = RegNext(R(ZX_BORDER)(2 downto 0)) init B(0, 3 bits)
+  // Fix v3.1: borderChange should trigger when the SHADOW register changes.
+  // Since R(ZX_BORDER) is already registered, borderPrev is effectively
+  // RegNext(RegNext(io.regData)) when regWr is active.
   val borderChange = R(ZX_BORDER)(2 downto 0) =/= borderPrev
-  // Latch the border code at the moment of change so the FSM uses a
-  // stable value across its 3-cycle emit sequence even if the host
-  // re-writes ZX_BORDER mid-emit.
+  // Latch the border code at the moment of change.
   val borderLatched = Reg(UInt(3 bits)) init 0
   when(borderChange) { borderLatched := R(ZX_BORDER)(2 downto 0).asUInt }
   val borderRgb = zxBorderLut(borderLatched)

@@ -479,35 +479,35 @@ case class VdpTop() extends Component {
   //   0x0347 BORDER_CTRL bit[0]    = enable
   //                       bits[12:8] = palette index (0..31) for the
   //                                    border source pixel
-  val borderX0Reg     = Reg(UInt(10 bits)) init 0
+  val borderX0Reg     = (Reg(UInt(10 bits)) init 0).simPublic()
   val borderX0Pend    = Reg(UInt(10 bits)) init 0
   val borderX0PendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x033C, 15 bits)) {
     borderX0Pend    := effData(9 downto 0).asUInt
     borderX0PendHit := True
   }
-  val borderX1Reg     = Reg(UInt(10 bits)) init 0
+  val borderX1Reg     = (Reg(UInt(10 bits)) init 0).simPublic()
   val borderX1Pend    = Reg(UInt(10 bits)) init 0
   val borderX1PendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x033D, 15 bits)) {
     borderX1Pend    := effData(9 downto 0).asUInt
     borderX1PendHit := True
   }
-  val borderY0Reg     = Reg(UInt(10 bits)) init 0
+  val borderY0Reg     = (Reg(UInt(10 bits)) init 0).simPublic()
   val borderY0Pend    = Reg(UInt(10 bits)) init 0
   val borderY0PendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x033E, 15 bits)) {
     borderY0Pend    := effData(9 downto 0).asUInt
     borderY0PendHit := True
   }
-  val borderY1Reg     = Reg(UInt(10 bits)) init 0
+  val borderY1Reg     = (Reg(UInt(10 bits)) init 0).simPublic()
   val borderY1Pend    = Reg(UInt(10 bits)) init 0
   val borderY1PendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x033F, 15 bits)) {
     borderY1Pend    := effData(9 downto 0).asUInt
     borderY1PendHit := True
   }
-  val borderCtrlReg     = Reg(Bits(16 bits)) init 0
+  val borderCtrlReg     = (Reg(Bits(16 bits)) init 0).simPublic()
   val borderCtrlPend    = Reg(Bits(16 bits)) init 0
   val borderCtrlPendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x0347, 15 bits)) {
