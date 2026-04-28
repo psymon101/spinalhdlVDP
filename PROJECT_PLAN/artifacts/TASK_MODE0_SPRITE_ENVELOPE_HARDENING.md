@@ -3,7 +3,7 @@
 **Artifact version:** 1.0-draft  
 **Author:** CoralReef  
 **Date:** 2026-04-25  
-**Status:** implementation landed #8587 — partial deferrals; awaiting CyanPeak audit  
+**Status:** DONE — audited and closed. See `TASKS.md` live-lane history. Followed by Sprite Pattern Memory Foundation and Sprite Phase 2 + 2-bis (also DONE).  
 **Coding authorized:** YES — CyanPeak #8577
 
 ---

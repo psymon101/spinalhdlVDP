@@ -1,6 +1,6 @@
 # PROJECT_PLAN.md
 
-**Updated:** 2026-04-26
+**Updated:** 2026-04-28
 **Purpose:** Entry point for the `PROJECT_PLAN/` documentation set. Read this file first, then read the other files in the order listed below.
 
 ---
@@ -40,10 +40,10 @@ The currently validated slice is:
 - Generated HDL target directory: `hw/gen`
 - Board flow: `fpga/tang20k/`
 - Top-level board entry: `TopTang20kHdmi.scala`
-- Current visible hardware output: **SDRAM-backed Mode0 rendering** with tile, planar, shuffled, bitmap, affine, sprite, color-math, window, Copper, and QSPI host control — 17 hardware-proven scenarios
+- Current visible hardware output: **SDRAM-backed Mode0 rendering** with tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control — 20 hardware-proven scenarios
 - Current validated output path: Tang Nano 20K HDMI output captured locally on this machine through `/dev/video2` and via RTSP stream
 
-Do not treat this repository as if it were still at the "empty stub" stage. Tasks 1–43, R1–R6, and multiple hardening lanes are **DONE**. The active lane is **Color/Window Hardening — Implementation** (IN-PROGRESS, BrightForge).
+Do not treat this repository as if it were still at the "empty stub" stage. Tasks 1–43, R1–R6, and all substrate hardening lanes are **DONE**. The active lane is **Task 50 — ZX Spectrum Adapter — Implementation** (IN-PROGRESS, BrightForge).
 
 ---
 
@@ -106,11 +106,13 @@ The following are already proven on this repository state:
 - Board flash programming succeeds with explicit FTDI serial binding when required
 - Direct local capture confirms the intended output is what the FPGA renders
 - `VdpTopSim.scala` regression suite passes for all closed substrate paths
-- 17 scenarios (Sc0–Sc11, Sc12–Sc17) have been hardware-proven on Tang Nano 20K
-- Sprite Phase 2 + 2-bis hardening is hardware-proven (Scenario 50, commit `39a7242`)
+- 20 scenarios (Sc0–Sc17, Sc50, Sc51, Sc52, Sc60) have been hardware-proven on Tang Nano 20K
 - Fetch Envelope Hardening is complete and audited
 - Sprite Envelope Hardening is complete and audited
-- Color/Window Hardening is IN-PROGRESS (CW-1/3/4/5 complete at `cde4025`)
+- Sprite Pattern Memory Foundation is complete and audited
+- Sprite Phase 2 + 2-bis is complete and audited (Scenario 50, commit `39a7242`)
+- Color/Window Hardening is complete and audited (Scenarios 51 + 52, commit `0f5dc65`)
+- Beam-Driven Automation Hardening is complete and audited (Scenario 60, commit `6345fcc`)
 
 ---
 
@@ -119,21 +121,21 @@ The following are already proven on this repository state:
 The current validated baseline is **past the entire mainline substrate construction phase**. Tasks 1–43, R1–R6, and the first three hardening lanes are complete.
 
 **Active lane:**
-- **Color/Window Hardening — Implementation** (IN-PROGRESS, BrightForge, commit `cde4025`)
-  - CW-1: Runtime-writable palette RAM ✅
-  - CW-3: `mathEnable` metadata → ColorMath gate ✅
-  - CW-4: Highlight mode ✅
-  - CW-5: Dual window + combination logic ✅
-  - Remaining: CW-2 sprite palette bank, CW-6 per-layer masking, sim proofs, hardware proof
+- **Task 50 — ZX Spectrum Adapter — Implementation** (IN-PROGRESS, BrightForge)
+  - First serious platform adapter after C64 smoke-test (Task 40)
+  - ZX Spectrum bitmap + attribute display on Mode0 substrate
+  - Thin translation layer; estimated +50–100 LUT/FF
 
 **Previous lanes (all closed):**
+- Beam-Driven Automation Hardening — DONE (`6345fcc`, audit PASS #8660)
+- Color/Window Hardening — DONE (`0f5dc65`, audit PASS #8654)
 - Sprite Phase 2 + 2-bis — DONE (`39a7242`, audit PASS #8638)
-- Sprite Pattern Memory Foundation — DONE (`e86fe49`)
-- Mode0 Sprite Envelope Hardening — DONE (`d44a9c0`)
+- Sprite Pattern Memory Foundation — DONE (`e86fe49`, audit PASS #8605)
+- Mode0 Sprite Envelope Hardening — DONE (`d44a9c0`, audit PASS #8589)
 - Mode0 Fetch Envelope Hardening — DONE
 
-**Next expected work after Color/Window closeout:**
-- Beam Hardening lane (Copper/HDMA edge cases, raster-cycle timing)
-- Platform adapter development (C64, NES, Genesis/MD, SNES)
+**Next expected work after Task 50 closeout:**
+- Additional platform adapters (Amiga, Genesis/MD, SNES)
+- Substrate hardening if adapter gaps emerge
 
 For the strategic `Mode0` build order and adapter roadmap, use `MODE0_ROADMAP.md`. For the authoritative execution ledger, use `TASKS.md`.

@@ -1,6 +1,6 @@
 # MODE0_COVERAGE_MATRIX.md
 
-**Updated:** 2026-04-23  
+**Updated:** 2026-04-28  
 **Purpose:** Map the intended `Mode0` capability envelope against the current repo state so the team can see which shared primitives are already strong enough, which are only partial, and which gaps still block honest future adapters.
 
 ---

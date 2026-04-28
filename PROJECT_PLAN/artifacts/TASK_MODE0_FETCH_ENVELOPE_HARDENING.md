@@ -3,7 +3,7 @@
 **Artifact version:** 1.1  
 **Author:** BronzeGate  
 **Date:** 2026-04-23  
-**Status:** complete — pending PM closeout  
+**Status:** DONE — audited and closed. See `TASKS.md` live-lane history.  
 **Coding authorized:** YES — CyanPeak audit PASS #8546/#8553
 
 ---

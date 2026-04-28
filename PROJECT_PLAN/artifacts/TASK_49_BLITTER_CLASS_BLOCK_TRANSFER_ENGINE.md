@@ -1,10 +1,11 @@
 # Task 49 — Blitter-Class Block Transfer Engine
 
-**Artifact version:** 1.0-draft  
+**Artifact version:** 1.0  
 **Author:** CoralReef  
 **Date:** 2026-04-23  
-**Status:** artifact draft — awaiting CyanPeak audit  
-**Coding authorized:** NO
+**Status:** DONE — implementation PASS #8248 at commit `9c5f08d`  
+**Audit:** PASS #8248 (CyanPeak)  
+**Coding authorized:** YES — implemented and closed
 
 ---
 

@@ -1,6 +1,6 @@
 # ADAPTER_NUANCES.md
 
-**Updated:** 2026-04-23  
+**Updated:** 2026-04-28  
 **Purpose:** Platform-facing visual and behavioral nuance reference for adapter planning. This file captures what each adapter should preserve at the presentation layer so future adapter tasks stay honest about pixel shape, palette behavior, timing-visible artifacts, and display quirks.
 
 ---

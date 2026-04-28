@@ -1,6 +1,6 @@
 # MODE0_ROADMAP.md
 
-**Updated:** 2026-04-26  
+**Updated:** 2026-04-28  
 **Purpose:** Strategic capability roadmap for `Mode0` as the superset rendering substrate that future platform adapter modes will consume. This document is not the same as `TASKS.md`: it defines the long-range primitive build order needed to cover the target platform set.
 
 ---
@@ -112,9 +112,17 @@ Additional closed primitives:
 - Host driver library (Task 39)
 - Sprite palette bank plumbing (Sprite Phase 2)
 
-This means the roadmap **substrate construction phase is complete**. The strategic focus has shifted to:
-1. **Substrate hardening** (Color/Window Hardening is IN-PROGRESS)
-2. **Platform adapter development**
+This means the roadmap **substrate construction phase is complete**. All substrate hardening is DONE:
+- Fetch Envelope Hardening — DONE
+- Sprite Envelope Hardening — DONE
+- Sprite Pattern Memory Foundation — DONE
+- Sprite Phase 2 + 2-bis — DONE
+- Color/Window Hardening — DONE
+- Beam-Driven Automation Hardening — DONE
+
+The strategic focus has shifted to **platform adapter development**:
+- Task 40 (C64 Adapter) — DONE
+- Task 50 (ZX Spectrum Adapter) — IN-PROGRESS
 
 ---
 
@@ -500,11 +508,10 @@ These are not promises of cycle-accurate emulation. They are readiness checkpoin
 
 Based on the current proven repo state, the next strategic targets are:
 
-1. **Color/Window Hardening** (IN-PROGRESS) — runtime palette RAM, sprite palette bank, dual window + combinations, per-layer masking
-2. **Beam Hardening** — Copper/HDMA edge cases, raster-cycle timing, linestate robustness
-3. **Platform adapter development** — C64, NES, Genesis/MD, SNES adapters over the proven Mode0 substrate
+1. **Task 50 — ZX Spectrum Adapter** (IN-PROGRESS) — first serious platform adapter after C64 smoke-test
+2. **Platform adapter development** — Amiga, Genesis/MD, SNES adapters over the proven Mode0 substrate
 
-The R1–R6 substrate construction phase is complete. Adapter work may begin for platforms whose minimum milestone is "through R6" once Color/Window Hardening closes out.
+The R1–R6 substrate construction phase is complete. All substrate hardening (Fetch, Sprite, Color/Window, Beam) is DONE. Adapter lanes are now open.
 
 ---
 
@@ -527,6 +534,6 @@ The exact proof scenario can evolve, but it must map to real target-platform beh
 
 The substrate construction phases (R1–R8) are complete. Current execution targets:
 
-- **Active lane:** `PROJECT_PLAN/artifacts/TASK_COLOR_WINDOW_HARDENING.md` (IN-PROGRESS, BrightForge)
-- **Next expected lane:** Beam Hardening (pending artifact drafting)
-- **Adapter work:** May begin once Color/Window and Beam hardening are closed
+- **Active lane:** `PROJECT_PLAN/artifacts/TASK_50_ZX_SPECTRUM_ADAPTER.md` (IN-PROGRESS, BrightForge)
+- **Next expected lanes:** Additional platform adapters (Amiga, Genesis/MD, SNES)
+- **Adapter work:** Open now — all substrate hardening complete

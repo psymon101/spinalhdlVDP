@@ -1,6 +1,6 @@
 # MODE0_MAX_CAPABILITIES.md
 
-**Updated:** 2026-04-23  
+**Updated:** 2026-04-28  
 **Purpose:** Define the intended **maximum useful capability envelope** for `Mode0` as a general 2D video substrate on the Tang Nano 20K target. This file exists to answer "how far should `Mode0` go?" without drifting into per-platform engines or impossible whole-system ambitions.
 
 ---

@@ -3,7 +3,8 @@
 **Artifact version:** 1.0-draft  
 **Author:** CoralReef  
 **Date:** 2026-04-23  
-**Status:** Audit PASS #8221; implementation authorized  
+**Status:** DONE — implementation PASS #8227 at commit `fd1c07d`  
+**Audit:** PASS #8227 (CyanPeak)  
 **Coding authorized:** YES — bounded to this artifact and CyanPeak audit notes #8221  
 
 ---

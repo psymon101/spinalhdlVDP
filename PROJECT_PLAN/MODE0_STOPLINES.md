@@ -1,6 +1,6 @@
 # MODE0_STOPLINES.md
 
-**Updated:** 2026-04-23  
+**Updated:** 2026-04-28  
 **Purpose:** Quantified stop-line policy for `Mode0` growth on the Tang Nano 20K target. This document exists to prevent vague "maybe it still fits" planning and to force new `Mode0` features to justify their cost in measurable board resources, timing margin, and SDRAM complexity.
 
 ---
@@ -55,13 +55,13 @@ Primary source:
 
 The current project baseline must always be taken from the latest successful local build, not from memory.
 
-At the time this file was written, the local `spinalhdlVDP` build reported approximately:
+At the time this file was written, the local `spinalhdlVDP` build (post-Beam Hardening, commit `6345fcc`) reported:
 
-- LUT/ALU/ROM16: `9566` total (`8873 LUT`, `693 ALU`)
-- FF: `6033 / 15552` (`39%`)
-- BSRAM: `5 / 46` (`11%`)
+- LUT/ALU/ROM16: `9875` total (`9062 LUT`, `813 ALU`, `0 ROM16`)
+- FF: `6274 / 15552` (`40%`)
+- BSRAM: `17 / 46` (`37%`)
 - DSP: `18 / 24` (`75%`) as reported by the current Gowin flow
-- active clocks include `25.2 MHz` pixel and `64.8 MHz` memory-domain timing, both currently meeting timing
+- active clocks include `25.2 MHz` pixel and `64.8 MHz` memory-domain timing, both currently meeting timing with 0 setup/hold violations
 
 These baseline numbers are a **moving reference point**. They must be refreshed when the project changes materially.
 

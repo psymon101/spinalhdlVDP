@@ -1,6 +1,6 @@
 # MODE0_HARDENING_BACKLOG.md
 
-**Updated:** 2026-04-26  
+**Updated:** 2026-04-28  
 **Purpose:** Prioritized backlog for closing the most important remaining shared `Mode0` gaps before opening harder future adapter lanes. This file converts the max-capabilities spec and coverage matrix into a practical work order.
 
 ---

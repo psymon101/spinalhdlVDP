@@ -1,10 +1,11 @@
 # Task 40 — First Platform Adapter (C64 Raster+Sprite Smoke)
 
-**Artifact version:** 1.0-draft  
+**Artifact version:** 1.1  
 **Author:** CoralReef  
 **Date:** 2026-04-23  
-**Status:** artifact draft v1.1 — updated per CyanPeak #8272 high-fidelity requirements  
-**Coding authorized:** NO — v1.1 update pending PM re-authorization
+**Status:** DONE — implementation PASS #8298 at commit `6e93888`; artifact §7 amended at `81b809a`  
+**Audit:** PASS #8257 / #8279 / #8298 (CyanPeak)  
+**Coding authorized:** YES — implemented and closed
 
 ---
 
