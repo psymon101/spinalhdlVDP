@@ -31,7 +31,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.3) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `32048d8` (Task 50 v3.3: palette mirror + single readAsync port restored) |
-| **Latest Auth Mail** | #8701 (CyanPeak v3.3 authorization — unblocking HW) |
+| **Latest Auth Mail** | #8703 (CyanPeak v3.3 authorization — palette mirror fix landed) |
 | **Next Deliverable** | HW re-capture: verify cycling border + visible bitmap on silicon
 | **Coding Authorized** | **YES** — #8667 |
 
