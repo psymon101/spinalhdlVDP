@@ -237,7 +237,9 @@ case class VdpTop() extends Component {
   // Task 33: depth widened from 4 → 32 so a copper bootstrap script can fire
   // a burst of writes (e.g. HDMA config is 11 back-to-back writes) without
   // FIFO-full drops. Drain is still 1/line at hCounter===0.
-  val copperFifo = spinal.lib.StreamFifo(dataType = Bits(31 bits), depth = 128)
+  // Task 50 v3.2: depth widened 32 -> 64 to hold the 54-write per-frame burst
+  // for the ZX Spectrum scene (palette load + border/bitmap control).
+  val copperFifo = spinal.lib.StreamFifo(dataType = Bits(31 bits), depth = 64)
   copperFifo.io.push.valid   := copper.io.regWr
   copperFifo.io.push.payload := (copper.io.regAddr.asBits ## copper.io.regData).asBits.resize(31)
   val extHit     = io.regBus.enable
@@ -1477,6 +1479,21 @@ case class VdpTop() extends Component {
 
   val palette = Mem(Bits(24 bits), initialContent = TileAttributeAssets.paletteInit)
   palette.simPublic()
+
+  // Task 50 v3.3 — Palette mirror registers for the first 32 entries.
+  // Mirroring the most-frequently-updated / low-index palette slots in
+  // registers allows a zero-latency / async-free lookup for the border
+  // display mux without adding a second read port to the palette Mem.
+  // Adding a second readAsync port broke Gowin BSRAM inference in v3.0,
+  // causing black-screen failure on hardware.
+  val paletteMirror = Vec.fill(32)(Reg(Bits(24 bits)))
+  for (i <- 0 until 32) {
+    paletteMirror(i).init(TileAttributeAssets.paletteInit(i))
+  }
+  when(paletteCommitNow && paletteEntryIdx < 32) {
+    paletteMirror(paletteEntryIdx.resize(5)) := paletteCommitData
+  }
+
   palette.write(
     address = paletteEntryIdx.resize(log2Up(TileAttributeAssets.PaletteDepth)),
     data    = paletteCommitData,
@@ -1769,9 +1786,10 @@ case class VdpTop() extends Component {
                      (vCounter >= borderY0Reg.resize(log2Up(vTotal))) &&
                      (vCounter <  borderY1Reg.resize(log2Up(vTotal)))
   val borderActive = borderEnable && !insideBorder
-  // Use a second async read port on the palette Mem to fetch the
-  // border color independently of the main pixel-pipe palette read.
-  val borderRgb = palette.readAsync(borderIdx.resize(log2Up(TileAttributeAssets.PaletteDepth)))
+  // Task 50 v3.3: Use a combinational lookup from the palette mirror
+  // registers to fetch the border color. This removes the second async
+  // read port on the palette Mem which broke BSRAM inference in v3.0.
+  val borderRgb = paletteMirror(borderIdx)
   val borderActiveR = RegNext(borderActive) init False
   val borderRgbR    = RegNext(borderRgb)    init B(0, 24 bits)
 
