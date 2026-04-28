@@ -390,10 +390,19 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           zxPalEntry(21,  0x00, 0xFF, 0xFF) ++                  // bright cyan
           zxPalEntry(22,  0xFF, 0xFF, 0x00) ++                  // bright yellow
           zxPalEntry(23,  0xFF, 0xFF, 0xFF)                     // bright white
+        // Task 50 v3 — visible-border window. Center the 256×192 active
+        // area in the 640×480 output: x=[192, 448), y=[144, 336).
+        // BORDER_CTRL = 0x1801 → enable + palette index 24 (the slot
+        // the ZX adapter writes from ZX_BORDER updates).
         Seq((0 << 14) | 0) ++                                    // WAIT y=0
           zxPalette ++
           Seq(
             (1 << 14) | 0x0350, 0x0081,                          // BITMAP_CTRL = en|1bpp|useSdram
+            (1 << 14) | 0x033C, 192,                             // BORDER_X0
+            (1 << 14) | 0x033D, 448,                             // BORDER_X1
+            (1 << 14) | 0x033E, 144,                             // BORDER_Y0
+            (1 << 14) | 0x033F, 336,                             // BORDER_Y1
+            (1 << 14) | 0x0347, 0x1801,                          // BORDER_CTRL = en | idx=24
             (3 << 14) | 0                                        // JUMP 0
           )
       case 60 =>

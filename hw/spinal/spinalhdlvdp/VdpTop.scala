@@ -1750,6 +1750,31 @@ case class VdpTop() extends Component {
   colorMath.io.enable   := combinedWindowEffectR || drainMetaMathEnR
   val mathRgb = colorMath.io.rgbOut
 
+  // Task 50 v3 Slice 2 — visible-border window display mux.
+  //
+  // When BORDER_CTRL[0] is set, pixels OUTSIDE the rectangle
+  // [borderX0, borderX1) × [borderY0, borderY1) are replaced by a
+  // dedicated palette lookup. The border palette index is BORDER_CTRL
+  // bits[12:8]; canonical assignment is slot 24 (written by the ZX
+  // Spectrum adapter's border emitter). The replacement happens at
+  // the same 1-cycle pipeline depth as the rest of the display
+  // outputs (mathRgb / hsyncR / deR) — combinatorial border-active
+  // and palette read are computed at cycle T from current
+  // h/v/borderReg state, then registered to align with mathRgb at
+  // cycle T+1.
+  val borderEnable = borderCtrlReg(0)
+  val borderIdx    = borderCtrlReg(12 downto 8).asUInt
+  val insideBorder = (hCounter >= borderX0Reg.resize(log2Up(hTotal))) &&
+                     (hCounter <  borderX1Reg.resize(log2Up(hTotal))) &&
+                     (vCounter >= borderY0Reg.resize(log2Up(vTotal))) &&
+                     (vCounter <  borderY1Reg.resize(log2Up(vTotal)))
+  val borderActive = borderEnable && !insideBorder
+  // Use a second async read port on the palette Mem to fetch the
+  // border color independently of the main pixel-pipe palette read.
+  val borderRgb = palette.readAsync(borderIdx.resize(log2Up(TileAttributeAssets.PaletteDepth)))
+  val borderActiveR = RegNext(borderActive) init False
+  val borderRgbR    = RegNext(borderRgb)    init B(0, 24 bits)
+
   // Display-side sync / DE / gating signals delayed 1 cycle to track
   // the ColorMath input pipeline. hsync/vsync are active-low so reset
   // value is True (inactive).
@@ -1759,6 +1784,11 @@ case class VdpTop() extends Component {
   val primedR        = RegNext(primed)                init False
   val rasterPendingR = RegNext(rasterTrigger.io.pending) init False
 
+  // Border bypasses ColorMath — when borderActiveR is set, displayRgb
+  // is the border palette entry directly; otherwise the post-ColorMath
+  // pixel.
+  val displayRgb = Mux(borderActiveR, borderRgbR, mathRgb)
+
   io.hsync := hsyncR
   io.vsync := vsyncR
   io.de := deR
@@ -1766,10 +1796,10 @@ case class VdpTop() extends Component {
   io.green := B(0, 8 bits)
   io.blue := B(0, 8 bits)
   when(deR && primedR) {
-    val redRaw = mathRgb(23 downto 16)
+    val redRaw = displayRgb(23 downto 16)
     io.red   := Mux(rasterPendingR, ~redRaw, redRaw)
-    io.green := mathRgb(15 downto 8)
-    io.blue  := mathRgb(7 downto 0)
+    io.green := displayRgb(15 downto 8)
+    io.blue  := displayRgb(7 downto 0)
   }
   // io.x/y are the displayed-pixel coordinates and must track the same
   // 1-cycle pipeline shift as io.de / io.red / io.green / io.blue (CW
