@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.3) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `32048d8` (Task 50 v3.3: palette mirror + single readAsync port restored) |
-| **Latest Auth Mail** | #8703 (CyanPeak v3.3 authorization — palette mirror fix landed) |
-| **Next Deliverable** | HW re-capture: verify cycling border + visible bitmap on silicon
+| **Latest Auth Mail** | #8705 (BrightForge partial HW — border works, bitmap still black) |
+| **Next Deliverable** | v3.4: debug display mux — trace mainRgb when borderActive=False
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
