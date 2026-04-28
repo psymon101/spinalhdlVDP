@@ -61,6 +61,10 @@ object ZXSpectrumAdapterSim extends App {
     println(s"[sim] Case 2 ZX_FLASH_CTRL / ZX_FLASH_RATE shadow — OK")
 
     // ---- Case 3: ZX_CTRL[0] rising edge → LAYER_ENABLE bus emit ------
+    // First drain any v2 border emits queued by Case 1 (3 cycles per emit
+    // × 2 border writes = up to ~10 cycles to fully serialise).
+    dut.clockDomain.waitSampling(20)
+
     // Set up a sampler that watches busWr and captures any pulses.
     val emitted = scala.collection.mutable.ArrayBuffer.empty[(Int, Int)]
     val watcher = fork {
@@ -118,6 +122,72 @@ object ZXSpectrumAdapterSim extends App {
     assert(emitted.isEmpty,
       s"Case 5: ZX_PAL_LOAD must not emit bus writes in v1, got $emitted")
     println(s"[sim] Case 5 ZX_PAL_LOAD shadowable, no bus emit — OK")
+
+    // ---- Case 6 (v2): ZX_BORDER → 3-write palette emit sequence ------
+    // Writing ZX_BORDER=4 (green) must produce exactly:
+    //   addr=0x0601 data=48 (entry borderSlot=24 × 2, low half pointer)
+    //   addr=0x0600 data=0xCD00 (G:B = 0xCD:0x00 — green low half)
+    //   addr=0x0600 data=0x0000 (R = 0x00 — green high half, commits)
+    emitted.clear()
+    zxWrite(0x00, 0x04)               // ZX_BORDER = 4 (green)
+    dut.clockDomain.waitSampling(10)  // give the FSM time to emit all 3 words
+    assert(emitted.size == 3,
+      s"Case 6a: expected 3 bus emits for green border, got ${emitted.size} -> $emitted")
+    val (a0, d0) = emitted(0)
+    val (a1, d1) = emitted(1)
+    val (a2, d2) = emitted(2)
+    assert(a0 == 0x0601 && d0 == 24 * 2,
+      f"Case 6a step 1: expected (0x0601, ${24*2}), got (0x$a0%04X, 0x$d0%04X)")
+    assert(a1 == 0x0600 && d1 == 0xCD00,
+      f"Case 6a step 2: expected (0x0600, 0xCD00) green G:B, got (0x$a1%04X, 0x$d1%04X)")
+    assert(a2 == 0x0600 && d2 == 0x0000,
+      f"Case 6a step 3: expected (0x0600, 0x0000) green R, got (0x$a2%04X, 0x$d2%04X)")
+    println(f"[sim] Case 6a ZX_BORDER=4 (green) → 3-write palette sequence — OK")
+
+    // Different border code → different RGB. Test code 2 (red) and 5 (cyan).
+    emitted.clear()
+    zxWrite(0x00, 0x02)               // red
+    dut.clockDomain.waitSampling(10)
+    assert(emitted.size == 3, s"Case 6b red: expected 3 emits, got ${emitted.size}")
+    assert(emitted(0) == (0x0601, 48), s"Case 6b ptr: ${emitted(0)}")
+    assert(emitted(1) == (0x0600, 0x0000), s"Case 6b G:B (red is G=0,B=0): ${emitted(1)}")
+    assert(emitted(2) == (0x0600, 0x00CD), s"Case 6b R (red is 0xCD): ${emitted(2)}")
+    println(f"[sim] Case 6b ZX_BORDER=2 (red) → 0xCD0000 emitted — OK")
+
+    emitted.clear()
+    zxWrite(0x00, 0x05)               // cyan
+    dut.clockDomain.waitSampling(10)
+    assert(emitted.size == 3, s"Case 6c cyan: expected 3 emits, got ${emitted.size}")
+    assert(emitted(1) == (0x0600, 0xCDCD), s"Case 6c G:B (cyan G=0xCD,B=0xCD): ${emitted(1)}")
+    assert(emitted(2) == (0x0600, 0x0000), s"Case 6c R (cyan R=0): ${emitted(2)}")
+    println(f"[sim] Case 6c ZX_BORDER=5 (cyan) → 0x00CDCD emitted — OK")
+
+    // ---- Case 7 (v2): mixed ordering — border + ctrl rise serialised --
+    // If both events queue simultaneously, adapterRise gets priority,
+    // followed by the 3-word border emit.
+    emitted.clear()
+    // First reset ZX_CTRL to 0 so we can re-rise it.
+    zxWrite(0x03, 0x00)
+    dut.clockDomain.waitSampling(2)
+    emitted.clear()
+    // Set border AND ctrl rise in quick succession.
+    zxWrite(0x00, 0x06)               // border = yellow
+    zxWrite(0x03, 0x01)               // ctrl rises to 1
+    dut.clockDomain.waitSampling(15)
+    // Expect 4 emits total: 3 border + 1 LAYER_ENABLE in some order.
+    // The serialiser prioritises adapterRise over pendingBorder when
+    // both surface at sIdle, but the border write happened first so
+    // its FSM sequence may already be in flight when the rise fires.
+    assert(emitted.size == 4,
+      s"Case 7: expected 4 emits (3 border + 1 LAYER_ENABLE), got ${emitted.size} -> $emitted")
+    val layerEmits = emitted.count(_._1 == 0x0300)
+    assert(layerEmits == 1,
+      s"Case 7: expected exactly 1 LAYER_ENABLE emit at 0x0300, got $layerEmits in $emitted")
+    val borderPtrEmits  = emitted.count(e => e._1 == 0x0601)
+    val borderDataEmits = emitted.count(e => e._1 == 0x0600)
+    assert(borderPtrEmits == 1 && borderDataEmits == 2,
+      s"Case 7: expected 1 ptr + 2 data emits, got ptr=$borderPtrEmits data=$borderDataEmits in $emitted")
+    println(f"[sim] Case 7 mixed ordering: 3 border + 1 LAYER_ENABLE serialised — OK (sequence=$emitted)")
 
     println("[sim] ZXSpectrumAdapterSim: PASS")
   }

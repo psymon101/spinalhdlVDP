@@ -2,6 +2,7 @@ package spinalhdlvdp
 
 import spinal.core._
 import spinal.lib._
+import spinal.lib.fsm._
 
 /** Task 50 — ZX Spectrum Adapter.
   *
@@ -22,17 +23,17 @@ import spinal.lib._
   *                                  0x0600/0x0601 protocol per
   *                                  artifact §8)
   *
-  * Bus emission (v1, minimal viable):
-  *   - On ZX_CTRL[0] rising edge → emit `LAYER_ENABLE = 0x0001` (L0
-  *     only), turning on the bitmap path.
+  * Bus emission:
+  *   - v1: On ZX_CTRL[0] rising edge → emit `LAYER_ENABLE = 0x0001`
+  *     (L0 only), turning on the bitmap path. Audited PASS in #8674.
+  *   - v2: On ZX_BORDER write, emit a 3-word palette-RAM update
+  *     sequence (PALETTE_PTR + PALETTE_DATA low + PALETTE_DATA high)
+  *     targeting the dedicated border palette slot. The 8-entry LUT
+  *     maps border code 0..7 to the standard ZX Spectrum 0xCD-level
+  *     RGB triples. The visible-border-via-dual-window wiring (per
+  *     artifact §9) is a v3 follow-on; v2 proves the emitter shape.
   *
-  * Honest gap (v1):
-  *   - Border bus emission deferred. The scenario bootstrap (or host
-  *     firmware) sets the border-region palette directly via the
-  *     CW-1 protocol. Adding a `ZX_BORDER → palette write` emitter
-  *     is a future enhancement that fits the same shadow+emit
-  *     pattern but needs a 3-write sequence (PALETTE_PTR + 2×
-  *     PALETTE_DATA). Out of scope for the smoke proof.
+  * Honest gap (v2):
   *   - FLASH counter not implemented in HDL; host-driven per
   *     artifact §10.
   *
@@ -93,30 +94,116 @@ case class ZXSpectrumAdapter() extends Component {
   io.adapterOn   := R(ZX_CTRL)(0)
 
   // ---- Bus-write emitter --------------------------------------------
-  // Detect ZX_CTRL[0] rising edge against the previous shadow value.
-  // The shadow-write happens this cycle; the trigger captures the
-  // pre-write state so we re-emit only on a 0→1 transition.
+  // Detect edge events on shadow registers that need bus side-effects.
+  // The shadow write happens this cycle; we capture the pre-write
+  // value via RegNext to detect transitions.
   val ctrlPrev    = RegNext(R(ZX_CTRL)(0)) init False
   val adapterRise = R(ZX_CTRL)(0) && !ctrlPrev
 
-  val emitPending = RegInit(False)
-  val emitAddr    = Reg(UInt(15 bits)) init 0
-  val emitData    = Reg(Bits(16 bits)) init 0
+  // v2 BH border-palette emitter: emit a 3-word write sequence whenever
+  // ZX_BORDER changes.
+  //   word 0: addr=PALETTE_PTR (0x0601), data = borderSlot * 2  (low half)
+  //   word 1: addr=PALETTE_DATA(0x0600), data = G:B              (low half)
+  //   word 2: addr=PALETTE_DATA(0x0600), data = R                (high half, commits)
+  // borderSlot is the palette index reserved for the border color.
+  // BitmapFetch only addresses palette entries 0..7 (paper=0..7) and
+  // 16..23 (ink/paper × bright=1) via the {paletteBank, ink/paper}
+  // path, so slot 24 is guaranteed unused by the v1 + v2 bitmap
+  // pattern → border updates do not stomp on visible cells.
+  val borderSlot = 24
+  // 8-entry Spectrum normal-level color LUT: code 0..7 → (R, G, B) at
+  // 0xCD level. Matches artifact §8 normal-level palette.
+  val zxBorderLut: Vec[Bits] = Vec(
+    B(0x00 << 16 | 0x00 << 8 | 0x00, 24 bits),  // 0 black
+    B(0x00 << 16 | 0x00 << 8 | 0xCD, 24 bits),  // 1 blue
+    B(0xCD << 16 | 0x00 << 8 | 0x00, 24 bits),  // 2 red
+    B(0xCD << 16 | 0x00 << 8 | 0xCD, 24 bits),  // 3 magenta
+    B(0x00 << 16 | 0xCD << 8 | 0x00, 24 bits),  // 4 green
+    B(0x00 << 16 | 0xCD << 8 | 0xCD, 24 bits),  // 5 cyan
+    B(0xCD << 16 | 0xCD << 8 | 0x00, 24 bits),  // 6 yellow
+    B(0xCD << 16 | 0xCD << 8 | 0xCD, 24 bits)   // 7 white
+  )
+  // Detect ZX_BORDER write — the shadow-write `when` block above lands
+  // the new value this cycle; we observe the previous value via
+  // RegNext to spot the transition.
+  val borderPrev   = RegNext(R(ZX_BORDER)(2 downto 0)) init B(0, 3 bits)
+  val borderChange = R(ZX_BORDER)(2 downto 0) =/= borderPrev
+  // Latch the border code at the moment of change so the FSM uses a
+  // stable value across its 3-cycle emit sequence even if the host
+  // re-writes ZX_BORDER mid-emit.
+  val borderLatched = Reg(UInt(3 bits)) init 0
+  when(borderChange) { borderLatched := R(ZX_BORDER)(2 downto 0).asUInt }
+  val borderRgb = zxBorderLut(borderLatched)
+  val borderR   = borderRgb(23 downto 16)
+  val borderG   = borderRgb(15 downto 8)
+  val borderB   = borderRgb(7  downto 0)
 
-  // LAYER_ENABLE word per Task 48 packing:
-  //   bit0=L0, bit1=L1, bit2=sprite, bit3=L2, bit4=L3
-  // ZX adapter wants L0-only bitmap mode.
-  val layerEnableL0Only: Bits = B(0, 11 bits) ## False ## False ## False ## False ## True
+  // Single-shot bus emit (v1 LAYER_ENABLE) and 3-shot border palette
+  // emit (v2). Serialised through one FSM so they cannot collide on
+  // the regBus output. A pending `adapterRise` and a pending
+  // `borderChange` are queued — adapterRise gets priority since it's
+  // cycle-critical (host expects bitmap path enabled before any
+  // border updates).
+  val pendingAdapterRise = RegInit(False)
+  val pendingBorder      = RegInit(False)
+  when(adapterRise)  { pendingAdapterRise := True }
+  when(borderChange) { pendingBorder      := True }
 
-  when(adapterRise) {
-    emitPending := True
-    emitAddr    := U(0x0300, 15 bits)
-    emitData    := layerEnableL0Only
-  } otherwise {
-    when(emitPending) { emitPending := False }
+  val emitAddr = Reg(UInt(15 bits)) init 0
+  val emitData = Reg(Bits(16 bits)) init 0
+  val emitWr   = RegInit(False)
+
+  val emitFsm = new StateMachine {
+    val sIdle    = new State with EntryPoint
+    val sLayer   = new State                    // emit LAYER_ENABLE
+    val sBordPtr = new State                    // emit PALETTE_PTR
+    val sBordLo  = new State                    // emit PALETTE_DATA low
+    val sBordHi  = new State                    // emit PALETTE_DATA high
+
+    // sIdle consumes pending events. The OR with adapterRise/borderChange
+    // captures same-cycle events that the top-level latches would
+    // otherwise need 1 cycle to surface — and avoids the
+    // assignment-clash where FSM unconditionally clearing the pending
+    // reg would overwrite a fresh top-level set.
+    sIdle.whenIsActive {
+      emitWr := False
+      when(adapterRise || pendingAdapterRise) {
+        pendingAdapterRise := False
+        goto(sLayer)
+      } elsewhen(borderChange || pendingBorder) {
+        pendingBorder := False
+        goto(sBordPtr)
+      }
+    }
+
+    sLayer.whenIsActive {
+      emitAddr := U(0x0300, 15 bits)
+      emitData := B(0, 11 bits) ## False ## False ## False ## False ## True
+      emitWr   := True
+      goto(sIdle)
+    }
+
+    sBordPtr.whenIsActive {
+      emitAddr := U(0x0601, 15 bits)            // PALETTE_PTR
+      emitData := B(borderSlot * 2, 16 bits)    // entry borderSlot, low half
+      emitWr   := True
+      goto(sBordLo)
+    }
+    sBordLo.whenIsActive {
+      emitAddr := U(0x0600, 15 bits)            // PALETTE_DATA
+      emitData := (borderG ## borderB).resize(16)   // low half = G:B
+      emitWr   := True
+      goto(sBordHi)
+    }
+    sBordHi.whenIsActive {
+      emitAddr := U(0x0600, 15 bits)            // PALETTE_DATA
+      emitData := borderR.resize(16)             // high half = R, commits entry
+      emitWr   := True
+      goto(sIdle)
+    }
   }
 
   io.busAddr := emitAddr
   io.busData := emitData
-  io.busWr   := emitPending
+  io.busWr   := emitWr
 }
