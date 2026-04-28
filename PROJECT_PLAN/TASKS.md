@@ -28,11 +28,11 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 50 — ZX Spectrum Adapter — Implementation** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement (v3.3) |
+| **Phase** | implement (v3.4) |
 | **Owner** | BrightForge |
-| **Latest Commit** | `32048d8` (Task 50 v3.3: palette mirror + single readAsync port restored) |
-| **Latest Auth Mail** | #8705 (BrightForge partial HW — border works, bitmap still black) |
-| **Next Deliverable** | v3.4: debug display mux — trace mainRgb when borderActive=False
+| **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
+| **Latest Auth Mail** | #8707 (CyanPeak v3.4 authorization — fixing black active area) |
+| **Next Deliverable** | HW re-capture: verify cycling border + visible bitmap on silicon
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
