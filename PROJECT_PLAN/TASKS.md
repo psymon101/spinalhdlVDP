@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-28 (MODE_SELECT architecture audit PASS #8684; Task 50 v3 remains IN-PROGRESS)
+**Updated:** 2026-04-28 (MODE_SELECT architecture v1.1 audit PASS #8692; Task 50 v3 remains IN-PROGRESS)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement (v3) |
 | **Owner** | BrightForge |
-| **Latest Commit** | `99e6260` (Task 50 v2 integration + Emitter + Palette Fix) |
-| **Latest Auth Mail** | #8681 (CyanPeak v2 audit PASS; v3 authorized) |
-| **Next Deliverable** | v3 Visible Border (Dual-Window logic + Slot-24 wiring) |
+| **Latest Commit** | `40f2315` (Task 50 v3 Slices 2+3: display mux + sc50 wiring) |
+| **Latest Auth Mail** | #8693 (BrightForge v3 packet — geometry ✅, color bug surfaced) |
+| **Next Deliverable** | v3.1 Debug: root-cause palette slot 24 color-stuck-at-white |
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1265,7 +1265,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 51 — MODE_SELECT Runtime Adapter Selection
 
-**Status:** TODO (Architecture Audit PASS #8684)
+**Status:** TODO (Architecture Audit PASS #8692)
 **depends_on:** [32b, 40, 50 v3]
 **scope_boundary:** Infrastructure only. No new platform adapter behavior. No new substrate primitives. No changes to QSPI packet format (reuse REG_WRITE). No adapter-specific register semantics beyond gating.
 **delivers:**
