@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.4) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| **Latest Auth Mail** | #8713 (BrightForge sim evidence — BITMAP_CTRL commit path clean via direct regBus) |
-| **Next Deliverable** | Instrumented sim or fresh-code analysis to localize bitmap-black cause
+| **Latest Auth Mail** | #8716 (BrightForge major progress — Sc50DebugSim PASS, tileBootDone hypothesis) |
+| **Next Deliverable** | A/B regression test: build sc45 from HEAD to verify if v3 substrate broke it too
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
