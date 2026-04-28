@@ -1277,12 +1277,12 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     bitmapRowFetch.io.fetchLine  := video.io.bitmapSdramFetchLine
     bitmapRowFetch.io.col        := video.io.bitmapSdramCol
     // Task 44b iter 6h (CyanPeak #8141 / BronzeGate #8143): gate BitmapRowFetch
-    // to scenarioId == 45 only. Sc44 uses on-chip bitmap pattern and does not
-    // consume BitmapRowFetch output (useSdram=0), but currently still enables
-    // it via bitmapModeActive, causing SDRAM row-fetch switching noise during
-    // active video. Disabling in Sc44 isolates the noise hypothesis for the
-    // capture-card lock failure.
-    bitmapRowFetch.io.enable     := video.io.bitmapModeActive && Bool(scenarioId == 45)
+    // to scenarios that require SDRAM-backed bitmap. Sc44 uses on-chip
+    // bitmap pattern and does not consume BitmapRowFetch output
+    // (useSdram=0); gating isolates SDRAM row-fetch switching noise for
+    // capture-card troubleshooting.
+    bitmapRowFetch.io.enable     := video.io.bitmapModeActive &&
+                                    (Bool(scenarioId == 45) || Bool(scenarioId == 50))
     // tileBootDone wired after `fetch` instantiation below (forward ref).
     video.io.bitmapSdramByte     := bitmapRowFetch.io.bitmapByte
     video.io.bitmapSdramAttrByte := bitmapRowFetch.io.attrByte
