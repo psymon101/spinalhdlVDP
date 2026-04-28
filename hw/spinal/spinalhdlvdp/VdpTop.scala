@@ -209,6 +209,12 @@ case class VdpTop() extends Component {
   copper.io.hCounter := hCounter.resize(10)
   copper.io.vCounter := vCounter.resize(10)
   copper.io.enabled  := copperCtrlReg(0)
+  // BH-2: feed Copper's SKIP comparator from the legacy TR0 raster
+  // trigger config so SKIP shares the same (line, pixel) targets the
+  // IRQ subsystem already exposes. Wired below the rasterTrigger
+  // declaration; TR0 inputs are the top-level rasterTrigger* IO.
+  copper.io.triggerLine0  := io.rasterTriggerLine
+  copper.io.triggerPixel0 := io.rasterTriggerPixel
   val copperProgRangeHit = io.regBus.enable &&
     (io.regBus.addr >= U(0x0400, 15 bits)) &&
     (io.regBus.addr <  U(0x0600, 15 bits))

@@ -203,6 +203,94 @@ object CopperSim extends App {
       s"case6: legacy WAIT-Y must fire near hCounter=0, got ($wx6, $wy6)")
     println(f"[sim] case6 legacy WAIT(220) still fires at hCounter≈0 (got x=$wx6%d) — OK")
 
+    // -------- Case 7 (BH-2): SKIP cond=010 (line == trigger0Line) --------
+    // Encoding: 11 | 1 | 00000 | cond[2:0] | offset[4:0]
+    def SKIP(cond: Int, offset: Int): Int =
+      (3 << 14) | (1 << 13) | ((cond & 0x7) << 5) | (offset & 0x1F)
+    // Program (offset is in PROGRAM WORDS; one WRITE = 2 words, so skip
+    // two WRITEs = offset 4):
+    //   0: WAIT y=150
+    //   1: SKIP cond=010 offset=4  (if vCounter==trigger0Line, skip 4 words
+    //                               = the next two WRITE instructions)
+    //   2: WRITE 0x0301 0xAAAA      (skipped when cond true)
+    //   3: ^ (data word)
+    //   4: WRITE 0x0302 0xBBBB      (skipped when cond true)
+    //   5: ^
+    //   6: WRITE 0x0303 0xCCCC      (always reached)
+    //   7: ^
+    //   8: JUMP 0
+    val skipProgram = Seq(
+      WAIT(150),
+      SKIP(cond = 0x2, offset = 4),
+      WRITE_OP(0x0301), 0xAAAA,
+      WRITE_OP(0x0302), 0xBBBB,
+      WRITE_OP(0x0303), 0xCCCC,
+      JUMP(0)
+    )
+
+    // Sub-case 7a: trigger0Line=150 → cond TRUE → only 0x0303 fires.
+    dut.io.enabled #= false
+    step(5)
+    loadProgram(skipProgram)
+    dut.io.triggerLine0 #= 150
+    captured.clear()
+    dut.io.enabled #= true
+    runRaster(yFrom = 145, yTo = 155)
+    val taken = captured.filter(c => Set(0x0301, 0x0302, 0x0303).contains(c._1)).toList
+    val takenAddrs = taken.map(_._1).toSet
+    assert(takenAddrs == Set(0x0303),
+      s"case7a: SKIP-taken should leave only 0x0303, got $takenAddrs")
+    println(f"[sim] case7a SKIP cond=line==tr0 TAKEN (0x0303 only) — OK")
+
+    // Sub-case 7b: trigger0Line=999 → cond FALSE → fall through, all 3 fire.
+    dut.io.enabled #= false
+    step(5)
+    loadProgram(skipProgram)
+    dut.io.triggerLine0 #= 999
+    captured.clear()
+    dut.io.enabled #= true
+    runRaster(yFrom = 145, yTo = 155)
+    val notTaken = captured.filter(c => Set(0x0301, 0x0302, 0x0303).contains(c._1)).toList
+    val notTakenAddrs = notTaken.map(_._1).toSet
+    assert(notTakenAddrs == Set(0x0301, 0x0302, 0x0303),
+      s"case7b: SKIP-not-taken should reach all three writes, got $notTakenAddrs")
+    println(f"[sim] case7b SKIP cond=line==tr0 NOT TAKEN (all three fire) — OK")
+
+    // -------- Case 8 (BH-2): SKIP cond=000 (line < trigger0Line) ----------
+    // Program: at every line 100..150, run SKIP(cond=000, offset=1) followed
+    // by WRITE 0x0304 0xD00D. Below trigger0Line=200, SKIP fires and 0x0304
+    // is suppressed. Switch trigger0Line=50 mid-test and re-verify SKIP
+    // does NOT fire (line>=50, cond=000=line<tr0 is false).
+    val skipLessProgram = Seq(
+      WAIT(100),
+      SKIP(cond = 0x0, offset = 2),    // skip 2 words = 1 WRITE
+      WRITE_OP(0x0304), 0xD00D,
+      JUMP(0)
+    )
+    dut.io.enabled #= false
+    step(5)
+    loadProgram(skipLessProgram)
+    dut.io.triggerLine0 #= 200
+    captured.clear()
+    dut.io.enabled #= true
+    runRaster(yFrom = 95, yTo = 105)
+    val skLine100 = captured.filter(_._1 == 0x0304).toList
+    assert(skLine100.isEmpty,
+      s"case8a: line<200 should SKIP the WRITE, but got ${skLine100.size} writes")
+    println(f"[sim] case8a SKIP cond=line<tr0 TAKEN (line 100 < 200, no write) — OK")
+
+    dut.io.enabled #= false
+    step(5)
+    loadProgram(skipLessProgram)
+    dut.io.triggerLine0 #= 50
+    captured.clear()
+    dut.io.enabled #= true
+    runRaster(yFrom = 95, yTo = 105)
+    val skLine100b = captured.filter(_._1 == 0x0304).toList
+    assert(skLine100b.nonEmpty,
+      s"case8b: line(100)>=tr0(50) should fall through, but got 0 writes")
+    println(f"[sim] case8b SKIP cond=line<tr0 NOT TAKEN (line 100 ≥ 50, write fires) — OK")
+
     println("[sim] CopperSim: PASS")
   }
 }

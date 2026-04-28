@@ -20,7 +20,27 @@ import spinal.lib.fsm._
   *   - **WRITE_SEQ** (≥2 words): `10 | count_m1[2:0] | addr[10:0]` then N
   *     data words (N = count_m1 + 1, 1..8) — emits N consecutive register
   *     writes with auto-incrementing address.
-  *   - **JUMP** (1 word): `11 | 0000 | targetPC[8:0]` — unconditional jump.
+  *   - **JUMP** legacy (1 word): `11 | 0 | 000 | targetPC[8:0]` —
+  *     unconditional jump. Bit[13]=0 selects this form.
+  *   - **SKIP** (1 word, BH-2): `11 | 1 | xxxxx | cond[2:0] | offset[4:0]`
+  *     — conditional skip. If `cond` evaluates True the program counter
+  *     advances by `1 + offset` PROGRAM WORDS; otherwise it advances by
+  *     1 (falls through). `offset` is counted in 16-bit program words,
+  *     not instructions: a single WRITE consumes 2 words, so use
+  *     `offset=2` to skip exactly one WRITE, `offset=4` to skip two
+  *     WRITEs, and so on. `offset=0` collapses to a 1-cycle no-op.
+  *     Conditions:
+  *       000 = vCounter <  triggerLine0
+  *       001 = vCounter >  triggerLine0
+  *       010 = vCounter == triggerLine0
+  *       011 = hCounter <  triggerPixel0
+  *       100 = hCounter >  triggerPixel0
+  *       101 = hCounter == triggerPixel0
+  *       11x = reserved   (always False ⇒ fall through)
+  *     `triggerLine0` and `triggerPixel0` are external inputs sourced by
+  *     VdpTop from the existing TR0 raster trigger registers, so the
+  *     program can stage Copper logic against the same beam-position
+  *     compares the IRQ subsystem already exposes.
   *
   * Runs in pixel clock domain. Writes are emitted as single-cycle regWrite
   * pulses, which the consumer (a multiplexer in VdpTop) merges with the
@@ -44,6 +64,12 @@ case class Copper() extends Component {
     val hdmaCtrlAddr = in UInt(7 bits)
     val hdmaData     = in Bits(16 bits)
     val hdmaWr       = in Bool()
+
+    // BH-2: external compare inputs for SKIP conditions. Sourced by VdpTop
+    // from the existing TR0 raster trigger configuration so SKIP shares
+    // the same (line, pixel) registers the IRQ subsystem already exposes.
+    val triggerLine0  = in UInt(10 bits)
+    val triggerPixel0 = in UInt(10 bits)
 
     // Register-write output (pixel domain, merged upstream with HostInterface)
     val regAddr  = out UInt(15 bits)
@@ -124,8 +150,29 @@ case class Copper() extends Component {
             goto(sSeqData)
           }
           is(B"11") {
-            // JUMP
-            pc := fetchWord(8 downto 0).asUInt
+            // JUMP (bit[13]=0) or SKIP (bit[13]=1) — BH-2.
+            when(!fetchWord(13)) {
+              // Legacy unconditional JUMP
+              pc := fetchWord(8 downto 0).asUInt
+            }.otherwise {
+              // SKIP cond,offset
+              val cond   = fetchWord(7 downto 5)
+              val offset = fetchWord(4 downto 0).asUInt
+              val condTrue = cond.mux(
+                B"000" -> (io.vCounter <  io.triggerLine0),
+                B"001" -> (io.vCounter >  io.triggerLine0),
+                B"010" -> (io.vCounter === io.triggerLine0),
+                B"011" -> (io.hCounter <  io.triggerPixel0),
+                B"100" -> (io.hCounter >  io.triggerPixel0),
+                B"101" -> (io.hCounter === io.triggerPixel0),
+                default -> False    // 110, 111 reserved → never skip
+              )
+              when(condTrue) {
+                pc := pc + 1 + offset.resize(pc.getWidth)
+              }.otherwise {
+                pc := pc + 1
+              }
+            }
           }
         }
       }
