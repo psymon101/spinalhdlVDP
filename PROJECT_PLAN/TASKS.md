@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-27 (Beam Hardening implementation IN-PROGRESS #8656; Color/Window DONE #8654)
+**Updated:** 2026-04-28 (Beam Hardening implementation code-complete #8658; pending CyanPeak audit; Color/Window DONE #8654)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,9 +30,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** |
 | **Phase** | implement |
 | **Owner** | BrightForge |
-| **Latest Commit** | `0f5dc65` (Color/Window closeout; Beam artifact PASS #8656) |
-| **Latest Auth Mail** | #8656 (CyanPeak audit PASS: Beam Hardening artifact v1.0-draft) |
-| **Next Deliverable** | BrightForge implementation packet (sim proofs + HW scenarios) |
+| **Latest Commit** | `6345fcc` (BH-1..BH-6 implementation + sc60 HW proof) |
+| **Latest Auth Mail** | #8658 (BrightForge implementation completion packet) |
+| **Next Deliverable** | CyanPeak implementation audit |
 | **Coding Authorized** | **YES** — #8656 |
 
 **Previous lane:** Color/Window Hardening — Implementation | DONE | `0f5dc65` | Audit PASS #8654, CW-1/2/3/4/5/6 all proven, sc51+sc52 HW evidence
@@ -41,7 +41,7 @@ This section tracks the single active lane so the team does not infer state from
 
 **Previous lane:** Sprite Pattern Memory Foundation — Implementation | DONE | `e86fe49` | Audit PASS #8605
 
-**Artifact file:** `PROJECT_PLAN/artifacts/TASK_BEAM_HARDENING.md` (v1.0-draft)
+**Artifact file:** `PROJECT_PLAN/artifacts/TASK_BEAM_HARDENING.md` (v1.0, audit PASS #8656)
 
 Rules:
 - Only **one** lane may be live at a time.
