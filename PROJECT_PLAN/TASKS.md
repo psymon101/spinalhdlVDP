@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-28 (Task 50 ZX Spectrum Adapter v1 audit PASS #8674; authorized for v2 integration)
+**Updated:** 2026-04-28 (MODE_SELECT architecture v1.0 drafted; Task 51 added; Task 50 v3 remains IN-PROGRESS)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,12 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 50 — ZX Spectrum Adapter — Implementation** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement (v2) |
+| **Phase** | implement (v3) |
 | **Owner** | BrightForge |
-| **Latest Commit** | `477bf24` (Task 50 v1 implementation + sc50 HW proof) |
-| **Latest Auth Mail** | #8674 (CyanPeak v1 audit PASS; v2 authorized) |
-| **Next Deliverable** | v2 Integration (RegBusArbiter wiring + Border emitter) |
+| **Latest Commit** | `99e6260` (Task 50 v2 integration + Emitter + Palette Fix) |
+| **Latest Auth Mail** | #8681 (CyanPeak v2 audit PASS; v3 authorized) |
+| **Next Deliverable** | v3 Visible Border (Dual-Window logic + Slot-24 wiring) |
 | **Coding Authorized** | **YES** — #8667 |
+
+**Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v1 — Implementation | DONE | `477bf24` | Audit PASS #8674
 
@@ -1241,7 +1243,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 50 — ZX Spectrum Adapter (Bitmap + Attribute)
 
-**Status:** IN-PROGRESS (v1 DONE #8674; v2 Integration pending)
+**Status:** IN-PROGRESS (v2 DONE #8681; v3 Visible Border pending)
 **depends_on:** [40, 44, CW-1, CW-5]
 **scope_boundary:** Thin translation layer only. No cycle-accurate ULA. No 128K paging. No contention modeling. No AY audio. Pre-shuffled bitmap upload (host-side responsibility).
 **delivers:**
@@ -1261,6 +1263,32 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ---
 
+### Task 51 — MODE_SELECT Runtime Adapter Selection
+
+**Status:** TODO
+**depends_on:** [32b, 40, 50 v3]
+**scope_boundary:** Infrastructure only. No new platform adapter behavior. No new substrate primitives. No changes to QSPI packet format (reuse REG_WRITE). No adapter-specific register semantics beyond gating.
+**delivers:**
+
+- `MODE_SELECT` register at `0x0313` with safe-boundary commit in `VdpTop`
+- `AdapterRegRouter` component: intercepts QSPI writes to adapter address ranges and routes to active adapter
+- `AdapterBusMux` component: muxes gated adapter bus outputs into `RegBusArbiter` master 2
+- Output gating on `C64Adapter` and `ZXSpectrumAdapter` so inactive adapters are quiescent
+- Always-instantiated adapters in `TopTang20kHdmi` (replace scenario-conditional with mode-conditional)
+- `ModeSelectSim` unit proof (5 cases: switch, quiescence, router decode, safe-boundary timing)
+- Updated `MODE0_REGISTER_BUS_SPEC.md` with `0x0313` and adapter address blocks
+
+**validation:**
+
+- Sim: `ModeSelectSim` 5/5 PASS
+- `VdpTopSim` regression PASS with `MODE_SELECT=0x0` (native mode)
+- `C64AdapterSim` + `ZXSpectrumAdapterSim` regression PASS with `modeSelect` active
+- Hardware: single bitstream containing C64 + ZX adapters; host switches mode via QSPI, both scenes render correctly
+
+**Task doc:** `PROJECT_PLAN/MODE_SELECT_ARCHITECTURE.md`
+
+---
+
 ## Deferred Items
 
 The following items remain intentionally coarse or out of Mode0 scope. Where possible they have been decomposed into numbered tasks above.
@@ -1269,7 +1297,7 @@ The following items remain intentionally coarse or out of Mode0 scope. Where pos
 |------|--------|-------|
 | Additional output modes | DEFERRED | Not required for baseline bring-up |
 | Deep-angle affine tuning | DEFERRED | Only after affine base path is proven (Task 19, Task 37) |
-| Platform adapter modes | DEFERRED | Task 40 (C64) DONE; Task 50 (ZX Spectrum) IN-PROGRESS |
+| Platform adapter modes | DEFERRED | Task 40 (C64) DONE; Task 50 (ZX Spectrum) IN-PROGRESS; Task 51 (MODE_SELECT) TODO |
 | Alternate memory strategies | DEFERRED | Only if baseline memory path becomes a blocker |
 | Parallel bus implementation | DEFERRED | After QSPI path is stable (Task 25) |
 

@@ -74,7 +74,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0310` | `VDP_CTRL` — `data[0]=copperEnable` (R5.3) | Task R5.3 | `VdpTop.scala:172,245` |
 | `0x0311` | `VDP_TILE_MODE` — 2-bit packed/planar/shuffled | Task R4.1b/c/d | `VdpTop.scala:225,232` |
 | `0x0312` | `VDP_ATTR_MODE` — 1-bit linear/packed-2×2 | Task R4.1c | `VdpTop.scala:61,240` |
-| `0x0313..0x031F` | **Reserved** — global-control expansion | — | — |
+| `0x0313` | `MODE_SELECT` — `[3:0]=adapter mode ID`, `[7:4]=reserved`, `[15:8]=MODE_FLAGS` | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.2 |
+| `0x0314..0x031F` | **Reserved** — global-control expansion | — | — |
 | `0x0320..0x032F` | **Task 35** — status registers, IRQ enables, sticky bits (see §3.1.1) | Task 35, 29 | `VdpTop.scala:878-921` |
 | `0x0330..0x0334` | **Task 20** — Color Math / Window registers (`WIN0_X`, `WIN1_X`, `WIN0_Y`, `WIN1_Y`, `COLOR_MATH_CTRL`) | Task 20 / R6 | `VdpTop.scala:249,255-263` |
 | `0x0335..0x033F` | **Reserved** — Task 20 expansion or future window registers | — | — |
@@ -102,7 +103,14 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0C06` | `BLIT_SRC_STRIDE` — source RAM row increment (9 bits, COPY mode) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
 | `0x0C07` | `BLIT_FILL_VAL` — fill constant (16 bits, FILL modes) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
 | `0x0C10..0x0D0F` | Blitter source/store RAM (512 × 16-bit) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
-| `0x1000..0x7FFF` | **Reserved** — future Mode0 expansion (palette banks, sprite attr, etc.) | — | — |
+| `0x0F00..0x0FFF` | **ZX Spectrum adapter** — adapter-local register shadow (256 bytes) | Task 50 | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
+| `0x1000..0x10FF` | **Reserved** — future adapter (NES proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
+| `0x1100..0x11FF` | **Reserved** — future adapter (SMS proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
+| `0x1200..0x12FF` | **Reserved** — future adapter (Genesis proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
+| `0x1300..0x13FF` | **Reserved** — future adapter (SNES proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
+| `0x1400..0x14FF` | **Reserved** — future adapter (Amiga proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
+| `0x1500..0x15FF` | **Reserved** — future adapter (Atari ST proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
+| `0x1600..0x7FFF` | **Reserved** — future Mode0 expansion (palette banks, sprite attr, etc.) | — | — |
 
 ### 3.1.1 STATUS_STICKY bit layout (`0x0320`, write-1-to-clear)
 
