@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-28 (Task 50 ZX Spectrum Adapter v1 code-complete #8672; pending CyanPeak audit; all substrate hardening DONE)
+**Updated:** 2026-04-28 (Task 50 ZX Spectrum Adapter v1 audit PASS #8674; authorized for v2 integration)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,12 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 50 — ZX Spectrum Adapter — Implementation** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
+| **Phase** | implement (v2) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `477bf24` (Task 50 v1 implementation + sc50 HW proof) |
-| **Latest Auth Mail** | #8672 (BrightForge v1 implementation completion) |
-| **Next Deliverable** | CyanPeak v1 implementation audit |
+| **Latest Auth Mail** | #8674 (CyanPeak v1 audit PASS; v2 authorized) |
+| **Next Deliverable** | v2 Integration (RegBusArbiter wiring + Border emitter) |
 | **Coding Authorized** | **YES** — #8667 |
+
+**Previous lane:** Task 50 ZX Spectrum Adapter v1 — Implementation | DONE | `477bf24` | Audit PASS #8674
 
 **Previous lane:** Beam-Driven Automation Hardening — Implementation | DONE | `6345fcc` | Audit PASS #8660, BH-1/2/3/4/5/6 all proven, sc60 HW evidence
 
@@ -1239,7 +1241,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 50 — ZX Spectrum Adapter (Bitmap + Attribute)
 
-**Status:** IN-PROGRESS — artifact drafting (CoralReef)
+**Status:** IN-PROGRESS (v1 DONE #8674; v2 Integration pending)
 **depends_on:** [40, 44, CW-1, CW-5]
 **scope_boundary:** Thin translation layer only. No cycle-accurate ULA. No 128K paging. No contention modeling. No AY audio. Pre-shuffled bitmap upload (host-side responsibility).
 **delivers:**

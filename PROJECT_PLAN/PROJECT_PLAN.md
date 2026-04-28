@@ -121,11 +121,12 @@ The following are already proven on this repository state:
 The current validated baseline is **past the entire mainline substrate construction phase**. Tasks 1–43, R1–R6, and the first three hardening lanes are complete.
 
 **Active lane:**
-- **Task 50 — ZX Spectrum Adapter — Implementation** (IN-PROGRESS, BrightForge, commits `2a841a5` + `477bf24`)
+- **Task 50 — ZX Spectrum Adapter — Implementation** (IN-PROGRESS v2, BrightForge)
   - First serious platform adapter after C64 smoke-test (Task 40)
   - ZX Spectrum bitmap + attribute display on Mode0 substrate
-  - v1 code-complete: `ZXSpectrumAdapter` sim 5/5, sc50 HW proof captured
-  - Thin translation layer; actual +2 LUT / 0 FF vs baseline
+  - v1 DONE: audit PASS #8674 (CyanPeak), commit `477bf24`
+  - v2 IN-PROGRESS: RegBusArbiter wiring + border-color emitter + bright palette mapping
+  - Thin translation layer; v1 actual +2 LUT / 0 FF vs baseline
 
 **Previous lanes (all closed):**
 - Beam-Driven Automation Hardening — DONE (`6345fcc`, audit PASS #8660)

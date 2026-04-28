@@ -1,10 +1,10 @@
 # Task 50 — ZX Spectrum Adapter (Bitmap + Attribute)
 
-**Artifact version:** 1.0
+**Artifact version:** 1.1
 **Author:** CoralReef
 **Date:** 2026-04-28
-**Audit:** PASS #8667 (CyanPeak)
-**Status:** IN-PROGRESS (Implementation)
+**Audit:** PASS #8674 (CyanPeak)
+**Status:** DONE (v1 Implementation); IN-PROGRESS (v2 Integration)
 **Owner:** BrightForge
 **Coding authorized:** YES — #8667
 
