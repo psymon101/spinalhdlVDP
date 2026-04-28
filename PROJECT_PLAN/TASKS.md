@@ -31,8 +31,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.4) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| **Latest Auth Mail** | #8707 (CyanPeak v3.4 authorization — fixing black active area) |
-| **Next Deliverable** | HW re-capture: verify cycling border + visible bitmap on silicon
+| **Latest Auth Mail** | #8710 (BrightForge help request — 5 fix attempts disproven, escalating) |
+| **Next Deliverable** | Instrumented sim or fresh-code analysis to localize bitmap-black cause
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
