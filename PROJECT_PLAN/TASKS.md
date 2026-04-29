@@ -31,7 +31,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.4) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8718 (CyanPeak v3.4 authorization — sc45 regression authorized) |
+| Latest Auth Mail | #8749 (PM sidecar tasking — focused audit on downstream path; coding auth remains #8718) |
 | **Uncommitted** | Frame-border canary + E3.1/E3.2 probes + LUTRAM force attempt (TopTang20kHdmi.scala, BorderRegSim.scala, Sc50DebugSim.scala) |
 | **Next Deliverable** | E3.3 build + capture: fillIdxNonZeroEver vs paletteRgbNonZeroBmRegionEver to isolate lineBuf vs paletteAddr per #8746
 | **Coding Authorized** | **YES** — #8667 |
