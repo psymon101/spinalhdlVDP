@@ -31,7 +31,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.4) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8749 (PM sidecar tasking — focused audit on downstream path; coding auth remains #8718) |
+| Latest Auth Mail | #8749 (PM sidecar tasking), #8755 (BrightForge E3.4 proposal), #8756 (GoldReef unverified audit claim) |
 | **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b probes + LUTRAM force attempt (TopTang20kHdmi.scala, VdpTop.scala, BorderRegSim.scala, Sc50DebugSim.scala, Sc45SubstrateDebugSim.scala) |
 | **Next Deliverable** | Line buffer root-cause fix: write→read round-trip returns zero despite non-zero fillIdx per #8753
 | **Coding Authorized** | **YES** — #8667 |
