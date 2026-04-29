@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-29 (E3.1 ALL 6 probes lit #8743; bug narrowed to BitmapFetch→palette/compositor; E3.2 proposed)
+**Updated:** 2026-04-29 (E3.2: palette read path #8745; LUTRAM force did NOT fix #8746; E3.3 proposed)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -32,8 +32,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
 | Latest Auth Mail | #8718 (CyanPeak v3.4 authorization — sc45 regression authorized) |
-| **Uncommitted** | Frame-border canary + E3.1 probe restoration + E3.2 proposed (TopTang20kHdmi.scala, BorderRegSim.scala, Sc50DebugSim.scala) |
-| **Next Deliverable** | E3.2 build + capture: bitmapFetchPixelNonZeroEver vs videoRgbNonZeroEver to isolate BitmapFetch actual output vs palette/compositor per #8743
+| **Uncommitted** | Frame-border canary + E3.1/E3.2 probes + LUTRAM force attempt (TopTang20kHdmi.scala, BorderRegSim.scala, Sc50DebugSim.scala) |
+| **Next Deliverable** | E3.3 build + capture: fillIdxNonZeroEver vs paletteRgbNonZeroBmRegionEver to isolate lineBuf vs paletteAddr per #8746
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1262,9 +1262,11 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
-- #8743: E3.1 result — ALL 6 probes lit including attrNonZeroR and pixelNonZeroR. Bitmap region STILL truly zero. Bug narrowed to between BitmapFetch internal decode and final HDMI RGB: either (a) BitmapFetch actual `pixelIndex` differs from mirror probe, or (b) palette/compositor zeroes non-zero indices.
-- #8740: Capture-path hardening plan — frame-border canary + E3.1 probe restoration + Tier-2 docs/scripts. BrightForge proceeding with E3.2.
-- #8739: Refined E3 result — ALL 5 upstream gates lit on sc45 HW (dataNonZero, bootDone, bitmapModeActiveEver, dataReady, tileBootDoneEver). But 256×192 active region is genuinely zero. Bug narrowed to: (a) attr reads zero, or (b) BitmapFetch decode collapses, or (c) palette/compositor downstream.
+- #8746: LUTRAM force result — `palette.addAttribute("ram_style", "distributed")` did **NOT** fix bitmap region. ORANGE still DARK. BSRAM-inference theory ruled out. Bug narrowed to chain: `fillIdx → lineBuf → drainWord → paletteAddr → paletteRgb → maskedRgb → video.io.rgb`. Proposed E3.3: BLUE → `dbgFillIdxNonZeroEver`, ORANGE → `dbgPaletteRgbNonZeroBmRegionEver`.
+- #8745: E3.2 result — BLUE (`dbgBitmapFetchPixelNonZeroEver`) LIT, ORANGE (`dbgVideoRgbNonZeroBmRegionEver`) DARK. Bug localized to between `bitmapFetch.io.pixelIndex` and `video.io.rgb`. Palette read path is the surviving suspect. Matches CyanPeak #8723 BSRAM-inference theory (later disproven by #8746).
+- #8743: E3.1 result — ALL 6 probes lit including attrNonZeroR and pixelNonZeroR. Bitmap region STILL truly zero. Bug narrowed to between BitmapFetch internal decode and final HDMI RGB.
+- #8740: Capture-path hardening plan — frame-border canary + E3.1 probe restoration + Tier-2 docs/scripts (check_transport.py, CAPTURE.md). DONE.
+- #8739: Refined E3 result — ALL 5 upstream gates lit on sc45 HW. But 256×192 active region is genuinely zero. Bug narrowed to: (a) attr reads zero, or (b) BitmapFetch decode collapses, or (c) palette/compositor downstream.
 - #8738: Transport canary landed — bottom-right 16×16 cyan block + 1-pixel frame border. Verified on sc50 HW. Confirms earlier black captures were HDMI receiver lock failures, not FPGA scene failures.
 - #8726: E1 sim PASS — BitmapRowFetch init logic proven correct with SDRAM memory model (4,096 bitmap + 8,192 attr writes correct). Init logic is sim-correct; bug is HW-specific.
 - #8724: Historical capture analysis — sc45 was NEVER visibly working on hardware before v3. The Task 44b audit accepted black bitmap on canary evidence alone. Invalidates "v3 substrate regression" hypothesis.
