@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-28 (MODE_SELECT architecture v1.1 audit PASS #8692; Task 50 v3 remains IN-PROGRESS)
+**Updated:** 2026-04-29 (Transport canary landed #8738; E3 all-upstream-gates-lit #8739; E3.1 build in progress #8740)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -32,7 +32,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
 | Latest Auth Mail | #8718 (CyanPeak v3.4 authorization — sc45 regression authorized) |
-| **Next Deliverable** | A/B regression test: build sc45 from HEAD to verify if v3 substrate broke it too
+| **Uncommitted** | Transport canary + frame-border + E3.1 probe restoration (TopTang20kHdmi.scala, BorderRegSim.scala, Sc50DebugSim.scala) |
+| **Next Deliverable** | E3.1 build + capture: attrNonZeroR vs pixelNonZeroR decisive 3-way decision per #8740
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1243,7 +1244,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 50 — ZX Spectrum Adapter (Bitmap + Attribute)
 
-**Status:** IN-PROGRESS (v2 DONE #8681; v3 Visible Border pending)
+**Status:** IN-PROGRESS (v2 DONE #8681; v3.4 bitmap active region debug)
 **depends_on:** [40, 44, CW-1, CW-5]
 **scope_boundary:** Thin translation layer only. No cycle-accurate ULA. No 128K paging. No contention modeling. No AY audio. Pre-shuffled bitmap upload (host-side responsibility).
 **delivers:**
@@ -1258,6 +1259,15 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 - Sim: `ZXSpectrumAdapterSim` produces correct bus writes for border/control changes
 - `VdpTopSim` regression passes with adapter present (disabled path)
 - Hardware: Scenario 50 static frame with visible bitmap + attributes + border, 30s capture stable
+
+**v3.4 lane notes (latest first):**
+
+- #8740: Capture-path hardening plan — frame-border canary + E3.1 probe restoration. BrightForge building next bitstream.
+- #8739: Refined E3 result — ALL 5 upstream gates lit on sc45 HW (dataNonZero, bootDone, bitmapModeActiveEver, dataReady, tileBootDoneEver). But 256×192 active region is genuinely zero. Bug narrowed to: (a) attr reads zero, or (b) BitmapFetch decode collapses, or (c) palette/compositor downstream.
+- #8738: Transport canary landed — bottom-right 16×16 cyan block + 1-pixel frame border. Verified on sc50 HW. Confirms earlier black captures were HDMI receiver lock failures, not FPGA scene failures.
+- #8726: E1 sim PASS — BitmapRowFetch init logic proven correct with SDRAM memory model (4,096 bitmap + 8,192 attr writes correct). Init logic is sim-correct; bug is HW-specific.
+- #8724: Historical capture analysis — sc45 was NEVER visibly working on hardware before v3. The Task 44b audit accepted black bitmap on canary evidence alone. Invalidates "v3 substrate regression" hypothesis.
+- #8718: CyanPeak authorized v3.4 A/B regression (sc45 vs sc50).
 
 **Task doc:** `PROJECT_PLAN/artifacts/TASK_50_ZX_SPECTRUM_ADAPTER.md`
 
