@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-29 (E3.2: palette read path #8745; LUTRAM force did NOT fix #8746; E3.3 proposed)
+**Updated:** 2026-04-29 (E3.3b: fillIdx LIT, drainWord DARK — line buffer write→read failure #8753)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -32,8 +32,8 @@ This section tracks the single active lane so the team does not infer state from
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
 | Latest Auth Mail | #8749 (PM sidecar tasking — focused audit on downstream path; coding auth remains #8718) |
-| **Uncommitted** | Frame-border canary + E3.1/E3.2 probes + LUTRAM force attempt (TopTang20kHdmi.scala, BorderRegSim.scala, Sc50DebugSim.scala) |
-| **Next Deliverable** | E3.3 build + capture: fillIdxNonZeroEver vs paletteRgbNonZeroBmRegionEver to isolate lineBuf vs paletteAddr per #8746
+| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b probes + LUTRAM force attempt (TopTang20kHdmi.scala, VdpTop.scala, BorderRegSim.scala, Sc50DebugSim.scala, Sc45SubstrateDebugSim.scala) |
+| **Next Deliverable** | Line buffer root-cause fix: write→read round-trip returns zero despite non-zero fillIdx per #8753
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1262,7 +1262,8 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
-- #8746: LUTRAM force result — `palette.addAttribute("ram_style", "distributed")` did **NOT** fix bitmap region. ORANGE still DARK. BSRAM-inference theory ruled out. Bug narrowed to chain: `fillIdx → lineBuf → drainWord → paletteAddr → paletteRgb → maskedRgb → video.io.rgb`. Proposed E3.3: BLUE → `dbgFillIdxNonZeroEver`, ORANGE → `dbgPaletteRgbNonZeroBmRegionEver`.
+- #8753: E3.3b result — BLUE (`dbgFillIdxNonZeroEver`) **LIT**, YELLOW (`dbgDrainWordNonZeroBmRegionEver`) **DARK**. `fillIdx` is non-zero entering line buffer, but `drainWord` is zero coming out. Bug is in line buffer write→read round-trip. Palette theory conclusively dropped (tiles use same palette path and work).
+- #8746: LUTRAM force result — `palette.addAttribute("ram_style", "distributed")` did **NOT** fix bitmap region. ORANGE still DARK. BSRAM-inference theory ruled out.
 - #8745: E3.2 result — BLUE (`dbgBitmapFetchPixelNonZeroEver`) LIT, ORANGE (`dbgVideoRgbNonZeroBmRegionEver`) DARK. Bug localized to between `bitmapFetch.io.pixelIndex` and `video.io.rgb`. Palette read path is the surviving suspect. Matches CyanPeak #8723 BSRAM-inference theory (later disproven by #8746).
 - #8743: E3.1 result — ALL 6 probes lit including attrNonZeroR and pixelNonZeroR. Bitmap region STILL truly zero. Bug narrowed to between BitmapFetch internal decode and final HDMI RGB.
 - #8740: Capture-path hardening plan — frame-border canary + E3.1 probe restoration + Tier-2 docs/scripts (check_transport.py, CAPTURE.md). DONE.
