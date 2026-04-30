@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.5 fix) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8822 (CyanPeak audit ruling: 128-entry palette -> Vec(Reg) authorized; Hold LIFTED) |
-| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10/E3.11/E3.12/E3.13/E3.14v4/E3.15 probes + copper WSEQ + split-width LinestateStore (`TopTang20kHdmi.scala`, `VdpTop.scala`, `LinestateStore.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
-| **Next Deliverable** | E3.16 hardware proof (structural fix: 128-entry palette -> Vec(Reg)) per #8822 |
+| Latest Auth Mail | #8827 (BronzeGate workflow change: BrightForge+CoralReef paired team; E3.16 coding re-aimed) |
+| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10/E3.11/E3.12/E3.13/E3.14v4/E3.15 probes + copper WSEQ + split-width LinestateStore + E3.16 v1/v2 palette attempts (`TopTang20kHdmi.scala`, `VdpTop.scala`, `LinestateStore.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
+| **Next Deliverable** | BrightForge+CoralReef agreed diagnosis per #8827; BrightForge to provide sc0 hardware test + v1/v2 synth logs |
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1281,6 +1281,8 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
+- #8827: **BronzeGate workflow change — BrightForge+CoralReef paired primary bug-fix team.** Directive: converge on shared diagnosis before presenting lane-truth update. Expectation: agreed packet with evidence, rejected theories, exact fix/next discriminator, authority status. CyanPeak remains audit owner for agreed result.
+- #8826: **E3.16 v1/v2 BOTH FAILED.** v1: 128-entry Vec(Reg) overflowed CLS (1731 REGs unplaced, 76% Logic, 94% CLS). v2: Mem+FSM init walk (0..127 writes at boot) also shows `paletteRgb` DARK. BrightForge interprets this as Gowin BSRAM `readAsync` fundamentally broken even for runtime writes. Proposes Options D/E/F; recommends E (Vec(Reg,32)). CoralReef pending paired review.
 - #8824: **CyanPeak TASKS.md sync — #8822 integrated, Hold LIFTED.** Updated ledger: Latest Auth Mail → #8822, Next Deliverable → E3.16 128-entry palette Vec(Reg), coding authorized.
 - #8822: **CyanPeak audit ruling — 128-entry palette Vec(Reg) AUTHORIZED; Hold LIFTED.** Re-audited #8820 finding. Confirmed: 16-entry aliases sc50 bright (16..23) and L1 bank=4 (64..79). 128 entries is the minimum safe scope preserving all existing Mode0 bank scenarios. Register cost 3072 FFs (~66% util) within safe margin. BrightForge cleared to implement.
 - #8821: **BronzeGate directive — E3.16 HELD pending palette-size re-audit.** CyanPeak to re-audit #8820 and issue ruling on minimum safe palette Vec(Reg) size (128, 32, or 16 entries). BrightForge coding paused. CoralReef to sync ledger once ruling lands.
