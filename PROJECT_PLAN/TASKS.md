@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.5 fix) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8808 (CyanPeak audit ruling: E3.14 v4 authorized; split-width fix: enables in Reg, scroll in Mem) |
-| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10/E3.11/E3.12/E3.13/E3.14v1 probes + LUTRAM force attempts + copper WSEQ (`TopTang20kHdmi.scala`, `VdpTop.scala`, `LinestateStore.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
-| **Next Deliverable** | E3.14 v4 hardware proof (split-width fix: enables in Reg, scroll in Mem) per #8808 |
+| Latest Auth Mail | #8812 (BrightForge — E3.14 v4 split-width fix WORKED: RED/BLUE canaries LIT; bitmap still dark; RTSP frozen; webcam alternative; E3.15 proposed) |
+| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10/E3.11/E3.12/E3.13/E3.14v1/v4 probes + LUTRAM force attempts + copper WSEQ + split-width Vec(Reg) (`TopTang20kHdmi.scala`, `VdpTop.scala`, `LinestateStore.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
+| **Next Deliverable** | E3.15 terminal-stage probe per #8812 — determine why bitmap pipeline probes are LIT but final output is dark (ColorMath? Compositor? Palette index 0?) + RTSP capture-path reset |
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1282,6 +1282,8 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 **v3.4 lane notes (latest first):**
 
 - #8800: **E3.14 v1 NEGATIVE — 96-line copper WSEQ partial coverage did not light sc45.** BrightForge implemented 12 WRITE_SEQ groups covering lines [40,136). `layer0Enable` and `effectiveL0Enable` probes both DARK. Two interpretations: (a) copper writes never reach `prepare`, or (b) writes reach `prepare` but `commit` doesn't update in time. Proposes v2 with full 192-line coverage or `linestate.writeEnable` counter probe.
+- #8812: **E3.14 v4 result — SPLIT-WIDTH FIX WORKED, but bitmap still dark.** RED (`layer0Enable`) LIT for first time in entire investigation. BLUE (`fetchGrant`) LIT. YELLOW/ORANGE likely LIT. All internal pipeline probes now report non-zero per-frame. Yet bitmap region on webcam remains black/dim. Terminal-stage squash suspected: ColorMath, LayerCompositor, or palette index 0. E3.15 proposed: non-sticky `io.rgb`, `paletteRgb`, `pixelIndex` probes.
+- #8811: **RTSP capture path FROZEN.** `rtsp://192.168.1.95:8554/live` returns byte-identical frames across v2/v3/v4 builds (same MD5 over 1h40m). Webcam stream `rtsp://192.168.1.244:8554/unicast` confirmed working as alternative proof path. FPGA output IS changing (webcam shows distinct frames); Guermok RTSP path is stuck.
 - #8808: **CyanPeak audit ruling — E3.14 v4 authorized.** Option C1 split-width fix: move 2-bit layer enables (`layer0Enable`, `layer1Enable`) into `Vec(Reg(Bits(2 bits)), lineCount=480)` (~960 FFs). Keep 10-bit `scrollX` in existing BSRAM Mem. Sidesteps Gowin BSRAM SDPB `readAsync` defect on critical enable path. ScrollX defaulting to 0 is acceptable for sc45/sc50.
 - #8807: **E3.14 v3 hits two walls.** Wall 1: full-width `Vec(Reg(Bits(12 bits)), 480)` overflows GW2AR-18 (PNR ERROR: 4792 REGs unplaced, 82% FF, 94% CLS). Wall 2: even eliminating `commit` entirely and reading `prepare.readAsync` directly produces identical black behavior — the SDPB `readAsync` defect affects BOTH Mems. Proposes three budget-aware options: C1 (split width), C2 (Mem read pipeline), C3 (global enable bypass). Recommends C1.
 - #8805: **CyanPeak audit ruling — E3.14 v3 authorized.** Structural fix: replace `commit` Mem with `Vec(Reg(Bits(12 bits)), lineCount=480)` (~5760 FFs). Keep `prepare` as BSRAM. Remove probes once sc45 renders. *Superseded by #8807: full-width Vec(Reg) overflows device.*
