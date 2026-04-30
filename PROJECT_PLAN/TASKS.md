@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.5 fix) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8821 (BronzeGate directive: E3.16 HELD pending CyanPeak re-audit of #8820 palette size) |
+| Latest Auth Mail | #8822 (CyanPeak audit ruling: 128-entry palette -> Vec(Reg) authorized; Hold LIFTED) |
 | **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10/E3.11/E3.12/E3.13/E3.14v4/E3.15 probes + copper WSEQ + split-width LinestateStore (`TopTang20kHdmi.scala`, `VdpTop.scala`, `LinestateStore.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
-| **Next Deliverable** | CyanPeak re-audit of #8820 (palette size: 128 vs 32 vs 16 entries). BrightForge coding HELD per #8821 until size/scope ruling explicit. |
+| **Next Deliverable** | E3.16 hardware proof (structural fix: 128-entry palette -> Vec(Reg)) per #8822 |
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1281,6 +1281,8 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
+- #8824: **CyanPeak TASKS.md sync — #8822 integrated, Hold LIFTED.** Updated ledger: Latest Auth Mail → #8822, Next Deliverable → E3.16 128-entry palette Vec(Reg), coding authorized.
+- #8822: **CyanPeak audit ruling — 128-entry palette Vec(Reg) AUTHORIZED; Hold LIFTED.** Re-audited #8820 finding. Confirmed: 16-entry aliases sc50 bright (16..23) and L1 bank=4 (64..79). 128 entries is the minimum safe scope preserving all existing Mode0 bank scenarios. Register cost 3072 FFs (~66% util) within safe margin. BrightForge cleared to implement.
 - #8821: **BronzeGate directive — E3.16 HELD pending palette-size re-audit.** CyanPeak to re-audit #8820 and issue ruling on minimum safe palette Vec(Reg) size (128, 32, or 16 entries). BrightForge coding paused. CoralReef to sync ledger once ruling lands.
 - #8820: **CoralReef deep audit — BrightForge reasoning CONFIRMED sound, but 16-entry palette Vec(Reg) is NOT SAFE.** Independent code review confirms: (a) sc45 bright=0 → only palette entries 0..7 accessed (safe with 16), (b) sc50 bright=1 → entries 16..23 accessed (OUT OF BOUNDS for 16-entry Vec), (c) L1 tile layer attribute map uses bank=4 (entries 64..79) per `TileAttributeAssets.attributeMapBytesInit` — 16 entries would SILENTLY ALIAS to wrong colors. SpinalHDL `Vec(N)(addr)` with `addr >= N` uses lower bits only, causing color corruption not crashes. Recommended: 128 entries (3072 FFs, ~66% reg util vs current 52%) preserving all scenarios, or 32 entries with sc50 bright-remap and L1 bank-restriction. Full audit report in #8820 mail.
 - #8819: **CyanPeak TASKS.md sync — #8818 integrated.** Updated ledger: Latest Auth Mail → #8818, Next Deliverable → E3.16 palette Vec(Reg) fix.
