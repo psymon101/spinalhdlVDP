@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.4) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8780 (BrightForge E3.6a — `mathRgb` LIT, `io.rgb` LIT, yet capture black; sticky-transient hypothesis), #8769 (CyanPeak audit verdict — E3.6 authorized) |
-| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a probes + LUTRAM force attempt (`TopTang20kHdmi.scala`, `VdpTop.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
-| **Next Deliverable** | E3.6b non-sticky liveness probe per #8780 — determine if `io.rgb` LIT is a startup transient or sustained non-zero signal
+| Latest Auth Mail | #8786 (CyanPeak audit ruling — E3.6c upstream failure localized, E3.7 authorized) |
+| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c probes + LUTRAM force attempt (`TopTang20kHdmi.scala`, `VdpTop.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
+| **Next Deliverable** | E3.7 BitmapRowFetch loop probe per #8786 — determine if per-line fetch grant pulses post-init
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -68,7 +68,7 @@ Sidecar lanes run in parallel with the active FPGA lane but do not block it.
 | **Task** | ESP32-C3 host smoke-port for Tang QSPI control |
 | **Status** | IN-PROGRESS |
 | **Owner** | BrightForge |
-| **Latest Auth Mail** | #8774 (boot/run proven locally — serial toggle loop visible), #8769 (CyanPeak audit PASS) |
+| **Latest Auth Mail** | #8774 (boot/run proven locally — serial toggle loop visible) |
 | **Uncommitted** | `firmware/esp32c3_qspi_smoke/esp32c3_qspi_smoke.ino` |
 | **Next Deliverable** | Tang-side visible proof: `REG_WRITE` toggle must change HDMI output on a sprite-rendering bitstream |
 | **Coding Authorized** | YES — #8765 |
@@ -1281,7 +1281,9 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
-- #8780: **E3.6a result — `mathRgb` LIT, `io.{r,g,b}` LIT, yet capture still black.** Sticky probes say non-zero RGB reaches `video.io` in the sc45 bitmap region, but pixel inspection of the capture shows only canary bottom-edge bleed (1392 non-black pixels, all at y=90..91). Contradiction suggests either (a) `io.rgb` is non-zero only at startup then drops to zero (sticky probe latches transient), or (b) non-zero pixels are masked by frame-border bleed at small x. E3.6b proposed: non-sticky liveness probe + strict-x gate.
+- #8786: **CyanPeak audit ruling** — E3.6c upstream failure localized. BitmapRowFetch's per-line fetch loop is stalled post-init; line buffers never refresh. E3.7 authorized to probe `fetchGrant` and per-frame `bitmapByte`.
+- #8784: **E3.6c result — per-frame-reset probes reveal ALL DARK.** `drainWord`, `mathRgb`, `io.rgb` all zero every frame. Earlier sticky "LIT" results (E3.5, E3.6a) were startup transients from synth-init phase. Bug is much further upstream: BitmapRowFetch per-line fetch never re-pulses after init. Line buffer, palette, display mux all structurally sound.
+- #8780: **E3.6a result — `mathRgb` LIT, `io.{r,g,b}` LIT, yet capture still black.** Sticky probes say non-zero RGB reaches `video.io` in the sc45 bitmap region, but pixel inspection shows only canary bottom-edge bleed. Contradiction later resolved by E3.6c: sticky probes latched startup transient. E3.6b proposed but superseded by E3.6c.
 - #8768: **E3.5 result — ALL 6 probes LIT** with correct sc45 region gating. BLUE (fillIdx), YELLOW (drainWord), ORANGE (paletteRgb) all non-zero in bitmap region. **Visible bitmap region still black.** Bug definitively downstream of `paletteRgb`, upstream of `video.io.r/g/b`. Suspects: `layerMaskActive`, ColorMath squash, `borderActiveR`, `deR && primedR` gating. E3.6 proposed to probe `mathRgb` and `displayRgb`.
 - #8766: **ESP32-C3 smoke-port implementation landed** — `firmware/esp32c3_qspi_smoke/esp32c3_qspi_smoke.ino`. Bit-banged QSPI at ~500 kHz, direct GPIO registers, 8-byte REG_WRITE frame matches Pico protocol. Compiles clean: 277,802 bytes (21%). Ready for flash once wired.
 - #8762: BrightForge building E3.5 with probes re-gated to sc45 natural region `[0,256)×[0,192)`. Toolchain note: ESP-IDF not installed; Arduino-cli + esp32:esp32 core v3.3.7 available for ESP32-C3 sidecar lane.
