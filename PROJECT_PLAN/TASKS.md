@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-29 (E3.3b: fillIdx LIT, drainWord DARK — line buffer write→read failure #8753)
+**Updated:** 2026-04-30 (E3.5: all probes LIT, bug downstream of `paletteRgb`; E3.6 authorized #8769. ESP32-C3 sidecar active #8759.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.4) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8749 (PM sidecar tasking), #8755 (BrightForge E3.4 proposal), #8756 (GoldReef unverified audit claim) |
-| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b probes + LUTRAM force attempt (TopTang20kHdmi.scala, VdpTop.scala, BorderRegSim.scala, Sc50DebugSim.scala, Sc45SubstrateDebugSim.scala) |
-| **Next Deliverable** | Line buffer root-cause fix: write→read round-trip returns zero despite non-zero fillIdx per #8753
+| Latest Auth Mail | #8768 (BrightForge E3.5 result — all 6 probes LIT, bug downstream of `paletteRgb`), #8769 (CyanPeak audit verdict — E3.6 authorized, ESP32 smoke-port PASS) |
+| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5 probes + LUTRAM force attempt (`TopTang20kHdmi.scala`, `VdpTop.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
+| **Next Deliverable** | E3.6 downstream squash probe (`mathRgb` + `displayRgb`) per #8769 — identify exact point between `paletteRgb` and `video.io` where RGB drops to zero
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -55,10 +55,25 @@ Rules:
 - When the lane changes, update this block in the **same commit** as the artifact/state change.
 - Phase values: `artifact`, `audit`, `implement`, `capture`, `closeout`.
 
-Rules:
-- Only **one** lane may be live at a time.
-- When the lane changes, update this block in the **same commit** as the artifact/state change.
-- Phase values: `artifact`, `audit`, `implement`, `capture`, `closeout`.
+---
+
+## Sidecar Lanes
+
+Sidecar lanes run in parallel with the active FPGA lane but do not block it.
+
+### ESP32-C3 Smoke-Port (#8759)
+
+| Field | Value |
+|---|---|
+| **Task** | ESP32-C3 host smoke-port for Tang QSPI control |
+| **Status** | IN-PROGRESS |
+| **Owner** | BrightForge |
+| **Latest Auth Mail** | #8766 (implementation landed + compiles), #8769 (CyanPeak audit PASS) |
+| **Uncommitted** | `firmware/esp32c3_qspi_smoke/esp32c3_qspi_smoke.ino` |
+| **Next Deliverable** | Flash to `/dev/ttyACM0` and verify `REG_WRITE` toggles visible target on Tang |
+| **Coding Authorized** | YES — #8765 |
+
+**Scope boundary:** Minimum viable smoke only. No `vdp_read_status`, no `vdp_sdram_write`, no full libvdp parity.
 
 ---
 
@@ -1262,7 +1277,12 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
-- #8753: E3.3b result — BLUE (`dbgFillIdxNonZeroEver`) **LIT**, YELLOW (`dbgDrainWordNonZeroBmRegionEver`) **DARK**. `fillIdx` is non-zero entering line buffer, but `drainWord` is zero coming out. Bug is in line buffer write→read round-trip. Palette theory conclusively dropped (tiles use same palette path and work).
+- #8768: **E3.5 result — ALL 6 probes LIT** with correct sc45 region gating. BLUE (fillIdx), YELLOW (drainWord), ORANGE (paletteRgb) all non-zero in bitmap region. **Visible bitmap region still black.** Bug definitively downstream of `paletteRgb`, upstream of `video.io.r/g/b`. Suspects: `layerMaskActive`, ColorMath squash, `borderActiveR`, `deR && primedR` gating. E3.6 proposed to probe `mathRgb` and `displayRgb`.
+- #8766: **ESP32-C3 smoke-port implementation landed** — `firmware/esp32c3_qspi_smoke/esp32c3_qspi_smoke.ino`. Bit-banged QSPI at ~500 kHz, direct GPIO registers, 8-byte REG_WRITE frame matches Pico protocol. Compiles clean: 277,802 bytes (21%). Ready for flash once wired.
+- #8762: BrightForge building E3.5 with probes re-gated to sc45 natural region `[0,256)×[0,192)`. Toolchain note: ESP-IDF not installed; Arduino-cli + esp32:esp32 core v3.3.7 available for ESP32-C3 sidecar lane.
+- #8760: CyanPeak audit — approved E3.5 re-gating. Retracted #8756 GoldReef identity / bank-swap theory. Confirmed `(hCounter+1)` pre-advance properly compensates `readSync` latency; line buffer timing is structurally sound.
+- #8758: E3.4 result + **probe gating mistake discovered**. YELLOW (`dbgDrainWordNonZeroEver`) **LIT** when UNGATED. Line buffer write→read round-trip is structurally sound on hardware. Earlier "DARK" verdicts (E3.3b, E3.3) were checking sc50 border region `[192,448)×[144,336)` while sc45 renders at `[0,256)×[0,192)` — mostly empty overscan. **Supersedes #8753 line-buffer-failure theory.**
+- #8753: E3.3b result — BLUE (`dbgFillIdxNonZeroEver`) **LIT**, YELLOW (`dbgDrainWordNonZeroBmRegionEver`) **DARK** (gated to sc50 border region). `fillIdx` is non-zero entering line buffer. *Interpretation superseded by #8758: gating region mismatch, not line-buffer failure.*
 - #8746: LUTRAM force result — `palette.addAttribute("ram_style", "distributed")` did **NOT** fix bitmap region. ORANGE still DARK. BSRAM-inference theory ruled out.
 - #8745: E3.2 result — BLUE (`dbgBitmapFetchPixelNonZeroEver`) LIT, ORANGE (`dbgVideoRgbNonZeroBmRegionEver`) DARK. Bug localized to between `bitmapFetch.io.pixelIndex` and `video.io.rgb`. Palette read path is the surviving suspect. Matches CyanPeak #8723 BSRAM-inference theory (later disproven by #8746).
 - #8743: E3.1 result — ALL 6 probes lit including attrNonZeroR and pixelNonZeroR. Bitmap region STILL truly zero. Bug narrowed to between BitmapFetch internal decode and final HDMI RGB.
