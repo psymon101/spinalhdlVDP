@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.5 fix) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8797 (BrightForge — LUTRAM fix attempt FAILED, copper workaround proposed; root cause: Gowin BSRAM init failure in LinestateStore) |
-| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10/E3.11/E3.12/E3.13 probes + LUTRAM force attempts (`TopTang20kHdmi.scala`, `VdpTop.scala`, `LinestateStore.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
-| **Next Deliverable** | LinestateStore fix — evaluate copper workaround or alternative fix for Gowin BSRAM `initialContent` failure
+| Latest Auth Mail | #8800 (BrightForge — E3.14 v1 NEGATIVE: 96-line copper WSEQ partial coverage did not light sc45; proposing v2 full 192-line coverage) |
+| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10/E3.11/E3.12/E3.13/E3.14v1 probes + LUTRAM force attempts + copper WSEQ (`TopTang20kHdmi.scala`, `VdpTop.scala`, `LinestateStore.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
+| **Next Deliverable** | E3.14 v2 full 192-line copper coverage per #8800, OR synthesis-log audit of Gowin RAM inference
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1281,7 +1281,10 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
+- #8800: **E3.14 v1 NEGATIVE — 96-line copper WSEQ partial coverage did not light sc45.** BrightForge implemented 12 WRITE_SEQ groups covering lines [40,136). `layer0Enable` and `effectiveL0Enable` probes both DARK. Two interpretations: (a) copper writes never reach `prepare`, or (b) writes reach `prepare` but `commit` doesn't update in time. Proposes v2 with full 192-line coverage or `linestate.writeEnable` counter probe.
+- #8799: **CyanPeak audit ruling — copper workaround authorized (E3.14).** LUTRAM fix definitively failed. Authorized bumping copperFifo depth to 128 and adding 192 WRITE_SEQ writes (`0x0000..0x01BF = 0x0800`) at y=0 to populate linestate dynamically. Success criteria: sc45 bitmap visible + `layer0Enable` LIT.
 - #8797: **LUTRAM fix attempt FAILED.** BrightForge added `ram_style = "distributed"` and `syn_ramstyle = "distributed"` to `LinestateStore.commit`/`prepare` Mems. Verilog shows attributes present, but Gowin synth ignored both. sc45 still black, `layer0Enable` still DARK. Copper-driven linestate population proposed as workaround. Awaiting audit re-authorization.
+- **CoralReef synthesis-log audit:** Gowin `gwsynthesis/project.log` shows `WARN (EX0200) : Property "syn_ramstyle" set invalid for "prepare"` (line 109). Both `prepare` and `commit` were "Extracting RAM" but no LUTRAM confirmation. PNR report shows 18 BSRAMs (16 SDPB + 2 SDPX9B). Correlation with unchanged hardware behavior confirms BSRAM inference despite attributes.
 - #8796: **CyanPeak audit ruling — SMOKING GUN FOUND, fix authorized.** Root cause: Gowin BSRAM `initialContent` failure in `LinestateStore`. `linestate.io.layer0Enable` reads False for all visible rows. Authorized LUTRAM force on `commit`/`prepare` Mems. *Superseded by #8797: LUTRAM attributes ignored by Gowin.*
 - #8795: **E3.13 SMOKING GUN.** Per-frame probes with strict border exclusion: `linestate.io.layer0Enable` DARK, `effectiveL0Enable` DARK. `layer0Enable` is False for every visible line. Root cause: `LinestateStore` BSRAM init fails silently; `defaultInit(l0en=true)` not honored on silicon. Tile scenarios work because they dynamically write linestate; sc45 does not.
 - #8794: **CyanPeak audit ruling** — E3.11/E3.12 paradox resolved. Sprite-squash ruled out; gate-asymmetry identified. E3.13 authorized to probe `linestate.io.layer0Enable` and `effectiveL0Enable`.
