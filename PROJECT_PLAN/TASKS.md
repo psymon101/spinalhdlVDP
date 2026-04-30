@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 50 — ZX Spectrum Adapter — Implementation** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement (v3.4) |
+| **Phase** | implement (v3.5 fix) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8791 (CyanPeak audit ruling — E3.10 paradox: fillIdx LIT but drainWord DARK; E3.11 authorized) |
-| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10 probes + LUTRAM force attempt (`TopTang20kHdmi.scala`, `VdpTop.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
-| **Next Deliverable** | E3.11 Sprite-Squash probe per #8791 — determine if sprite path silently zeroes `fillIdx`
+| Latest Auth Mail | #8797 (BrightForge — LUTRAM fix attempt FAILED, copper workaround proposed; root cause: Gowin BSRAM init failure in LinestateStore) |
+| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10/E3.11/E3.12/E3.13 probes + LUTRAM force attempts (`TopTang20kHdmi.scala`, `VdpTop.scala`, `LinestateStore.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
+| **Next Deliverable** | LinestateStore fix — evaluate copper workaround or alternative fix for Gowin BSRAM `initialContent` failure
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1281,6 +1281,11 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
+- #8797: **LUTRAM fix attempt FAILED.** BrightForge added `ram_style = "distributed"` and `syn_ramstyle = "distributed"` to `LinestateStore.commit`/`prepare` Mems. Verilog shows attributes present, but Gowin synth ignored both. sc45 still black, `layer0Enable` still DARK. Copper-driven linestate population proposed as workaround. Awaiting audit re-authorization.
+- #8796: **CyanPeak audit ruling — SMOKING GUN FOUND, fix authorized.** Root cause: Gowin BSRAM `initialContent` failure in `LinestateStore`. `linestate.io.layer0Enable` reads False for all visible rows. Authorized LUTRAM force on `commit`/`prepare` Mems. *Superseded by #8797: LUTRAM attributes ignored by Gowin.*
+- #8795: **E3.13 SMOKING GUN.** Per-frame probes with strict border exclusion: `linestate.io.layer0Enable` DARK, `effectiveL0Enable` DARK. `layer0Enable` is False for every visible line. Root cause: `LinestateStore` BSRAM init fails silently; `defaultInit(l0en=true)` not honored on silicon. Tile scenarios work because they dynamically write linestate; sc45 does not.
+- #8794: **CyanPeak audit ruling** — E3.11/E3.12 paradox resolved. Sprite-squash ruled out; gate-asymmetry identified. E3.13 authorized to probe `linestate.io.layer0Enable` and `effectiveL0Enable`.
+- #8793: **E3.11/E3.12 result — sprite-squash ruled out, paradox resolved.** E3.11: `composedBgIdx` LIT, `spriteWins` DARK, `fillIdx` LIT — no sprite override. E3.12: matched gates (`fillLine ∈ [40,192)`) show `fillIdx` genuinely DARK for visible rows. Contradiction resolved: earlier `fillIdx` LIT was from fill cycles outside visible range. Suspect shifts to `linestate.io.layer0Enable`.
 - #8791: **CyanPeak audit ruling** — E3.10 paradox localized. `fillIdx` LIT per-frame (non-zero into line buffer) but `drainWord` DARK per-frame (zero out). Upstream stall theory debunked. Two suspects: (a) sprite path silently squashing `fillIdx`, or (b) line buffer addressing/bank mismatch. E3.11 authorized to probe `composedBgIdx`, `spriteWins`, `fillIdx`.
 - #8789: **E3.10 result — paradox at line buffer boundary.** Per-frame probes: `bitmapByte` LIT, `attrByte` LIT, `fillIdx` LIT (RED), but `drainWord` DARK (YELLOW). Data reaches line buffer input every frame but reads zero during display. Tile scenarios use same line buffer and work. Contradiction suggests sprite-override or addressing asymmetry specific to sc45.
 - #8786: **CyanPeak audit ruling** — E3.6c upstream failure localized. BitmapRowFetch's per-line fetch loop is stalled post-init; line buffers never refresh. E3.7 authorized to probe `fetchGrant` and per-frame `bitmapByte`. *Superseded by E3.10: upstream stall theory debunked; data DOES reach line buffer input.*
