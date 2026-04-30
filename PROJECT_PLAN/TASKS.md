@@ -68,10 +68,14 @@ Sidecar lanes run in parallel with the active FPGA lane but do not block it.
 | **Task** | ESP32-C3 host smoke-port for Tang QSPI control |
 | **Status** | IN-PROGRESS |
 | **Owner** | BrightForge |
-| **Latest Auth Mail** | #8766 (implementation landed + compiles), #8769 (CyanPeak audit PASS) |
+| **Latest Auth Mail** | #8774 (boot/run proven locally — serial toggle loop visible), #8769 (CyanPeak audit PASS) |
 | **Uncommitted** | `firmware/esp32c3_qspi_smoke/esp32c3_qspi_smoke.ino` |
-| **Next Deliverable** | Flash to `/dev/ttyACM0` and verify `REG_WRITE` toggles visible target on Tang |
+| **Next Deliverable** | Tang-side visible proof: `REG_WRITE` toggle must change HDMI output on a sprite-rendering bitstream |
 | **Coding Authorized** | YES — #8765 |
+
+**Boot config:** `FlashMode=dio`, `CDCOnBoot=cdc` required for stable boot + host serial.
+
+**Host-side proof:** Serial shows repeating `LAYER_ENABLE=0x0007` / `0x0003` toggle every 2s.
 
 **Scope boundary:** Minimum viable smoke only. No `vdp_read_status`, no `vdp_sdram_write`, no full libvdp parity.
 
