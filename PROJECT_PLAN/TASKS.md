@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (v3.4) |
 | **Owner** | BrightForge |
 | **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8786 (CyanPeak audit ruling — E3.6c upstream failure localized, E3.7 authorized) |
-| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c probes + LUTRAM force attempt (`TopTang20kHdmi.scala`, `VdpTop.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
-| **Next Deliverable** | E3.7 BitmapRowFetch loop probe per #8786 — determine if per-line fetch grant pulses post-init
+| Latest Auth Mail | #8791 (CyanPeak audit ruling — E3.10 paradox: fillIdx LIT but drainWord DARK; E3.11 authorized) |
+| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10 probes + LUTRAM force attempt (`TopTang20kHdmi.scala`, `VdpTop.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
+| **Next Deliverable** | E3.11 Sprite-Squash probe per #8791 — determine if sprite path silently zeroes `fillIdx`
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1281,7 +1281,9 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
-- #8786: **CyanPeak audit ruling** — E3.6c upstream failure localized. BitmapRowFetch's per-line fetch loop is stalled post-init; line buffers never refresh. E3.7 authorized to probe `fetchGrant` and per-frame `bitmapByte`.
+- #8791: **CyanPeak audit ruling** — E3.10 paradox localized. `fillIdx` LIT per-frame (non-zero into line buffer) but `drainWord` DARK per-frame (zero out). Upstream stall theory debunked. Two suspects: (a) sprite path silently squashing `fillIdx`, or (b) line buffer addressing/bank mismatch. E3.11 authorized to probe `composedBgIdx`, `spriteWins`, `fillIdx`.
+- #8789: **E3.10 result — paradox at line buffer boundary.** Per-frame probes: `bitmapByte` LIT, `attrByte` LIT, `fillIdx` LIT (RED), but `drainWord` DARK (YELLOW). Data reaches line buffer input every frame but reads zero during display. Tile scenarios use same line buffer and work. Contradiction suggests sprite-override or addressing asymmetry specific to sc45.
+- #8786: **CyanPeak audit ruling** — E3.6c upstream failure localized. BitmapRowFetch's per-line fetch loop is stalled post-init; line buffers never refresh. E3.7 authorized to probe `fetchGrant` and per-frame `bitmapByte`. *Superseded by E3.10: upstream stall theory debunked; data DOES reach line buffer input.*
 - #8784: **E3.6c result — per-frame-reset probes reveal ALL DARK.** `drainWord`, `mathRgb`, `io.rgb` all zero every frame. Earlier sticky "LIT" results (E3.5, E3.6a) were startup transients from synth-init phase. Bug is much further upstream: BitmapRowFetch per-line fetch never re-pulses after init. Line buffer, palette, display mux all structurally sound.
 - #8780: **E3.6a result — `mathRgb` LIT, `io.{r,g,b}` LIT, yet capture still black.** Sticky probes say non-zero RGB reaches `video.io` in the sc45 bitmap region, but pixel inspection shows only canary bottom-edge bleed. Contradiction later resolved by E3.6c: sticky probes latched startup transient. E3.6b proposed but superseded by E3.6c.
 - #8768: **E3.5 result — ALL 6 probes LIT** with correct sc45 region gating. BLUE (fillIdx), YELLOW (drainWord), ORANGE (paletteRgb) all non-zero in bitmap region. **Visible bitmap region still black.** Bug definitively downstream of `paletteRgb`, upstream of `video.io.r/g/b`. Suspects: `layerMaskActive`, ColorMath squash, `borderActiveR`, `deR && primedR` gating. E3.6 proposed to probe `mathRgb` and `displayRgb`.
