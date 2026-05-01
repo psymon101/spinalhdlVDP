@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-04-30 (E3.5: all probes LIT, bug downstream of `paletteRgb`; E3.6 authorized #8769. ESP32-C3 sidecar active #8759.)
+**Updated:** 2026-05-01 (E3.23 SMOKING GUN: `fillIdx` LIT, `drainIdx` DARK — LineBuffer BSRAM round-trip confirmed as squash root cause. E3.24 split-width fix IN-PROGRESS. 7-bit PNR FAILED (#8874); 4-bit synthesis complete, PNR pending. **NOTE: Ledger stale at #8841; mail authority #8872/#8873/#8874/#8875 superseded this file.**)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,12 +28,12 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 50 — ZX Spectrum Adapter — Implementation** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement (v3.5 fix) |
+| **Phase** | implement (v3.8 fix — E3.24 split-width LineBuffer) |
 | **Owner** | BrightForge |
-| **Latest Commit** | `2e93629` (Task 50 v3.4: BitmapRowFetch sc50 enable restored) |
-| Latest Auth Mail | #8827 (BronzeGate workflow change: BrightForge+CoralReef paired team; E3.16 coding re-aimed) |
-| **Uncommitted** | Frame-border canary + E3.1/E3.2/E3.3b/E3.5/E3.6a/E3.6c/E3.10/E3.11/E3.12/E3.13/E3.14v4/E3.15 probes + copper WSEQ + split-width LinestateStore + E3.16 v1/v2 palette attempts (`TopTang20kHdmi.scala`, `VdpTop.scala`, `LinestateStore.scala`, `BorderRegSim.scala`, `Sc50DebugSim.scala`, `Sc45SubstrateDebugSim.scala`) |
-| **Next Deliverable** | BrightForge+CoralReef agreed diagnosis per #8827; BrightForge to provide sc0 hardware test + v1/v2 synth logs |
+| **Latest Commit** | `d38d7ce` (TASKS.md: sync #8830/#8831) |
+| Latest Auth Mail | #8872 (BronzeGate authorized E3.24 split-width fix), #8873 (CyanPeak authorized), #8874 (CoralReef CLS blocker + `keep` proposal), #8875 (CoralReef 4-bit synthesis update) |
+| **Uncommitted** | E3.20-E3.23 diagnostic probes + canary rewires (`VdpTop.scala`, `TopTang20kHdmi.scala`) + E3.24 split-width LineBuffer (`LineBuffer.scala`, 4-bit single-buffer approach) |
+| **Next Deliverable** | E3.24 hardware proof: `drainIdx` LIT on sc45 with 4-bit split-width LineBuffer PNR PASS + load + canary confirmation |
 | **Coding Authorized** | **YES** — #8667 |
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
@@ -1281,6 +1281,14 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
+- #8875: **CoralReef synthesis audit — 4-bit split-width synthesis complete, PNR pending.** 7-bit single-buffer attempt FAILED PNR with 2,004 REGs unplaced (97% CLS). BrightForge dropped to 4-bit (`drainIdx` only) single-buffer Vec(Reg) + BSRAM metadata ping-pong. Synthesis reports 10,756 registers (down from 12,679), 13,253 LUTs. CLS estimate ~86% — may fit. PNR must be rerun.
+- #8874: **CoralReef CLS blocker — split-width Vec(Reg) EXCEEDS CLS budget.** Full 7-bit double-buffer = 8,960 FFs needs ~4,480 CLS, but only 614 CLS available. Proposed `keep` attribute experiment as zero-cost alternative before committing to impossible fix.
+- #8873: **CyanPeak audit ruling — E3.24 split-width LineBuffer AUTHORIZED.** Authorized moving palette-critical 7 bits (`drainBank` + `drainIdx`) to Vec(Reg) with 1-cycle read latency. Estimated ~4,480 FFs, ~63% Reg total. Keep metadata in BSRAM or drop. Recommends full 640-entry array for timing simplicity.
+- #8872: **BronzeGate directive — E3.24 split-width LineBuffer fix AUTHORIZED.** Per #8871 smoking gun. Approach mirrors proven LinestateStore v4 pattern. Guardrails: do not reopen upstream theories unless fix fails to move `drainIdx`; do not broaden to full-line Vec(Reg) unless split-width proven insufficient.
+- #8871: **E3.23 SMOKING GUN — `fillIdx` LIT, `drainIdx` DARK.** Count-threshold probes (strict stage rule): `fillIdx` ALIVE (>256/frame), `drainIdx` DEAD (≤256/frame). All downstream sticky catches (`priorityMuxSquashEver`, `spriteLoopSquashEver`) DARK. Downstream path fully exonerated: `layerMaskActive=False`, `combinedWindowEffect=False`, ColorMath=passthrough. Squash boundary definitively isolated at LineBuffer BSRAM round-trip. Same Gowin SDPB defect class as LinestateStore (E3.14 v4).
+- #8866: **CoralReef downstream path audit — post-fillIdx control path exonerated.** `layerMaskReg=0x00`, `winCombReg=0x00`, `colorMathReg=0x00`, border=outside-only. No control-path squash possible for sc45.
+- #8844: **BrightForge sc50 cross-check — palette FULLY EXONERATED.** sc50 vibrant red border = palette[24] works. Black bitmap = squash is strictly in bitmap pipeline, not palette.
+- #8841: **CyanPeak audit ruling — E3.16b upstream data hunt AUTHORIZED; palette fix DEFERRED.** Palette working (sc8 proof + sc50 proof). Re-focus on bitmap path: SDRAM read, FIFO drain, pixelIndex decode, line buffer write. Authorized probe chain: `sdramByte` → `bitmapByte` → `attrByte` → `pixelIndex` → `fillIdx` → `drainIdx`.
 - #8831: **CoralReef paired finding — sc8 proves palette works; probes miswired; upstream bitmap path suspect.** BrightForge #8830: sc8 renders correctly with v2 code, proving palette FSM init + `readAsync` work. CoralReef code review found: (a) `dbgBitmapByteNonZeroThisFrameR` checks `effectiveL0Enable` NOT `bitmapByte != 0`, (b) `dbgFillIdxNonZeroEverR` checks `linestate.io.layer0Enable` NOT `fillIdx != 0`. We have NO evidence data flows from BitmapFetch → lineBuf → drainWord in sc45. Palette is likely correct; issue is upstream in bitmap fetch/SDRAM/FIFO path. Recommended: proper probes for `bitmapByte != 0`, `fillIdx != 0`, `drainIdx != 0`.
 - #8830: **BrightForge paired evidence — sc8 RENDERS CORRECTLY; palette diagnosis falsified.** sc8 (tile scenario) renders vibrant colors with v2 code. Proves: palette `readAsync` works, FSM init walk works, BSRAM not fundamentally broken. Squash is sc45-specific. Suspects: `primedR` gating, LayerCompositor squash, or drainIdx=0 from attribute decode. Requests paired trace with CoralReef.
 - #8827: **BronzeGate workflow change — BrightForge+CoralReef paired primary bug-fix team.** Directive: converge on shared diagnosis before presenting lane-truth update. Expectation: agreed packet with evidence, rejected theories, exact fix/next discriminator, authority status. CyanPeak remains audit owner for agreed result.
