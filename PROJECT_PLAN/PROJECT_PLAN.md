@@ -10,6 +10,10 @@
 1. `PROJECT_PLAN.md` — current architecture snapshot, document precedence, and working rules
 2. `MODE0_PLANNING.md` — consolidated Mode0 strategy: capability envelope, stop-lines, roadmap, coverage, and backlog
 3. `ADAPTER_NUANCES.md` — platform-facing visual rules and adapter fidelity expectations
+4. `MODE0_FETCH_ENVELOPE_ASSESSMENT.md` — deep-dive on planar/shuffled/bitmap fetch strength
+5. `MODE0_SPRITE_ENVELOPE_ASSESSMENT.md` — measurement of current sprite capability vs high-pressure targets
+6. `MODE0_COLOR_WINDOW_BEAM_ASSESSMENT.md` — audit of post-compositor effects and beam automation
+7. `MODE0_PLATFORM_COVERAGE_AUDIT.md` — cross-check of substrate vs all 12 target platforms
 8. `TASK_TEMPLATE.md` — reusable planning template for turning roadmap items into bounded execution tasks
 9. `TASKS.md` — authoritative execution order and task status
 10. `CONVENTIONS.md` — coding, naming, clock/reset, and simulation rules
@@ -39,7 +43,7 @@ The currently validated slice is:
 - Current visible hardware output: **SDRAM-backed Mode0 rendering** with tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control — 20 hardware-proven scenarios
 - Current validated output path: Tang Nano 20K HDMI output captured locally on this machine through `/dev/video2` and via RTSP stream
 
-Do not treat this repository as if it were still at the "empty stub" stage. Tasks 1–43, R1–R6, and all substrate hardening lanes are **DONE**. The active lane is **Task 50 — ZX Spectrum Adapter — Implementation** (IN-PROGRESS, BrightForge).
+Do not treat this repository as if it were still at the "empty stub" stage. Tasks 1–52 and all substrate hardening lanes are **DONE**. The project is currently at a **PM reassessment checkpoint** (no active lane) following the closure of #9026 (Zero-Footprint ROM Elimination).
 
 ---
 
@@ -114,17 +118,19 @@ The following are already proven on this repository state:
 
 ## Next Practical Work
 
-The current validated baseline is **past the entire mainline substrate construction phase**. Tasks 1–43, R1–R6, and the first three hardening lanes are complete.
+The current validated baseline is **past the entire mainline substrate construction and primary hardening phases**. Tasks 1–52 and the critical substrate lanes are complete.
 
-**Active lane:**
-- **Task 50 — ZX Spectrum Adapter — Implementation** (IN-PROGRESS v2, BrightForge)
-  - First serious platform adapter after C64 smoke-test (Task 40)
-  - ZX Spectrum bitmap + attribute display on Mode0 substrate
-  - v1 DONE: audit PASS #8674 (CyanPeak), commit `477bf24`
-  - v2 IN-PROGRESS: RegBusArbiter wiring + border-color emitter + bright palette mapping
-  - Thin translation layer; v1 actual +2 LUT / 0 FF vs baseline
+**Project Status:**
+- **#9026 Zero-Footprint ROM Elimination:** DONE — audit PASS #9142.
+- **Task 52 Per-Sprite X/Y Flip:** DONE — audit PASS #9127.
+- **Task 50 ZX Spectrum Adapter:** DONE — closure #8976.
+
+**Current Checkpoint:**
+- Awaiting PM activation of the next project lane from the existing gap backlog.
 
 **Previous lanes (all closed):**
+- #9026 Zero-Footprint ROM Elimination — DONE (#9142)
+- Task 52 Per-Sprite X/Y Flip — DONE (#9127)
 - Beam-Driven Automation Hardening — DONE (`6345fcc`, audit PASS #8660)
 - Color/Window Hardening — DONE (`0f5dc65`, audit PASS #8654)
 - Sprite Phase 2 + 2-bis — DONE (`39a7242`, audit PASS #8638)

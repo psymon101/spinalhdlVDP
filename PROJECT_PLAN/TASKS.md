@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-01 (E3.23 SMOKING GUN: `fillIdx` LIT, `drainIdx` DARK — LineBuffer BSRAM round-trip confirmed as squash root cause. E3.24 split-width fix IN-PROGRESS. 7-bit PNR FAILED (#8874); 4-bit synthesis complete, PNR pending. **NOTE: Ledger stale at #8841; mail authority #8872/#8873/#8874/#8875 superseded this file.**)
+**Updated:** 2026-05-03 (Task 52 DONE. #9026 DONE per CyanPeak #9142. #9124 DONE per CyanPeak #9141/#9142. No active lane. **NOTE: Ledger captures state; mail authority supersedes this file.**)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,15 +26,97 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 50 — ZX Spectrum Adapter — Implementation** |
-| **Status** | **IN-PROGRESS** |
-| **Phase** | implement (v3.8 fix — E3.24 split-width LineBuffer) |
-| **Owner** | BrightForge |
-| **Latest Commit** | `d38d7ce` (TASKS.md: sync #8830/#8831) |
-| Latest Auth Mail | #8872 (BronzeGate authorized E3.24 split-width fix), #8873 (CyanPeak authorized), #8874 (CoralReef CLS blocker + `keep` proposal), #8875 (CoralReef 4-bit synthesis update) |
-| **Uncommitted** | E3.20-E3.23 diagnostic probes + canary rewires (`VdpTop.scala`, `TopTang20kHdmi.scala`) + E3.24 split-width LineBuffer (`LineBuffer.scala`, 4-bit single-buffer approach) |
-| **Next Deliverable** | E3.24 hardware proof: `drainIdx` LIT on sc45 with 4-bit split-width LineBuffer PNR PASS + load + canary confirmation |
-| **Coding Authorized** | **YES** — #8667 |
+| **Task** | *None — all pending lanes closed* |
+| **Status** | *No active lane* |
+| **Phase** | — |
+| **Owner** | — |
+| **Latest Commit** | — |
+| **Latest Auth Mail** | #9142 (CyanPeak #9026 + #9124 audit PASS), #9141 (CyanPeak #9124 audit PASS) |
+| **Scope** | — |
+| **Files changed** | — |
+| **Next Deliverable** | Awaiting BronzeGate next lane activation |
+| **Coding Authorized** | **NO** — no active lane |
+
+### Closed Lane — Task 52
+
+| Field | Value |
+|---|---|
+| **Task** | Task 52 — Per-Sprite X/Y Flip Primitive |
+| **Status** | **DONE** — CyanPeak audit PASS #9126/#9127 |
+| **Phase** | closed |
+| **Owner** | BrightForge (coding + proof), CyanPeak (audit PASS), CoralReef (ledger sync) |
+| **Latest Auth Mail** | #9127 (CyanPeak final audit PASS), #9125 (BrightForge proof packet), #9123 (BronzeGate ESP8266 correction) |
+
+### Closed Lane — #9026
+
+| Field | Value |
+|---|---|
+| **Task** | #9026 — Zero-Footprint ROM Elimination (narrowed) |
+| **Status** | **DONE** — CyanPeak audit PASS #9142 |
+| **Phase** | closed |
+| **Owner** | BrightForge (coding + proof), CyanPeak (audit PASS), CoralReef (ledger sync) |
+| **Latest Auth Mail** | #9142 (CyanPeak final audit PASS), #9139 (BrightForge proof packet), #9133 (BronzeGate unblock ruling) |
+
+---
+
+## Closed Lanes
+
+### Task 50 — ZX Spectrum Adapter
+| Field | Value |
+|---|---|
+| Status | **DONE** — v3.8 + E3.45 polish. Closure #8976 |
+| Owner | BrightForge |
+
+### Host-Init Sidecar Phases 1–3
+| Field | Value |
+|---|---|
+| Status | **DONE** — Phase 1 causality (#9001); Phase 2 SDRAM upload (#9010); Phase 3 palette upload (#9022) |
+| Owner | BrightForge |
+
+### Platform VDP Spec Canonicalization (#9036)
+| Field | Value |
+|---|---|
+| Status | **CLOSED** — All 12 specs converged. Round 2 complete. Index synced #9074 |
+| Owner | CoralReef (index + 4 specs + 4 patches), BrightForge (4 specs), CyanPeak (4 specs) |
+
+### Phase 1 proof summary (BrightForge #9000, CyanPeak #9001)
+
+| Claim | Status | Evidence |
+|---|---|---|
+| FPGA bootstrap bypassed | ✅ **PROVEN** | `useHostInit=true` → `bootDoneR=1` from boot; gen-verified; bitstream flashed |
+| Host executes init sequence | ✅ **PROVEN** | ESP8266 serial log: 220 copper uploads + 9 registers + "init complete" |
+| FPGA drives live video | ✅ **PROVEN** | RTSP capture non-black; mean 115.59/255 |
+| Host **caused** the displayed scene | ✅ **PROVEN** | Live toggle: 7 edges / 26 frames, 2.000s square wave, mean 110↔5, dark 6%↔96%, zero drift |
+
+### Phase 2 proof summary (BrightForge #9009, CyanPeak #9010)
+
+| Claim | Status | Evidence |
+|---|---|---|
+| Host uploads SDRAM data | ✅ **PROVEN** | `vdp_sdram_write()` opcode `0x02` implemented in sketch; 8 rows × 80 bytes bitmap + attr uploaded |
+| FPGA accepts SDRAM_WRITE | ✅ **PROVEN** | `skipSdramInit=true` bypasses internal init; `QspiSdramBridge` writes to SDRAM |
+| Host data drives display | ✅ **PROVEN** | Signature rows 20–27 (HDMI lines 40–55) show `0xAA`/`0x55` vertical stripes; std 42.5 vs uninitialized neighbor std 79.2 |
+| Phase 1 continuity | ✅ **PRESERVED** | Live toggle still works: 2.000s square wave, mean 110↔5 |
+
+### Phase 3 proof summary (BrightForge #9022)
+
+| Claim | Status | Evidence |
+|---|---|---|
+| Host uploads palette | ✅ **PROVEN** | `vdp_palette_write_entry()` + `sc45_host_palette_upload()` — 256× `0x0600` writes for 128 entries |
+| FPGA uses host palette | ✅ **PROVEN** | Bright phase R-dominant (R=140, G=118, B=113) vs default Spectrum cyan/magenta/yellow. Off phase shows grayscale ramp. |
+| Phase 1+2 continuity | ✅ **PRESERVED** | Live toggle: 2.000s square wave, mean 110↔5. Phase 2 signature still visible. |
+| Zero RTL change | ✅ **PROVEN** | Existing `0x0600`/`0x0601` register interface used as-is; no SpinalHDL modifications |
+
+### Phase 1 blockers resolved
+
+| Blocker | Resolution |
+|---|---|
+| ESP32-C3 v0.3 silicon fault | **CONFIRMED bad silicon** (#8985). Deprecated engineering sample. Path abandoned. |
+| Classic ESP32 wiring/bootloop | **RESOLVED** (#8987–8992). Strap-safe remap, clean flash. |
+| ESP8266 NodeMCU host path | **PROVEN** (#8993–9000). Full init + live toggle, end-to-end causality established. |
+
+### Next discriminator
+
+**None** — Phase 1 closed. Phase 2 (SDRAM data upload) and Phase 3 (ROM elimination) remain deferred per BronzeGate #8979.
 
 **Previous lane:** Task 50 ZX Spectrum Adapter v2 — Implementation | DONE | `99e6260` | Audit PASS #8681
 
@@ -1263,7 +1345,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 50 — ZX Spectrum Adapter (Bitmap + Attribute)
 
-**Status:** IN-PROGRESS (v2 DONE #8681; v3.4 bitmap active region debug)
+**Status:** DONE (v2 #8681; v3.8 #8968 — bitmap active region debug complete, flicker eliminated)
 **depends_on:** [40, 44, CW-1, CW-5]
 **scope_boundary:** Thin translation layer only. No cycle-accurate ULA. No 128K paging. No contention modeling. No AY audio. Pre-shuffled bitmap upload (host-side responsibility).
 **delivers:**
@@ -1281,6 +1363,39 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 **v3.4 lane notes (latest first):**
 
+- #9010: **CyanPeak audit — Host-Init Phase 2 PASS; lane CLOSED.** Signature upload proof audited: host-uploaded `0xAA`/`0x55` stripes at HDMI lines 40–55 are coherent (std 42.5) vs uninitialized neighbors (std 79.2). `skipSdramInit` FSM bypass clean. Recommends ledger sync and Phase 3 deferred.
+- #9009: **BrightForge — E3.47 hardware proof. Host-Init Phase 2 PROVEN.** `skipSdramInit` param added to `BitmapRowFetch.scala`; `vdp_sdram_write()` opcode `0x02` added to ESP8266 sketch. Signature rows 20–27 show vertical `0xAA`/`0x55` stripes. Phase 1 toggle continuity preserved (2.000s square wave). Build clean, no timing violations.
+- #9008: **BronzeGate — E3.47 authorized.** BrightForge to start implementation using audited Option B proof shape from #9005/#9006. No further planning round needed.
+- #9006: **CyanPeak audit — CoralReef #9005 preflight artifact PASS.** Option B (signature upload) approved as bounded Phase 2 proof. Full 240-row upload deferred to follow-up. BrightForge authorized to code.
+- #9005: **CoralReef — Host-Init Phase 2 preflight artifact.** Exact scope boundary, affected seams, SDRAM init facts, three proof options, risks, activation recommendation. Option B (signature upload, ~130ms) recommended.
+- #8995: **CyanPeak audit — proof boundary explicit.** Host-side execution PROVEN (ESP8266 serial log). FPGA video PROVEN (RTSP live/non-black). End-to-end host control NOT proven — fallback state ambiguity. Next discriminator: live visible toggle.
+- #8993: **BronzeGate direct bench handoff — ESP8266 NodeMCU host-init ALIVE.** Full 220-word copper upload + 9 register writes execute to "init complete". RTSP capture non-black (mean 115.59/255). Cannot yet prove displayed scene is host-driven vs fallback.
+- #8992: **BronzeGate — classic ESP32 reflashed cleanly.** Safe map (GPIO 18/19/22/23/25/27) compiles and boots. Host-init sketch runs end-to-end.
+- #8990: **BronzeGate — bench guidance for classic ESP32.** Minimal sanity sequence (USB only → GND only → GND+CS_N → GND+SCK) to classify failure mode without thrash.
+- #8989: **BronzeGate PM ruling — one last bounded sanity sequence, then partial Phase 1 closure if still unstable.** Prevent low-yield bench iteration.
+- #8987: **BronzeGate — strap-safe pin remap for classic ESP32.** GPIO 18/19/22/23/25/27 (non-strap, non-flash, non-JTAG). Avoids Tang pull-up/down conflicts.
+- #8985: **BrightForge — ESP32-C3 confirmed rev v0.3 deprecated silicon.** Flash-cache/MMmu bugs documented by Espressif. No software workaround. FPGA side remains complete.
+- #8984: **BronzeGate PM ruling — Host-Init Phase 1 remains open; recovery = alternate host.** FPGA sub-slice complete. Do not spend more cycles on failed ESP32-C3.
+- #8982: **BrightForge — E3.46 / Host-Init Phase 1 FPGA side COMPLETE; ESP32-C3 hardware BLOCKER.** `useHostInit` flag + bootstrap bypass implemented and gen-verified. ESP32-C3 cannot be reflashed (partition table reads 0xFFFF). Asks PM ruling on recovery path.
+- #8981: **BronzeGate — conditional `useHostInit` flag acceptable for Phase 1 scope.** Keeps slice bounded to sc45; other scenarios unchanged.
+- #8980: **BrightForge — Host-Init Phase 1 implementation strategy.** Conditional `useHostInit` param, sc45 bitstream with bootstrap bypassed, ESP32 sketch with 220 copper words + 9 register writes. 29 ms init time at ~500 kHz.
+- #8979: **BronzeGate — Host-Init Phase 1 activated.** Remove bootstrap FSM, migrate register/copper init to host. Do not widen into SDRAM upload or ROM elimination.
+- #8978: **CyanPeak — E3.45 audit PASS; Task 50 v3.8 CLOSED.** Metrics decisive. No further audit needed on bitmap lane.
+- #8976: **BrightForge — E3.45 hardware proof. Bottom band ELIMINATED; analyzer FIRST PASS.** `bitmapYActive = bitmapEnable && (vCounter < 192)` at source mux. Metrics: glitch=0.00, freeze=0.00, motion=0.51. Bitmap region clean above vCounter=192, scenario content visible below. Build confirms exact placement per CoralReef #8973 spec.
+- #8974: **BronzeGate — E3.45 ACTIVATED; host-init Phase 1 queued next.** PM ruling on converged preflight #8973/#8975.
+- #8975: **CyanPeak — converged preflight recommendation.** E3.45 ACTIVATE NOW, host-init Phase 1 next, Phases 2–3 deferred.
+- #8973: **CoralReef — independent preflight + convergence.** Source-mux y-gate method, three-phase host-init breakdown, convergence table with CyanPeak.
+- #8968: **BronzeGate — Task 50 v3.8 formally CLOSED.** E3.44 full ping-pong double-buffering eliminated flicker (glitch 1.57% → 0.23%, motion 3.25% → 0.07%). Sim regression 0 hangs / 48 lines.
+- #8967: **CoralReef independent analysis — fillSelect logic and swap boundary verified correct.** H_ATTR_DISPLAY_RACE confirmed: attr bytes 0..5 late due to fetch timing. Bottom band ruled pre-existing scope artifact (bitmap active for 480 lines but only 240 rows initialized). Converged on double-buffering as fix.
+- #8966: **CyanPeak audit — flicker class CLOSED.** Proof packet accepted: commit tie-back, metrics, sim regression, hardware captures. No further audit required.
+- #8963: **CoralReef paired diagnosis — structural race root cause identified.** Attr bytes 0..5 fetched AFTER display reads them. Each retry delays attr start by +64 cycles, widening stale-color region. Statistical retry variation causes flicker. Bitmap bytes always safe; race is in attr phase.
+- #8960: **CyanPeak audit — E3.43 retry/timeout fix CLOSED.** Blocker lifted. Bitmap region renders test pattern. RED LIT = retry fired. Hardware proof accepted.
+- #8895: **BrightForge reverted E3.29 to BSRAM baseline.** BitmapRowFetch lineBufs restored to `Mem(Bits(8 bits), 128)`, `byteIdx < 80` restored. PNR clean: Logic 74%, Reg 52%, BSRAM 17. RTSP md5 = `ea5017b1...` (byte-identical to E3.28). BrightForge standing by for team direction on next mechanism.
+- #8894: **BrightForge E3.29 — Vec(Reg) row-buffer fix REGRESSED to all-black.** `bitmapLineBuf`/`attrLineBuf` converted to `Vec(Reg(8 bits), 64)` (128-deep overflowed CLS at 1,239 unplaced REGs). `byteIdx < 80` changed to `< 64`. PNR clean: Logic 75%, Reg 58%, BSRAM 15. Hardware: screen nearly all black, RED dimmed (190 vs 243), GREEN DARK (0 vs 193), ORANGE still LIT (158). Bitmap mean dropped from 6.79 to 0.71. Likely timing degradation from Vec(Reg) mux congestion, not functional error. Reverted in #8895.
+- #8893: **BronzeGate archived gotcha research.** Relevant to current lane: GOTCHA-017 (combinational module-boundary timing hazard), GOTCHA-021 (`syn_preserve` blocks BSRAM output inference). Reference-only, not lane authority.
+- #8892: **BrightForge E3.28 result — squash isolated INSIDE BitmapRowFetch BSRAM round-trip.** PURPLE (`bitmapByteHotInDisplay`) DARK, YELLOW (`attrByteHotInDisplay`) DARK in display window [40,192). Combined with E3.27 (fetchGrant LIT, sdramByte LIT for fillLine≥40): data reaches BitmapRowFetch input but `bitmapLineBuf.readAsync()` / `attrLineBuf.readAsync()` return zero for bitmap rows. Same Gowin SDPB defect class as LinestateStore.
+- #8881: **CoralReef deep audit — v4 Vec(Reg) Verilog structurally correct, but drainIdx STILL DARK.** Generated Verilog confirms 256 explicit 4-bit registers, one-hot write decoder, case-statement read mux, `RegNext` read pipeline. Synthesis: 1,028 registers in lineBuf module, BSRAM 15/46. PNR: 0 unplaced REGs, 96% CLS. Hardware: RTSP capture byte-identical to E3.23. RED (`fillIdx`) LIT, GREEN (`drainIdx`) max=23 DARK. Proposed discriminator: STICKY `drainIdx != 0` probe + display-window-only `pixelIndex` count probe to distinguish sparse-data (H2) from true line-buffer failure (H3/H4).
+- #8878: **BrightForge v4 hardware test — Vec(Reg) 256×4 single-buffer PNR PASS, load OK, but drainIdx DARK.** CLS 96%, 0 unplaced REGs, 15 BSRAMs. Timing 22.489 MHz vs 25.200 target (1,033 setup violations). Bitstream loaded successfully. Canary result identical to E3.23: RED LIT, GREEN DARK, all downstream sticky catches DARK. Vec(Reg) fix did NOT move drainIdx.
 - #8875: **CoralReef synthesis audit — 4-bit split-width synthesis complete, PNR pending.** 7-bit single-buffer attempt FAILED PNR with 2,004 REGs unplaced (97% CLS). BrightForge dropped to 4-bit (`drainIdx` only) single-buffer Vec(Reg) + BSRAM metadata ping-pong. Synthesis reports 10,756 registers (down from 12,679), 13,253 LUTs. CLS estimate ~86% — may fit. PNR must be rerun.
 - #8874: **CoralReef CLS blocker — split-width Vec(Reg) EXCEEDS CLS budget.** Full 7-bit double-buffer = 8,960 FFs needs ~4,480 CLS, but only 614 CLS available. Proposed `keep` attribute experiment as zero-cost alternative before committing to impossible fix.
 - #8873: **CyanPeak audit ruling — E3.24 split-width LineBuffer AUTHORIZED.** Authorized moving palette-critical 7 bits (`drainBank` + `drainIdx`) to Vec(Reg) with 1-cycle read latency. Estimated ~4,480 FFs, ~63% Reg total. Keep metadata in BSRAM or drop. Recommends full 640-entry array for timing simplicity.
@@ -1369,6 +1484,51 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ---
 
+### Task 52 — Per-Sprite X/Y Flip Primitive
+
+**Status:** DONE — CyanPeak audit PASS #9127
+**depends_on:** [28, 29, 37]
+**scope_boundary:** Bit-mirror primitive only. No whole-sprite size-aware mirroring for sizeSel > 16 (deferred to Task 53). No tile flip. No new register ranges or bus protocol changes. Dedicated firmware sketch per #9101 hygiene rule.
+**delivers:**
+
+- 2bpp/1bpp horizontal-flip bug fix in `VdpTop.scala` (lines 1335–1349)
+- `SpriteFlipSim` unit test: 4bpp/2bpp/1bpp × 4 flip states = 12 sub-cases, all asserting pixel-perfect mirror
+- `sc62_sprite_flip` hardware scenario block in `TopTang20kHdmi.scala`
+- Dedicated ESP32 sketch `firmware/esp32_sc62_sprite_flip/`
+- RTSP capture + 30s OpenCV analysis proving 4-quadrant mirror grid
+
+**validation:**
+
+- Sim: `SpriteFlipSim` all cases PASS (4bpp, 2bpp, 1bpp each with no-flip / flipH / flipV / both)
+- Existing sim regression: `SpriteEvaluatorSim`, `AffineSpriteSim`, etc. all still PASS
+- Hardware: bitstream clean, no timing violations
+- RTSP capture: pixel-perfect mirror symmetry verified by frame analyzer
+- Cross-platform closure: NES, PCE, SNES, SMS/GG, Genesis, MSX2 flip gaps addressed
+
+**Implementation progress (BrightForge #9123):**
+
+| Stage | Status | Evidence |
+|---|---|---|
+| A — RTL fix | ✅ DONE | `VdpTop.scala` 2bpp/1bpp flip bug fix applied; `SpriteEvaluator.scala` docstring corrected |
+| B — `SpriteFlipSim` | ✅ PASS | 12 evaluator combos + 1632 math checks across all bppSel modes |
+| C — Regression sims | ✅ PASS | `SpriteEvaluatorSim`, `AffineSpriteSim`, `SpriteBusViaVdpTopSim` all PASS |
+| D — Bitstream + sketch | ✅ DONE | TNS=0, 67% logic, Tang20k flashed. ESP8266 sketch compiled + flashed per #9122/#9123 |
+| E — RTSP capture | ✅ PASS | 30s capture, 848 frames, 94.24% match, 0 flicker. Four-quadrant mirror grid verified |
+| F — Audit | ✅ PASS | CyanPeak audit PASS #9126 (A/B/C) + #9127 (final) |
+
+**Files changed (uncommitted, clean Task-52-only tree per #9113):**
+- `hw/spinal/spinalhdlvdp/VdpTop.scala` (+13/−4, flip fix)
+- `hw/spinal/spinalhdlvdp/SpriteEvaluator.scala` (+11/−3, docstring)
+- `hw/spinal/spinalhdlvdp/TopTang20kHdmi.scala` (+50, sc62 copper program)
+- `hw/spinal/spinalhdlvdp/SpriteFlipSim.scala` (new, 190 lines)
+- `firmware/esp8266_sc62_sprite_flip/esp8266_sc62_sprite_flip.ino` (new, 175 lines, active proof firmware)
+- `captures/sc62/sc62_30s.mp4` (new, 88 KB evidence)
+- `captures/sc62/sc62_sample.png` (new, evidence)
+
+**Task doc:** `PROJECT_PLAN/MODE0_PLANNING.md` §5 (Prioritized Backlog — Priority B: Sprite Envelope Hardening); see also `PROJECT_PLAN/MODE0_SPRITE_ENVELOPE_ASSESSMENT.md`
+
+---
+
 ## Deferred Items
 
 The following items remain intentionally coarse or out of Mode0 scope. Where possible they have been decomposed into numbered tasks above.
@@ -1377,8 +1537,9 @@ The following items remain intentionally coarse or out of Mode0 scope. Where pos
 |------|--------|-------|
 | Additional output modes | DEFERRED | Not required for baseline bring-up |
 | Deep-angle affine tuning | DEFERRED | Only after affine base path is proven (Task 19, Task 37) |
-| Platform adapter modes | DEFERRED | Task 40 (C64) DONE; Task 50 (ZX Spectrum) IN-PROGRESS; Task 51 (MODE_SELECT) TODO |
+| Platform adapter modes | DEFERRED | Task 40 (C64) DONE; Task 50 (ZX Spectrum) DONE; Task 51 (MODE_SELECT) TODO |
 | Alternate memory strategies | DEFERRED | Only if baseline memory path becomes a blocker |
+| E3.45 bottom-band stripes | **DONE** | BrightForge #8976. `bitmapYActive = bitmapEnable && (vCounter < 192)` at source mux in `VdpTop.scala`. Analyzer PASS. |
 | Parallel bus implementation | DEFERRED | After QSPI path is stable (Task 25) |
 
 ---
@@ -1461,8 +1622,40 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 | D-A | VdpTop test-pattern under 720p shell (clock-enable @ 74.25 MHz) | `7f8e46d` | Timing: 8,873 setup violations, TNS −27.5 µs, worst slack −20.7 ns on `vCounter → lineBuf/DI` | Closed as BLOCKED. Proves VdpTop cannot run at 74.25 MHz without substrate pipelining. |
 | D-B1-A | Synthetic SDRAM frame-buffer proof | — | SDRAM controller sustained write bandwidth ~13 MB/s; full-frame write exceeds budget by ~3× | Closed as BLOCKED before implementation. BrightForge #8504. BronzeGate #8505. |
 
+### Host-Init Sidecar Phase 1 + Phase 2 + Phase 3
+
+**Status:** DONE — Phase 1 causality PROVEN (#9001); Phase 2 SDRAM upload PROVEN (#9010); Phase 3 palette upload PROVEN (#9022)
+**PM authority:** BronzeGate #8979 / #8984 / #8994 / #8999 / #9008 / #9019 / #9021
+**Audit owner:** CyanPeak #9001 / #9010 / #9022 / #9023 (all PASS — lane officially closed)
+
+**Goal:** Move bootstrap register/copper initialization (Phase 1) and SDRAM data initialization (Phase 2) from FPGA internal FSM to host control (ESP8266 NodeMCU), proving the FPGA can be fully initialized by an external host via QSPI.
+
+**Scope boundary:** Phase 1 = register/copper init. Phase 2 = SDRAM bitmap+attr upload. No ROM elimination. Other scenarios remain on internal bootstrap for now.
+
+**Completed sub-slices:**
+
+| Sub-slice | Description | Status | Evidence |
+|---|---|---|---|
+| FPGA RTL Phase 1 | `useHostInit` flag + bootstrap bypass in `TopTang20kHdmi.scala` | **DONE** | Gen-verified; bitstream flashed; fallback render correct |
+| FPGA RTL Phase 2 | `skipSdramInit` param in `BitmapRowFetch.scala` | **DONE** | FSM bypasses init states cleanly; no fetch logic regression |
+| Host sketch Phase 1 | `sc45_host_init()` sequence (220 copper words + 9 registers) | **DONE** | Compiles; runs end-to-end on ESP8266 |
+| Host sketch Phase 2 | `vdp_sdram_write()` + `sc45_host_signature_upload()` (8 rows bitmap+attr) | **DONE** | Signature visible at HDMI lines 40–55 |
+| Host sketch Phase 3 | `vdp_palette_write_entry()` + `sc45_host_palette_upload()` (128 entries via `0x0600`/`0x0601`) | **DONE** | Red-dominant bitmap + grayscale ramp visually unmistakable from default Spectrum |
+| Bench bring-up | ESP32-C3 bad silicon → classic ESP32 wiring → ESP8266 alive | **DONE** | #8985 (bad silicon), #8987–8993 (alternate host alive) |
+| Live toggle proof | `loop()` alternates `LAYER_ENABLE` 0x0001↔0x0000 every 2s | **DONE** | #9000: 7 edges / 26 frames, 2.000s square wave, mean 110↔5, dark 6%↔96% |
+| Signature proof | Host-uploaded `0xAA`/`0x55` stripes at rows 20–27 | **DONE** | #9009: std 42.5 (signature) vs 79.2 (uninit), dramatic visual contrast |
+
+**Proof gap:** CLOSED. Host causality, SDRAM data ownership, and palette ownership all proven.
+
+**Blocked / deferred:**
+- Tile/sprite ROM elimination — deferred to future "full zero-footprint" lane per #9019
+- `skipPaletteInit` RTL param — deferred per #9019 (existing ~5 µs init walk not on critical path)
+- E3.* probe cleanup — deferred per #9019
+
+---
+
 **Active slice:**
-- **None** — Side lane closed. Team returning to formal roadmap reassessment per BronzeGate #8521.
+- **None** — Host-Init Phases 1–3 closed. Next lane awaiting PM activation.
 
 **Planning artifacts:**
 - CoralReef #8500: D-B planning packet (options D-B1 SDRAM frame buffer, D-B2 pipelining, D-B3 480p fallback)
