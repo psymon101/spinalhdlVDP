@@ -2,8 +2,8 @@
 
 **Version:** 1.0-draft  
 **Author:** CoralReef  
-**Date:** 2026-04-28  
-**Status:** In progress — first batch landing  
+**Date:** 2026-05-04  
+**Status:** All 12 platform specs drafted — awaiting audit  
 **Governing directive:** BronzeGate #8688
 
 ---
@@ -22,12 +22,12 @@ This index tracks the per-platform VDP pipeline research and Mode0 adapter mappi
 | 4 | NES / Famicom | 2 | ✅ Complete | `artifacts/ADAPTER_NES.md` | Highest leverage; needs sprite expansion |
 | 5 | TMS9918-family / MSX1 | 1 | ✅ Complete | `artifacts/ADAPTER_TMS9918_FAMILY.md` | Family doc covers base + SMS delta + GG delta |
 | 6 | Master System / Game Gear | 2 | ✅ Complete | (covered in TMS-family doc) | VDP evolution of TMS |
-| 7 | PC Engine / TurboGrafx-16 | 2 | ⏳ Pending | `artifacts/ADAPTER_PC_ENGINE.md` | Standalone |
-| 8 | MSX2 | 2 | ⏳ Pending | `artifacts/ADAPTER_MSX2.md` | Standalone; V9938-based |
-| 9 | Genesis / Mega Drive | 3 | ⏳ Pending | `artifacts/ADAPTER_GENESIS.md` | Excluded from default bitstream until sprite expansion |
-| 10 | SNES / Super Famicom | 4 | ⏳ Pending | `artifacts/ADAPTER_SNES.md` | Excluded from default bitstream |
-| 11 | Amiga OCS/ECS | 4 | ⏳ Pending | `artifacts/ADAPTER_AMIGA.md` | Excluded from default bitstream |
-| 12 | Neo Geo | 3 | ⏳ Pending | `artifacts/ADAPTER_NEO_GEO.md` | Excluded from default bitstream until sprite expansion |
+| 7 | PC Engine / TurboGrafx-16 | 2 | ✅ Drafted | `artifacts/ADAPTER_PC_ENGINE.md` | Standalone; needs sprite expansion for honest support |
+| 8 | MSX2 | 2 | ✅ Drafted | `artifacts/ADAPTER_MSX2.md` | Standalone; V9938-based; command engine gap |
+| 9 | Genesis / Mega Drive | 3 | ✅ Drafted | `artifacts/ADAPTER_GENESIS.md` | Excluded from default bitstream until sprite expansion |
+| 10 | SNES / Super Famicom | 4 | ✅ Drafted | `artifacts/ADAPTER_SNES.md` | Excluded from default bitstream |
+| 11 | Amiga OCS/ECS | 4 | ✅ Drafted | `artifacts/ADAPTER_AMIGA.md` | Excluded from default bitstream; HAM mode gap |
+| 12 | Neo Geo | 3 | ✅ Drafted | `artifacts/ADAPTER_NEO_GEO.md` | Excluded from default bitstream until sprite expansion |
 
 ## 3. Spec Template
 
@@ -44,8 +44,8 @@ Every platform spec file MUST include these sections:
 
 **Batch 1 (landing now):** Atari ST + NES  
 **Batch 2 (done):** TMS9918-family / MSX1 / SMS / GG (family doc)  
-**Batch 3 (next):** PC Engine + MSX2  
-**Batch 4 (deferred):** Genesis, SNES, Amiga, Neo Geo (Tier 3/4; excluded from default bitstream)
+**Batch 3 (done):** PC Engine + MSX2 — drafted  
+**Batch 4 (done):** Genesis, SNES, Amiga, Neo Geo — drafted (Tier 3/4; excluded from default bitstream)
 
 ## 5. Family Grouping Rationale
 
