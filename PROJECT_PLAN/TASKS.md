@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-03 (Task 52 DONE. #9026 DONE per CyanPeak #9142. #9124 DONE per CyanPeak #9141/#9142. No active lane. **NOTE: Ledger captures state; mail authority supersedes this file.**)
+**Updated:** 2026-05-03 (Task 52 DONE. #9026 DONE per CyanPeak #9142. #9124 DONE per CyanPeak #9141/#9142. Task 1 `MODE_SELECT` now active from `MODE0_GAP_TASKLIST.md`. **NOTE: Ledger captures state; mail authority supersedes this file.**)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | *None — all pending lanes closed* |
-| **Status** | *No active lane* |
-| **Phase** | — |
-| **Owner** | — |
-| **Latest Commit** | — |
-| **Latest Auth Mail** | #9142 (CyanPeak #9026 + #9124 audit PASS), #9141 (CyanPeak #9124 audit PASS) |
-| **Scope** | — |
-| **Files changed** | — |
-| **Next Deliverable** | Awaiting BronzeGate next lane activation |
-| **Coding Authorized** | **NO** — no active lane |
+| **Task** | **Task 1 — MODE_SELECT Runtime Adapter Selection** |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | implement |
+| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
+| **Latest Commit** | `8507a7f` (`MODE0_GAP_TASKLIST.md` landed; ranked next-lane recommendation) |
+| **Latest Auth Mail** | #9153 (CoralReef canonical gap task list complete; recommends Task 1 immediate activation) |
+| **Scope** | Bounded to runtime adapter selection per `MODE_SELECT_ARCHITECTURE.md` / `MODE0_GAP_TASKLIST.md`. No lower-ranked substrate gap work in this lane. |
+| **Files changed** | Expected: `MODE_SELECT_ARCHITECTURE.md`, `TASKS.md`, adapter routing / mux implementation files in `hw/spinal/spinalhdlvdp/` |
+| **Next Deliverable** | BrightForge artifact / proof packet for bounded MODE_SELECT implementation |
+| **Coding Authorized** | **YES** — activate from the canonical Mode0 gap task list |
 
 ### Closed Lane — Task 52
 

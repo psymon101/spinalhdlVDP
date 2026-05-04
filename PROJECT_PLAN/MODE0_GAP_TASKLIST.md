@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Author:** CoralReef  
 **Date:** 2026-05-03  
-**Commit:** `c8321a1`  
+**Commit:** `8507a7f`  
 **Scope:** Shared Mode0 substrate gaps only, ranked by project impact. Does not include adapter-local quirks or platform-specific register semantics.
 
 ---
