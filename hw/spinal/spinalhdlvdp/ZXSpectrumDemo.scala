@@ -45,6 +45,9 @@ case class ZXSpectrumDemo() extends Component {
   }
 
   val adapter = ZXSpectrumAdapter()
+  // Task 1 (#9154) — Demo wrapper hardcodes adapter to its native mode so
+  // legacy scenario behavior is preserved (arch §4.5 demo wrapper note).
+  adapter.io.modeSelect := U(adapter.myModeId, 4 bits)
   io.busAddr     := adapter.io.busAddr
   io.busData     := adapter.io.busData
   io.busWr       := adapter.io.busWr

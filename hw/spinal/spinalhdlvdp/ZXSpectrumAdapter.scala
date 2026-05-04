@@ -41,12 +41,21 @@ import spinal.lib.fsm._
   * reserved); `regAddr` upper bits beyond log2 of that range are
   * ignored.
   */
-case class ZXSpectrumAdapter() extends Component {
+case class ZXSpectrumAdapter(myModeId: Int = 2) extends Component {
   val io = new Bundle {
     // Adapter-style register write port (host or firmware).
     val regAddr = in  UInt(8 bits)     // 0x00..0xFF; only 0x00..0x10 honored
     val regData = in  Bits(8 bits)
     val regWr   = in  Bool()
+
+    // Task 1 (#9154) — Runtime mode selection. When `modeSelect =/= myModeId`
+    // the adapter is INACTIVE: bus outputs are forced to 0/False per
+    // MODE_SELECT_ARCHITECTURE.md v1.1 §4.4 quiescence rule. Shadow RAM
+    // and FSM state are preserved across mode switches per §4.6.
+    // Adapter-internal status outputs (borderColor/flashEnable/flashRate/
+    // adapterOn) are NOT in the §4.4 VdpTop.io inventory and are left
+    // ungated so scenarios may observe shadow state regardless.
+    val modeSelect = in UInt(4 bits)
 
     // Mode0 register bus output (peer master on RegBusArbiter).
     val busAddr = out UInt(15 bits)
@@ -204,7 +213,10 @@ case class ZXSpectrumAdapter() extends Component {
     }
   }
 
-  io.busAddr := emitAddr
-  io.busData := emitData
-  io.busWr   := emitWr
+  // Task 1 (#9154) — bus outputs gated by `active`. An inactive adapter
+  // cannot drive RegBusArbiter master 2 (arch §4.4 quiescence).
+  val active = io.modeSelect === U(myModeId, 4 bits)
+  io.busAddr := Mux(active, emitAddr, U(0, 15 bits))
+  io.busData := Mux(active, emitData, B(0, 16 bits))
+  io.busWr   := active && emitWr
 }

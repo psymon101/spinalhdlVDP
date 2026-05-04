@@ -25,6 +25,8 @@ object ZXSpectrumAdapterSim extends App {
     dut.io.regAddr #= 0
     dut.io.regData #= 0
     dut.io.regWr   #= false
+    // Task 1 (#9154) — adapter active in mode 0x2 (ZX) for legacy assertions.
+    dut.io.modeSelect #= 2
     dut.clockDomain.waitSampling(3)
 
     def zxWrite(addr: Int, data: Int): Unit = {

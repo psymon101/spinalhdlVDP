@@ -40,12 +40,19 @@ import spinal.lib._
   * `LAYER_ENABLE` with prior bits preserved). Not exposed on the Mode0
   * read path because Mode0 is write-only.
   */
-case class C64Adapter() extends Component {
+case class C64Adapter(myModeId: Int = 1) extends Component {
   val io = new Bundle {
     // C64-style register write port (host or Copper).
     val regAddr = in  UInt(8 bits)     // $00..$FF; only $00..$2F honored
     val regData = in  Bits(8 bits)
     val regWr   = in  Bool()
+
+    // Task 1 (#9154) — Runtime mode selection. When `modeSelect =/= myModeId`
+    // the adapter is INACTIVE: bus outputs and all VdpTop.io-bound direct
+    // outputs (raster trigger, sprite 0/1) are forced to defined defaults
+    // per MODE_SELECT_ARCHITECTURE.md v1.1 §4.4 quiescence rule. Shadow RAM
+    // is preserved across mode switches per §4.6 state-preservation rule.
+    val modeSelect = in UInt(4 bits)
 
     // Mode0 register bus output (merged into RegBusArbiter).
     val busAddr = out UInt(15 bits)
@@ -98,25 +105,34 @@ case class C64Adapter() extends Component {
   val IRQ_MASK  = 0x1A
 
   // ------------------------------------------------------------------
-  // Direct outputs (combinational from shadow).
+  // Task 1 (#9154) — quiescence gate. When inactive, all VdpTop.io-bound
+  // outputs default to 0/False per arch §4.4 inventory.
+  // ------------------------------------------------------------------
+  val active = io.modeSelect === U(myModeId, 4 bits)
+
+  // ------------------------------------------------------------------
+  // Direct outputs (combinational from shadow), mode-gated.
   // ------------------------------------------------------------------
   // Raster line is 9 bits on the VIC-II: $D012[7:0] + $D011[7].
-  io.rasterTriggerLine   := (B(0, 1 bits) ## R(CTRL1)(7) ## R(RASTER)).asUInt.resize(10)
-  io.rasterTriggerEnable := R(IRQ_MASK)(0)   // RIRQ mask bit
+  val rasterLineInternal = (B(0, 1 bits) ## R(CTRL1)(7) ## R(RASTER)).asUInt.resize(10)
+  io.rasterTriggerLine   := Mux(active, rasterLineInternal, U(0, 10 bits))
+  io.rasterTriggerEnable := active && R(IRQ_MASK)(0)   // RIRQ mask bit
 
   // Writing $D019 on a VIC-II is write-1-to-clear. We pulse
   // rasterTriggerClear for one cycle whenever the host writes $D019 with
   // bit 0 set. This does NOT latch into shadow beyond the acknowledge.
-  io.rasterTriggerClear := io.regWr && (io.regAddr === U(IRQ_STAT, 8 bits)) && io.regData(0)
+  io.rasterTriggerClear := active && io.regWr && (io.regAddr === U(IRQ_STAT, 8 bits)) && io.regData(0)
 
   // Sprite 0/1 X: low 8 bits from $D000/$D002, high bit from $D010[0]/[1].
-  io.sprite0X := (B(0, 1 bits) ## R(SPR_XMSB)(0) ## R(SPR0_X)).asUInt.resize(10)
-  io.sprite1X := (B(0, 1 bits) ## R(SPR_XMSB)(1) ## R(SPR1_X)).asUInt.resize(10)
+  val spr0XInternal = (B(0, 1 bits) ## R(SPR_XMSB)(0) ## R(SPR0_X)).asUInt.resize(10)
+  val spr1XInternal = (B(0, 1 bits) ## R(SPR_XMSB)(1) ## R(SPR1_X)).asUInt.resize(10)
+  io.sprite0X := Mux(active, spr0XInternal, U(0, 10 bits))
+  io.sprite1X := Mux(active, spr1XInternal, U(0, 10 bits))
   // Sprite 0/1 Y: 8-bit, zero-extended.
-  io.sprite0Y := R(SPR0_Y).asUInt.resize(10)
-  io.sprite1Y := R(SPR1_Y).asUInt.resize(10)
-  io.sprite0Enabled := R(SPR_ENA)(0)
-  io.sprite1Enabled := R(SPR_ENA)(1)
+  io.sprite0Y := Mux(active, R(SPR0_Y).asUInt.resize(10), U(0, 10 bits))
+  io.sprite1Y := Mux(active, R(SPR1_Y).asUInt.resize(10), U(0, 10 bits))
+  io.sprite0Enabled := active && R(SPR_ENA)(0)
+  io.sprite1Enabled := active && R(SPR_ENA)(1)
 
   // ------------------------------------------------------------------
   // Bus-write emitter. Currently the only Mode0 bus target is
@@ -155,7 +171,9 @@ case class C64Adapter() extends Component {
     when(emitPending) { emitPending := False }
   }
 
-  io.busAddr := emitAddr
-  io.busData := emitData
-  io.busWr   := emitPending
+  // Task 1 (#9154) — bus outputs gated by `active` so an inactive adapter
+  // cannot inject spurious writes onto RegBusArbiter master 2 (arch §4.4).
+  io.busAddr := Mux(active, emitAddr, U(0, 15 bits))
+  io.busData := Mux(active, emitData, B(0, 16 bits))
+  io.busWr   := active && emitPending
 }

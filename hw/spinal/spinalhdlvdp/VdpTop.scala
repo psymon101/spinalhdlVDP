@@ -138,6 +138,16 @@ case class VdpTop() extends Component {
     val statusSticky       = out Bits(16 bits)
     // Host-visible IRQ line — asserted while any enabled sticky bit is set:
     val irq                = out Bool()
+
+    // Task 1 (MODE_SELECT, #9154) — runtime adapter selection per
+    // MODE_SELECT_ARCHITECTURE.md v1.1 §4.2. Live-mode 4-bit field exported
+    // for adapters' output gating (§4.4) and for host READ_STATUS LIVE_MODE
+    // observability (§4.2 / open-question Q6 ruling: place in READ_STATUS).
+    //   0x0 = Native Mode0 (no adapter)
+    //   0x1 = C64 adapter
+    //   0x2 = ZX Spectrum adapter
+    //   0x3..0xF reserved
+    val modeSelect         = out UInt(4 bits)
   }
 
   // 640x480@60 timing uses a 25.2 MHz pixel clock.
@@ -347,6 +357,25 @@ case class VdpTop() extends Component {
     copperCtrlPend    := effData(0 downto 0)
     copperCtrlPendHit := True
   }
+
+  // Task 1 (MODE_SELECT, #9154) per MODE_SELECT_ARCHITECTURE.md v1.1 §4.2:
+  // 16-bit register at 0x0313 — [3:0] = MODE_SELECT, [7:4] = reserved,
+  // [15:8] = MODE_FLAGS. Write authority: host/QSPI only for v1; the
+  // AdapterRegRouter (Phase 4) silently drops Copper/HDMA writes to 0x0313.
+  // Frame-atomic commit at V=0 (vsync start) — NOT the per-line hCounter===0
+  // boundary used by other safe-boundary regs, since mode switch must not
+  // produce split-frame artifacts.
+  val modeSelectPend     = Reg(UInt(4 bits))  init U(0, 4 bits)
+  val modeSelectFlagsPend = Reg(Bits(8 bits))  init B(0, 8 bits)
+  val modeSelectPendHit  = Reg(Bool())        init False
+  val modeSelectReg      = Reg(UInt(4 bits))  init U(0, 4 bits)
+  val modeSelectFlagsReg  = Reg(Bits(8 bits))  init B(0, 8 bits)
+  when(effWrite && effAddr === U(0x0313, 15 bits)) {
+    modeSelectPend      := effData(3 downto 0).asUInt
+    modeSelectFlagsPend := effData(15 downto 8)
+    modeSelectPendHit   := True
+  }
+  io.modeSelect := modeSelectReg
   // R6 Task 20: Color Math + Window registers (0x0330..0x0334), same
   // safe-boundary shadow+commit pattern. Defaults are all-zero so the stage
   // is passthrough at power-on (no output regression).
@@ -663,6 +692,9 @@ case class VdpTop() extends Component {
       copperCtrlReg     := copperCtrlPend
       copperCtrlPendHit := False
     }
+    // Task 1 (#9154) — V=0 commit pulse drives modeSelect commit + side
+    // effects below (out of this hCounter===0 block since the V=0 gate
+    // is once per frame). See modeCommitPulse.
     when(winX0PendHit)     { winX0Reg     := winX0Pend;     winX0PendHit     := False }
     when(winX1PendHit)     { winX1Reg     := winX1Pend;     winX1PendHit     := False }
     when(winY0PendHit)     { winY0Reg     := winY0Pend;     winY0PendHit     := False }
@@ -1268,11 +1300,15 @@ case class VdpTop() extends Component {
     // 12-bit addressed; sub-4bpp modes simply leave the low col bits
     // dont-care in the address and rely on the unpack mux below.
     val bppSel = spriteEval.io.activeBppSel(s)
+    // Task 52 (#9105/#9107): use flippedCol so per-sprite flipH applies in
+    // 2bpp/1bpp paths too. The 4bpp path already uses flippedCol via flatAddr
+    // above; only the sub-4bpp address-shift mux and the unpack pixel-select
+    // register were reading raw col, dropping flipH for NES/C64 sprites.
     val colShifted: UInt = bppSel.mux(
-      U(0, 2 bits) -> col(3 downto 0),
-      U(1, 2 bits) -> (B"0"  ## col(3 downto 1)).asUInt,
-      U(2, 2 bits) -> (B"00" ## col(3 downto 2)).asUInt,
-      default      -> col(3 downto 0)
+      U(0, 2 bits) -> flippedCol,
+      U(1, 2 bits) -> (B"0"  ## flippedCol(3 downto 1)).asUInt,
+      U(2, 2 bits) -> (B"00" ## flippedCol(3 downto 2)).asUInt,
+      default      -> flippedCol
     )
     val flatAddrBpp = (flippedRow ## colShifted.asBits.resize(4)).asUInt
     val effFlatAddr = Mux(bppSel === U(0, 2 bits), flatAddr, flatAddrBpp)
@@ -1281,8 +1317,9 @@ case class VdpTop() extends Component {
     val rawPixel    = spritePatternRams(s).readSync(ramAddr)
 
     // Pixel unpack: register the 2 LSBs of col so they align with the
-    // 1-cycle readSync result.
-    val colLowR  = RegNext(col(1 downto 0)) init U(0, 2 bits)
+    // 1-cycle readSync result. Task 52: use flippedCol so the unpack
+    // pixel-select honors flipH at the sub-4bpp word offset too.
+    val colLowR  = RegNext(flippedCol(1 downto 0)) init U(0, 2 bits)
     val bppSelR  = RegNext(bppSel) init U(0, 2 bits)
     val twoBpp   = Mux(colLowR(0), rawPixel(3 downto 2), rawPixel(1 downto 0)).asBits.resize(4)
     val oneBpp   = rawPixel(colLowR).asBits.resize(4)
@@ -1619,10 +1656,11 @@ case class VdpTop() extends Component {
   //   0x0321  STATUS_ENABLE  — IRQ mask (1 = bit contributes to irq)
   //
   // Sticky bit mapping (low byte, upper bits reserved for future events):
-  //   bit 0 : RASTER_MATCH    — rasterTriggerPulse rising edge
-  //   bit 1 : SPRITE_OVERFLOW — spriteEval.overflowFlag pulse
-  //   bit 2 : QSPI_READY      — QSPI cmd_valid pulse (command accepted)
-  //   bit 3 : QSPI_ERROR      — QspiDecoder.last_error non-zero (level)
+  //   bit 0 : RASTER_MATCH         — rasterTriggerPulse rising edge
+  //   bit 1 : SPRITE_OVERFLOW      — spriteEval.overflowFlag pulse
+  //   bit 2 : QSPI_READY           — QSPI cmd_valid pulse (command accepted)
+  //   bit 3 : QSPI_ERROR           — QspiDecoder.last_error non-zero (level)
+  //   bit 11: MODE_SELECT_CHANGED  — V=0 commit of MODE_SELECT @ 0x0313 (Task 1 #9154)
   //
   // Semantics:
   //   - Sticky bits SET on event pulse, PERSIST until write-1-to-clear.
@@ -1660,7 +1698,37 @@ case class VdpTop() extends Component {
   // a live read-only signal (blitterEngine.io.busy) and does not flow into
   // the sticky pipeline; hosts that need the live state read it via a
   // future status-word read implementation.
-  val evBus = (B(0, 6 bits) ## blitterEngine.io.done ## dmaEngine.io.done ## B(0, 2 bits) ##
+  // Task 1 (#9154) — V=0 frame-atomic commit pulse for MODE_SELECT.
+  // Fires for one cycle at the start of vsync (the unambiguous frame
+  // boundary), per MODE_SELECT_ARCHITECTURE.md v1.1 §4.2 commit-boundary
+  // rule. NOT the per-line hCounter===0 gate other safe-boundary regs
+  // use, because mode switch must be frame-atomic to avoid split-frame
+  // adapter-quiescence races.
+  val modeCommitPulse = (vCounter === vSyncStart) && (hCounter === U(0, log2Up(hTotal) bits))
+  when(modeCommitPulse && modeSelectPendHit) {
+    modeSelectReg      := modeSelectPend
+    modeSelectFlagsReg := modeSelectFlagsPend
+    modeSelectPendHit  := False
+    // §4.6.4 — Copper auto-disable on mode switch: stop the old program
+    // immediately so the new mode starts with a clean copper state. The
+    // host must upload a new copper program and re-enable.
+    copperCtrlReg      := B(0, 1 bit)
+    copperCtrlPendHit  := False
+    // §4.6.5 — Optional MODE_FLAGS[0] auto-reset: clear LAYER_ENABLE so
+    // the new mode starts with a clean visual slate.
+    when(modeSelectFlagsPend(0)) {
+      layerEnableReg    := B(0, layerEnableReg.getWidth bits)
+      layerEnablePendHit := False
+    }
+  }
+  // §4.2 — MODE_SELECT_CHANGED sticky event: one-cycle pulse at the V=0
+  // commit if a pending mode write actually committed. Lets the host
+  // poll for commit completion before issuing platform-specific traffic.
+  // Sticky bit 11 (next free slot above blitterEngine.io.done at bit 9).
+  val evModeSelectChanged = modeCommitPulse && modeSelectPendHit
+
+  val evBus = (B(0, 4 bits) ## evModeSelectChanged ## B(0, 1 bit) ##
+               blitterEngine.io.done ## dmaEngine.io.done ## B(0, 2 bits) ##
                spriteBgHitPulse ## sprite0HitPulse ##
                evQspiError ## evQspiReady ## evSpriteOverflow ## evRasterMatch).asBits
 

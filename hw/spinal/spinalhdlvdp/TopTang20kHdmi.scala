@@ -33,7 +33,7 @@ import spinal.lib.BufferCC   // Task 34 CDC — toggle-based crossing for upload
   *       4 sprites bouncing 4 px/frame + copper 3 triggers/frame.
   *       No new primitives. See `SCENARIO_17.md`.
   */
-case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
+case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) extends Component {
   setDefinitionName("top_tang20k")
   noIoPrefix()
 
@@ -446,6 +446,53 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
           (1 << 14) | 0x0334, 0x4000,
           (3 << 14) | 0                                      // JUMP 0
         )
+      case 62 =>
+        // Task 52 — Per-Sprite X/Y Flip primitive HW proof (converged
+        // packet #9105, CyanPeak audit PASS #9107, BronzeGate GO #9109,
+        // BronzeGate trim ruling #9113).
+        //
+        // Programs four bus-resident sprites (slots 4..7) at the same
+        // y, all sharing patIdx=0, in a horizontal row. The four word-8
+        // attribute writes select all four flipH/flipV combinations:
+        //
+        //   slot 4 @ x= 80 : flipH=0, flipV=0  (reference)
+        //   slot 5 @ x=200 : flipH=1, flipV=0  (horizontal mirror)
+        //   slot 6 @ x=320 : flipH=0, flipV=1  (vertical mirror)
+        //   slot 7 @ x=440 : flipH=1, flipV=1  (both)
+        //
+        // The MCU sketch (`firmware/esp32_sc62_sprite_flip/`) is
+        // responsible for uploading an asymmetric 16×16 4bpp pattern
+        // into pattern slot 0 via 0x0D11 (pointer set) + 0x0D10 (pixel
+        // write, auto-increment) BEFORE the copper program runs.
+        //
+        // Word 8 layout (per 0x0D20 + slot decode):
+        //   {sizeSel[15:14], paletteBank[13:11], priority[10:9],
+        //    flipH[8], flipV[7], bppSel[6:5], _[4:0]}
+        // sizeSel=01 → 16×16 (matches pattern), priority=0,
+        // paletteBank=0, bppSel=00 (4bpp), flipH/V per slot.
+        //
+        // RTSP capture + 30s OpenCV analysis asserts a 4-quadrant
+        // pixel-perfect mirror grid — the unambiguous Task 52 proof.
+        Seq(
+          (0 << 14) | 0,                                     // WAIT y=0 (sync)
+          // Slot 4 — reference (no flip).
+          (1 << 14) | 0x0820, 0x8000 | 200,                  // word 0: enabled, patIdx=0, y=200
+          (1 << 14) | 0x0821, 80,                            // word 1: x=80
+          (1 << 14) | 0x0D24, (1 << 14) | (0 << 9),          // word 8: sizeSel=01, priority=0, flip=00
+          // Slot 5 — flipH only.
+          (1 << 14) | 0x0828, 0x8000 | 200,
+          (1 << 14) | 0x0829, 200,
+          (1 << 14) | 0x0D25, (1 << 14) | (0 << 9) | (1 << 8),
+          // Slot 6 — flipV only.
+          (1 << 14) | 0x0830, 0x8000 | 200,
+          (1 << 14) | 0x0831, 320,
+          (1 << 14) | 0x0D26, (1 << 14) | (0 << 9) | (1 << 7),
+          // Slot 7 — flipH and flipV.
+          (1 << 14) | 0x0838, 0x8000 | 200,
+          (1 << 14) | 0x0839, 440,
+          (1 << 14) | 0x0D27, (1 << 14) | (0 << 9) | (1 << 8) | (1 << 7),
+          (3 << 14) | 0                                      // JUMP 0 (idempotent loop)
+        )
       case 52 =>
         // Color/Window Hardening HW proof — CW-6 sprite-mask companion to
         // sc51 (CyanPeak audit PASS #8629). Same copper-driven palette /
@@ -738,7 +785,11 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case _  => colorMathIdx
     }
     val bootIdx     = Reg(UInt(7 bits)) init 0
-    val bootDoneR   = Reg(Bool())      init False
+    // #9026 (BronzeGate #9133): when useHostInit=true, bootDoneR initializes
+    // True so the bootstrap copper FSM is bypassed entirely (bootWrite =
+    // !bootDoneR stays False, no internal register writes). QSPI ownership
+    // transfers to the ESP host immediately at boot.
+    val bootDoneR   = RegInit(if (useHostInit) True else False)
 
     val bootWrite      = !bootDoneR
     val inCopperPhase  = bootIdx < U(copperLen, 7 bits)
@@ -784,7 +835,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 50 || scenarioId == 51 || scenarioId == 52 || scenarioId == 60) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 50 || scenarioId == 51 || scenarioId == 52 || scenarioId == 60 || scenarioId == 62) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -809,6 +860,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
       case 51          => 0x0005  // Sc51 (CW HW proof): L0 + sprite (sprite is masked in window region)
       case 52          => 0x0005  // Sc52 (CW-6 sprite proof): L0 + sprite, programmed sprite at x=288/y=80
       case 60          => 0x0001  // Sc60 (BH-1 pixel-precise WAIT proof): L0 only
+      case 62          => 0x0004  // Sc62 (Task 52 sprite-flip proof): sprite layer only over default backdrop
       case 50          => 0x0001  // Sc50 (Task 50 ZX Spectrum): L0 only — bitmap+attr fetch
       case _           => 0x0001
     }, 16 bits)
@@ -1003,6 +1055,8 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // decoder exposes it over READ_STATUS sel=5. QSPI_READY fires on every
     // cmd_valid (command accepted); QSPI_ERROR follows last_error != 0.
     qspiDec.io.status_sticky := video.io.statusSticky
+    // Task 1 (#9154) — LIVE_MODE wire per CyanPeak #9161 audit correction.
+    qspiDec.io.live_mode := video.io.modeSelect
     video.io.statusEvQspiReady := qspi.io.cmd_valid
     video.io.statusEvQspiError := qspiDec.io.last_error =/= B(0, 8 bits)
 
@@ -1041,10 +1095,44 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     regBusArbiter.io.masters(1).addr   := qspiDec.io.regBus.addr
     regBusArbiter.io.masters(1).data   := qspiDec.io.regBus.data
     regBusArbiter.io.masters(1).enable := qspiActive
-    regBusArbiter.io.masters(2).addr   := animWriteAddr
-    regBusArbiter.io.masters(2).data   := animWriteData
-    regBusArbiter.io.masters(2).enable := animWriteActive
-    video.io.regBus <> regBusArbiter.io.mixed
+
+    // Task 1 (#9154) Phase 3 — AdapterBusMux always-instantiated.
+    // Inputs are tied off in Packet A (runtime-instantiated adapters
+    // arrive in Phase 5 dual-adapter pilot). At modeSelect=0x0 (Native
+    // Mode0 default for every existing scenario) the mux output is
+    // already 0/False, so behavior of legacy scenarios is unchanged.
+    val adapterBusMux = AdapterBusMux(Seq(0x1, 0x2))
+    adapterBusMux.io.modeSelect := video.io.modeSelect
+    for (i <- 0 until adapterBusMux.io.adapters.length) {
+      adapterBusMux.io.adapters(i).addr   := U(0, 15 bits)
+      adapterBusMux.io.adapters(i).data   := B(0, 16 bits)
+      adapterBusMux.io.adapters(i).enable := False
+    }
+
+    // Master 2 = adapter-mux output OR'd with existing animator path.
+    // Adapter mux wins on simultaneous assertion (priority safe because
+    // legacy animator scenarios run with modeSelect=0, where the mux is
+    // quiescent). Once Phase 5 retires the scenario-conditional animator
+    // path, this OR collapses to just the adapter mux.
+    regBusArbiter.io.masters(2).addr   :=
+      Mux(adapterBusMux.io.mixed.enable, adapterBusMux.io.mixed.addr, animWriteAddr)
+    regBusArbiter.io.masters(2).data   :=
+      Mux(adapterBusMux.io.mixed.enable, adapterBusMux.io.mixed.data, animWriteData)
+    regBusArbiter.io.masters(2).enable := adapterBusMux.io.mixed.enable || animWriteActive
+
+    // Task 1 (#9154) Phase 4 — AdapterRegRouter on the unified
+    // post-arbitration bus per arch §4.1 critical correction. Decodes
+    // adapter address ranges (C64=0x0E00, ZX=0x0F00) and:
+    //   - emits per-adapter regAddr/regData/regWr pulses (consumed by
+    //     runtime-instantiated adapters in Phase 5; outputs left
+    //     unconsumed in Packet A and pruned at synthesis)
+    //   - suppresses passThru.enable for any adapter-range address so
+    //     the Mode0 substrate (VdpTop) never sees them
+    // Mode0 global writes (incl. MODE_SELECT @ 0x0313) pass through.
+    val adapterRegRouter = AdapterRegRouter(Seq((0x1, 0x0E00), (0x2, 0x0F00)))
+    adapterRegRouter.io.modeSelect := video.io.modeSelect
+    adapterRegRouter.io.mixedIn    <> regBusArbiter.io.mixed
+    video.io.regBus                <> adapterRegRouter.io.passThru
 
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100
@@ -1272,7 +1360,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     // fetch but uses linear addressing and reads into pixel-domain
     // line buffers; its SDRAM bus is routed through arbiter client 1
     // (see top-level wiring below).
-    val bitmapRowFetch = BitmapRowFetch(sdramClockDomain)
+    val bitmapRowFetch = BitmapRowFetch(sdramClockDomain, skipSdramInit = useHostInit)
     bitmapRowFetch.io.fetchGrant := video.io.bitmapSdramFetchGrant
     bitmapRowFetch.io.fetchLine  := video.io.bitmapSdramFetchLine
     bitmapRowFetch.io.col        := video.io.bitmapSdramCol
@@ -1287,7 +1375,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0) extends Component {
     video.io.bitmapSdramByte     := bitmapRowFetch.io.bitmapByte
     video.io.bitmapSdramAttrByte := bitmapRowFetch.io.attrByte
 
-    val fetch = SdramTileAttributeFetch(sdramClockDomain)
+    val fetch = SdramTileAttributeFetch(sdramClockDomain, skipSdramInit = useHostInit)
     fetch.io.fetchGrant       := video.io.layer0FetchGrant
     fetch.io.fetchSlotValid   := video.io.layer0FetchSlotValid
     fetch.io.fetchPreAnnounce := video.io.layer0FetchPreAnnounce
@@ -1720,6 +1808,12 @@ object TopTang20kHdmiScenario52Verilog extends App {
 }
 object TopTang20kHdmiScenario60Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 60))   // Beam Hardening BH-1 pixel-precise Copper WAIT proof
+}
+object TopTang20kHdmiScenario62Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 62))   // Task 52 — Per-Sprite X/Y Flip primitive HW proof (sc62)
+}
+object TopTang20kHdmiScenario45HostVerilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 45, useHostInit = true))   // #9026 zero-footprint sc45-host proof — bootstrap bypass + skipSdramInit on both fetchers
 }
 object TopTang20kHdmiScenario50Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 50))   // Task 50 ZX Spectrum Adapter HW proof

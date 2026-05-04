@@ -24,6 +24,9 @@ object C64AdapterSim extends App {
     dut.io.regAddr #= 0
     dut.io.regData #= 0
     dut.io.regWr   #= false
+    // Task 1 (#9154) — adapter must be in its native mode for legacy
+    // assertions (which predate MODE_SELECT) to hold. C64 = mode 0x1.
+    dut.io.modeSelect #= 1
     dut.clockDomain.waitSampling(3)
 
     def c64Write(addr: Int, data: Int): Unit = {

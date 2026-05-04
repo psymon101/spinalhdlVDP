@@ -41,6 +41,10 @@ case class QspiDecoder() extends Component {
     val rx_cmd_cnt = out UInt (8 bits)
     // Task 35 — host-readable status sticky bits routed from VdpTop.
     val status_sticky = in Bits (16 bits)
+    // Task 1 (#9154) — LIVE_MODE: committed MODE_SELECT value, observable
+    // via READ_STATUS sel=7 per MODE_SELECT_ARCHITECTURE.md v1.1 §4.2 / Q6
+    // (CyanPeak #9161 audit correction).
+    val live_mode = in UInt (4 bits)
 
     // Task 34 — SDRAM_WRITE bridge interface.
     val sdramHeaderValid = out Bool()
@@ -192,6 +196,12 @@ case class QspiDecoder() extends Component {
         // sel=6 upload status: byte0[0] = upload_busy, byte0[1] = upload_done (latched)
         val statBits = B(0, 6 bits) ## io.upload_done ## io.upload_busy
         rxWord := B(0, 24 bits) ## statBits
+      }
+      is(U(7, 8 bits)) {                                                  // Task 1 (#9154)
+        // sel=7 LIVE_MODE: byte0[3:0] = committed MODE_SELECT, upper bits zero.
+        // Host polls this after a MODE_SELECT write to confirm V=0 commit
+        // (alternative to STATUS_STICKY bit 11 MODE_SELECT_CHANGED).
+        rxWord := B(0, 28 bits) ## io.live_mode.asBits
       }
       default          { rxWord := B(0, 32 bits) }
     }

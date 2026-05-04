@@ -62,6 +62,11 @@ case class C64DemoAnimator() extends Component {
   }
 
   val adapter = C64Adapter()
+  // Task 1 (#9154) — Demo wrapper hardcodes the adapter to its native
+  // mode so legacy scenario behavior is preserved when this wrapper is
+  // selected at compile time. Per arch §4.5, demo wrappers are temporary
+  // proof infrastructure and are not part of the runtime mode-switch model.
+  adapter.io.modeSelect := U(adapter.myModeId, 4 bits)
   io.busAddr             := adapter.io.busAddr
   io.busData             := adapter.io.busData
   io.busWr               := adapter.io.busWr
