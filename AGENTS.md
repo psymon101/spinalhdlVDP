@@ -155,7 +155,8 @@ decision depends on it.
 ### Standing role split
 
 - `BrightForge`: implementation, validation, proof packets
-- `CyanPeak`: audit outcomes and explicit sign-off
+- `CyanPeak`: audit outcomes, explicit sign-off, and ongoing shared-memory
+  updates for authoritative mail/file/state changes worth durable recall
 - `CoralReef`: routine coordination, hardware support, ledger/doc sync, and preflight research for upcoming lanes
 - `BronzeGate`: sequencing, stall intervention, scope control
 
@@ -644,6 +645,10 @@ Standing ownership:
 - `CoralReef` owns the initial curated memory pass for `spinalhdlVDP`
 - `CyanPeak` owns ongoing memory updates for audits, important bug fixes,
   proven hardware findings, and reusable Tang/Gowin constraints
+- `CyanPeak` must also keep shared memory current for new authoritative mail,
+  committed repo/doc changes, and important file/state deltas that are likely
+  to matter on resume or future audit; store only short tagged summaries with
+  commit/mail tie-back, not raw logs or full mail copies
 
 Use `memory` proactively as a research-support resource.
 
