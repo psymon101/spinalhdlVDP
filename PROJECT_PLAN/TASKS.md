@@ -27,15 +27,15 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 2 — Sprite Capacity Expansion** |
-| **Status** | **IN-PROGRESS** (artifact phase) |
-| **Phase** | artifact → audit → implement → capture |
-| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding) |
-| **Latest Commit** | `ef4f8ce` (Task 1 closeout) |
-| **Latest Auth Mail** | #9204 (BronzeGate PM activation: Task 2) |
+| **Status** | **IN-PROGRESS** (implementation phase) |
+| **Phase** | implement → capture |
+| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
+| **Latest Commit** | `b42fcb9` (CoralReef artifact) |
+| **Latest Auth Mail** | #9208 (CyanPeak artifact audit PASS) |
 | **Scope** | Raise `visiblePerLine` 8→32 and `descCount` 32→64 in `SpriteEvaluator`. Preserve all existing behavior. Compositor widened to match. |
 | **Files changed** | `SpriteEvaluator.scala`, `VdpTop.scala`, `FourLayerCompositor.scala` (expected) |
-| **Next Deliverable** | CoralReef artifact packet → CyanPeak audit |
-| **Coding Authorized** | **NO** — awaiting artifact audit PASS |
+| **Next Deliverable** | BrightForge implementation + proof packet |
+| **Coding Authorized** | **YES** — artifact audit PASS #9208 |
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
