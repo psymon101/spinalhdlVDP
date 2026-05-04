@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-03 (Task 52 DONE. #9026 DONE per CyanPeak #9142. #9124 DONE per CyanPeak #9141/#9142. Task 1 `MODE_SELECT` now active from `MODE0_GAP_TASKLIST.md`. **NOTE: Ledger captures state; mail authority supersedes this file.**)
+**Updated:** 2026-05-04 (Task 1 Packet A Phases 1–4 DONE per CyanPeak audit PASS #9180. Hygiene commit `9577a0e` landed. Phase 5a+5b now active per PM #9184. **NOTE: Ledger captures state; mail authority supersedes this file.**)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,14 +28,26 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 1 — MODE_SELECT Runtime Adapter Selection** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | implement |
+| **Phase** | 5a+5b (pilot substrate wiring + sim coverage) |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
-| **Latest Commit** | `8507a7f` (`MODE0_GAP_TASKLIST.md` landed; ranked next-lane recommendation) |
-| **Latest Auth Mail** | #9153 (CoralReef canonical gap task list complete; recommends Task 1 immediate activation) |
-| **Scope** | Bounded to runtime adapter selection per `MODE_SELECT_ARCHITECTURE.md` / `MODE0_GAP_TASKLIST.md`. No lower-ranked substrate gap work in this lane. |
-| **Files changed** | Expected: `MODE_SELECT_ARCHITECTURE.md`, `TASKS.md`, adapter routing / mux implementation files in `hw/spinal/spinalhdlvdp/` |
-| **Next Deliverable** | BrightForge artifact / proof packet for bounded MODE_SELECT implementation |
-| **Coding Authorized** | **YES** — activate from the canonical Mode0 gap task list |
+| **Latest Commit** | `9577a0e` (hygiene: closed-lane residue #9026/Task 52/KB notes; follow-on to Packet A) |
+| **Latest Auth Mail** | #9184 (PM ruling: Packet A PASS, Phase 5 Option alpha approved) |
+| **Scope** | Phase 5a+5b bounded to substrate wiring + sim coverage per `MODE_SELECT_ARCHITECTURE.md` §4.8. No bitstream build or HW proof in this slice. |
+| **Files changed** | `AdapterBusMux.scala`, `AdapterRegRouter.scala`, `ModeSelectSim.scala`, `VdpTop.scala`, `QspiDecoder.scala`, `TopTang20kHdmi.scala`, `C64Adapter.scala`, `ZXSpectrumAdapter.scala` (Packet A `44efb16`) |
+| **Next Deliverable** | BrightForge Phase 5a+5b implementation/proof packet |
+| **Coding Authorized** | **YES** — Phase 5a+5b auto-approved per PM #9184 |
+
+### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
+
+| Field | Value |
+|---|---|
+| **Task** | Task 1 Packet A — MODE_SELECT Phases 1–4 + LIVE_MODE wire |
+| **Status** | **DONE** — CyanPeak audit PASS #9180 |
+| **Phase** | closed (sub-milestone) |
+| **Owner** | BrightForge (coding + proof), CyanPeak (audit PASS), CoralReef (ledger sync) |
+| **Commit** | `44efb16` (+715/−38, 12 files) |
+| **Latest Auth Mail** | #9175 (BrightForge proof packet), #9180 (CyanPeak audit PASS), #9184 (BronzeGate PM ruling) |
+| **Proof** | `ModeSelectSim` 10/10 PASS; `C64AdapterSim` 5/5 PASS; `ZXSpectrumAdapterSim` 8/8 PASS; `VdpTopSim` regression PASS; 3 elab clean |
 
 ### Closed Lane — Task 52
 
@@ -1460,7 +1472,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 51 — MODE_SELECT Runtime Adapter Selection
 
-**Status:** TODO (Architecture Audit PASS #8692)
+**Status:** IN-PROGRESS — Packet A Phases 1–4 DONE (audit PASS #9180); Phase 5a+5b active per PM #9184
 **depends_on:** [32b, 40, 50 v3]
 **scope_boundary:** Infrastructure only. No new platform adapter behavior. No new substrate primitives. No changes to QSPI packet format (reuse REG_WRITE). No adapter-specific register semantics beyond gating.
 **delivers:**
