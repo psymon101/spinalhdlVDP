@@ -16,7 +16,7 @@ import spinal.lib.fsm._
   * Assets come from `TileAttributeAssets` and live at disjoint SDRAM addresses
   * from the retired 3bpp `SdramTileFetch` data (per CoralReef #6755).
   */
-case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
+case class SdramTileAttributeFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) extends Component {
   import TileAttributeAssets._
 
   val LineWidth      = MapPixelsX                      // 640
@@ -254,18 +254,29 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
     val cmdAddr    = Reg(UInt(23 bits)) init 0
     val cmdDin     = Reg(Bits(8 bits))  init 0
 
-    val tileMapRom  = Mem(Bits(8 bits), initialContent = TileAttributeAssets.tileMapBytesInit)
-    val attrMapRom  = Mem(Bits(8 bits), initialContent = TileAttributeAssets.attributeMapBytesInit)
-    val tileRowRom  = Mem(Bits(8 bits), initialContent = TileAttributeAssets.tileRowBytesInit)
+    // #9026 zero-footprint (BronzeGate ruling #9133): when skipSdramInit=true the
+    // boot FSM is bypassed (host populates SDRAM via SDRAM_WRITE), so these init
+    // ROMs are never accessed. Drop initialContent in that mode so synthesis
+    // recovers the BSRAM/LUT footprint. Length-only declarations match the
+    // original depths so any unintended access reads as zero rather than
+    // failing build.
+    val tileMapRom  = if (skipSdramInit) Mem(Bits(8 bits), TileAttributeAssets.tileMapBytesInit.length)
+                      else              Mem(Bits(8 bits), initialContent = TileAttributeAssets.tileMapBytesInit)
+    val attrMapRom  = if (skipSdramInit) Mem(Bits(8 bits), TileAttributeAssets.attributeMapBytesInit.length)
+                      else              Mem(Bits(8 bits), initialContent = TileAttributeAssets.attributeMapBytesInit)
+    val tileRowRom  = if (skipSdramInit) Mem(Bits(8 bits), TileAttributeAssets.tileRowBytesInit.length)
+                      else              Mem(Bits(8 bits), initialContent = TileAttributeAssets.tileRowBytesInit)
     // R4.1b stage 2: planar boot ROM lives alongside the packed ROMs and is
     // boot-copied to SDRAM at PlanarTileAssets.SdramBase (0xA000), disjoint
     // from the R4 packed regions.
-    val planarRowRom = Mem(Bits(8 bits), initialContent = PlanarTileAssets.planarRowBytesInit)
+    val planarRowRom = if (skipSdramInit) Mem(Bits(8 bits), PlanarTileAssets.planarRowBytesInit.length)
+                       else              Mem(Bits(8 bits), initialContent = PlanarTileAssets.planarRowBytesInit)
     // R4.1d Checkpoint B: plane-1 boot ROM for Amiga-style shuffled mode. Copied
     // to SDRAM at PlanarTileAssets.Plane1SdramBase (0xB000). Same stride as
     // plane0; per row bytes[0..1] carry plane1 data at the low 16 bits of the
     // 32-bit fetch word, feeding unpackRow(47:32) via the second word fetch.
-    val plane1RowRom = Mem(Bits(8 bits), initialContent = PlanarTileAssets.plane1RowBytesInit)
+    val plane1RowRom = if (skipSdramInit) Mem(Bits(8 bits), PlanarTileAssets.plane1RowBytesInit.length)
+                       else              Mem(Bits(8 bits), initialContent = PlanarTileAssets.plane1RowBytesInit)
 
     // FIFO push side
     val pushValid   = RegInit(False)
@@ -389,7 +400,18 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain) extends Component {
       val refreshReturn = Reg(UInt(4 bits)) init 0
 
       sPowerWait.whenIsActive {
-        when(!io.sdramBusy && !cmdRd && !cmdWr && !cmdRefresh) { goto(sBootTileMap) }
+        when(!io.sdramBusy && !cmdRd && !cmdWr && !cmdRefresh) {
+          if (skipSdramInit) {
+            // #9026 zero-footprint: host owns SDRAM population. Skip the
+            // boot-init copy from on-chip ROMs and the memtest, jump
+            // straight to fetch-idle.
+            bootDoneR    := True
+            memtestPassR := True
+            goto(sIdle)
+          } else {
+            goto(sBootTileMap)
+          }
+        }
       }
 
       // Boot copy: tile map → attribute map → tile rows. Not gated by readGate

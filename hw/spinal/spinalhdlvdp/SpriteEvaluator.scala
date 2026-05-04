@@ -41,11 +41,15 @@ import spinal.lib._
   *
   * Host maps:
   *   - words 0..7  via `0x0800 + slot*8 + word`     (legacy slot block)
-  *   - word 8      via `0x0C00 + slot`              (Hardening extension
-  *                                                   relocated from
-  *                                                   0x0900 to avoid the
-  *                                                   L0 scroll-table
-  *                                                   block in sc31).
+  *   - word 8      via `0x0D20 + slot`              (Hardening extension;
+  *                                                   relocated from 0x0900
+  *                                                   to avoid the L0
+  *                                                   scroll-table block in
+  *                                                   sc31, then from 0x0C00
+  *                                                   to avoid the Blitter
+  *                                                   range 0x0C00..0x0D0F.
+  *                                                   Decode at
+  *                                                   VdpTop.scala:1163-1171.)
   */
 case class SpriteEvaluator(
     descCount: Int = 32,

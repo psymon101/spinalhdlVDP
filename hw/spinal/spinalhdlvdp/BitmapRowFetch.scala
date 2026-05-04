@@ -30,7 +30,7 @@ import spinal.lib.fsm._
   *   0x3000 .. 0x3000 + BitmapBytesPerRow*MaxLines - 1   bitmap region
   *   0x4000 .. 0x4000 + AttrBytesPerRow  *MaxLines - 1   attribute region
   */
-case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
+case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) extends Component {
 
   val BitmapSdramBase    = 0x3000
   val AttrSdramBase      = 0x4000
@@ -226,7 +226,16 @@ case class BitmapRowFetch(sdramCd: ClockDomain) extends Component {
           initLineReg := 0
           initColReg  := 0
           sdramActiveR := True
-          goto(sInitSettle)
+          if (skipSdramInit) {
+            // #9026 zero-footprint (BronzeGate ruling #9133): host owns SDRAM
+            // population for the bitmap region too. Skip the procedural
+            // bitmap/attr init fill and jump straight to fetch-idle so
+            // host-staged SDRAM contents are preserved.
+            bootDoneR := True
+            goto(sIdle)
+          } else {
+            goto(sInitSettle)
+          }
         }
       }
 
