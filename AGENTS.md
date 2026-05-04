@@ -621,7 +621,12 @@ sufficient.
 ## Memory Curation Rule
 
 This repo uses the shared workspace `memory` MCP as a queryable cache, not as
-the authoritative project log.
+the authoritative project log. It uses the unified workspace backing store at
+`/home/itadmin/github/.mcp_memory/sqlite_vec.db`.
+
+**Note:** The global path `/home/itadmin/.mcp_memory/sqlite_vec.db` is a symlink
+to the canonical workspace path above. Some MCP sessions may report the global path
+at runtime, but both paths access the same physical database.
 
 Authority order remains:
 
