@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-04 (Task 1 MODE_SELECT FULL LANE DONE per CyanPeak audit PASS #9201. HW proof freeze=0 across mode switches verified. Standing by for next lane activation.)
+**Updated:** 2026-05-04 (Task 2 Sprite Capacity Expansion artifact drafted. Task 1 MODE_SELECT FULL LANE DONE per CyanPeak audit PASS #9201. Standing by for CyanPeak artifact audit.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 1 — MODE_SELECT Runtime Adapter Selection** |
-| **Status** | **DONE** — CyanPeak audit PASS #9201 |
-| **Phase** | closed (final closeout) |
-| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
-| **Latest Commit** | `cdd3877` (Phase 5d firmware), `9f0c22a` (ledger sync) |
-| **Latest Auth Mail** | #9201 (CyanPeak final audit PASS) |
-| **Scope** | Task 1 full lane: register infrastructure, substrate wiring, sim proof, bitstream build, and hardware proof. |
-| **Files changed** | `TopTang20kHdmi.scala`, `Sc70RuntimeAdapterSim.scala`, `PLATFORM_ADAPTER_INDEX.md`, `ADAPTER_*.md`, `firmware/esp8266_sc70_mode_select/` |
-| **Next Deliverable** | None (lane closed) — awaiting BronzeGate next assignment |
-| **Coding Authorized** | **NO** — Task 1 closed |
+| **Task** | **Task 2 — Sprite Capacity Expansion** |
+| **Status** | **IN-PROGRESS** (artifact phase) |
+| **Phase** | artifact → audit → implement → capture |
+| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding) |
+| **Latest Commit** | `ef4f8ce` (Task 1 closeout) |
+| **Latest Auth Mail** | #9204 (BronzeGate PM activation: Task 2) |
+| **Scope** | Raise `visiblePerLine` 8→32 and `descCount` 32→64 in `SpriteEvaluator`. Preserve all existing behavior. Compositor widened to match. |
+| **Files changed** | `SpriteEvaluator.scala`, `VdpTop.scala`, `FourLayerCompositor.scala` (expected) |
+| **Next Deliverable** | CoralReef artifact packet → CyanPeak audit |
+| **Coding Authorized** | **NO** — awaiting artifact audit PASS |
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
