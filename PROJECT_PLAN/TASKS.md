@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-04 (Task 1 Packet B Phase 5a+5b DONE per CyanPeak audit PASS #9192. Audit coverage: sc70 substrate wiring + Sc70RuntimeAdapterSim 6/6 PASS. All 12 platform adapter specs drafted by CoralReef #9189.)
+**Updated:** 2026-05-04 (Task 1 Phase 5c+5d ACTIVATED per BronzeGate PM ruling #9193. Packet B audit PASS #9192. All 12 platform adapter specs drafted + audit PASS.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 1 — MODE_SELECT Runtime Adapter Selection** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | 5c+5d (bitstream build + HW proof) — AWAITING PM ACTIVATION |
+| **Phase** | 5c+5d (bitstream build + HW proof) |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
-| **Latest Commit** | `1523995` (CoralReef: draft 6 remaining platform adapter specs) |
-| **Latest Auth Mail** | #9192 (CyanPeak audit PASS: Packet B + Adapter Specs) |
+| **Latest Commit** | `21af170` (BrightForge Packet B), `1523995` (CoralReef specs) |
+| **Latest Auth Mail** | #9193 (BronzeGate PM ruling: activate Phase 5c+5d) |
 | **Scope** | Phase 5c+5d bounded to bitstream build + hardware proof on Tang Nano 20K. |
 | **Files changed** | `TopTang20kHdmi.scala`, `Sc70RuntimeAdapterSim.scala`, `PLATFORM_ADAPTER_INDEX.md`, `ADAPTER_*.md` |
-| **Next Deliverable** | BronzeGate PM activation for Phase 5c+5d |
-| **Coding Authorized** | **NO** — Phase 5c+5d awaiting PM ruling |
+| **Next Deliverable** | BrightForge final Task 1 proof packet (Phase 5c+5d) |
+| **Coding Authorized** | **YES** — Phase 5c+5d activated per PM #9193 |
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
