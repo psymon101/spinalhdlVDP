@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-04 (Task 1 Packet A Phases 1–4 DONE per CyanPeak audit PASS #9180. Hygiene commit `9577a0e` landed. Phase 5a+5b now active per PM #9184. **NOTE: Ledger captures state; mail authority supersedes this file.**)
+**Updated:** 2026-05-04 (Task 1 Packet B Phase 5a+5b DONE per CyanPeak audit PASS #9192. Audit coverage: sc70 substrate wiring + Sc70RuntimeAdapterSim 6/6 PASS. All 12 platform adapter specs drafted by CoralReef #9189.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -28,14 +28,14 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 1 — MODE_SELECT Runtime Adapter Selection** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | 5a+5b (pilot substrate wiring + sim coverage) |
+| **Phase** | 5c+5d (bitstream build + HW proof) — AWAITING PM ACTIVATION |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
-| **Latest Commit** | `9577a0e` (hygiene: closed-lane residue #9026/Task 52/KB notes; follow-on to Packet A) |
-| **Latest Auth Mail** | #9184 (PM ruling: Packet A PASS, Phase 5 Option alpha approved) |
-| **Scope** | Phase 5a+5b bounded to substrate wiring + sim coverage per `MODE_SELECT_ARCHITECTURE.md` §4.8. No bitstream build or HW proof in this slice. |
-| **Files changed** | `AdapterBusMux.scala`, `AdapterRegRouter.scala`, `ModeSelectSim.scala`, `VdpTop.scala`, `QspiDecoder.scala`, `TopTang20kHdmi.scala`, `C64Adapter.scala`, `ZXSpectrumAdapter.scala` (Packet A `44efb16`) |
-| **Next Deliverable** | BrightForge Phase 5a+5b implementation/proof packet |
-| **Coding Authorized** | **YES** — Phase 5a+5b auto-approved per PM #9184 |
+| **Latest Commit** | `1523995` (CoralReef: draft 6 remaining platform adapter specs) |
+| **Latest Auth Mail** | #9192 (CyanPeak audit PASS: Packet B + Adapter Specs) |
+| **Scope** | Phase 5c+5d bounded to bitstream build + hardware proof on Tang Nano 20K. |
+| **Files changed** | `TopTang20kHdmi.scala`, `Sc70RuntimeAdapterSim.scala`, `PLATFORM_ADAPTER_INDEX.md`, `ADAPTER_*.md` |
+| **Next Deliverable** | BronzeGate PM activation for Phase 5c+5d |
+| **Coding Authorized** | **NO** — Phase 5c+5d awaiting PM ruling |
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
@@ -48,6 +48,18 @@ This section tracks the single active lane so the team does not infer state from
 | **Commit** | `44efb16` (+715/−38, 12 files) |
 | **Latest Auth Mail** | #9175 (BrightForge proof packet), #9180 (CyanPeak audit PASS), #9184 (BronzeGate PM ruling) |
 | **Proof** | `ModeSelectSim` 10/10 PASS; `C64AdapterSim` 5/5 PASS; `ZXSpectrumAdapterSim` 8/8 PASS; `VdpTopSim` regression PASS; 3 elab clean |
+
+### Packet B Milestone — Task 1 Phase 5a+5b + Adapter Specs
+
+| Field | Value |
+|---|---|
+| **Task** | Task 1 Packet B — Phase 5a+5b (substrate wiring + sim) + Adapter Specs |
+| **Status** | **DONE** — CyanPeak audit PASS #9192 |
+| **Phase** | closed (sub-milestone) |
+| **Owner** | BrightForge (sc70 coding), CoralReef (specs), CyanPeak (audit PASS) |
+| **Commit** | `21af170` (Phase 5a+5b), `1523995` (Specs) |
+| **Latest Auth Mail** | #9188 (BrightForge proof), #9189 (CoralReef specs), #9192 (CyanPeak audit PASS) |
+| **Proof** | `Sc70RuntimeAdapterSim` 6/6 PASS; 5 regression sims PASS; Scenario 70 elab clean; 12/12 platform specs drafted |
 
 ### Closed Lane — Task 52
 
