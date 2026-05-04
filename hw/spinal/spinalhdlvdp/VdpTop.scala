@@ -1092,6 +1092,11 @@ case class VdpTop() extends Component {
     // they can be used by adapters — capacity bump is parked for a
     // follow-on slice that pipelines the compositor merge or shares
     // the per-slot AffineStepper. Out of #8577 scope.
+    //
+    // Task 2 (#9204) attempt 2026-05-04: same 51,191-logic failure
+    // mode reproduced when bumped to 64/32 directly. Blocker filed
+    // — substrate redesign (shared pattern Mems / pipelined
+    // compositor) required before capacity bump can land.
     visiblePerLine = 8,
     patternSelBits = 4,
     legacyIoCount  = 4)
