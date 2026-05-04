@@ -1360,31 +1360,12 @@ case class VdpTop() extends Component {
   val sprite0HitPulse    = slotVisible(0) && bgOpaque
   val spriteBgHitPulse   = anySlotVisible && bgOpaque
 
-  val fillIdx    = Bits(4 bits)
-  val fillBank   = UInt(3 bits)
-  val fillSource = UInt(3 bits)    // Task 48 — track winning layer for metadata
-  fillIdx    := composedBgIdx
-  fillBank   := composedBgBank
-  fillSource := composedBgSource
-  // Iterate slots low→high with last-hit-wins. In SpinalHDL's
-  // sequential-assignment semantics the highest-index visible slot
-  // overrides lower ones. When a sprite wins, layerSource flips to SPRITE.
-  //
-  // Sprite Envelope Hardening B-4/B-5: per-sprite palette bank and
-  // priority. Low-priority sprites (priority=False) only override the
-  // background where the BG pixel is transparent (idx == 0); high-priority
-  // sprites override unconditionally. This matches Genesis's
-  // priority-bit-as-above-bg-or-below-bg semantic.
-  // Phase 2-bis (CoralReef #8622): full 4-level priority matrix consuming
-  // the 2-bit `activePriority` field. Tiers:
+  // Sprite Envelope Hardening B-4/B-5 + Phase 2-bis (CoralReef #8622): full
+  // 4-level priority matrix consuming the 2-bit `activePriority` field. Tiers:
   //   0 (lowest)  : sprite only shows where BG is transparent
   //   1 (medium)  : sprite above BG except where BG has high-priority
-  //                 (matches the old binary above-BG semantic for prior=0)
   //   2 (high)    : sprite always above BG
   //   3 (highest) : sprite always above BG (reserved for future tiers)
-  // bgPriorityHigh = "any BG layer asserts priority over sprite by default"
-  // is the same predicate the no-sprite fillPrio branch uses below; both
-  // share `bgOpaque` semantics for the transparent-BG case.
   val bgPriorityHigh = layer0PrioGated && layer0Opaque &&
                        !layer1Opaque && !layer2Opaque && !layer3Opaque
 
@@ -1396,50 +1377,135 @@ case class VdpTop() extends Component {
     above || mediumOk || lowOk
   }
 
-  val anyHighPrioVisible = (0 until NUM_SLOTS).map { s =>
-    slotVisible(s) && spriteEval.io.activePriority(s).msb
-  }.reduce(_ || _)
-  val anyLowPrioOverBgGap = (0 until NUM_SLOTS).map { s =>
-    slotVisible(s) && !spriteEval.io.activePriority(s).msb &&
-      spriteWinsAt(spriteEval.io.activePriority(s))
-  }.reduce(_ || _)
-  val spriteWins = anyHighPrioVisible || anyLowPrioOverBgGap
-
-  // Sprite Phase 2 — P2-3a: per-sprite paletteBank now wired into the
-  // compositor fill path. The 3-bit last-hit-wins mux through 8 slots
-  // had previously blown the vCounter→lineBuf timing path by 2.7 ns
-  // (deferred in #8577 with bank constant-0). Pipeline it via a per-slot
-  // RegNext so the fan-in mux's inputs are short, locally-routed
-  // registered signals instead of cross-area combinational paths into
-  // SpriteEvaluator. The 1-cycle delay aligns naturally with the
-  // already-registered `slotVisible(s)` and `slotPixel(s)` so no
-  // additional pipeline shift is needed.
+  // Sprite Phase 2 — P2-3a: per-sprite paletteBank pipelined via RegNext so
+  // it aligns with the already-registered slotVisible/slotPixel (cycle T+1).
   val slotPaletteBank = (0 until NUM_SLOTS).map { s =>
     RegNext(spriteEval.io.activePaletteBank(s)) init U(0, 3 bits)
   }
 
-  for (s <- 0 until NUM_SLOTS) {
-    val showSprite = slotVisible(s) && spriteWinsAt(spriteEval.io.activePriority(s))
-    when(showSprite) {
-      fillIdx    := slotPixel(s)
-      fillBank   := slotPaletteBank(s)
-      fillSource := U(PixelMetadata.SourceSprite, 3 bits)
+  // Task 2a Checkpoint 1 (BronzeGate #9220, option A): tree-pipelined
+  // priority compositor merge. Replaces the prior parallel last-hit-wins
+  // for-loop fan-in mux with a 2-stage tree:
+  //   Stage 1 (combinational at cycle T+1): per-group last-hit-wins among
+  //     GROUP_SIZE slots → group candidate {visible, pixel, bank}.
+  //     Group winner is the highest-index visible slot within the group.
+  //   Stage 1 register → cycle T+2.
+  //   Stage 2 (combinational at T+2): cross-group last-hit-wins → merged
+  //     sprite candidate. Cross-group ordering is groups low→high so the
+  //     overall last-hit-wins ordering matches the prior flat for-loop
+  //     (highest-index visible slot wins overall).
+  //   Stage 2 register → cycle T+3.
+  // bg-side signals (composedBgIdx/Bank/Source, layer0PrioGated,
+  // layer{0..3}Opaque) feeding the bg-default branch and the final fillPrio
+  // are delayed by 2 cycles so they align with the merge output at cycle
+  // T+3. The lineBuf write address and write-enable are likewise delayed
+  // by 2 cycles; lineBuf.swap remains combinational on hCounter (writes
+  // for a line drain into blanking before the swap fires at hCounter ===
+  // hTotal-1, so the existing swap timing remains safe with the new
+  // pipeline). sprite0HitPulse / spriteBgHitPulse / anySlotVisible (used
+  // by sticky collision regs) keep their original cycle alignment so
+  // sticky-reg semantics are preserved bit-for-bit.
+  //
+  // Bit-identical V=8 regression is preserved: the only effect is a
+  // 2-cycle phase shift between the merge inputs and the lineBuf write,
+  // and writeAddr/writeEnable are delayed by exactly the same 2 cycles
+  // so the logical pixel-X mapping is unchanged. NUM_SLOTS=8 → 2 groups
+  // of 4. Substrate is now V=32 ready (8 groups of 4) — Checkpoint 2
+  // tackles the dominant per-slot AffineStepper cost driver.
+  val GROUP_SIZE = 4
+  val NUM_GROUPS = (NUM_SLOTS + GROUP_SIZE - 1) / GROUP_SIZE
+  require(NUM_GROUPS * GROUP_SIZE >= NUM_SLOTS, "GROUP_SIZE must cover NUM_SLOTS")
+
+  // Register slot priority so it aligns with slotVisible/slotPixel at T+1.
+  val slotPriorityR = (0 until NUM_SLOTS).map { s =>
+    RegNext(spriteEval.io.activePriority(s)) init U(0, 2 bits)
+  }
+
+  // Stage 1: per-group combinational last-hit-wins (cycle T+1).
+  val stage1Visible = Vec(Bool(), NUM_GROUPS)
+  val stage1Pixel   = Vec(Bits(4 bits), NUM_GROUPS)
+  val stage1Bank    = Vec(UInt(3 bits), NUM_GROUPS)
+  for (g <- 0 until NUM_GROUPS) {
+    stage1Visible(g) := False
+    stage1Pixel(g)   := B(0, 4 bits)
+    stage1Bank(g)    := U(0, 3 bits)
+    val slotLo = g * GROUP_SIZE
+    val slotHi = math.min(slotLo + GROUP_SIZE, NUM_SLOTS)
+    for (s <- slotLo until slotHi) {
+      val showSprite = slotVisible(s) && spriteWinsAt(slotPriorityR(s))
+      when(showSprite) {
+        stage1Visible(g) := True
+        stage1Pixel(g)   := slotPixel(s)
+        stage1Bank(g)    := slotPaletteBank(s)
+      }
     }
   }
-  val fillPrio = Bool()
-  when(spriteWins) {
-    fillPrio := False
+
+  // Stage 1 register → cycle T+2.
+  val stage1VisibleR = (0 until NUM_GROUPS).map { g =>
+    RegNext(stage1Visible(g)) init False
+  }
+  val stage1PixelR = (0 until NUM_GROUPS).map { g =>
+    RegNext(stage1Pixel(g)) init B(0, 4 bits)
+  }
+  val stage1BankR = (0 until NUM_GROUPS).map { g =>
+    RegNext(stage1Bank(g)) init U(0, 3 bits)
+  }
+
+  // Stage 2: cross-group combinational last-hit-wins (cycle T+2).
+  val stage2Visible = Bool()
+  val stage2Pixel   = Bits(4 bits)
+  val stage2Bank    = UInt(3 bits)
+  stage2Visible := False
+  stage2Pixel   := B(0, 4 bits)
+  stage2Bank    := U(0, 3 bits)
+  for (g <- 0 until NUM_GROUPS) {
+    when(stage1VisibleR(g)) {
+      stage2Visible := True
+      stage2Pixel   := stage1PixelR(g)
+      stage2Bank    := stage1BankR(g)
+    }
+  }
+
+  // Stage 2 register → cycle T+3 (final merged sprite candidate).
+  val spriteWinsR2 = RegNext(stage2Visible) init False
+  val spritePixelR2 = RegNext(stage2Pixel) init B(0, 4 bits)
+  val spriteBankR2  = RegNext(stage2Bank)  init U(0, 3 bits)
+
+  // Bg-side context delayed 2 cycles to align with merge output at T+3.
+  val composedBgIdxR2    = RegNext(RegNext(composedBgIdx))    init B(0, 4 bits)
+  val composedBgBankR2   = RegNext(RegNext(composedBgBank))   init U(0, 3 bits)
+  val composedBgSourceR2 = RegNext(RegNext(composedBgSource)) init U(0, 3 bits)
+  val layer0PrioGatedR2  = RegNext(RegNext(layer0PrioGated))  init False
+  val layer0OpaqueR2     = RegNext(RegNext(layer0Opaque))     init False
+  val layer1OpaqueR2     = RegNext(RegNext(layer1Opaque))     init False
+  val layer2OpaqueR2     = RegNext(RegNext(layer2Opaque))     init False
+  val layer3OpaqueR2     = RegNext(RegNext(layer3Opaque))     init False
+
+  // Final compositor mux at cycle T+3.
+  val fillIdx    = Bits(4 bits)
+  val fillBank   = UInt(3 bits)
+  val fillSource = UInt(3 bits)    // Task 48 — track winning layer for metadata
+  val fillPrio   = Bool()
+  when(spriteWinsR2) {
+    fillIdx    := spritePixelR2
+    fillBank   := spriteBankR2
+    fillSource := U(PixelMetadata.SourceSprite, 3 bits)
+    fillPrio   := False
   }.otherwise {
+    fillIdx    := composedBgIdxR2
+    fillBank   := composedBgBankR2
+    fillSource := composedBgSourceR2
     // L0 priority wins unless a higher-index BG layer is opaque. On a
     // four-layer compositor, L0 forcedPriority still overrides L1/L2/L3.
-    fillPrio := layer0PrioGated && layer0Opaque && !layer1Opaque && !layer2Opaque && !layer3Opaque
+    fillPrio := layer0PrioGatedR2 && layer0OpaqueR2 &&
+                !layer1OpaqueR2 && !layer2OpaqueR2 && !layer3OpaqueR2
   }
   val fillPixel = (fillPrio ## fillBank.asBits ## fillIdx).asBits  // 8 bits
 
   // Task 48 — per-pixel metadata carries the winning layer source so that
   // downstream consumers (color-math, sprite collision, etc.) can
-  // distinguish which BG contributed. `fillSource` is assigned in the same
-  // priority-mux logic as pixel data (see above loop) per CyanPeak #8221.
+  // distinguish which BG contributed.
   val fillMeta = PixelMetadata()
   fillMeta.mathEnable     := False
   fillMeta.forcedPriority := False
@@ -1449,11 +1515,20 @@ case class VdpTop() extends Component {
   // Double-buffered scanline buffer — widened from 8 → 12 bits to carry
   // `{metadata[3:0], priority, bank[2:0], idx[3:0]}`. Per CyanPeak #7820
   // guidance, 12-bit width fits standard Gowin BSRAM port aspect ratios.
+  // Task 2a Checkpoint 1: writeAddr / writeEnable delayed 2 cycles to
+  // align with the pipelined fillPacked at cycle T+3. swap stays
+  // combinational on hCounter — writes for line N complete by hCounter
+  // = hActive+1 (well before the swap at hCounter = hTotal-1), so the
+  // existing line-boundary semantics are preserved.
   val lineBuf = LineBuffer(pixelWidth = 8 + PixelMetadata.Width, lineWidth = hActive)
-  lineBuf.io.writeEnable := hCounter < hActive
-  lineBuf.io.writeAddr := hCounter.resized
-  lineBuf.io.writeData := fillPacked
-  lineBuf.io.swap := hCounter === hTotal - 1
+  val writeEnableR1 = RegNext(hCounter < hActive)        init False
+  val writeEnableR2 = RegNext(writeEnableR1)             init False
+  val writeAddrR1   = RegNext(hCounter.resize(log2Up(hActive))) init U(0, log2Up(hActive) bits)
+  val writeAddrR2   = RegNext(writeAddrR1)               init U(0, log2Up(hActive) bits)
+  lineBuf.io.writeEnable := writeEnableR2
+  lineBuf.io.writeAddr   := writeAddrR2
+  lineBuf.io.writeData   := fillPacked
+  lineBuf.io.swap        := hCounter === hTotal - 1
 
   // Drain address: present 1 cycle early for readSync pipeline.
   // At hCounter=hTotal-1, present addr 0 (data appears at hCounter=0).
