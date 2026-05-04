@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-04 (Task 1 Phase 5c+5d ACTIVATED per BronzeGate PM ruling #9193. Packet B audit PASS #9192. All 12 platform adapter specs drafted + audit PASS.)
+**Updated:** 2026-05-04 (Task 1 MODE_SELECT FULL LANE DONE per CyanPeak audit PASS #9201. HW proof freeze=0 across mode switches verified. Standing by for next lane activation.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -27,15 +27,15 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 1 — MODE_SELECT Runtime Adapter Selection** |
-| **Status** | **IN-PROGRESS** |
-| **Phase** | 5c+5d (bitstream build + HW proof) |
+| **Status** | **DONE** — CyanPeak audit PASS #9201 |
+| **Phase** | closed (final closeout) |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
-| **Latest Commit** | `21af170` (BrightForge Packet B), `1523995` (CoralReef specs) |
-| **Latest Auth Mail** | #9193 (BronzeGate PM ruling: activate Phase 5c+5d) |
-| **Scope** | Phase 5c+5d bounded to bitstream build + hardware proof on Tang Nano 20K. |
-| **Files changed** | `TopTang20kHdmi.scala`, `Sc70RuntimeAdapterSim.scala`, `PLATFORM_ADAPTER_INDEX.md`, `ADAPTER_*.md` |
-| **Next Deliverable** | BrightForge final Task 1 proof packet (Phase 5c+5d) |
-| **Coding Authorized** | **YES** — Phase 5c+5d activated per PM #9193 |
+| **Latest Commit** | `cdd3877` (Phase 5d firmware), `9f0c22a` (ledger sync) |
+| **Latest Auth Mail** | #9201 (CyanPeak final audit PASS) |
+| **Scope** | Task 1 full lane: register infrastructure, substrate wiring, sim proof, bitstream build, and hardware proof. |
+| **Files changed** | `TopTang20kHdmi.scala`, `Sc70RuntimeAdapterSim.scala`, `PLATFORM_ADAPTER_INDEX.md`, `ADAPTER_*.md`, `firmware/esp8266_sc70_mode_select/` |
+| **Next Deliverable** | None (lane closed) — awaiting BronzeGate next assignment |
+| **Coding Authorized** | **NO** — Task 1 closed |
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
@@ -48,6 +48,18 @@ This section tracks the single active lane so the team does not infer state from
 | **Commit** | `44efb16` (+715/−38, 12 files) |
 | **Latest Auth Mail** | #9175 (BrightForge proof packet), #9180 (CyanPeak audit PASS), #9184 (BronzeGate PM ruling) |
 | **Proof** | `ModeSelectSim` 10/10 PASS; `C64AdapterSim` 5/5 PASS; `ZXSpectrumAdapterSim` 8/8 PASS; `VdpTopSim` regression PASS; 3 elab clean |
+
+### Packet C Milestone — Task 1 Phase 5c+5d (HW Proof)
+
+| Field | Value |
+|---|---|
+| **Task** | Task 1 Packet C — Phase 5c+5d (bitstream + HW proof) |
+| **Status** | **DONE** — CyanPeak audit PASS #9201 |
+| **Phase** | closed (final sub-milestone) |
+| **Owner** | BrightForge (coding + proof), CyanPeak (audit PASS) |
+| **Commit** | `cdd3877` (firmware), `9f0c22a` (ledger) |
+| **Latest Auth Mail** | #9198 (BrightForge proof), #9201 (CyanPeak audit PASS) |
+| **Proof** | Bitstream timing 0/0 violations; HW `freeze_count=0` over 30s capture during 7+ mode-select switches. |
 
 ### Packet B Milestone — Task 1 Phase 5a+5b + Adapter Specs
 
