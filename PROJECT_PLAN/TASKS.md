@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-04 (Task 2a Sprite Capacity Substrate Pre-Hardening artifact audit PASS #9216. Implementation active. Task 1 MODE_SELECT FULL LANE DONE per CyanPeak audit PASS #9201.)
+**Updated:** 2026-05-04 (Task 2a Checkpoint 1 DONE per CyanPeak audit PASS #9222. Checkpoint 2 active. Task 1 MODE_SELECT FULL LANE DONE per CyanPeak audit PASS #9201.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,14 +30,26 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **IN-PROGRESS** (implementation phase) |
 | **Phase** | implement → capture |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
-| **Latest Commit** | `d0a52f1` (CoralReef artifact + ledger split) |
-| **Latest Auth Mail** | #9216 (CyanPeak artifact audit PASS — implementation authorized) |
+| **Latest Commit** | `994633a` (BrightForge Checkpoint 1: tree-pipelined sprite merge) |
+| **Latest Auth Mail** | #9222 (CyanPeak Checkpoint 1 audit PASS) |
 | **Scope** | Redesign sprite render substrate (pipelined compositor merge + shared AffineStepper) so Task 2b capacity bump becomes a parameter change. Preserve all existing V=8 behavior. |
-| **Files changed** | `VdpTop.scala` (compositor merge + AffineStepper), possibly `SharedAffineStepper.scala` |
-| **Next Deliverable** | BrightForge Checkpoint 1 (pipelined compositor merge) + regression proof |
-| **Coding Authorized** | **YES** — artifact audit PASS #9216 |
+| **Files changed** | `VdpTop.scala` (Checkpoint 1: tree-pipelined merge + delay compensation) |
+| **Next Deliverable** | BrightForge Checkpoint 2 (shared AffineStepper) + V=32 projection |
+| **Coding Authorized** | **YES** — Checkpoint 1 PASS #9222; Checkpoint 2 active |
 
-**Context:** Task 2 direct 64/32 bump blocked by #9210 (51k-LUT synthesis failure, 2.47× over limit). Same mode as prior #8577. BronzeGate #9212 ruled to open Task 2a (substrate pre-hardening) and defer Task 2b (capacity bump). CyanPeak #9213 supports redirect. CyanPeak #9216 artifact audit PASS.
+**Context:** Task 2 direct 64/32 bump blocked by #9210 (51k-LUT synthesis failure, 2.47× over limit). Same mode as prior #8577. BronzeGate #9212 ruled to open Task 2a (substrate pre-hardening) and defer Task 2b (capacity bump). CyanPeak #9213 supports redirect. CyanPeak #9216 artifact audit PASS. Checkpoint 1 audit PASS #9222.
+
+### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
+
+| Field | Value |
+|---|---|
+| **Task** | Task 2a Checkpoint 1 — Tree-pipelined sprite priority merge |
+| **Status** | **DONE** — CyanPeak audit PASS #9222 |
+| **Phase** | closed (sub-milestone) |
+| **Owner** | BrightForge (coding + proof), CyanPeak (audit PASS) |
+| **Commit** | `994633a` (+130/−55, `VdpTop.scala` only) |
+| **Latest Auth Mail** | #9221 (BrightForge proof packet), #9222 (CyanPeak audit PASS) |
+| **Proof** | 2-stage tree priority encoder (2×4 groups) with `RegNext×2` delay compensation; all 8 regression sims PASS bit-identical; Gowin timing 0 violations; −104 LUT vs baseline |
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
