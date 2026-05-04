@@ -1,9 +1,9 @@
 # Platform Adapter Spec Index
 
-**Version:** 1.0-draft  
-**Author:** CoralReef  
+**Version:** 1.1-draft  
+**Author:** CyanPeak (audit update)  
 **Date:** 2026-05-04  
-**Status:** All 12 platform specs drafted — awaiting audit  
+**Status:** All 12 platform specs drafted — audit PASS #9192  
 **Governing directive:** BronzeGate #8688
 
 ---
@@ -22,12 +22,12 @@ This index tracks the per-platform VDP pipeline research and Mode0 adapter mappi
 | 4 | NES / Famicom | 2 | ✅ Complete | `artifacts/ADAPTER_NES.md` | Highest leverage; needs sprite expansion |
 | 5 | TMS9918-family / MSX1 | 1 | ✅ Complete | `artifacts/ADAPTER_TMS9918_FAMILY.md` | Family doc covers base + SMS delta + GG delta |
 | 6 | Master System / Game Gear | 2 | ✅ Complete | (covered in TMS-family doc) | VDP evolution of TMS |
-| 7 | PC Engine / TurboGrafx-16 | 2 | ✅ Drafted | `artifacts/ADAPTER_PC_ENGINE.md` | Standalone; needs sprite expansion for honest support |
-| 8 | MSX2 | 2 | ✅ Drafted | `artifacts/ADAPTER_MSX2.md` | Standalone; V9938-based; command engine gap |
-| 9 | Genesis / Mega Drive | 3 | ✅ Drafted | `artifacts/ADAPTER_GENESIS.md` | Excluded from default bitstream until sprite expansion |
-| 10 | SNES / Super Famicom | 4 | ✅ Drafted | `artifacts/ADAPTER_SNES.md` | Excluded from default bitstream |
-| 11 | Amiga OCS/ECS | 4 | ✅ Drafted | `artifacts/ADAPTER_AMIGA.md` | Excluded from default bitstream; HAM mode gap |
-| 12 | Neo Geo | 3 | ✅ Drafted | `artifacts/ADAPTER_NEO_GEO.md` | Excluded from default bitstream until sprite expansion |
+| 7 | PC Engine / TurboGrafx-16 | 2 | ✅ PASS #9192 | `artifacts/ADAPTER_PC_ENGINE.md` | Standalone; needs sprite expansion for honest support |
+| 8 | MSX2 | 2 | ✅ PASS #9192 | `artifacts/ADAPTER_MSX2.md` | Standalone; V9938-based; command engine gap |
+| 9 | Genesis / Mega Drive | 3 | ✅ PASS #9192 | `artifacts/ADAPTER_GENESIS.md` | Excluded from default bitstream until sprite expansion |
+| 10 | SNES / Super Famicom | 4 | ✅ PASS #9192 | `artifacts/ADAPTER_SNES.md` | Excluded from default bitstream |
+| 11 | Amiga OCS/ECS | 4 | ✅ PASS #9192 | `artifacts/ADAPTER_AMIGA.md` | Excluded from default bitstream; HAM mode gap |
+| 12 | Neo Geo | 3 | ✅ PASS #9192 | `artifacts/ADAPTER_NEO_GEO.md` | Excluded from default bitstream until sprite expansion |
 
 ## 3. Spec Template
 

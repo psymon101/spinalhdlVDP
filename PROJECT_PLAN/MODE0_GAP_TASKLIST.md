@@ -47,17 +47,17 @@ Impact is scored by:
 
 | Field | Value |
 |---|---|
-| **Status** | OPEN — only formal TODO in `TASKS.md` |
+| **Status** | PARTIAL — Packet B (substrate wiring + sim) DONE; audit PASS #9192 |
 | **Gap** | No runtime mechanism to switch between platform adapters in a single bitstream |
 | **Why it matters** | Unlocks the entire Tier 1+2 adapter strategy. Without it, adapters are scenario-conditional compile-time choices. |
 | **Platforms helped** | **All 12** — C64, ZX Spectrum, NES, TMS9918, SMS/GG, MSX2, PC Engine, Atari ST, Genesis, SNES, Amiga, Neo Geo |
 | **Impact** | **Critical** — infrastructure, not substrate, but gates all adapter lanes |
 | **Risk/Complexity** | Low-Medium. Infrastructure only; no new substrate primitives. Architecture audit PASS #8692. |
-| **Proof shape** | `ModeSelectSim` 5/5 PASS; `VdpTopSim` regression PASS; single bitstream with C64 + ZX adapters, host switches via QSPI |
+| **Proof shape** | `Sc70RuntimeAdapterSim` 6/6 PASS; `VdpTopSim` regression PASS; single bitstream with C64 + ZX adapters, host switches via QSPI |
 | **Prerequisite for** | All adapter lanes beyond C64 smoke-test and ZX Spectrum |
 | **Task doc** | `MODE_SELECT_ARCHITECTURE.md` (Option B, Tier 1+2 default) |
 
-**Scope boundary:** `MODE_SELECT` register at `0x0313`, `AdapterRegRouter`, `AdapterBusMux`, output gating on existing adapters, always-instantiated adapters in top.
+**Scope boundary:** `MODE_SELECT` register at `0x0313`, `AdapterRegRouter`, `AdapterBusMux`, output gating on existing adapters, always-instantiated adapters in top. **Packet B (commit 21af170) closed Phase 5a+5b.**
 
 ---
 
@@ -188,7 +188,7 @@ The following gaps were identified in the 2026-04-25 assessment batch but have b
 
 | Rank | Task | Status | Platforms | Impact | Risk | Prereq For |
 |---|---|---|---|---|---|---|
-| 1 | MODE_SELECT Runtime Adapter Selection | OPEN | All 12 | Critical | Low-Med | All adapter lanes |
+| 1 | MODE_SELECT Runtime Adapter Selection | PARTIAL | All 12 | Critical | Low-Med | All adapter lanes |
 | 2 | Sprite Capacity Expansion (8→32 visible, 32→64 desc) | OPEN | NES/Gen/SNES/PCE/MSX2 | High | Medium | Tier 2/3 adapter honesty |
 | 3 | Planar Fetch Hardening (2→5+ planes) | OPEN | Amiga, Atari ST | High | Large | Amiga/ST adapter honesty |
 | 4 | Pattern Address Width Expansion | OPEN | SNES/Gen/Neo Geo | Med-High | Medium | Large-sprite honesty |
