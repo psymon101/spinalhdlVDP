@@ -65,17 +65,41 @@ Impact is scored by:
 
 | Field | Value |
 |---|---|
-| **Status** | OPEN — `visiblePerLine = 8` in `VdpTop.scala:1063`; `descCount = 32` |
+| **Status** | **BLOCKED** — direct bump reproduces 51k-LUT synthesis failure (#9210). Split into 2a + 2b. |
 | **Gap** | Only 8 sprites visible per line; only 32 descriptor slots total |
 | **Why it matters** | Blocks honest Tier 2 adapter claims. NES needs 64 desc, Genesis needs 80, SNES needs 128. Even `visiblePerLine=32` alone unlocks Genesis (20/line) and SNES (32/line). |
 | **Platforms helped** | NES, Genesis, SNES, PC Engine, MSX2, Neo Geo (groundwork) |
 | **Impact** | **High** — 5+ platforms; prerequisite for Tier 2/3 adapter honesty |
-| **Risk/Complexity** | Medium. `visiblePerLine=32` is a parameter change + slot output widening (~+200 LUT, +400 FF). `descCount=32→64` is evaluator restructuring; MODE_SELECT_ARCHITECTURE.md warns current evaluator is "already stressed LUT budget during prior bumps." |
-| **Proof shape** | Sim: all 32/64 visible slots function correctly; evaluator overflow flag still accurate; resource report within green zone |
+| **Risk/Complexity** | **Reassessed as Large.** Direct bump 8→32 replicates prior #8577 failure (51k LUT vs 20.7k limit). Substrate redesign required first. |
+| **Proof shape** | See Task 2a and Task 2b artifacts |
 | **Prerequisite for** | Honest NES/Genesis/SNES adapter claims; Tier 2+3 MODE_SELECT coexistence |
-| **Source assessment** | `MODE0_SPRITE_ENVELOPE_ASSESSMENT.md` §3, `MODE0_PLATFORM_COVERAGE_AUDIT.md` §2-4, `MODE_SELECT_ARCHITECTURE.md` §4 |
+| **Source assessment** | `MODE0_SPRITE_ENVELOPE_ASSESSMENT.md` §3, `MODE0_PLATFORM_COVERAGE_AUDIT.md` §2-4, `MODE_SELECT_ARCHITECTURE.md` §4, blocker #9210 |
 
 **Note:** The MODE_SELECT architecture recommends separating descriptor expansion from the default bitstream if LUT budget becomes tight. Tier 1 adapters (C64, ZX, Atari ST, TMS9918) do not need this expansion.
+
+### Task 2a — Sprite Capacity Substrate Pre-Hardening (ACTIVE)
+
+**Purpose:** Redesign sprite render substrate so that a future capacity bump is a small parameter change rather than a structural rewrite.
+
+**Smallest sufficient focus:**
+1. **Pipelined compositor merge** — replace parallel `for s ← 0 until NUM_SLOTS` merge with 2–4 cycle pipelined priority encoder. Trades latency for LUT reduction.
+2. **Shared AffineStepper** — time-multiplex one (or four) AffineSteppers across slots within the line. Eliminates per-slot replication (~15–18k LUT at V=32).
+3. **Pattern-memory topology** — only if needed after (1) and (2).
+
+**Success condition:**
+- `visiblePerLine = 8` behavior remains bit-identical in sim after substrate changes
+- Projected LUT cost of V=32 bump drops from +30,000+ to ~+1,000–2,000
+- Follow-on Task 2b becomes a parameter flip
+
+**Proof shape:** Sim regression (all existing sprite sims PASS) + resource projection showing V=32 within budget.
+
+### Task 2b — Sprite Capacity Bump (DEFERRED)
+
+**Purpose:** Execute the actual `visiblePerLine` 8→32 and `descCount` 32→64 bump on the hardened substrate.
+
+**Status:** Deferred until Task 2a closes.
+
+**Proof shape:** Same as original Task 2 artifact (`SpriteCapacityExpansionSim` 6 cases + regression + 30s HW capture).
 
 ---
 
@@ -189,7 +213,8 @@ The following gaps were identified in the 2026-04-25 assessment batch but have b
 | Rank | Task | Status | Platforms | Impact | Risk | Prereq For |
 |---|---|---|---|---|---|---|
 | 1 | MODE_SELECT Runtime Adapter Selection | **CLOSED** | All 12 | Critical | Low-Med | All adapter lanes |
-| 2 | Sprite Capacity Expansion (8→32 visible, 32→64 desc) | OPEN | NES/Gen/SNES/PCE/MSX2 | High | Medium | Tier 2/3 adapter honesty |
+| 2a | Sprite Capacity Substrate Pre-Hardening | **ACTIVE** | NES/Gen/SNES/PCE/MSX2 | High | Large | Tier 2/3 adapter honesty |
+| 2b | Sprite Capacity Bump (8→32 / 32→64) | DEFERRED | NES/Gen/SNES/PCE/MSX2 | High | Low (post-2a) | Tier 2/3 adapter honesty |
 | 3 | Planar Fetch Hardening (2→5+ planes) | OPEN | Amiga, Atari ST | High | Large | Amiga/ST adapter honesty |
 | 4 | Pattern Address Width Expansion | OPEN | SNES/Gen/Neo Geo | Med-High | Medium | Large-sprite honesty |
 | 5 | Sprite-Sprite Collision Detector | OPEN | C64 (primary) | Medium | Medium | C64 collision honesty |
@@ -202,7 +227,7 @@ The following gaps were identified in the 2026-04-25 assessment batch but have b
 
 **Immediate:** Activate **Task 1 (MODE_SELECT)**. It is the only formal TODO in `TASKS.md`, its dependencies are cleared, and it unlocks the entire adapter lane strategy. It is infrastructure, not substrate, but no substrate gap has higher project impact.
 
-**After MODE_SELECT:** Open **Task 2 (Sprite Capacity Expansion)**. It is the highest-leverage substrate task — 5+ platforms benefit, it is prerequisite for Tier 2+3 adapters, and the effort is bounded and well-understood.
+**After MODE_SELECT:** Open **Task 2a (Sprite Capacity Substrate Pre-Hardening)**. The direct capacity bump (Task 2b) is blocked by substrate-fit failure (#9210). Task 2a is a substrate redesign lane aimed at making the future bump a small parameter change. Task 2b remains deferred until 2a closes.
 
 **After Sprite Capacity:** Open **Task 3 (Planar Fetch Hardening)**. It unlocks Atari ST (Tier 1, very coexistence-friendly) and Amiga groundwork. Atari ST is the lowest-risk next adapter after MODE_SELECT per `MODE_SELECT_ARCHITECTURE.md` §5.
 

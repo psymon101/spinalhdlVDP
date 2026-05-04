@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-04 (Task 2 BLOCKER filed #9210 — 51k-LUT synthesis failure on direct 64/32 bump. Awaiting BronzeGate D6a ruling. Task 1 MODE_SELECT FULL LANE DONE per CyanPeak audit PASS #9201.)
+**Updated:** 2026-05-04 (Task 2a Sprite Capacity Substrate Pre-Hardening artifact drafted. Task 2b deferred. Task 1 MODE_SELECT FULL LANE DONE per CyanPeak audit PASS #9201.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,18 +26,18 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 2 — Sprite Capacity Expansion** |
-| **Status** | **IN-PROGRESS** (implementation phase) |
-| **Phase** | implement → capture |
-| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
-| **Latest Commit** | `b42fcb9` (CoralReef artifact) |
-| **Latest Auth Mail** | #9208 (CyanPeak artifact audit PASS) |
-| **Scope** | Raise `visiblePerLine` 8→32 and `descCount` 32→64 in `SpriteEvaluator`. Preserve all existing behavior. Compositor widened to match. |
-| **Files changed** | `SpriteEvaluator.scala`, `VdpTop.scala`, `FourLayerCompositor.scala` (expected) |
-| **Next Deliverable** | BronzeGate D6a ruling on blocker (#9210) |
-| **Coding Authorized** | **HOLD** — blocker filed #9210; awaiting PM direction |
+| **Task** | **Task 2a — Sprite Capacity Substrate Pre-Hardening** |
+| **Status** | **IN-PROGRESS** (artifact phase) |
+| **Phase** | artifact → audit → implement → capture |
+| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding) |
+| **Latest Commit** | `1121e69` (BrightForge blocker history note) |
+| **Latest Auth Mail** | #9212 (BronzeGate PM ruling: split Task 2 into 2a/2b) |
+| **Scope** | Redesign sprite render substrate (pipelined compositor merge + shared AffineStepper) so Task 2b capacity bump becomes a parameter change. Preserve all existing V=8 behavior. |
+| **Files changed** | `VdpTop.scala` (compositor merge + AffineStepper), possibly `SharedAffineStepper.scala` |
+| **Next Deliverable** | CoralReef Task 2a artifact packet → CyanPeak audit |
+| **Coding Authorized** | **NO** — awaiting Task 2a artifact audit PASS |
 
-**Blocker:** BrightForge #9210 — direct 64/32 bump reproduces 51k-LUT synthesis failure (2.47× over Tang Nano 20K limit). Same failure mode as prior #8577 attempt. Substrate redesign (pipelined compositor merge, shared AffineStepper) required before capacity bump can land. Smallest discriminator proposed: Task 2a substrate pre-hardening, or V=12 probe, or desc-only bump. Awaiting BronzeGate D6a ruling.
+**Context:** Task 2 direct 64/32 bump blocked by #9210 (51k-LUT synthesis failure, 2.47× over limit). Same mode as prior #8577. BronzeGate #9212 ruled to open Task 2a (substrate pre-hardening) and defer Task 2b (capacity bump). CyanPeak #9213 supports redirect.
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
