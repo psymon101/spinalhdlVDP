@@ -186,6 +186,26 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
         Some(d)
       } else None
 
+    // Task 1 (#9154) Phase 5a — Sc70 dual-adapter pilot.
+    //
+    // Per BronzeGate #9184 + arch §4.8(b): always-instantiate runtime
+    // C64 + ZX adapters at top scope (NOT inside demo wrappers). The
+    // adapters receive `regAddr/regData/regWr` from `AdapterRegRouter`
+    // (Phase 4) and their `busAddr/busData/busWr` outputs feed
+    // `AdapterBusMux` (Phase 3). Both adapters are mode-gated by
+    // `video.io.modeSelect` (post-V=0 commit), so only one is active
+    // at a time.
+    //
+    // Wiring is applied below where AdapterBusMux inputs and the
+    // direct-output assignments are placed. This Option holds the
+    // adapter handles for those scoped uses.
+    val sc70Adapters: Option[(C64Adapter, ZXSpectrumAdapter)] =
+      if (scenarioId == 70) {
+        val c = C64Adapter()
+        val z = ZXSpectrumAdapter()
+        Some((c, z))
+      } else None
+
     val frameCounter = Reg(UInt(10 bits)) init 0
     when(vsyncRising) {
       frameCounter := frameCounter + 1
@@ -1097,16 +1117,25 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
     regBusArbiter.io.masters(1).enable := qspiActive
 
     // Task 1 (#9154) Phase 3 — AdapterBusMux always-instantiated.
-    // Inputs are tied off in Packet A (runtime-instantiated adapters
-    // arrive in Phase 5 dual-adapter pilot). At modeSelect=0x0 (Native
-    // Mode0 default for every existing scenario) the mux output is
-    // already 0/False, so behavior of legacy scenarios is unchanged.
+    // Sc70 (Phase 5a pilot) wires runtime adapters here; all other
+    // scenarios tie inputs off to 0/False so the mux output stays
+    // quiescent (matching modeSelect=0x0 Native Mode0 default).
     val adapterBusMux = AdapterBusMux(Seq(0x1, 0x2))
     adapterBusMux.io.modeSelect := video.io.modeSelect
-    for (i <- 0 until adapterBusMux.io.adapters.length) {
-      adapterBusMux.io.adapters(i).addr   := U(0, 15 bits)
-      adapterBusMux.io.adapters(i).data   := B(0, 16 bits)
-      adapterBusMux.io.adapters(i).enable := False
+    sc70Adapters match {
+      case Some((c64, zx)) =>
+        adapterBusMux.io.adapters(0).addr   := c64.io.busAddr
+        adapterBusMux.io.adapters(0).data   := c64.io.busData
+        adapterBusMux.io.adapters(0).enable := c64.io.busWr
+        adapterBusMux.io.adapters(1).addr   := zx.io.busAddr
+        adapterBusMux.io.adapters(1).data   := zx.io.busData
+        adapterBusMux.io.adapters(1).enable := zx.io.busWr
+      case None =>
+        for (i <- 0 until adapterBusMux.io.adapters.length) {
+          adapterBusMux.io.adapters(i).addr   := U(0, 15 bits)
+          adapterBusMux.io.adapters(i).data   := B(0, 16 bits)
+          adapterBusMux.io.adapters(i).enable := False
+        }
     }
 
     // Master 2 = adapter-mux output OR'd with existing animator path.
@@ -1134,6 +1163,21 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
     adapterRegRouter.io.mixedIn    <> regBusArbiter.io.mixed
     video.io.regBus                <> adapterRegRouter.io.passThru
 
+    // Task 1 (#9154) Phase 5a — drive Sc70 runtime adapters from the
+    // router pulse outputs and connect their modeSelect to the live
+    // committed value. For non-Sc70 scenarios, the router pulse
+    // outputs are dangling (pruned at synthesis).
+    sc70Adapters.foreach { case (c64, zx) =>
+      c64.io.modeSelect := video.io.modeSelect
+      c64.io.regAddr    := adapterRegRouter.io.adapters(0).regAddr
+      c64.io.regData    := adapterRegRouter.io.adapters(0).regData
+      c64.io.regWr      := adapterRegRouter.io.adapters(0).regWr
+      zx.io.modeSelect  := video.io.modeSelect
+      zx.io.regAddr     := adapterRegRouter.io.adapters(1).regAddr
+      zx.io.regData     := adapterRegRouter.io.adapters(1).regData
+      zx.io.regWr       := adapterRegRouter.io.adapters(1).regWr
+    }
+
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100
     // Bouncing logic removed for the R2 proof — sprites are pinned at fixed
@@ -1149,10 +1193,14 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
     val scSprite23 = Set(5, 6, 17, 28).contains(scenarioId)
     // Task 40 Sc20: sprite 0/1 enable comes dynamically from the C64Adapter.
     video.io.sprite0Enabled    :=
-      (if (scenarioId == 20) c64Demo.get.io.sprite0Enabled else Bool(scSprite0))
+      (if (scenarioId == 20) c64Demo.get.io.sprite0Enabled
+       else if (scenarioId == 70) sc70Adapters.get._1.io.sprite0Enabled
+       else Bool(scSprite0))
     video.io.sprite0PatternIdx := U(0, 1 bit)
     video.io.sprite1Enabled    :=
-      (if (scenarioId == 20) c64Demo.get.io.sprite1Enabled else Bool(scSprite1))
+      (if (scenarioId == 20) c64Demo.get.io.sprite1Enabled
+       else if (scenarioId == 70) sc70Adapters.get._1.io.sprite1Enabled
+       else Bool(scSprite1))
     video.io.sprite1PatternIdx := U(1, 1 bit)
 
     // R2 proof scene — deliberately forces the 2-per-line selection limit.
@@ -1341,6 +1389,22 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
       video.io.sprite3Enabled := False
       video.io.sprite2PatternIdx := U(0, 1 bit)
       video.io.sprite3PatternIdx := U(1, 1 bit)
+    } else if (scenarioId == 70) {
+      // Sc70 (Task 1 Phase 5a): runtime C64Adapter drives sprite 0/1.
+      // Outputs are mode-gated inside the adapter — when MODE_SELECT
+      // is not 0x1 the adapter outputs default to 0/False, leaving
+      // sprite 0/1 quiescent. ZX adapter does not own sprite signals.
+      val (c64, _) = sc70Adapters.get
+      video.io.sprite0X := c64.io.sprite0X
+      video.io.sprite0Y := c64.io.sprite0Y
+      video.io.sprite1X := c64.io.sprite1X
+      video.io.sprite1Y := c64.io.sprite1Y
+      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
+      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
+      video.io.sprite2Enabled := False
+      video.io.sprite3Enabled := False
+      video.io.sprite2PatternIdx := U(0, 1 bit)
+      video.io.sprite3PatternIdx := U(1, 1 bit)
     } else {
       // scenarios 0/1/2/3: legacy R2 proof positions; sprites disabled
       video.io.sprite0X := U(120, 10 bits); video.io.sprite0Y := U(120, 10 bits)
@@ -1370,7 +1434,8 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
     // (useSdram=0); gating isolates SDRAM row-fetch switching noise for
     // capture-card troubleshooting.
     bitmapRowFetch.io.enable     := video.io.bitmapModeActive &&
-                                    (Bool(scenarioId == 45) || Bool(scenarioId == 50))
+                                    (Bool(scenarioId == 45) || Bool(scenarioId == 50) ||
+                                     Bool(scenarioId == 70))
     // tileBootDone wired after `fetch` instantiation below (forward ref).
     video.io.bitmapSdramByte     := bitmapRowFetch.io.bitmapByte
     video.io.bitmapSdramAttrByte := bitmapRowFetch.io.attrByte
@@ -1425,6 +1490,18 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
       video.io.rasterTriggerEnable   := c64Demo.get.io.rasterTriggerEnable
       // vsync always re-arms the trigger; ack-write merges via OR.
       video.io.rasterTriggerClear    := vsyncRising || c64Demo.get.io.rasterTriggerClear
+    } else if (scenarioId == 70) {
+      // Sc70 (Task 1 Phase 5a): runtime C64Adapter owns the raster
+      // trigger when MODE_SELECT=0x1. Mode-gating inside the adapter
+      // forces line=0 / enable=False / clear pulse=False when
+      // MODE_SELECT is not 0x1, so the trigger stays quiescent in
+      // ZX mode (ZX has no equivalent raster IRQ).
+      val (c64, _) = sc70Adapters.get
+      video.io.rasterTriggerLine     := c64.io.rasterTriggerLine
+      video.io.rasterTriggerPixel    := U(0, 10 bits)
+      video.io.rasterTriggerPxEnable := False
+      video.io.rasterTriggerEnable   := c64.io.rasterTriggerEnable
+      video.io.rasterTriggerClear    := vsyncRising || c64.io.rasterTriggerClear
     } else {
       video.io.rasterTriggerLine     := U(480, 10 bits)
       video.io.rasterTriggerPixel    := U(0, 10 bits)
@@ -1817,4 +1894,7 @@ object TopTang20kHdmiScenario45HostVerilog extends App {
 }
 object TopTang20kHdmiScenario50Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 50))   // Task 50 ZX Spectrum Adapter HW proof
+}
+object TopTang20kHdmiScenario70Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 70))   // Task 1 Phase 5a MODE_SELECT runtime dual-adapter pilot
 }
