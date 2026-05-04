@@ -628,6 +628,11 @@ the authoritative project log. It uses the unified workspace backing store at
 to the canonical workspace path above. Some MCP sessions may report the global path
 at runtime, but both paths access the same physical database.
 
+**Note:** As of May 2026, this memory has been expanded to include the **full
+historical mail archive** (6,500+ entries) from all VDP projects. Agents can search
+for the "human why" and coordination history behind past decisions using the
+`mail` and `historical` tags.
+
 Authority order remains:
 
 1. `mcp-agent-mail`
