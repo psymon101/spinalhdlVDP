@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-04 (Task 2 Sprite Capacity Expansion artifact drafted. Task 1 MODE_SELECT FULL LANE DONE per CyanPeak audit PASS #9201. Standing by for CyanPeak artifact audit.)
+**Updated:** 2026-05-04 (Task 2 Sprite Capacity Expansion artifact audit PASS #9208. Implementation active. Task 1 MODE_SELECT FULL LANE DONE per CyanPeak audit PASS #9201.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
