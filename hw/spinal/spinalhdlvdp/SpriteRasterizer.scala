@@ -53,24 +53,14 @@ case class SpriteRasterizer(
   val patAddrBits = 12  // {patIdx[3:0], row[3:0], col[3:0]}
 
   val io = new Bundle {
-    // SpriteEvaluator outputs (combinational; latched per-line by evalStart)
-    val activeValid        = in Vec(Bool(), visiblePerLine)
-    val activeX            = in Vec(UInt(10 bits), visiblePerLine)
-    val activeRow          = in Vec(UInt(6 bits), visiblePerLine)
-    val activePatternIdx   = in Vec(UInt(patternSelBits bits), visiblePerLine)
-    val activeAffineEnable = in Vec(Bool(), visiblePerLine)
-    val activeMatrixA      = in Vec(Bits(16 bits), visiblePerLine)
-    val activeMatrixB      = in Vec(Bits(16 bits), visiblePerLine)
-    val activeMatrixC      = in Vec(Bits(16 bits), visiblePerLine)
-    val activeMatrixD      = in Vec(Bits(16 bits), visiblePerLine)
-    val activeTransX       = in Vec(Bits(16 bits), visiblePerLine)
-    val activeTransY       = in Vec(Bits(16 bits), visiblePerLine)
-    val activeFlipH        = in Vec(Bool(), visiblePerLine)
-    val activeFlipV        = in Vec(Bool(), visiblePerLine)
-    val activePaletteBank  = in Vec(UInt(3 bits), visiblePerLine)
-    val activePriority     = in Vec(UInt(2 bits), visiblePerLine)
-    val activeSizeSel      = in Vec(UInt(2 bits), visiblePerLine)
-    val activeBppSel       = in Vec(UInt(2 bits), visiblePerLine)
+    // === Task 2c Checkpoint D: narrow active-list RAM read port ===
+    // Replaces 16 wide active* Vec inputs (~4,448 wires for V=32) with a
+    // single 128-bit RAM read port + activeCount. The Evaluator now owns
+    // the active-list storage; the rasterizer is a pure consumer that
+    // walks indices [0..activeCount-1] and unpacks per slot.
+    val activeReadAddr = out UInt(log2Up(visiblePerLine) bits)
+    val activeReadData = in  Bits(SpriteEvaluator.SlotPackedW bits)
+    val activeCount    = in  UInt(log2Up(visiblePerLine + 1) bits)
 
     // Per-line trigger: pulse one cycle to start drawing for the line
     // identified by `fillLineY`. Caller responsibility to assert when the
@@ -268,11 +258,12 @@ case class SpriteRasterizer(
   //   3. render FSM transitions (consumes startRender)
   //   4. lineRenderStart override (highest priority)
 
-  // Helper: select active* fields by slotIdx
+  // Helper: select active-list slot index for the RAM read port.
   val sIdx = slotIdx.resize(log2Up(visiblePerLine))
-
-  // Default: hold register values
-  // (SpinalHDL auto-holds Reg without explicit ":="; no defaults needed)
+  io.activeReadAddr := sIdx
+  // Helper aliases for the unpacked slot fields (combinational on
+  // activeReadData; valid for the slot indexed by `sIdx` this cycle).
+  val rdW = io.activeReadData
 
   val startRender = Bool()
   startRender := False
@@ -285,40 +276,35 @@ case class SpriteRasterizer(
       } elsewhen (slotZeroDone) {
         sfState := SF_DONE
       } otherwise {
-        when(io.activeValid(sIdx)) {
-          // Valid slot — wait if render is busy; otherwise transition to LOAD.
-          when(!renderBusy) {
-            sfState := SF_LOAD
-          }
-          // else: hold (no register update)
-        } otherwise {
-          // Invalid slot — skip; advance toward 0.
-          when(slotIdx === U(0, slotIdxW bits)) {
-            slotZeroDone := True
-            sfState      := SF_DONE
-          } otherwise {
-            slotIdx := slotIdx - 1
-          }
+        // Every slot in [0..activeCount-1] is valid by construction —
+        // the Evaluator only writes the active-list Mem at indices for
+        // qualifying descriptors, so no `activeValid` check is needed.
+        // Wait if render is busy; otherwise transition to LOAD.
+        when(!renderBusy) {
+          sfState := SF_LOAD
         }
+        // else: hold (no register update)
       }
     }
     is(SF_LOAD) {
-      slotXR       := io.activeX(sIdx)
-      slotRowR     := io.activeRow(sIdx)
-      slotPatIdxR  := io.activePatternIdx(sIdx)
-      slotAffEnR   := io.activeAffineEnable(sIdx)
-      slotFlipHR   := io.activeFlipH(sIdx)
-      slotFlipVR   := io.activeFlipV(sIdx)
-      slotBankR    := io.activePaletteBank(sIdx)
-      slotPrioR    := io.activePriority(sIdx)
-      slotSizeSelR := io.activeSizeSel(sIdx)
-      slotBppSelR  := io.activeBppSel(sIdx)
-      slotMatrixAR := io.activeMatrixA(sIdx)
-      slotMatrixBR := io.activeMatrixB(sIdx)
-      slotMatrixCR := io.activeMatrixC(sIdx)
-      slotMatrixDR := io.activeMatrixD(sIdx)
-      slotTransXR  := io.activeTransX(sIdx)
-      slotTransYR  := io.activeTransY(sIdx)
+      // Unpack the slot word for `sIdx` (combinational on activeReadData)
+      // and latch into per-slot registers.
+      slotXR       := SpriteEvaluator.slotX(rdW)
+      slotRowR     := SpriteEvaluator.slotRow(rdW)
+      slotPatIdxR  := SpriteEvaluator.slotPatIdx(rdW).resize(patternSelBits)
+      slotAffEnR   := SpriteEvaluator.slotAffineEnable(rdW)
+      slotFlipHR   := SpriteEvaluator.slotFlipH(rdW)
+      slotFlipVR   := SpriteEvaluator.slotFlipV(rdW)
+      slotBankR    := SpriteEvaluator.slotPaletteBank(rdW)
+      slotPrioR    := SpriteEvaluator.slotPriority(rdW)
+      slotSizeSelR := SpriteEvaluator.slotSizeSel(rdW)
+      slotBppSelR  := SpriteEvaluator.slotBppSel(rdW)
+      slotMatrixAR := SpriteEvaluator.slotMatrixA(rdW)
+      slotMatrixBR := SpriteEvaluator.slotMatrixB(rdW)
+      slotMatrixCR := SpriteEvaluator.slotMatrixC(rdW)
+      slotMatrixDR := SpriteEvaluator.slotMatrixD(rdW)
+      slotTransXR  := SpriteEvaluator.slotTransX(rdW)
+      slotTransYR  := SpriteEvaluator.slotTransY(rdW)
       slotIsZeroR  := slotIdx === U(0, slotIdxW bits)
       startRender  := True
 
@@ -344,10 +330,14 @@ case class SpriteRasterizer(
         pixCnt := 0
         // Affine init: uState = matrixA·0 + matrixB·y + (transX<<2)
         //              vState = matrixC·0 + matrixD·y + (transY<<2)
-        val matBS = io.activeMatrixB(sIdx).asSInt.resize(32)
-        val matDS = io.activeMatrixD(sIdx).asSInt.resize(32)
-        val xT    = io.activeTransX(sIdx).asSInt.resize(32) |<< 2
-        val yT    = io.activeTransY(sIdx).asSInt.resize(32) |<< 2
+        // Per artifact + audit #9254: use LATCHED slot regs (just written
+        // in this same cycle from SF_LOAD) instead of combinational reads
+        // of the active-list RAM. Decouples affine init from the RAM read
+        // port timing during the active drawing loop.
+        val matBS = slotMatrixBR.asSInt.resize(32)
+        val matDS = slotMatrixDR.asSInt.resize(32)
+        val xT    = slotTransXR.asSInt.resize(32) |<< 2
+        val yT    = slotTransYR.asSInt.resize(32) |<< 2
         val ySig  = io.fillLineY.asSInt.resize(32)
         uState := (matBS * ySig).resize(32) + xT
         vState := (matDS * ySig).resize(32) + yT
@@ -396,11 +386,18 @@ case class SpriteRasterizer(
 
   // ---- lineRenderStart override (highest priority) ----
   when(io.lineRenderStart) {
-    sfState      := SF_FIND
     rState       := ST_IDLE
     pixCnt       := 0
-    slotIdx      := U(visiblePerLine - 1, slotIdxW bits)
     slotZeroDone := False
+    // If the Evaluator delivered an empty active list, jump straight to
+    // SF_DONE; otherwise start at the highest valid slot index.
+    when(io.activeCount === U(0, io.activeCount.getWidth bits)) {
+      sfState := SF_DONE
+      slotIdx := U(0, slotIdxW bits)
+    } otherwise {
+      sfState := SF_FIND
+      slotIdx := (io.activeCount - 1).resize(slotIdxW)
+    }
   }
 }
 

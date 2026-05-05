@@ -1250,26 +1250,13 @@ case class VdpTop() extends Component {
     hActive = hActive,
     cycleBudget = 798
   )
-  // Active-slot inputs from SpriteEvaluator.
-  for (s <- 0 until NUM_SLOTS) {
-    spriteRasterizer.io.activeValid(s)        := spriteEval.io.activeValid(s)
-    spriteRasterizer.io.activeX(s)            := spriteEval.io.activeX(s)
-    spriteRasterizer.io.activeRow(s)          := spriteEval.io.activeRow(s)
-    spriteRasterizer.io.activePatternIdx(s)   := spriteEval.io.activePatternIdx(s)
-    spriteRasterizer.io.activeAffineEnable(s) := spriteEval.io.activeAffineEnable(s)
-    spriteRasterizer.io.activeMatrixA(s)      := spriteEval.io.activeMatrixA(s)
-    spriteRasterizer.io.activeMatrixB(s)      := spriteEval.io.activeMatrixB(s)
-    spriteRasterizer.io.activeMatrixC(s)      := spriteEval.io.activeMatrixC(s)
-    spriteRasterizer.io.activeMatrixD(s)      := spriteEval.io.activeMatrixD(s)
-    spriteRasterizer.io.activeTransX(s)       := spriteEval.io.activeTransX(s)
-    spriteRasterizer.io.activeTransY(s)       := spriteEval.io.activeTransY(s)
-    spriteRasterizer.io.activeFlipH(s)        := spriteEval.io.activeFlipH(s)
-    spriteRasterizer.io.activeFlipV(s)        := spriteEval.io.activeFlipV(s)
-    spriteRasterizer.io.activePaletteBank(s)  := spriteEval.io.activePaletteBank(s)
-    spriteRasterizer.io.activePriority(s)     := spriteEval.io.activePriority(s)
-    spriteRasterizer.io.activeSizeSel(s)      := spriteEval.io.activeSizeSel(s)
-    spriteRasterizer.io.activeBppSel(s)       := spriteEval.io.activeBppSel(s)
-  }
+  // Task 2c Checkpoint E: narrow Evaluator → Rasterizer link via the
+  // packed active-list RAM read port. Replaces 16 wide active* Vec
+  // wires (~250 wires for V=8, ~4,500 for V=32) with a 3-wire bundle
+  // (addr → eval, data ← eval, count ← eval).
+  spriteEval.io.activeReadAddr := spriteRasterizer.io.activeReadAddr
+  spriteRasterizer.io.activeReadData := spriteEval.io.activeReadData
+  spriteRasterizer.io.activeCount    := spriteEval.io.activeCountOut
   // Pattern Mem read interface — share with spritePatternRams(0). Adds a
   // second readSync port; Gowin will handle inference (LUTRAM fallback or
   // dual-port BSRAM split). Step 2 trims spritePatternRams to a single
