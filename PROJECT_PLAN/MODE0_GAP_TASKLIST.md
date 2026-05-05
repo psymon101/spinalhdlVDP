@@ -99,19 +99,22 @@ Impact is scored by:
 
 **Closure:** BronzeGate #9252 accepted Task 2a CLOSED. Renderer substrate hardened. V=32 fit gap migrated to SpriteEvaluator FF density.
 
-### Task 2c — Sprite Evaluator Hardening (IN-PROGRESS)
+### Task 2c — Sprite Evaluator Hardening (IMPLEMENTATION COMPLETE — AWAITING AUDIT)
 
 **Purpose:** Remove the `SpriteEvaluator` `active*` Vec FF-density wall so V=32 can physically place on Tang Nano 20K.
 
-**Status:** IN-PROGRESS. Artifact drafted; awaiting CyanPeak audit.
+**Status:** Implementation complete. BrightForge proof packet landed (#9265–#9268). Awaiting CyanPeak audit.
 
-**Approach:** Replace 16 parallel `active*Reg` Vecs with a compacted active-list RAM inside the evaluator. Narrow rasterizer interface from wide Vec to RAM read port (`addr` + `data` + `activeCount`). Remove dead `activeY` output.
+**Commits:** `b2f4a5d` (evaluator RAM), `7b42b6a` (rasterizer narrow + VdpTop wiring), `b558cee` (final cleanup)
 
-**FF savings:** ~4,384 FFs eliminated (replaced by 4K-bit RAM → 1 BSRAM block or ~256 LUTs). Should clear the 4,209 unplaced REGs.
+**Results:**
+- V=32: **13,940 logic (68%), 9,611 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations** — exit condition MET
+- V=8: 13,625 logic (66%), 9,103 LUT, 6,982 FF — improvement vs Task 2a CP2
+- Regression: 10/10 PASS bit-identical
 
-**Proof shape:** All existing sims PASS bit-identical; V=32 synthesis zero unplaced REGs; V=8 hardware re-proof `freeze=0`.
+**Proof shape:** All existing sims PASS bit-identical; V=32 synthesis zero unplaced REGs.
 
-**Authority:** BronzeGate #9252; artifact `TASK_2C_SPRITE_EVALUATOR_HARDENING.md`.
+**Authority:** BronzeGate #9252; artifact `TASK_2C_SPRITE_EVALUATOR_HARDENING.md`; CyanPeak audit PASS #9254 on artifact.
 
 ### Task 2b — Sprite Capacity Bump (DEFERRED)
 

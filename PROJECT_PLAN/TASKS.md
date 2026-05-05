@@ -27,15 +27,15 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 2c — Sprite Evaluator Hardening** |
-| **Status** | **IN-PROGRESS** (implementation phase — Audit PASS #9254) |
-| **Phase** | implement
-| **Latest Commit** | `b2f4a5d` (Checkpoint C: Evaluator RAM + read port + pack/unpack) |
-| **Commits in lane** | `b2f4a5d` (Checkpoint C) |
-| **Latest Auth Mail** | #9252 (BronzeGate PM: activate Task 2c); #9254 (CyanPeak audit PASS) |
+| **Status** | **IN-PROGRESS** (implementation complete — proof packet landed, awaiting CyanPeak audit) |
+| **Phase** | audit-pending
+| **Latest Commit** | `b558cee` (Final cleanup: remove legacy active*Reg Vecs) |
+| **Commits in lane** | `b2f4a5d` (CP-C: Evaluator RAM); `7b42b6a` (CP-D+E: rasterizer narrow + VdpTop wiring); `b558cee` (CP-F: final cleanup) |
+| **Latest Auth Mail** | #9265–#9268 (BrightForge proof packet — V=32 places, 0 unplaced REGs) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_2C_SPRITE_EVALUATOR_HARDENING.md` |
-| **Next Deliverable** | BrightForge Checkpoint D — SpriteRasterizer narrow interface (consume RAM port) |
+| **Next Deliverable** | CyanPeak audit of BrightForge proof packet |
 
-**Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Renderer substrate hardened (sequential rasterizer). V=32 projection: 15,930 logic (77%), 11,729 LUT — renderer no longer bottleneck. New bottleneck: SpriteEvaluator `active*` Vec FF density causes 4,209 unplaced REGs at 94% CLS. Task 2c scope: replace 16 `active*Reg` Vecs with compacted active-list RAM inside evaluator, narrow rasterizer interface to RAM read port, remove dead `activeY`. Target: V=32 places with zero unplaced REGs. Task 2b (actual capacity bump) remains deferred until 2c closes.
+**Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Task 2c implementation complete. BrightForge commits `b2f4a5d`→`7b42b6a`→`b558cee`: evaluator RAM, rasterizer narrow interface, final cleanup. V=32 projection: **13,940 logic (68%), 9,611 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations** — exit condition MET. V=8: 13,625 logic (66%), 9,103 LUT, 6,982 FF — improvement vs Task 2a CP2. Regression 10/10 PASS bit-identical. Awaiting CyanPeak audit of proof packet #9265–#9268. Task 2b deferred until 2c closes.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
