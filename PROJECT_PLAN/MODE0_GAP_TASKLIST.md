@@ -81,17 +81,21 @@ Impact is scored by:
 
 **Purpose:** Redesign sprite render substrate so that a future capacity bump is a small parameter change rather than a structural rewrite.
 
+**Reshape (2026-05-05):** The parallel per-slot substrate path (Checkpoint 2 shared AffineStepper) is **retired** after V=16 P&R failure (#9231). New direction: **Sequential Scanline Rasterizer**.
+
 **Smallest sufficient focus:**
-1. **Pipelined compositor merge** — replace parallel `for s ← 0 until NUM_SLOTS` merge with 2–4 cycle pipelined priority encoder. Trades latency for LUT reduction.
-2. **Shared AffineStepper** — time-multiplex one (or four) AffineSteppers across slots within the line. Eliminates per-slot replication (~15–18k LUT at V=32).
-3. **Pattern-memory topology** — only if needed after (1) and (2).
+1. **Sequential Scanline Rasterizer** — replace the parallel per-slot pixel-generation loop with a single sequential drawer FSM that paints active sprites one-at-a-time into a dedicated sprite line buffer during the 800-cycle line window. One hitbox evaluator, one shared AffineStepper, one pixel unpack path — not replicated per slot.
+2. **Sprite line buffer** — new single-port (SDPB) BSRAM-backed line buffer, double-buffered (ping-pong) matching existing `LineBuffer` semantics. Fill phase (line N): drawer writes. Drain phase (line N+1): compositor reads alongside background layers.
+3. **Cycle-budget overflow mapping** — drawer halts when cycle budget exhausted; tail sprites not painted. Reuse existing `spriteOverflow` sticky flag.
 
 **Success condition:**
 - `visiblePerLine = 8` behavior remains bit-identical in sim after substrate changes
-- Projected LUT cost of V=32 bump drops from +30,000+ to ~+1,000–2,000
+- Projected LUT cost of V=32 bump is **flat** (~+0–1,000 LUT vs V=8 baseline) because drawer logic does not scale with slot count
 - Follow-on Task 2b becomes a parameter flip
 
-**Proof shape:** Sim regression (all existing sprite sims PASS) + resource projection showing V=32 within budget.
+**Proof shape:** Sim regression (all existing sprite sims PASS) + resource projection showing V=32 within budget + 30s HW capture `freeze=0`.
+
+**Authority:** BronzeGate #9235; convergent diagnoses CyanPeak #9233 + CoralReef #9234; design packet BrightForge #9236.
 
 ### Task 2b — Sprite Capacity Bump (DEFERRED)
 
