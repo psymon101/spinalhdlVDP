@@ -1234,6 +1234,63 @@ case class VdpTop() extends Component {
   // this task. Wider pattern-Mem banks land in a future sprite-attribute
   // extension task (Task 37), so bits [3:1] are ignored here.
   val NUM_SLOTS = 8   // Sprite Envelope Hardening B-1: capacity bump parked, fields-only landing
+
+  // === Task 2a Checkpoint 2 — Step 1 (PM #9244): SpriteRasterizer wired in
+  // parallel to the existing per-slot pipeline. The rasterizer's drain
+  // output is captured for inspection (simPublic) but NOT yet consumed by
+  // the lineBuf write. Step 2 (next commit) cuts over and removes the
+  // parallel for-loop + tree merge below.
+  // ============================================================
+  val spriteRasterizer = SpriteRasterizer(
+    visiblePerLine = NUM_SLOTS,
+    patternSelBits = 4,
+    hActive = hActive,
+    cycleBudget = 798
+  )
+  // Active-slot inputs from SpriteEvaluator.
+  for (s <- 0 until NUM_SLOTS) {
+    spriteRasterizer.io.activeValid(s)        := spriteEval.io.activeValid(s)
+    spriteRasterizer.io.activeX(s)            := spriteEval.io.activeX(s)
+    spriteRasterizer.io.activeRow(s)          := spriteEval.io.activeRow(s)
+    spriteRasterizer.io.activePatternIdx(s)   := spriteEval.io.activePatternIdx(s)
+    spriteRasterizer.io.activeAffineEnable(s) := spriteEval.io.activeAffineEnable(s)
+    spriteRasterizer.io.activeMatrixA(s)      := spriteEval.io.activeMatrixA(s)
+    spriteRasterizer.io.activeMatrixB(s)      := spriteEval.io.activeMatrixB(s)
+    spriteRasterizer.io.activeMatrixC(s)      := spriteEval.io.activeMatrixC(s)
+    spriteRasterizer.io.activeMatrixD(s)      := spriteEval.io.activeMatrixD(s)
+    spriteRasterizer.io.activeTransX(s)       := spriteEval.io.activeTransX(s)
+    spriteRasterizer.io.activeTransY(s)       := spriteEval.io.activeTransY(s)
+    spriteRasterizer.io.activeFlipH(s)        := spriteEval.io.activeFlipH(s)
+    spriteRasterizer.io.activeFlipV(s)        := spriteEval.io.activeFlipV(s)
+    spriteRasterizer.io.activePaletteBank(s)  := spriteEval.io.activePaletteBank(s)
+    spriteRasterizer.io.activePriority(s)     := spriteEval.io.activePriority(s)
+    spriteRasterizer.io.activeSizeSel(s)      := spriteEval.io.activeSizeSel(s)
+    spriteRasterizer.io.activeBppSel(s)       := spriteEval.io.activeBppSel(s)
+  }
+  // Pattern Mem read interface — share with spritePatternRams(0). Adds a
+  // second readSync port; Gowin will handle inference (LUTRAM fallback or
+  // dual-port BSRAM split). Step 2 trims spritePatternRams to a single
+  // shared instance.
+  spriteRasterizer.io.patternRamData := spritePatternRams(0).readSync(spriteRasterizer.io.patternRamAddr)
+  // Per-line trigger: fire at hCounter=hTotal-12, just after SpriteEvaluator
+  // scan completes (evalStart at hTotal-45 + descCount=32 → done at
+  // hTotal-13). active* are stable from hTotal-12 onward for the line-N+2
+  // (= fillLine+1) target.
+  spriteRasterizer.io.lineRenderStart := hCounter === U(hTotal - 12, log2Up(hTotal) bits)
+  spriteRasterizer.io.fillLineY       := fillLine.resize(10)
+  // Buffer swap aligned with the existing lineBuf swap.
+  spriteRasterizer.io.bufferSwap      := hCounter === U(hTotal - 1, log2Up(hTotal) bits)
+  // Drain addr — for Step 1, just feed hCounter (rasterizer drain is not
+  // yet consumed downstream; this exists so the drain mux/registers
+  // toggle and the module elaborates cleanly).
+  spriteRasterizer.io.drainAddr       := hCounter.resize(log2Up(hActive))
+  // Expose drain outputs for sim inspection.
+  spriteRasterizer.io.drainPixel.simPublic()
+  spriteRasterizer.io.drainPaletteBank.simPublic()
+  spriteRasterizer.io.drainPriority.simPublic()
+  spriteRasterizer.io.cycleOverflow.simPublic()
+  // ============================================================
+
   val slotVisible = Vec(Bool(), NUM_SLOTS)
   val slotPixel   = Vec(Bits(4 bits), NUM_SLOTS)
   for (s <- 0 until NUM_SLOTS) {
