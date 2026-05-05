@@ -246,8 +246,9 @@ The following gaps were identified in the 2026-04-25 assessment batch but have b
 | Rank | Task | Status | Platforms | Impact | Risk | Prereq For |
 |---|---|---|---|---|---|---|
 | 1 | MODE_SELECT Runtime Adapter Selection | **CLOSED** | All 12 | Critical | Low-Med | All adapter lanes |
-| 2a | Sprite Capacity Substrate Pre-Hardening | **ACTIVE** | NES/Gen/SNES/PCE/MSX2 | High | Large | Tier 2/3 adapter honesty |
-| 2b | Sprite Capacity Bump (8→32 / 32→64) | DEFERRED | NES/Gen/SNES/PCE/MSX2 | High | Low (post-2a) | Tier 2/3 adapter honesty |
+| 2a | Sprite Capacity Substrate Pre-Hardening | **CLOSED** | NES/Gen/SNES/PCE/MSX2 | High | Large | Tier 2/3 adapter honesty |
+| 2c | Sprite Evaluator Hardening | **CLOSED** | NES/Gen/SNES/PCE/MSX2 | High | Med | V=32 physical fit |
+| 2b | Sprite Capacity Bump (8→32 / 32→64) | **CLOSED** | NES/Gen/SNES/PCE/MSX2 | High | Low | Tier 2/3 adapter honesty |
 | 3 | Planar Fetch Hardening (2→5+ planes) | OPEN | Amiga, Atari ST | High | Large | Amiga/ST adapter honesty |
 | 4 | Pattern Address Width Expansion | OPEN | SNES/Gen/Neo Geo | Med-High | Medium | Large-sprite honesty |
 | 5 | Sprite-Sprite Collision Detector | OPEN | C64 (primary) | Medium | Medium | C64 collision honesty |
@@ -258,11 +259,11 @@ The following gaps were identified in the 2026-04-25 assessment batch but have b
 
 ## Next-Step Recommendation
 
-**Immediate:** Activate **Task 1 (MODE_SELECT)**. It is the only formal TODO in `TASKS.md`, its dependencies are cleared, and it unlocks the entire adapter lane strategy. It is infrastructure, not substrate, but no substrate gap has higher project impact.
+**Immediate:** Open **Task 3 — Planar Fetch Hardening (2→5+ planes)**. It unlocks Atari ST (Tier 1, coexistence-friendly) and Amiga groundwork. Atari ST is the lowest-risk next adapter per `MODE_SELECT_ARCHITECTURE.md` §5. All sprite capacity work (Tasks 2a/2c/2b) is now closed.
 
-**After MODE_SELECT:** Open **Task 2a (Sprite Capacity Substrate Pre-Hardening)**. The direct capacity bump (Task 2b) is blocked by substrate-fit failure (#9210). Task 2a is a substrate redesign lane aimed at making the future bump a small parameter change. Task 2b remains deferred until 2a closes.
+**After Task 3:** Open **Task 4 — Sprite Pattern Address Width Expansion**. It enables large-sprite honesty for SNES/Genesis/Neo Geo on the now-hardened V=32 substrate.
 
-**After Sprite Capacity:** Open **Task 3 (Planar Fetch Hardening)**. It unlocks Atari ST (Tier 1, very coexistence-friendly) and Amiga groundwork. Atari ST is the lowest-risk next adapter after MODE_SELECT per `MODE_SELECT_ARCHITECTURE.md` §5.
+**Standing completed work:** Task 1 (MODE_SELECT), Task 2a (Substrate Pre-Hardening), Task 2c (Evaluator Hardening), Task 2b (Capacity Bump) are all CLOSED and should not be re-opened without new evidence.
 
 ---
 
