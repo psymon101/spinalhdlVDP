@@ -116,11 +116,11 @@ Impact is scored by:
 
 **Authority:** BronzeGate #9252; artifact `TASK_2C_SPRITE_EVALUATOR_HARDENING.md`; CyanPeak audit PASS #9278 on proof packet.
 
-### Task 2b — Sprite Capacity Bump (IMPLEMENTATION COMPLETE — AWAITING AUDIT)
+### Task 2b — Sprite Capacity Bump (CLOSED — sim/synth; hardware proof pending bench gate)
 
 **Purpose:** Execute the actual `visiblePerLine` 8→32 and `descCount` 32→64 bump on the hardened substrate.
 
-**Status:** Implementation complete. BrightForge proof packet landed (#9283). Awaiting CyanPeak audit. Hardware proof (30s freeze=0) deferred until bench access.
+**Status:** CLOSED (sim/synth). CyanPeak audit PASS #9286; BronzeGate PM ruling #9287. Hardware proof (30s capture `freeze=0`) pending bench access — no code churn until bench available.
 
 **Commits:** `2281482` (parameter bump), `a268e1e` (SpriteSubstrateSim Cases E+F)
 
@@ -129,9 +129,9 @@ Impact is scored by:
 - Regression: 10/10 PASS (including new Cases E+F)
 - Total trajectory: 51,191 → 13,924 = **3.7× reduction** from original blocker
 
-**Proof shape:** `SpriteCapacityExpansionSim` 6 cases (4 legacy + 2 new) + regression + V=32 synthesis + 30s HW capture.
+**Proof shape:** `SpriteCapacityExpansionSim` 6 cases + regression + V=32 synthesis + 30s HW capture (pending).
 
-**Authority:** BronzeGate #9279; artifact `TASK_2B_SPRITE_CAPACITY_BUMP.md`.
+**Authority:** BronzeGate #9287; artifact `TASK_2B_SPRITE_CAPACITY_BUMP.md`; CyanPeak audit PASS #9286.
 
 ---
 

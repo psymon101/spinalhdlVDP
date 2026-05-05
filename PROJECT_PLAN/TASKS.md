@@ -27,15 +27,15 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 2b — Sprite Capacity Bump** |
-| **Status** | **IN-PROGRESS** (implementation complete — proof packet landed, awaiting CyanPeak audit) |
-| **Phase** | audit-pending
+| **Status** | **DONE** (sim/synth — CyanPeak audit PASS #9286; BronzeGate PM ruling #9287) |
+| **Phase** | closed (sim/synth); hardware-proof pending bench gate
 | **Latest Commit** | `a268e1e` (SpriteSubstrateSim Cases E + F) |
 | **Commits in lane** | `2281482` (parameter bump); `a268e1e` (Cases E+F) |
-| **Latest Auth Mail** | #9283 (BrightForge proof packet — V=32 places, 0 unplaced REGs) |
+| **Latest Auth Mail** | #9283 (BrightForge proof); #9286 (CyanPeak audit PASS); #9287 (BronzeGate PM ruling) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
-| **Next Deliverable** | CyanPeak audit of proof packet; hardware proof (30s freeze=0) deferred until bench access |
+| **Next Deliverable** | Hardware proof (30s capture `freeze=0`) when bench access available |
 
-**Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Task 2c CLOSED per BronzeGate #9279 / CyanPeak #9278. Task 2b implementation complete. BrightForge commits `2281482`→`a268e1e`: parameter bump, sim updates, Cases E+F. V=32 committed defaults: **13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations** — exit condition MET. Regression 10/10 PASS. Hardware proof (30s freeze=0) deferred until bench access. Awaiting CyanPeak audit.
+**Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Task 2c CLOSED per BronzeGate #9279 / CyanPeak #9278. Task 2b CLOSED (sim/synth) per BronzeGate #9287 / CyanPeak #9286. BrightForge commits `2281482`→`a268e1e`: parameter bump, sim updates, Cases E+F. V=32 committed defaults: **13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations**. Regression 10/10 PASS. Hardware proof (30s capture `freeze=0`) remains pending bench gate — no code churn until bench access available.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
