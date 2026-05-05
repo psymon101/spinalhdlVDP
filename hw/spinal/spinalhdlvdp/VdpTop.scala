@@ -1083,7 +1083,7 @@ case class VdpTop() extends Component {
   // Gowin timing/resource reports show ample headroom. 4 legacy IO slots +
   // 28 bus-programmable extended slots.
   val spriteEval = SpriteEvaluator(
-    descCount      = 32,
+    descCount      = 64,
     // Sprite Envelope Hardening B-1 (CyanPeak #8577) — TIMING-BLOCKED
     // capacity bump. 32 blew the logic budget (51 k of 20.7 k); 16 ran
     // 1.06× over (21.9 k); 12 fit resource but missed timing by 2 ns
@@ -1097,7 +1097,7 @@ case class VdpTop() extends Component {
     // mode reproduced when bumped to 64/32 directly. Blocker filed
     // — substrate redesign (shared pattern Mems / pipelined
     // compositor) required before capacity bump can land.
-    visiblePerLine = 8,
+    visiblePerLine = 32,
     patternSelBits = 4,
     legacyIoCount  = 4)
   spriteEval.io.descX(0)          := io.sprite0X
@@ -1159,7 +1159,7 @@ case class VdpTop() extends Component {
   // Pass-1 FSM completes before the line-fill swap. Task 45 descCount=32
   // needs ~32 cycles; hTotal-45 gives a 13-cycle completion margin before
   // the swap at hTotal-1 (476 ns at 25.2 MHz, well within hBlank=160).
-  spriteEval.io.evalStart := hCounter === U(hTotal - 45, log2Up(hTotal) bits)
+  spriteEval.io.evalStart := hCounter === U(hTotal - 77, log2Up(hTotal) bits)
   io.spriteOverflow := spriteEval.io.overflowFlag
 
   // Sprite Pattern Memory Foundation (CyanPeak #8596): BSRAM-backed
@@ -1236,7 +1236,7 @@ case class VdpTop() extends Component {
   // patternIndex is now 4 bits; the low bit selects pattern Mem 0 vs 1 for
   // this task. Wider pattern-Mem banks land in a future sprite-attribute
   // extension task (Task 37), so bits [3:1] are ignored here.
-  val NUM_SLOTS = 8   // Sprite Envelope Hardening B-1: capacity bump parked, fields-only landing
+  val NUM_SLOTS = 32  // Sprite Envelope Hardening B-1: capacity bump parked, fields-only landing
 
   // === Task 2a Checkpoint 2 — Step 1 (PM #9244): SpriteRasterizer wired in
   // parallel to the existing per-slot pipeline. The rasterizer's drain

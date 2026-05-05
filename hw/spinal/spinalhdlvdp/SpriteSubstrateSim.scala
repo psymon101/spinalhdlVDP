@@ -43,7 +43,7 @@ object SpriteSubstrateSim extends App {
   }
 
   Config.sim.compile(SpriteRasterizer(
-    visiblePerLine = 8, patternSelBits = 4, hActive = 640, cycleBudget = 798
+    visiblePerLine = 32, patternSelBits = 4, hActive = 640, cycleBudget = 798
   )).doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)
 

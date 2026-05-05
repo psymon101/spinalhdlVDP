@@ -27,7 +27,7 @@ import spinal.core.sim._
   */
 object SpriteFlipSim extends App {
   Config.sim.compile(SpriteEvaluator(
-      descCount = 32, visiblePerLine = 8,
+      descCount = 64, visiblePerLine = 32,
       patternSelBits = 4, legacyIoCount = 4))
     .doSim { dut =>
       dut.clockDomain.forkStimulus(period = 10)

@@ -24,8 +24,8 @@ import spinal.core.sim._
   *      when legacy slots 0..3 are disabled
   */
 object SpriteEvaluatorSim extends App {
-  val D = 32
-  val V = 8
+  val D = 64
+  val V = 32
   val P = 4
   val L = 4
 
@@ -111,10 +111,10 @@ object SpriteEvaluatorSim extends App {
     assert(!dut.io.overflowFlag.toBoolean, "Case 2: unexpected overflow")
     println("[sim] Case 2 empty line — OK")
 
-    // --- Case 3: overflow — 9 enabled sprites on line 100, only 8 retained ---
-    for (d <- 0 until L) setLegacy(d, 10 + 50*d, 100, enabled = true, patIdx = d % 2)
-    // Bus slots 4..8 also on line 100.
-    for (s <- L until 9) setBusDesc(s, 10 + 50*s, 100, enabled = true, patIdx = s % 2)
+    // --- Case 3: overflow — V+1 enabled sprites on line 100, only V retained ---
+    for (d <- 0 until L) setLegacy(d, 10 + 5*d, 100, enabled = true, patIdx = d % 2)
+    // Bus slots L..(V+1) also on line 100.
+    for (s <- L until (V + 1)) setBusDesc(s, 10 + 5*s, 100, enabled = true, patIdx = s % 2)
     pulseEval(110)
     val c3 = activeSet()
     val validCount = c3.count(_._1)
@@ -122,15 +122,15 @@ object SpriteEvaluatorSim extends App {
     assert(dut.io.overflowFlag.toBoolean, "Case 3: overflow flag must be set")
     // Slot 0 = lowest descriptor index = legacy 0 @ x=10.
     assert(c3(0)._2 == 10, s"Case 3 slot 0 should be legacy desc 0 (x=10): $c3")
-    // Slot 7 = 8th-lowest active = bus slot 7 @ x=10+50*7=360.
-    assert(c3(7)._2 == 360, s"Case 3 slot 7 should be bus desc 7 (x=360): $c3")
+    // Slot V-1 = highest retained slot, descriptor index V-1 (since V-th is the overflow drop).
+    assert(c3(V - 1)._2 == 10 + 5*(V - 1), s"Case 3 slot ${V-1} should be desc ${V-1} (x=${10 + 5*(V-1)}): $c3")
     println(f"[sim] Case 3 overflow: ${validCount}/${V} valid, overflow flag set, ordering lowest-idx-first — OK")
 
-    // --- Case 4: disable legacy 0 → slot 0 should become legacy 1 ---
+    // --- Case 4: disable legacy 0 → slot 0 should become legacy 1 (x = 10 + 5*1 = 15) ---
     setLegacy(0, 10, 100, enabled = false)
     pulseEval(110)
     val c4 = activeSet()
-    assert(c4(0)._1 && c4(0)._2 == 60, s"Case 4 slot 0 must be legacy 1 (x=60): $c4")
+    assert(c4(0)._1 && c4(0)._2 == 15, s"Case 4 slot 0 must be legacy 1 (x=15): $c4")
     println("[sim] Case 4 disable-skip — OK")
 
     // --- Case 5: stability — no new evalStart for >800 cycles ---
@@ -276,8 +276,11 @@ object SpriteEvaluatorSim extends App {
     }
     pulseEval(210)
     val activeAtP24 = (0 until V).count(s => dut.io.activeValid(s).toBoolean)
-    assert(activeAtP24 == V,
-      s"Case 13: expected $V visible sprites (capacity met), got $activeAtP24")
+    // 8 sprites set up: 1 large (sizeSel=2) + 7 medium (sizeSel=1). All 8 fit
+    // within capacity V (=32 post-Task-2b); the overflow flag fires from the
+    // tile-budget rule alone, not the count rule.
+    assert(activeAtP24 == 8,
+      s"Case 13: expected 8 visible sprites (capacity met), got $activeAtP24")
     assert(dut.io.overflowFlag.toBoolean,
       "Case 13: tile budget = 44 > 34 must trigger overflow")
     println(s"[sim] Case 13 tile-budget overflow @ 44 tiles (capacity OK) — OK")

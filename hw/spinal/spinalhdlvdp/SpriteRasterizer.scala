@@ -44,7 +44,7 @@ import spinal.lib._
   * (transX << 2)` from `AffineStepper.scala`.
   */
 case class SpriteRasterizer(
-  visiblePerLine: Int = 8,
+  visiblePerLine: Int = 32,
   patternSelBits: Int = 4,
   hActive: Int       = 640,
   cycleBudget: Int   = 798
@@ -403,6 +403,6 @@ case class SpriteRasterizer(
 
 object SpriteRasterizer {
   def apply(): SpriteRasterizer = SpriteRasterizer(
-    visiblePerLine = 8, patternSelBits = 4, hActive = 640, cycleBudget = 798
+    visiblePerLine = 32, patternSelBits = 4, hActive = 640, cycleBudget = 798
   )
 }

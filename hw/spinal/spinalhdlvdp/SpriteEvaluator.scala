@@ -52,8 +52,8 @@ import spinal.lib._
   *                                                   VdpTop.scala:1163-1171.)
   */
 case class SpriteEvaluator(
-    descCount: Int = 32,
-    visiblePerLine: Int = 8,
+    descCount: Int = 64,
+    visiblePerLine: Int = 32,
     patternSelBits: Int = 4,
     legacyIoCount: Int = 4
 ) extends Component {
