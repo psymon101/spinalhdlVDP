@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 2c — Sprite Evaluator Hardening** |
-| **Status** | **IN-PROGRESS** (implementation complete — proof packet landed, awaiting CyanPeak audit) |
-| **Phase** | audit-pending
-| **Latest Commit** | `b558cee` (Final cleanup: remove legacy active*Reg Vecs) |
-| **Commits in lane** | `b2f4a5d` (CP-C: Evaluator RAM); `7b42b6a` (CP-D+E: rasterizer narrow + VdpTop wiring); `b558cee` (CP-F: final cleanup) |
-| **Latest Auth Mail** | #9265–#9268 (BrightForge proof packet — V=32 places, 0 unplaced REGs) |
-| **Artifact** | `PROJECT_PLAN/artifacts/TASK_2C_SPRITE_EVALUATOR_HARDENING.md` |
-| **Next Deliverable** | CyanPeak audit of BrightForge proof packet |
+| **Task** | **Task 2b — Sprite Capacity Bump** |
+| **Status** | **IN-PROGRESS** (artifact phase — awaiting CyanPeak audit) |
+| **Phase** | artifact
+| **Latest Commit** | `b558cee` (Task 2c closure baseline) |
+| **Commits in lane** | (none yet — coding starts after audit PASS) |
+| **Latest Auth Mail** | #9279 (BronzeGate PM: activate Task 2b) |
+| **Artifact** | `PROJECT_PLAN/artifacts/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
+| **Next Deliverable** | CyanPeak audit of Task 2b artifact |
 
-**Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Task 2c implementation complete. BrightForge commits `b2f4a5d`→`7b42b6a`→`b558cee`: evaluator RAM, rasterizer narrow interface, final cleanup. V=32 projection: **13,940 logic (68%), 9,611 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations** — exit condition MET. V=8: 13,625 logic (66%), 9,103 LUT, 6,982 FF — improvement vs Task 2a CP2. Regression 10/10 PASS bit-identical. Awaiting CyanPeak audit of proof packet #9265–#9268. Task 2b deferred until 2c closes.
+**Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Task 2c CLOSED per BronzeGate #9279 / CyanPeak #9278. V=32 projection: 13,940 logic (68%), 9,611 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations — exit condition MET. Task 2b now activated: parameter bump `visiblePerLine=8→32`, `descCount=32→64` on hardened substrate. Artifact drafted; awaiting CyanPeak audit.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
@@ -60,20 +60,36 @@ This section tracks the single active lane so the team does not infer state from
 | **Latest Auth Mail** | #9250 (CyanPeak audit PASS), #9252 (BronzeGate PM closeout) |
 | **Proof** | V=8 bit-identical regression 8/8 PASS; +83 logic vs Checkpoint 1; 0 timing violations; V=32 projection 15,930 logic (77%), 11,729 LUT — renderer substrate scales flatly |
 
-### Task 2c — Sprite Evaluator Hardening (ACTIVE)
+### Task 2c — Sprite Evaluator Hardening (CLOSED)
 
 | Field | Value |
 |---|---|
 | **Task** | Task 2c — Sprite Evaluator Hardening |
+| **Status** | **DONE** — CyanPeak audit PASS #9278; BronzeGate PM closeout #9279 |
+| **Phase** | closed |
+| **Owner** | BrightForge (coding + proof), CyanPeak (audit PASS), CoralReef (ledger), BronzeGate (PM closeout) |
+| **Baseline Commit** | `ab687d1` (Task 2a closeout) |
+| **Commits** | `b2f4a5d` (CP-C evaluator RAM); `7b42b6a` (CP-D+E rasterizer narrow + VdpTop wiring); `b558cee` (CP-F final cleanup) |
+| **Latest Auth Mail** | #9265–#9268 (BrightForge proof packet); #9276 (CoralReef ledger sync); #9278 (CyanPeak audit PASS); #9279 (BronzeGate closeout + Task 2b activation) |
+| **Proof** | V=32: 13,940 logic (68%), 9,611 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations; V=8: 13,625 logic (66%), 9,103 LUT, 6,982 FF; regression 10/10 PASS |
+| **Next Deliverable** | N/A — Task 2c closed |
+
+**Scope:** Replace SpriteEvaluator `active*` Vec FF duplication with RAM-based active-list storage; narrow SpriteRasterizer interface to RAM read port; remove dead `activeY`. Target: V=32 places with zero unplaced REGs.
+
+### Task 2b — Sprite Capacity Bump (ACTIVE)
+
+| Field | Value |
+|---|---|
+| **Task** | Task 2b — Sprite Capacity Bump |
 | **Status** | **IN-PROGRESS** — artifact phase, awaiting CyanPeak audit |
 | **Phase** | artifact |
 | **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding after audit PASS) |
-| **Baseline Commit** | `ab687d1` (Task 2a closeout) |
-| **Artifact** | `PROJECT_PLAN/artifacts/TASK_2C_SPRITE_EVALUATOR_HARDENING.md` |
-| **Latest Auth Mail** | #9252 (BronzeGate activation) |
+| **Baseline Commit** | `b558cee` (Task 2c closure) |
+| **Artifact** | `PROJECT_PLAN/artifacts/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
+| **Latest Auth Mail** | #9279 (BronzeGate activation) |
 | **Next Deliverable** | CyanPeak audit PASS → BrightForge coding |
 
-**Scope:** Replace SpriteEvaluator `active*` Vec FF duplication with RAM-based active-list storage; narrow SpriteRasterizer interface to RAM read port; remove dead `activeY`. Target: V=32 (`visiblePerLine=32`, `descCount=64`) places with zero unplaced REGs. Task 2b deferred until 2c closes.
+**Scope:** Parameter bump `visiblePerLine=8→32`, `descCount=32→64` on hardened substrate. Adjust `evalStart` timing (`hTotal-45` → `hTotal-77`). Update sim defaults. Add capacity cases E–F. V=32 synthesis + 30s HW proof.
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 

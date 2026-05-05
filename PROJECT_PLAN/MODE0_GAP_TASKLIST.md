@@ -99,11 +99,11 @@ Impact is scored by:
 
 **Closure:** BronzeGate #9252 accepted Task 2a CLOSED. Renderer substrate hardened. V=32 fit gap migrated to SpriteEvaluator FF density.
 
-### Task 2c — Sprite Evaluator Hardening (IMPLEMENTATION COMPLETE — AWAITING AUDIT)
+### Task 2c — Sprite Evaluator Hardening (CLOSED)
 
 **Purpose:** Remove the `SpriteEvaluator` `active*` Vec FF-density wall so V=32 can physically place on Tang Nano 20K.
 
-**Status:** Implementation complete. BrightForge proof packet landed (#9265–#9268). Awaiting CyanPeak audit.
+**Status:** CLOSED. CyanPeak audit PASS #9278; BronzeGate PM closeout #9279.
 
 **Commits:** `b2f4a5d` (evaluator RAM), `7b42b6a` (rasterizer narrow + VdpTop wiring), `b558cee` (final cleanup)
 
@@ -114,15 +114,17 @@ Impact is scored by:
 
 **Proof shape:** All existing sims PASS bit-identical; V=32 synthesis zero unplaced REGs.
 
-**Authority:** BronzeGate #9252; artifact `TASK_2C_SPRITE_EVALUATOR_HARDENING.md`; CyanPeak audit PASS #9254 on artifact.
+**Authority:** BronzeGate #9252; artifact `TASK_2C_SPRITE_EVALUATOR_HARDENING.md`; CyanPeak audit PASS #9278 on proof packet.
 
-### Task 2b — Sprite Capacity Bump (DEFERRED)
+### Task 2b — Sprite Capacity Bump (IN-PROGRESS)
 
 **Purpose:** Execute the actual `visiblePerLine` 8→32 and `descCount` 32→64 bump on the hardened substrate.
 
-**Status:** Deferred until Task 2c closes.
+**Status:** IN-PROGRESS. Artifact drafted; awaiting CyanPeak audit.
 
-**Proof shape:** Same as original Task 2 artifact (`SpriteCapacityExpansionSim` 6 cases + regression + 30s HW capture).
+**Proof shape:** `SpriteCapacityExpansionSim` 6 cases (4 legacy + 2 new) + regression + V=32 synthesis + 30s HW capture.
+
+**Authority:** BronzeGate #9279; artifact `TASK_2B_SPRITE_CAPACITY_BUMP.md`.
 
 ---
 
