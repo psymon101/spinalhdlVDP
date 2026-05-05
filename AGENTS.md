@@ -467,6 +467,16 @@ Routine ACK suppression:
 - send ACK only when receipt is explicitly required, the action is risky, or a
   blocker needs confirmation
 
+Duplicate suppression rule:
+
+- send one authoritative packet per state change
+- only resend a packet when delivery or persistence actually failed, and mark
+  it explicitly as a retry
+- do not generate repeated materially identical proof, audit, or ledger packets
+  for visibility alone
+- when duplicate packets exist, the newest materially identical packet
+  supersedes the older copies and should not trigger extra audit or ledger work
+
 ### Structured Packet Templates
 
 Routine mail should be compact and structured by packet type.
@@ -545,6 +555,13 @@ Required immediate HOLD conditions:
 - commit / programmed state tie-back is missing
 - packet evidence is visibly incomplete or stale
 
+Audit latency rule:
+
+- for an active lane with a clear artifact or proof packet, `CyanPeak` should
+  either issue `PASS/HOLD/FAIL` promptly or ask directly for one exact missing
+  item
+- do not let a lane stall because an audit question exists only implicitly
+
 Do not spend audit cycles trying to salvage incomplete proof. Reject quickly
 and request the exact missing evidence.
 
@@ -606,6 +623,16 @@ When the next lane is obvious and unblocked:
 When the next lane is not obvious:
 
 - stop and ask in mail with the minimum concrete ambiguity stated
+
+Bench-gate split rule:
+
+- when code, sim, and synthesis are complete but bench access is the only
+  remaining dependency, split status explicitly into:
+  - engineering closed or passed
+  - hardware proof pending
+- do not reopen implementation work or keep the coding lane artificially open
+  just because the bench step has not run yet
+- treat the bench run as a final proof substep with its own audit and closeout
 
 ### Context Compression
 
