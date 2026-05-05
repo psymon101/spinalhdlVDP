@@ -77,7 +77,7 @@ Impact is scored by:
 
 **Note:** The MODE_SELECT architecture recommends separating descriptor expansion from the default bitstream if LUT budget becomes tight. Tier 1 adapters (C64, ZX, Atari ST, TMS9918) do not need this expansion.
 
-### Task 2a — Sprite Capacity Substrate Pre-Hardening (ACTIVE)
+### Task 2a — Sprite Capacity Substrate Pre-Hardening (CLOSED)
 
 **Purpose:** Redesign sprite render substrate so that a future capacity bump is a small parameter change rather than a structural rewrite.
 
@@ -89,13 +89,15 @@ Impact is scored by:
 3. **Cycle-budget overflow mapping** — drawer halts when cycle budget exhausted; tail sprites not painted. Reuse existing `spriteOverflow` sticky flag.
 
 **Success condition:**
-- `visiblePerLine = 8` behavior remains bit-identical in sim after substrate changes
-- Projected LUT cost of V=32 bump is **flat** (~+0–1,000 LUT vs V=8 baseline) because drawer logic does not scale with slot count
-- Follow-on Task 2b becomes a parameter flip
+- `visiblePerLine = 8` behavior remains bit-identical in sim after substrate changes ✅
+- Projected LUT cost of V=32 bump is **flat** (~+0–1,000 LUT vs V=8 baseline) because drawer logic does not scale with slot count ✅
+- Follow-on Task 2b becomes a parameter flip — **partially achieved** (renderer scales flatly; evaluator FF density remains a separate bottleneck)
 
 **Proof shape:** Sim regression (all existing sprite sims PASS) + resource projection showing V=32 within budget + 30s HW capture `freeze=0`.
 
-**Authority:** BronzeGate #9235; convergent diagnoses CyanPeak #9233 + CoralReef #9234; design packet BrightForge #9236.
+**Authority:** BronzeGate #9235; convergent diagnoses CyanPeak #9233 + CoralReef #9234; design packet BrightForge #9236; CyanPeak audit PASS #9250.
+
+**Closure:** CyanPeak #9250 formally closed Task 2a. The renderer substrate is hardened. V=32 fit gap migrated to SpriteEvaluator FF density (outside Task 2a scope). BronzeGate closeout pending.
 
 ### Task 2b — Sprite Capacity Bump (DEFERRED)
 
