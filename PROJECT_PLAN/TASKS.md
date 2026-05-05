@@ -31,15 +31,15 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | artifact → audit → implement |
 | **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
 | **Latest Commit** | `994633a` (Checkpoint 1: tree-pipelined sprite merge) |
-| **Latest Auth Mail** | #9235 (BronzeGate PM ruling: reshape to Sequential Scanline Rasterizer) |
-| **Latest Auth Mail** | #9237 (CyanPeak design packet audit PASS) |
+| **Latest Commit** | `45369b0` (BrightForge: SpriteRasterizer module + unit sim, standalone) |
+| **Latest Auth Mail** | #9244 (BronzeGate PM ruling: staged integration + metadata bit for collision) |
 | **Scope** | Replace parallel per-slot sprite compositor with a Sequential Scanline Rasterizer so Task 2b capacity bump becomes a parameter change. Preserve all existing V=8 behavior. Checkpoint 2 parallel shared-AffineStepper path retired per convergence #9233/#9234. |
 | **Files changed** | `VdpTop.scala` (Checkpoint 1: tree-pipelined merge + delay compensation); future: sequential drawer FSM + sprite line buffer |
-| **Next Deliverable** | BrightForge implementation proof packet (V=8 regression + V=32 projection) |
+| **Next Deliverable** | Step 1 wiring commit: rasterizer in parallel, drain unused, regression PASS |
 | **Coding Authorized** | **YES** — #9235 auto-proceed posture; #9237 audit PASS; coding active |
 
 **Context:** Task 2 direct 64/32 bump blocked by #9210 (51k-LUT synthesis failure, 2.47× over limit). BronzeGate #9212 ruled to open Task 2a and defer Task 2b. Checkpoint 1 (tree-pipelined merge) audit PASS #9222. Checkpoint 2 (shared AffineStepper) WIP reduced V=32 from 51k→22k logic but V=16 still failed P&R (#9231) due to CLS/FF density wall. Paired diagnosis converged on Sequential Scanline Rasterizer as the only viable path (#9233 CyanPeak, #9234 CoralReef). BronzeGate #9235 authorized reshape. BrightForge #9236 delivered design packet. CyanPeak #9237 audit PASS. Coding active per auto-proceed posture.
-
+**Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. BronzeGate #9244: staged integration (B) + metadata bit (ii) for collision. Commit `45369b0`: SpriteRasterizer + 3-case unit sim PASS.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
