@@ -28,18 +28,18 @@ This section tracks the single active lane so the team does not infer state from
 |-------|-------|
 | **Task** | **Task 2a — Sprite Capacity Substrate Pre-Hardening** |
 | **Status** | **IN-PROGRESS** (implementation phase — proof packet landed, awaiting audit) |
-| **Phase** | artifact → audit → implement → capture |
-| **Owner** | BrightForge (coding), CyanPeak (audit), CoralReef (ledger/research) |
+| **Status** | **DONE** (CyanPeak audit PASS #9250 — awaiting BronzeGate PM closeout confirmation) |
+| **Phase** | closeout
 | **Latest Commit** | `983d1db` (Step 2 cutover: sequential rasterizer replaces parallel pipeline) |
 | **Latest Commit** | `c68d557` (SpriteSubstrateSim — artifact Cases A–D) |
 | **Commits in lane** | `45369b0` (SpriteRasterizer module); `12df99d` (Step 1 parallel wiring); `983d1db` (Step 2 cutover); `c68d557` (SpriteSubstrateSim Cases A–D) |
 | **Latest Auth Mail** | #9250 (CyanPeak audit PASS — Checkpoint 2 proof packet) |
 | **Files changed** | `VdpTop.scala` (−252/+77 net), new `SpriteRasterizer.scala` (~350 LOC), new `SpriteRasterizerSim.scala` (~250 LOC) |
 | **Next Deliverable** | CyanPeak audit of #9248; BronzeGate ruling on (a)/(b)/(c) |
-| **Next Deliverable** | BronzeGate PM ruling on (a)/(b)/(c) |
+| **Next Deliverable** | BronzeGate PM closeout ruling + Task 2c activation decision |
 
 **Context:** Task 2 direct 64/32 bump blocked by #9210 (51k-LUT synthesis failure, 2.47× over limit). BronzeGate #9212 ruled to open Task 2a and defer Task 2b. Checkpoint 1 (tree-pipelined merge) audit PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. BronzeGate #9244: staged integration (B) + metadata bit (ii) for collision. Commits `45369b0`→`12df99d`→`983d1db`: SpriteRasterizer module, Step 1 parallel wiring, Step 2 cutover. V=8 bit-identical regression PASS (8/8 sims), +83 logic vs Checkpoint 1, 0 timing violations. V=32 projection: 15,930 logic (77%), 11,729 LUT — LUT target met, but P&R fails with 4,209 unplaced REGs due to SpriteEvaluator `active*` Vec FF density (new bottleneck, outside Task 2a renderer scope). BrightForge proposes (a) accept Checkpoint 2 as done, (b) sub-V=32 bump, or (c) park 2b.
-**Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. BronzeGate #9244: staged integration (B) + metadata bit (ii). Commits `45369b0`→`12df99d`→`983d1db`→`c68d557`: module, Step 1, Step 2, SpriteSubstrateSim. V=8 bit-identical regression PASS (8/8 sims), +83 logic, 0 timing violations. V=32 projection: 15,930 logic (77%), 11,729 LUT — LUT target met, P&R fails on SpriteEvaluator FF density. BrightForge proposes (a) accept / (b) sub-V=32 bump / (c) park 2b. CyanPeak #9250 audit PASS. Awaiting BronzeGate ruling.
+**Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. BronzeGate #9244: staged integration (B) + metadata bit (ii). Commits `45369b0`→`12df99d`→`983d1db`→`c68d557`: module, Step 1, Step 2, SpriteSubstrateSim. V=8 bit-identical regression PASS (8/8 sims), +83 logic, 0 timing violations. V=32 projection: 15,930 logic (77%), 11,729 LUT — LUT target met, P&R fails on SpriteEvaluator FF density. CyanPeak #9250 audit PASS, formally closes Task 2a. Recommends Task 2c (Sprite Evaluator Hardening) for V=32 fit. Awaiting BronzeGate closeout ruling.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
