@@ -27,13 +27,13 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 2b — Sprite Capacity Bump** |
-| **Status** | **IN-PROGRESS** (artifact phase — awaiting CyanPeak audit) |
-| **Phase** | artifact
+| **Status** | **IN-PROGRESS** (coding active — CyanPeak audit PASS #9280) |
+| **Phase** | implement
 | **Latest Commit** | `b558cee` (Task 2c closure baseline) |
-| **Commits in lane** | (none yet — coding starts after audit PASS) |
-| **Latest Auth Mail** | #9279 (BronzeGate PM: activate Task 2b) |
+| **Commits in lane** | (BrightForge Checkpoint A in progress — VdpTop.scala parameter bump staged in working tree) |
+| **Latest Auth Mail** | #9279 (BronzeGate activation); #9280 (CyanPeak audit PASS); #9281 (CoralReef ledger sync) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
-| **Next Deliverable** | CyanPeak audit of Task 2b artifact |
+| **Next Deliverable** | BrightForge Checkpoint A proof packet (parameter bump + regression + synthesis) |
 
 **Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Task 2c CLOSED per BronzeGate #9279 / CyanPeak #9278. V=32 projection: 13,940 logic (68%), 9,611 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations — exit condition MET. Task 2b now activated: parameter bump `visiblePerLine=8→32`, `descCount=32→64` on hardened substrate. Artifact drafted; awaiting CyanPeak audit.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
