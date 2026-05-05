@@ -116,11 +116,11 @@ Impact is scored by:
 
 **Authority:** BronzeGate #9252; artifact `TASK_2C_SPRITE_EVALUATOR_HARDENING.md`; CyanPeak audit PASS #9278 on proof packet.
 
-### Task 2b — Sprite Capacity Bump (CLOSED sim/synth; HW proof v2 pending re-audit)
+### Task 2b — Sprite Capacity Bump (FULLY CLOSED)
 
 **Purpose:** Execute the actual `visiblePerLine` 8→32 and `descCount` 32→64 bump on the hardened substrate.
 
-**Status:** Sim/synth CLOSED. HW proof v1 (#9290) rejected by BronzeGate #9293 — background-only scene insufficient for sprite-capacity claim. HW proof v2 (#9295) delivered with 28 visible host-driven sprites. Awaiting CyanPeak re-audit.
+**Status:** FULLY CLOSED. CyanPeak audit PASS #9286 (sim/synth); CyanPeak re-audit PASS #9298 (HW proof v2).
 
 **Commits:** `2281482` (parameter bump), `a268e1e` (SpriteSubstrateSim Cases E+F)
 
@@ -132,7 +132,7 @@ Impact is scored by:
 
 **Proof shape:** `SpriteCapacityExpansionSim` 6 cases + regression + V=32 synthesis + 30s HW capture with sprite-populated scene.
 
-**Authority:** BronzeGate #9287 (sim/synth), #9293 (correction), #9294 (policy); artifact `TASK_2B_SPRITE_CAPACITY_BUMP.md`; CyanPeak audit PASS #9286; BrightForge HW proof v2 #9295.
+**Authority:** BronzeGate #9287 (sim/synth), #9293 (correction), #9294 (policy); artifact `TASK_2B_SPRITE_CAPACITY_BUMP.md`; CyanPeak audit PASS #9286 / #9298; BrightForge HW proof v2 #9295.
 
 ---
 
