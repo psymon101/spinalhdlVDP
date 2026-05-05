@@ -205,6 +205,38 @@ object SpriteSubstrateSim extends App {
     }
     println("  Case D PASS — budget saturation does not false-strobe cycleOverflow once renderer is idle")
 
-    println("SpriteSubstrateSim: PASS (all cases A-D)")
+    // ---------------------------------------------------------------
+    // Case E (Task 2b artifact §Validation): cycle-budget overflow
+    //   positive path — 32 sprites × 64 px (= 32 × 68 cycles ≈ 2,176)
+    //   exceeds the 798-cycle budget; cycleOverflow must strobe and
+    //   tail sprites must be left undrawn.
+    // ---------------------------------------------------------------
+    println("[sim] Case E: 32 × 64 px — cycle budget MUST overflow")
+    clearList()
+    for (s <- 0 until 32) setSlot(s = s, x = (s * 4) % 640, sizeSel = 3, bank = 1, prio = 1)
+    activeCount = 32
+    val overflowE = runOneLine(maxCycles = 1000)
+    if (!overflowE) {
+      println("  Case E FAIL — cycleOverflow did NOT strobe at 32×64 px")
+      assert(overflowE, "Case E: cycle budget should overflow at 32×64 px (2,176 > 798 cycles)")
+    }
+    println("  Case E PASS — cycleOverflow strobed for 32×64 px workload")
+
+    // ---------------------------------------------------------------
+    // Case F (Task 2b artifact §Validation): low-pressure positive
+    //   path — 32 small sprites (8 px) fit in budget without overflow.
+    // ---------------------------------------------------------------
+    println("[sim] Case F: 32 × 8 px — fits in budget, no overflow")
+    clearList()
+    for (s <- 0 until 32) setSlot(s = s, x = s * 16, sizeSel = 0, bank = 1, prio = 1)
+    activeCount = 32
+    val overflowF = runOneLine(maxCycles = 1000)
+    if (overflowF) {
+      println("  Case F FAIL — cycleOverflow strobed at 32×8 px (should fit)")
+      assert(!overflowF, "Case F: 32×8 px = 384 cycles fits in 798-cycle budget")
+    }
+    println("  Case F PASS — 32×8 px = 384 cycles fits in budget")
+
+    println("SpriteSubstrateSim: PASS (all cases A-F)")
   }
 }
