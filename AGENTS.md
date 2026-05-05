@@ -488,6 +488,9 @@ Routine mail should be compact and structured by packet type.
 - exact files or subsystem touched
 - simulation or build result
 - hardware-proof result when applicable
+- claim under test when hardware proof is involved
+- exact scene or workload shown when hardware proof is involved
+- why the retained artifact proves that claim, not just general liveness
 - blocker / none
 - next expected owner
 
@@ -581,6 +584,21 @@ Preferred audit checklists by packet type:
   - exact analysis method stated
   - exact pass/fail metric stated
   - current commit / programmed state tied to the evidence
+  - claimed feature is explicitly stated
+  - visible or direct observable content actually matches the claimed feature
+  - proof is rejected as insufficient if it shows only general stable output
+    while claiming a feature-specific result
+
+Hardware-proof claim rule:
+
+- a hardware-proof packet must state the exact feature claim under test
+- it must state what is visibly on screen or otherwise directly observable
+- it must explain why that scene or observable proves the claimed feature
+- generic “live output” or “stable video” evidence is not sufficient when the
+  claim is about a specific feature such as sprite count, priority, collision,
+  or mode behavior
+- if the packet does not visibly or directly exercise the claimed feature, it
+  should be treated as a stability proof only, not feature proof
 
 When a blocker packet presents multiple hypotheses, prefer the cheapest
 discriminating next experiment unless a larger step is clearly required.

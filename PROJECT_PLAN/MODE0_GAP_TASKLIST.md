@@ -116,23 +116,23 @@ Impact is scored by:
 
 **Authority:** BronzeGate #9252; artifact `TASK_2C_SPRITE_EVALUATOR_HARDENING.md`; CyanPeak audit PASS #9278 on proof packet.
 
-### Task 2b — Sprite Capacity Bump (FULLY CLOSED)
+### Task 2b — Sprite Capacity Bump (CLOSED sim/synth; HW proof v2 pending re-audit)
 
 **Purpose:** Execute the actual `visiblePerLine` 8→32 and `descCount` 32→64 bump on the hardened substrate.
 
-**Status:** FULLY CLOSED. CyanPeak audit PASS #9286; BronzeGate PM ruling #9287; BrightForge hardware proof #9290 (freeze=0.0000).
+**Status:** Sim/synth CLOSED. HW proof v1 (#9290) rejected by BronzeGate #9293 — background-only scene insufficient for sprite-capacity claim. HW proof v2 (#9295) delivered with 28 visible host-driven sprites. Awaiting CyanPeak re-audit.
 
 **Commits:** `2281482` (parameter bump), `a268e1e` (SpriteSubstrateSim Cases E+F)
 
 **Results:**
 - V=32 committed defaults: **13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations**
 - Regression: 10/10 PASS (including new Cases E+F)
-- Hardware proof: 30s capture, 846 frames, **freeze=0.0000**, glitch=0.0000, analyze.py PASS
+- HW proof v2: 30s capture, 868 frames, **freeze=0.0000**, glitch=0.0000, 28 visible sprites, analyze.py PASS
 - Total trajectory: 51,191 → 13,924 = **3.7× reduction** from original blocker
 
-**Proof shape:** `SpriteCapacityExpansionSim` 6 cases + regression + V=32 synthesis + 30s HW capture.
+**Proof shape:** `SpriteCapacityExpansionSim` 6 cases + regression + V=32 synthesis + 30s HW capture with sprite-populated scene.
 
-**Authority:** BronzeGate #9287; artifact `TASK_2B_SPRITE_CAPACITY_BUMP.md`; CyanPeak audit PASS #9286; BrightForge HW proof #9290.
+**Authority:** BronzeGate #9287 (sim/synth), #9293 (correction), #9294 (policy); artifact `TASK_2B_SPRITE_CAPACITY_BUMP.md`; CyanPeak audit PASS #9286; BrightForge HW proof v2 #9295.
 
 ---
 

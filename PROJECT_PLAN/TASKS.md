@@ -27,15 +27,15 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 2b — Sprite Capacity Bump** |
-| **Status** | **DONE** — FULLY CLOSED (sim/synth + hardware proof) |
-| **Phase** | closed
+| **Status** | **IN-PROGRESS** (sim/synth CLOSED; hardware proof pending CyanPeak re-audit) |
+| **Phase** | audit-pending (HW proof v2)
 | **Latest Commit** | `a268e1e` (SpriteSubstrateSim Cases E + F) |
 | **Commits in lane** | `2281482` (parameter bump); `a268e1e` (Cases E+F) |
-| **Latest Auth Mail** | #9289 (BronzeGate bench activation); #9290 (BrightForge HW proof — freeze=0); #9291 (CoralReef closeout) |
+| **Latest Auth Mail** | #9293 (BronzeGate correction: HW proof v1 insufficient); #9295 (BrightForge HW proof v2 — 28 sprites visible) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
-| **Next Deliverable** | N/A — Task 2b fully closed |
+| **Next Deliverable** | CyanPeak re-audit of HW proof v2 (#9295) |
 
-**Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Task 2c CLOSED per BronzeGate #9279 / CyanPeak #9278. Task 2b **FULLY CLOSED** per BronzeGate #9287 / CyanPeak #9286 / BrightForge #9290. V=32 committed defaults: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. Regression 10/10 PASS. Hardware proof: 30s capture, 846 frames, freeze=0.0000, glitch=0.0000, analyze.py PASS. Total trajectory: 51,191 → 13,924 = 3.7× reduction. No active lane.
+**Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Task 2c CLOSED per BronzeGate #9279 / CyanPeak #9278. Task 2b sim/synth CLOSED per BronzeGate #9287 / CyanPeak #9286. BronzeGate #9293 corrected: HW proof v1 (#9290) insufficient — background-only scene does not prove sprite-capacity claim. BrightForge #9295 delivered HW proof v2 with 28 host-driven sprites visible, freeze=0.0000, glitch=0.0000. Awaiting CyanPeak re-audit. No code churn per BronzeGate scope guard.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
