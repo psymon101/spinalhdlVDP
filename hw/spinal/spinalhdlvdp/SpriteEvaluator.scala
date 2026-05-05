@@ -107,6 +107,16 @@ case class SpriteEvaluator(
     val activeBppSel       = out Vec(UInt(2 bits), visiblePerLine)   // P2-2: new field
 
     val overflowFlag = out Bool()
+
+    // Task 2c — narrow active-list RAM read port for the SpriteRasterizer.
+    // Pass 1 packs each on-line descriptor into a single 128-bit slot word
+    // and writes it sequentially into `activeListMem` at indices 0..count-1.
+    // The rasterizer drives `activeReadAddr` and consumes `activeReadData`
+    // (combinational), bounded by `activeCount`. Removes ~4.3k FFs at V=32
+    // by collapsing the per-slot active*Reg Vecs into one shared Mem.
+    val activeReadAddr = in  UInt(log2Up(visiblePerLine) bits)
+    val activeReadData = out Bits(SpriteEvaluator.SlotPackedW bits)
+    val activeCountOut = out UInt(log2Up(visiblePerLine + 1) bits)
   }
 
   // ---------------------------------------------------------------------
@@ -418,4 +428,109 @@ case class SpriteEvaluator(
   io.activeSizeSel      := activeSizeSelReg
   io.activeBppSel       := activeBppSelReg
   io.overflowFlag       := overflowFlagReg
+
+  // ============================================================
+  // Task 2c — Active-list RAM (parallel back-end, Phase 1 of cutover)
+  //
+  // The active*Reg Vecs above are the original FF-based storage; they
+  // continue to drive the legacy IO Vec outputs for sim backward-compat.
+  // In parallel, we maintain a Mem-based packed active list that the
+  // SpriteRasterizer can read through `io.activeReadAddr/Data/Count`.
+  //
+  // Phase 2 (Checkpoint D) switches the rasterizer onto the RAM port;
+  // Phase 3 (cleanup) removes the legacy active*Reg Vecs and the
+  // legacy IO Vec outputs entirely — at which point the V=32 P&R
+  // proof should land with zero unplaced REGs.
+  //
+  // Pack layout (MSB → LSB), per artifact appendix:
+  //   [127:112] matrixA   (16)
+  //   [111: 96] matrixB   (16)
+  //   [ 95: 80] matrixC   (16)
+  //   [ 79: 64] matrixD   (16)
+  //   [ 63: 48] transX    (16)
+  //   [ 47: 32] transY    (16)
+  //   [ 31: 22] x         (10)
+  //   [ 21: 16] row       (6)
+  //   [ 15: 12] patIdx    (4)
+  //   [ 11:  9] paletteBank (3)
+  //   [  8:  7] priority  (2)
+  //   [  6:  5] sizeSel   (2)
+  //   [  4:  3] bppSel    (2)
+  //   [  2]     affineEnable (1)
+  //   [  1]     flipH     (1)
+  //   [  0]     flipV     (1)
+  // (activeY is omitted — dead since Task 2a Step 2.)
+  val activeListMem = Mem(Bits(SpriteEvaluator.SlotPackedW bits), visiblePerLine)
+
+  val packedSlot = SpriteEvaluator.packSlot(
+    matrixA   = curMatrixA,
+    matrixB   = curMatrixB,
+    matrixC   = curMatrixC,
+    matrixD   = curMatrixD,
+    transX    = curTransX,
+    transY    = curTransY,
+    x         = curX,
+    row       = (io.evalLine - curY).resize(6),
+    patIdx    = curPat.resize(SpriteEvaluator.PatIdxWidth),
+    paletteBank = curPaletteBank,
+    priority  = curPriority,
+    sizeSel   = curSizeSel,
+    bppSel    = curBppSel,
+    affineEnable = curAffineEnable,
+    flipH     = curFlipH,
+    flipV     = curFlipV
+  )
+  // Mem write occurs in the same conditions as the legacy active*Reg
+  // Vec writes — gated on (scanBusy && dOnLine && activeCount<visiblePerLine).
+  val memWrite = scanBusy && dOnLine && (activeCount < U(visiblePerLine, activeCount.getWidth bits))
+  activeListMem.write(
+    address = activeCount.resize(log2Up(visiblePerLine)),
+    data    = packedSlot,
+    enable  = memWrite
+  )
+
+  io.activeReadData := activeListMem.readAsync(io.activeReadAddr)
+  io.activeCountOut := activeCount
+}
+
+object SpriteEvaluator {
+  // Task 2c — packed active-slot word width and field offsets.
+  val SlotPackedW: Int = 128
+  val PatIdxWidth: Int = 4   // bits — fixed by descriptor format
+
+  // Pack a slot's fields into a 128-bit word.
+  def packSlot(
+      matrixA: Bits, matrixB: Bits, matrixC: Bits, matrixD: Bits,
+      transX: Bits, transY: Bits,
+      x: UInt, row: UInt,
+      patIdx: UInt, paletteBank: UInt, priority: UInt,
+      sizeSel: UInt, bppSel: UInt,
+      affineEnable: Bool, flipH: Bool, flipV: Bool): Bits = {
+    matrixA ## matrixB ## matrixC ## matrixD ##
+    transX  ## transY  ##
+    x.asBits.resize(10) ## row.asBits.resize(6) ##
+    patIdx.asBits.resize(4) ## paletteBank.asBits.resize(3) ##
+    priority.asBits.resize(2) ##
+    sizeSel.asBits.resize(2) ## bppSel.asBits.resize(2) ##
+    affineEnable.asBits ## flipH.asBits ## flipV.asBits
+  }
+
+  // Field-extraction helpers (slot word from `activeReadData`).
+  // Bit positions match `packSlot` above.
+  def slotMatrixA(w: Bits)   : Bits = w(127 downto 112)
+  def slotMatrixB(w: Bits)   : Bits = w(111 downto  96)
+  def slotMatrixC(w: Bits)   : Bits = w( 95 downto  80)
+  def slotMatrixD(w: Bits)   : Bits = w( 79 downto  64)
+  def slotTransX (w: Bits)   : Bits = w( 63 downto  48)
+  def slotTransY (w: Bits)   : Bits = w( 47 downto  32)
+  def slotX      (w: Bits)   : UInt = w( 31 downto  22).asUInt
+  def slotRow    (w: Bits)   : UInt = w( 21 downto  16).asUInt
+  def slotPatIdx (w: Bits)   : UInt = w( 15 downto  12).asUInt
+  def slotPaletteBank(w: Bits): UInt = w(11 downto   9).asUInt
+  def slotPriority(w: Bits)  : UInt = w(  8 downto   7).asUInt
+  def slotSizeSel(w: Bits)   : UInt = w(  6 downto   5).asUInt
+  def slotBppSel (w: Bits)   : UInt = w(  4 downto   3).asUInt
+  def slotAffineEnable(w: Bits): Bool = w(2)
+  def slotFlipH  (w: Bits)   : Bool = w(1)
+  def slotFlipV  (w: Bits)   : Bool = w(0)
 }
