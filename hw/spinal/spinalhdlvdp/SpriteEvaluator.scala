@@ -274,24 +274,10 @@ case class SpriteEvaluator(
     out
   }
 
-  val activeValidReg        = Vec.fill(visiblePerLine)(RegInit(False))
-  val activeXReg            = Vec.fill(visiblePerLine)(RegInit(U(0, 10 bits)))
-  val activeYReg            = Vec.fill(visiblePerLine)(RegInit(U(0, 10 bits)))
-  val activeRowReg          = Vec.fill(visiblePerLine)(RegInit(U(0, 6 bits)))
-  val activePatternReg      = Vec.fill(visiblePerLine)(RegInit(U(0, patternSelBits bits)))
-  val activeAffineEnableReg = Vec.fill(visiblePerLine)(RegInit(False))
-  val activeMatrixAReg      = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
-  val activeMatrixBReg      = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
-  val activeMatrixCReg      = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
-  val activeMatrixDReg      = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
-  val activeTransXReg       = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
-  val activeTransYReg       = Vec.fill(visiblePerLine)(RegInit(B(0, 16 bits)))
-  val activeFlipHReg        = Vec.fill(visiblePerLine)(RegInit(False))
-  val activeFlipVReg        = Vec.fill(visiblePerLine)(RegInit(False))
-  val activePaletteBankReg  = Vec.fill(visiblePerLine)(RegInit(U(0, 3 bits)))
-  val activePriorityReg     = Vec.fill(visiblePerLine)(RegInit(U(0, 2 bits)))   // P2-3b
-  val activeSizeSelReg      = Vec.fill(visiblePerLine)(RegInit(U(SpriteDescriptor.DefaultSizeSel, 2 bits)))
-  val activeBppSelReg       = Vec.fill(visiblePerLine)(RegInit(U(0, 2 bits)))   // P2-2
+  // Task 2c final cleanup: legacy active*Reg Vecs removed. The active list
+  // is stored in `activeListMem` (declared below); legacy IO Vec outputs
+  // are driven by per-slot combinational Mem reads. activeY is dead and
+  // also removed.
   val overflowFlagReg       = Reg(Bool()) init False
 
   when(io.evalStart) {
@@ -300,9 +286,8 @@ case class SpriteEvaluator(
     totalOnLine  := 0
     tileCountReg := 0    // Phase 2 P2-4: reset tile-budget counter per line
     scanBusy     := True
-    for (s <- 0 until visiblePerLine) {
-      activeValidReg(s) := False
-    }
+    // Task 2c: no per-slot activeValidReg clearing needed — validity is
+    // implicit via `s < activeCount`, which goes to 0 here.
   }
 
   // Combinational on-line check for the currently-scanned descriptor.
@@ -364,31 +349,9 @@ case class SpriteEvaluator(
       // tile fetches, not on visible-slot allocation.
       tileCountReg := tileCountReg + tilesForSize(curSizeSel).resize(11)
       when(activeCount < U(visiblePerLine, activeCount.getWidth bits)) {
-        val slot = activeCount.resize(slotBits)
-        switch(slot) {
-          for (s <- 0 until visiblePerLine) {
-            is(U(s, slotBits bits)) {
-              activeValidReg(s)        := True
-              activeXReg(s)            := curX
-              activeYReg(s)            := curY
-              activeRowReg(s)          := (io.evalLine - curY).resize(6)
-              activePatternReg(s)      := curPat
-              activeAffineEnableReg(s) := curAffineEnable
-              activeMatrixAReg(s)      := curMatrixA
-              activeMatrixBReg(s)      := curMatrixB
-              activeMatrixCReg(s)      := curMatrixC
-              activeMatrixDReg(s)      := curMatrixD
-              activeTransXReg(s)       := curTransX
-              activeTransYReg(s)       := curTransY
-              activeFlipHReg(s)        := curFlipH
-              activeFlipVReg(s)        := curFlipV
-              activePaletteBankReg(s)  := curPaletteBank
-              activePriorityReg(s)     := curPriority
-              activeSizeSelReg(s)      := curSizeSel
-              activeBppSelReg(s)       := curBppSel
-            }
-          }
-        }
+        // Task 2c: per-slot Vec writes removed. The active-list Mem
+        // write below (single packed-word write at addr=activeCount)
+        // replaces the 16 per-Vec assignments.
         activeCount := activeCount + 1
       }
     }
@@ -409,24 +372,6 @@ case class SpriteEvaluator(
     }
   }
 
-  io.activeValid        := activeValidReg
-  io.activeX            := activeXReg
-  io.activeY            := activeYReg
-  io.activeRow          := activeRowReg
-  io.activePatternIdx   := activePatternReg
-  io.activeAffineEnable := activeAffineEnableReg
-  io.activeMatrixA      := activeMatrixAReg
-  io.activeMatrixB      := activeMatrixBReg
-  io.activeMatrixC      := activeMatrixCReg
-  io.activeMatrixD      := activeMatrixDReg
-  io.activeTransX       := activeTransXReg
-  io.activeTransY       := activeTransYReg
-  io.activeFlipH        := activeFlipHReg
-  io.activeFlipV        := activeFlipVReg
-  io.activePaletteBank  := activePaletteBankReg
-  io.activePriority     := activePriorityReg
-  io.activeSizeSel      := activeSizeSelReg
-  io.activeBppSel       := activeBppSelReg
   io.overflowFlag       := overflowFlagReg
 
   // ============================================================
@@ -491,6 +436,32 @@ case class SpriteEvaluator(
 
   io.activeReadData := activeListMem.readAsync(io.activeReadAddr)
   io.activeCountOut := activeCount
+
+  // Legacy IO Vec outputs — combinational per-slot reads of activeListMem.
+  // Preserves backward-compat for SpriteEvaluatorSim's per-slot probes
+  // (dut.io.activeX(s), etc.) without the FF-density cost of the prior
+  // active*Reg Vec storage.
+  for (s <- 0 until visiblePerLine) {
+    val w = activeListMem.readAsync(U(s, log2Up(visiblePerLine) bits))
+    io.activeValid(s)        := U(s, log2Up(visiblePerLine + 1) bits) < activeCount
+    io.activeX(s)            := SpriteEvaluator.slotX(w)
+    io.activeY(s)            := U(0, 10 bits)   // dead since Task 2a Step 2
+    io.activeRow(s)          := SpriteEvaluator.slotRow(w)
+    io.activePatternIdx(s)   := SpriteEvaluator.slotPatIdx(w).resize(patternSelBits)
+    io.activeAffineEnable(s) := SpriteEvaluator.slotAffineEnable(w)
+    io.activeMatrixA(s)      := SpriteEvaluator.slotMatrixA(w)
+    io.activeMatrixB(s)      := SpriteEvaluator.slotMatrixB(w)
+    io.activeMatrixC(s)      := SpriteEvaluator.slotMatrixC(w)
+    io.activeMatrixD(s)      := SpriteEvaluator.slotMatrixD(w)
+    io.activeTransX(s)       := SpriteEvaluator.slotTransX(w)
+    io.activeTransY(s)       := SpriteEvaluator.slotTransY(w)
+    io.activeFlipH(s)        := SpriteEvaluator.slotFlipH(w)
+    io.activeFlipV(s)        := SpriteEvaluator.slotFlipV(w)
+    io.activePaletteBank(s)  := SpriteEvaluator.slotPaletteBank(w)
+    io.activePriority(s)     := SpriteEvaluator.slotPriority(w)
+    io.activeSizeSel(s)      := SpriteEvaluator.slotSizeSel(w)
+    io.activeBppSel(s)       := SpriteEvaluator.slotBppSel(w)
+  }
 }
 
 object SpriteEvaluator {
