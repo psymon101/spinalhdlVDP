@@ -27,14 +27,13 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 2c — Sprite Evaluator Hardening** |
-| **Status** | **IN-PROGRESS** (artifact phase — awaiting CyanPeak audit) |
-| **Phase** | artifact
-| **Latest Commit** | `ab687d1` (Task 2a closeout — baseline for 2c) |
-| **Commits in lane** | (none yet — coding starts after audit PASS) |
-| **Latest Auth Mail** | #9252 (BronzeGate PM: activate Task 2c) |
-| **Artifact** | `PROJECT_PLAN/artifacts/TASK_2C_SPRITE_EVALUATOR_HARDENING.md` (this artifact) |
-| **Next Deliverable** | CyanPeak audit of Task 2c artifact |
-| **Next Deliverable** | BrightForge coding after audit PASS |
+| **Status** | **IN-PROGRESS** (implementation phase — Audit PASS #9254) |
+| **Phase** | implement
+| **Latest Commit** | `b2f4a5d` (Checkpoint C: Evaluator RAM + read port + pack/unpack) |
+| **Commits in lane** | `b2f4a5d` (Checkpoint C) |
+| **Latest Auth Mail** | #9252 (BronzeGate PM: activate Task 2c); #9254 (CyanPeak audit PASS) |
+| **Artifact** | `PROJECT_PLAN/artifacts/TASK_2C_SPRITE_EVALUATOR_HARDENING.md` |
+| **Next Deliverable** | BrightForge Checkpoint D — SpriteRasterizer narrow interface (consume RAM port) |
 
 **Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Renderer substrate hardened (sequential rasterizer). V=32 projection: 15,930 logic (77%), 11,729 LUT — renderer no longer bottleneck. New bottleneck: SpriteEvaluator `active*` Vec FF density causes 4,209 unplaced REGs at 94% CLS. Task 2c scope: replace 16 `active*Reg` Vecs with compacted active-list RAM inside evaluator, narrow rasterizer interface to RAM read port, remove dead `activeY`. Target: V=32 places with zero unplaced REGs. Task 2b (actual capacity bump) remains deferred until 2c closes.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
