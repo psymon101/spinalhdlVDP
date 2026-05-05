@@ -1183,10 +1183,13 @@ case class VdpTop() extends Component {
   // The cost of readSync is one extra clock of latency — `pixel` now
   // arrives one cycle after `ramAddr` is presented, which is compensated
   // for by registering the slot-visible flag and slot pixel below.
-  val spritePatternRams = (0 until 8).map { _ =>   // NUM_SLOTS bound below
+  // Task 2a Checkpoint 2 Step 2: trimmed from 8 per-slot Mems to 1 shared
+  // Mem. The sequential rasterizer (single read port) replaces the parallel
+  // per-slot for-loop's NUM_SLOTS read ports.
+  val spritePatternRams = (0 until 1).map { _ =>
     Mem(Bits(4 bits), initialContent = VdpTop.spritePatternRamInit)
   }
-  spritePatternRams.head.simPublic()    // slot-0 mem visible for sim probes
+  spritePatternRams.head.simPublic()    // mem visible for sim probes
 
   // Bus interface for runtime pattern RAM writes.
   //   0x0B00 (single word): pointer write — sets `patternRamPtr[11:0]` to
@@ -1283,314 +1286,46 @@ case class VdpTop() extends Component {
   // Drain addr — for Step 1, just feed hCounter (rasterizer drain is not
   // yet consumed downstream; this exists so the drain mux/registers
   // toggle and the module elaborates cleanly).
-  spriteRasterizer.io.drainAddr       := hCounter.resize(log2Up(hActive))
+  // drainAddr is forward-declared; assigned in the bg-only compositor block below.
+  val drainAddr = UInt(log2Up(hActive) bits)
+  spriteRasterizer.io.drainAddr       := drainAddr
   // Expose drain outputs for sim inspection.
   spriteRasterizer.io.drainPixel.simPublic()
   spriteRasterizer.io.drainPaletteBank.simPublic()
   spriteRasterizer.io.drainPriority.simPublic()
+  spriteRasterizer.io.drainSlot0.simPublic()
   spriteRasterizer.io.cycleOverflow.simPublic()
   // ============================================================
 
-  val slotVisible = Vec(Bool(), NUM_SLOTS)
-  val slotPixel   = Vec(Bits(4 bits), NUM_SLOTS)
-  for (s <- 0 until NUM_SLOTS) {
-    val x       = spriteEval.io.activeX(s)
-    val row     = spriteEval.io.activeRow(s)               // 6 bits (Hardening)
-    val valid   = spriteEval.io.activeValid(s)
-    val patIdx  = spriteEval.io.activePatternIdx(s)
-    val affEn   = spriteEval.io.activeAffineEnable(s)
-    val flipH   = spriteEval.io.activeFlipH(s)
-    val flipV   = spriteEval.io.activeFlipV(s)
-    val sizeSel = spriteEval.io.activeSizeSel(s)
+  // === Task 2a Checkpoint 2 Step 2 cutover (PM #9244): bg-only fillPacked ===
+  // The parallel per-slot for-loop and Checkpoint 1 tree merge are replaced
+  // by the SpriteRasterizer (instantiated above) producing the sprite drain.
+  // The lineBuf now holds bg-only content; bg + sprite are composited at
+  // drain time below.
 
-    // Sprite Envelope Hardening B-3: hitbox width = sizeForSel(sizeSel).
-    val width   = SpriteDescriptor.sizeForSel(sizeSel)     // 7 bits, max 64
-
-    // Flat path: hitbox uses width; pattern memory remains 16×16 (pattern
-    // expansion is OUT of #8577 scope) so col/row are masked to 4 bits and
-    // sprite slot of size > 16 effectively tiles the pattern. flipH/flipV
-    // mirror the masked col/row so legacy 16×16 cases produce mirrored output.
-    // Address gen and hitbox use `fillXAhead` (= fillX + 1) so the
-    // 1-cycle `readSync` latency on the pattern RAM lines up with the
-    // lineBuf write address downstream — see P2-1 note above.
-    val col      = (fillXAhead - x).resize(10)
-    val flatOn   = fillXAhead >= x && fillXAhead < (x + width.resize(10))
-    val flippedCol = Mux(flipH, ~col(3 downto 0), col(3 downto 0))
-    val flippedRow = Mux(flipV, ~row(3 downto 0), row(3 downto 0))
-    val flatAddr   = (flippedRow ## flippedCol).asUInt
-
-    // Task 37 affine path: per-slot AffineStepper (replication, per
-    // CyanPeak #7904 §8). Host pre-computes transX/Y so that hotspot
-    // (sprite center) maps to texture (8, 8). Out-of-bounds (u,v) outside
-    // [0..15] → clamp to transparent.
-    val stepper = AffineStepper()
-    stepper.io.x       := fillXAhead   // P2-1: pre-roll affine path too
-    stepper.io.y       := fillLine.resize(10)
-    stepper.io.matrixA := spriteEval.io.activeMatrixA(s)
-    stepper.io.matrixB := spriteEval.io.activeMatrixB(s)
-    stepper.io.matrixC := spriteEval.io.activeMatrixC(s)
-    stepper.io.matrixD := spriteEval.io.activeMatrixD(s)
-    stepper.io.transX  := spriteEval.io.activeTransX(s)
-    stepper.io.transY  := spriteEval.io.activeTransY(s)
-    val uIntFull = stepper.io.uFrac(31 downto 8)
-    val vIntFull = stepper.io.vFrac(31 downto 8)
-    val uOk      = uIntFull >= S(0, 24 bits) && uIntFull < S(16, 24 bits)
-    val vOk      = vIntFull >= S(0, 24 bits) && vIntFull < S(16, 24 bits)
-    val affOn    = uOk && vOk
-    val affAddr  = (vIntFull(3 downto 0).asBits ## uIntFull(3 downto 0).asBits).asUInt
-
-    val onPixel = Mux(affEn, affOn, flatOn)
-    val addr    = Mux(affEn, affAddr, flatAddr)
-    val active  = valid && onPixel
-    // Sprite Pattern Memory Foundation (#8596): per-slot BSRAM, addressed
-    // by {patIdx[3:0], row[3:0], col[3:0]}. patIdx now selects one of 16
-    // pattern slots instead of the prior 2. Each slot reads its own Mem
-    // (single read port → BSRAM infers cleanly); all Mems hold identical
-    // contents (bus writes are broadcast). Slots 0/1 ship initialised
-    // with diamond/cross for back-compat.
-    //
-    // readSync adds 1 clock of latency. `active` (= valid && onPixel) is
-    // registered alongside so the slot's visibility predicate aligns with
-    // the delayed pixel output. The fillX → x → col → addr chain shifts
-    // sprite output one pixel right of where the prior readAsync path
-    // would have placed it; that's an acceptable proof-stage difference
-    // (visible scenes still correctly show the patterns).
-    // Phase 2-bis (CoralReef #8622): bppSel-aware address generation.
-    // 2bpp packs 2 pixels per RAM word (col>>1 indexes the word, col(0)
-    // selects within); 1bpp packs 4 pixels per word (col>>2, col(1:0)
-    // selects). At 4bpp the address is unchanged. The RAM remains
-    // 12-bit addressed; sub-4bpp modes simply leave the low col bits
-    // dont-care in the address and rely on the unpack mux below.
-    val bppSel = spriteEval.io.activeBppSel(s)
-    // Task 52 (#9105/#9107): use flippedCol so per-sprite flipH applies in
-    // 2bpp/1bpp paths too. The 4bpp path already uses flippedCol via flatAddr
-    // above; only the sub-4bpp address-shift mux and the unpack pixel-select
-    // register were reading raw col, dropping flipH for NES/C64 sprites.
-    val colShifted: UInt = bppSel.mux(
-      U(0, 2 bits) -> flippedCol,
-      U(1, 2 bits) -> (B"0"  ## flippedCol(3 downto 1)).asUInt,
-      U(2, 2 bits) -> (B"00" ## flippedCol(3 downto 2)).asUInt,
-      default      -> flippedCol
-    )
-    val flatAddrBpp = (flippedRow ## colShifted.asBits.resize(4)).asUInt
-    val effFlatAddr = Mux(bppSel === U(0, 2 bits), flatAddr, flatAddrBpp)
-    val finalAddr   = Mux(affEn, affAddr, effFlatAddr)
-    val ramAddr     = (patIdx(3 downto 0).asBits ## finalAddr.asBits.resize(8)).asUInt
-    val rawPixel    = spritePatternRams(s).readSync(ramAddr)
-
-    // Pixel unpack: register the 2 LSBs of col so they align with the
-    // 1-cycle readSync result. Task 52: use flippedCol so the unpack
-    // pixel-select honors flipH at the sub-4bpp word offset too.
-    val colLowR  = RegNext(flippedCol(1 downto 0)) init U(0, 2 bits)
-    val bppSelR  = RegNext(bppSel) init U(0, 2 bits)
-    val twoBpp   = Mux(colLowR(0), rawPixel(3 downto 2), rawPixel(1 downto 0)).asBits.resize(4)
-    val oneBpp   = rawPixel(colLowR).asBits.resize(4)
-    val pixel: Bits = bppSelR.mux(
-      U(0, 2 bits) -> rawPixel,
-      U(1, 2 bits) -> twoBpp,
-      U(2, 2 bits) -> oneBpp,
-      default      -> rawPixel
-    )
-
-    val activeR = RegNext(active) init False
-    slotPixel(s)   := pixel
-    slotVisible(s) := activeR && pixel =/= B(0, 4 bits)
-  }
-
-  // Task 28 priority: back-to-front (slot 0 = lowest descriptor index,
-  // rendered first; higher-index slots overwrite lower-index ones on
-  // overlap). CyanPeak #7838 §8.3 approved back-to-front with descriptor
-  // index as the deterministic tie-breaker. R2's legacy 2-slot pattern
-  // (slot1 > slot0) generalises to NUM_SLOTS-1 > NUM_SLOTS-2 > … > 0.
-  //
-  // R4: line buffer carries {metadata, priority, bank, index}. Sprites
-  // render from legacy bank 0 with priority=0 to stay bit-compatible
-  // with R2.
-  val anySlotVisible = slotVisible.reduce(_ || _)
-
-  // Task 29 — sprite/background collision detection. Purely
-  // observational: no pixel-path change. `slotVisible(s)` already
-  // includes `pixel =/= 0`, so overlap with non-transparent background
-  // is simply the AND with `bgOpaque`. Sticky bits fold into `evBus`
-  // below and clear via the existing write-1-to-clear path on 0x0320.
-  val bgOpaque           = composedBgIdx =/= B(0, 4 bits)
-  val sprite0HitPulse    = slotVisible(0) && bgOpaque
-  val spriteBgHitPulse   = anySlotVisible && bgOpaque
-
-  // Sprite Envelope Hardening B-4/B-5 + Phase 2-bis (CoralReef #8622): full
-  // 4-level priority matrix consuming the 2-bit `activePriority` field. Tiers:
-  //   0 (lowest)  : sprite only shows where BG is transparent
-  //   1 (medium)  : sprite above BG except where BG has high-priority
-  //   2 (high)    : sprite always above BG
-  //   3 (highest) : sprite always above BG (reserved for future tiers)
+  // bg-only compositor (single-cycle combinational; no merge pipeline).
   val bgPriorityHigh = layer0PrioGated && layer0Opaque &&
                        !layer1Opaque && !layer2Opaque && !layer3Opaque
+  val fillIdx    = composedBgIdx
+  val fillBank   = composedBgBank
+  val fillSource = composedBgSource
+  val fillPrio   = bgPriorityHigh
+  val fillPixel  = (fillPrio ## fillBank.asBits ## fillIdx).asBits
 
-  def spriteWinsAt(prio: UInt): Bool = {
-    val tier  = prio(1 downto 0)
-    val above = tier.msb                                  // tier 2 or 3 → always above
-    val mediumOk = tier === U(1, 2 bits) && (!bgOpaque || !bgPriorityHigh)
-    val lowOk    = tier === U(0, 2 bits) && !bgOpaque
-    above || mediumOk || lowOk
-  }
-
-  // Sprite Phase 2 — P2-3a: per-sprite paletteBank pipelined via RegNext so
-  // it aligns with the already-registered slotVisible/slotPixel (cycle T+1).
-  val slotPaletteBank = (0 until NUM_SLOTS).map { s =>
-    RegNext(spriteEval.io.activePaletteBank(s)) init U(0, 3 bits)
-  }
-
-  // Task 2a Checkpoint 1 (BronzeGate #9220, option A): tree-pipelined
-  // priority compositor merge. Replaces the prior parallel last-hit-wins
-  // for-loop fan-in mux with a 2-stage tree:
-  //   Stage 1 (combinational at cycle T+1): per-group last-hit-wins among
-  //     GROUP_SIZE slots → group candidate {visible, pixel, bank}.
-  //     Group winner is the highest-index visible slot within the group.
-  //   Stage 1 register → cycle T+2.
-  //   Stage 2 (combinational at T+2): cross-group last-hit-wins → merged
-  //     sprite candidate. Cross-group ordering is groups low→high so the
-  //     overall last-hit-wins ordering matches the prior flat for-loop
-  //     (highest-index visible slot wins overall).
-  //   Stage 2 register → cycle T+3.
-  // bg-side signals (composedBgIdx/Bank/Source, layer0PrioGated,
-  // layer{0..3}Opaque) feeding the bg-default branch and the final fillPrio
-  // are delayed by 2 cycles so they align with the merge output at cycle
-  // T+3. The lineBuf write address and write-enable are likewise delayed
-  // by 2 cycles; lineBuf.swap remains combinational on hCounter (writes
-  // for a line drain into blanking before the swap fires at hCounter ===
-  // hTotal-1, so the existing swap timing remains safe with the new
-  // pipeline). sprite0HitPulse / spriteBgHitPulse / anySlotVisible (used
-  // by sticky collision regs) keep their original cycle alignment so
-  // sticky-reg semantics are preserved bit-for-bit.
-  //
-  // Bit-identical V=8 regression is preserved: the only effect is a
-  // 2-cycle phase shift between the merge inputs and the lineBuf write,
-  // and writeAddr/writeEnable are delayed by exactly the same 2 cycles
-  // so the logical pixel-X mapping is unchanged. NUM_SLOTS=8 → 2 groups
-  // of 4. Substrate is now V=32 ready (8 groups of 4) — Checkpoint 2
-  // tackles the dominant per-slot AffineStepper cost driver.
-  val GROUP_SIZE = 4
-  val NUM_GROUPS = (NUM_SLOTS + GROUP_SIZE - 1) / GROUP_SIZE
-  require(NUM_GROUPS * GROUP_SIZE >= NUM_SLOTS, "GROUP_SIZE must cover NUM_SLOTS")
-
-  // Register slot priority so it aligns with slotVisible/slotPixel at T+1.
-  val slotPriorityR = (0 until NUM_SLOTS).map { s =>
-    RegNext(spriteEval.io.activePriority(s)) init U(0, 2 bits)
-  }
-
-  // Stage 1: per-group combinational last-hit-wins (cycle T+1).
-  val stage1Visible = Vec(Bool(), NUM_GROUPS)
-  val stage1Pixel   = Vec(Bits(4 bits), NUM_GROUPS)
-  val stage1Bank    = Vec(UInt(3 bits), NUM_GROUPS)
-  for (g <- 0 until NUM_GROUPS) {
-    stage1Visible(g) := False
-    stage1Pixel(g)   := B(0, 4 bits)
-    stage1Bank(g)    := U(0, 3 bits)
-    val slotLo = g * GROUP_SIZE
-    val slotHi = math.min(slotLo + GROUP_SIZE, NUM_SLOTS)
-    for (s <- slotLo until slotHi) {
-      val showSprite = slotVisible(s) && spriteWinsAt(slotPriorityR(s))
-      when(showSprite) {
-        stage1Visible(g) := True
-        stage1Pixel(g)   := slotPixel(s)
-        stage1Bank(g)    := slotPaletteBank(s)
-      }
-    }
-  }
-
-  // Stage 1 register → cycle T+2.
-  val stage1VisibleR = (0 until NUM_GROUPS).map { g =>
-    RegNext(stage1Visible(g)) init False
-  }
-  val stage1PixelR = (0 until NUM_GROUPS).map { g =>
-    RegNext(stage1Pixel(g)) init B(0, 4 bits)
-  }
-  val stage1BankR = (0 until NUM_GROUPS).map { g =>
-    RegNext(stage1Bank(g)) init U(0, 3 bits)
-  }
-
-  // Stage 2: cross-group combinational last-hit-wins (cycle T+2).
-  val stage2Visible = Bool()
-  val stage2Pixel   = Bits(4 bits)
-  val stage2Bank    = UInt(3 bits)
-  stage2Visible := False
-  stage2Pixel   := B(0, 4 bits)
-  stage2Bank    := U(0, 3 bits)
-  for (g <- 0 until NUM_GROUPS) {
-    when(stage1VisibleR(g)) {
-      stage2Visible := True
-      stage2Pixel   := stage1PixelR(g)
-      stage2Bank    := stage1BankR(g)
-    }
-  }
-
-  // Stage 2 register → cycle T+3 (final merged sprite candidate).
-  val spriteWinsR2 = RegNext(stage2Visible) init False
-  val spritePixelR2 = RegNext(stage2Pixel) init B(0, 4 bits)
-  val spriteBankR2  = RegNext(stage2Bank)  init U(0, 3 bits)
-
-  // Bg-side context delayed 2 cycles to align with merge output at T+3.
-  val composedBgIdxR2    = RegNext(RegNext(composedBgIdx))    init B(0, 4 bits)
-  val composedBgBankR2   = RegNext(RegNext(composedBgBank))   init U(0, 3 bits)
-  val composedBgSourceR2 = RegNext(RegNext(composedBgSource)) init U(0, 3 bits)
-  val layer0PrioGatedR2  = RegNext(RegNext(layer0PrioGated))  init False
-  val layer0OpaqueR2     = RegNext(RegNext(layer0Opaque))     init False
-  val layer1OpaqueR2     = RegNext(RegNext(layer1Opaque))     init False
-  val layer2OpaqueR2     = RegNext(RegNext(layer2Opaque))     init False
-  val layer3OpaqueR2     = RegNext(RegNext(layer3Opaque))     init False
-
-  // Final compositor mux at cycle T+3.
-  val fillIdx    = Bits(4 bits)
-  val fillBank   = UInt(3 bits)
-  val fillSource = UInt(3 bits)    // Task 48 — track winning layer for metadata
-  val fillPrio   = Bool()
-  when(spriteWinsR2) {
-    fillIdx    := spritePixelR2
-    fillBank   := spriteBankR2
-    fillSource := U(PixelMetadata.SourceSprite, 3 bits)
-    fillPrio   := False
-  }.otherwise {
-    fillIdx    := composedBgIdxR2
-    fillBank   := composedBgBankR2
-    fillSource := composedBgSourceR2
-    // L0 priority wins unless a higher-index BG layer is opaque. On a
-    // four-layer compositor, L0 forcedPriority still overrides L1/L2/L3.
-    fillPrio := layer0PrioGatedR2 && layer0OpaqueR2 &&
-                !layer1OpaqueR2 && !layer2OpaqueR2 && !layer3OpaqueR2
-  }
-  val fillPixel = (fillPrio ## fillBank.asBits ## fillIdx).asBits  // 8 bits
-
-  // Task 48 — per-pixel metadata carries the winning layer source so that
-  // downstream consumers (color-math, sprite collision, etc.) can
-  // distinguish which BG contributed.
   val fillMeta = PixelMetadata()
   fillMeta.mathEnable     := False
   fillMeta.forcedPriority := False
   fillMeta.layerSource    := fillSource
-  val fillPacked  = (fillMeta.toBits ## fillPixel).asBits   // 13 bits total
+  val fillPacked = (fillMeta.toBits ## fillPixel).asBits
 
-  // Double-buffered scanline buffer — widened from 8 → 12 bits to carry
-  // `{metadata[3:0], priority, bank[2:0], idx[3:0]}`. Per CyanPeak #7820
-  // guidance, 12-bit width fits standard Gowin BSRAM port aspect ratios.
-  // Task 2a Checkpoint 1: writeAddr / writeEnable delayed 2 cycles to
-  // align with the pipelined fillPacked at cycle T+3. swap stays
-  // combinational on hCounter — writes for line N complete by hCounter
-  // = hActive+1 (well before the swap at hCounter = hTotal-1), so the
-  // existing line-boundary semantics are preserved.
   val lineBuf = LineBuffer(pixelWidth = 8 + PixelMetadata.Width, lineWidth = hActive)
-  val writeEnableR1 = RegNext(hCounter < hActive)        init False
-  val writeEnableR2 = RegNext(writeEnableR1)             init False
-  val writeAddrR1   = RegNext(hCounter.resize(log2Up(hActive))) init U(0, log2Up(hActive) bits)
-  val writeAddrR2   = RegNext(writeAddrR1)               init U(0, log2Up(hActive) bits)
-  lineBuf.io.writeEnable := writeEnableR2
-  lineBuf.io.writeAddr   := writeAddrR2
+  lineBuf.io.writeEnable := hCounter < hActive
+  lineBuf.io.writeAddr   := hCounter.resize(log2Up(hActive))
   lineBuf.io.writeData   := fillPacked
   lineBuf.io.swap        := hCounter === hTotal - 1
 
-  // Drain address: present 1 cycle early for readSync pipeline.
-  // At hCounter=hTotal-1, present addr 0 (data appears at hCounter=0).
-  // At hCounter=N (N < hActive-1), present addr N+1 (data appears at hCounter=N+1).
-  val drainAddr = UInt(log2Up(hActive) bits)
+  // drainAddr was forward-declared above (for SpriteRasterizer). Assign here.
+  // Present 1 cycle early for readSync alignment.
   when(hCounter === hTotal - 1) {
     drainAddr := U(0, log2Up(hActive) bits)
   }.elsewhen(hCounter < hActive - 1) {
@@ -1600,23 +1335,49 @@ case class VdpTop() extends Component {
   }
   lineBuf.io.readAddr := drainAddr
 
-  // Drain: readSync output is the 12-bit packed
-  // `{metadata[3:0], priority, bank[2:0], idx[3:0]}` (Task 41),
-  // available 1 cycle after address. The palette is addressed by the full
-  // {bank[3], idx[4]} = 7 bits; the stored priority bit is carried for future
-  // consumers but not used for palette selection. The 4-bit metadata tail
-  // is unpacked and exposed for downstream compositor / color-math consumers
-  // but — by scope — is not yet gating the live ColorMath enable expression;
-  // fetch-engine stubs drive the default (all-zeros) so existing scenarios
-  // remain bit-for-bit identical.
-  // Task 48: line buffer widened 12→13 bits; metadata occupies bits [12:8].
-  val drainWord   = lineBuf.io.readData
-  val drainMeta   = PixelMetadata.fromBits(drainWord(8 + PixelMetadata.Width - 1 downto 8)).setName("drainMeta")
+  // Drain — combine bg (lineBuf) + sprite (rasterizer) at output time.
+  // drainWord@T = bg pixel for hCounter@T (modulo wrap).
+  // spriteRasterizer.io.drain*@T = sprite pixel for hCounter@T (same drainAddr).
+  val drainWord = lineBuf.io.readData
+  val drainMeta = PixelMetadata.fromBits(drainWord(8 + PixelMetadata.Width - 1 downto 8)).setName("drainMeta")
   drainMeta.mathEnable.simPublic()
   drainMeta.forcedPriority.simPublic()
   drainMeta.layerSource.simPublic()
-  val drainIdx    = drainWord(3 downto 0).asUInt
-  val drainBank   = drainWord(6 downto 4).asUInt
+  val drainBgIdx    = drainWord(3 downto 0).asUInt
+  val drainBgBank   = drainWord(6 downto 4).asUInt
+  val drainBgPrio   = drainWord(7)
+  val drainBgOpaque = drainBgIdx =/= U(0, 4 bits)
+
+  val drainSpriteIdx     = spriteRasterizer.io.drainPixel.asUInt
+  val drainSpriteBank    = spriteRasterizer.io.drainPaletteBank
+  val drainSpritePrio    = spriteRasterizer.io.drainPriority
+  val drainSpriteIsSlot0 = spriteRasterizer.io.drainSlot0
+  val drainSpriteOpaque  = drainSpriteIdx =/= U(0, 4 bits)
+
+  // Sprite-wins predicate at drain time. Mirrors the prior `spriteWinsAt`
+  // 4-tier rule (Phase 2-bis), evaluated against drained bg state.
+  val drainSpriteTier     = drainSpritePrio
+  val drainSpriteAbove    = drainSpriteTier(1)              // tier 2 or 3 → always above
+  val drainSpriteMediumOk = drainSpriteTier === U(1, 2 bits) && (!drainBgOpaque || !drainBgPrio)
+  val drainSpriteLowOk    = drainSpriteTier === U(0, 2 bits) && !drainBgOpaque
+  val drainSpriteWins     = drainSpriteOpaque &&
+                            (drainSpriteAbove || drainSpriteMediumOk || drainSpriteLowOk)
+
+  val drainIdx    = Mux(drainSpriteWins, drainSpriteIdx, drainBgIdx)
+  val drainBank   = Mux(drainSpriteWins, drainSpriteBank, drainBgBank)
+
+  // Drain-time collision pulses (replaces the prior fill-time slotVisible-
+  // based versions; PM #9244 (ii) preserves slot-0 specificity via the
+  // rasterizer's drainSlot0 metadata bit).
+  val sprite0HitPulse  = drainSpriteIsSlot0 && drainSpriteOpaque && drainBgOpaque
+  val spriteBgHitPulse = drainSpriteOpaque && drainBgOpaque
+  val anySlotVisible   = drainSpriteOpaque   // backward-compat alias
+
+  // ============================================================
+  // Below this point: legacy per-slot for-loop body has been removed.
+  // The original block (val NUM_SLOTS=8 ... val fillPixel = ...) is
+  // replaced by the SpriteRasterizer + drain compositor above.
+  // ============================================================
   val paletteAddr = (drainBank @@ drainIdx).resize(log2Up(TileAttributeAssets.PaletteDepth))
 
   // Palette: 128-entry × 24-bit banked RGB lookup from TileAttributeAssets.

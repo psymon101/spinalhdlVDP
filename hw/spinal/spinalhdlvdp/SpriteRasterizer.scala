@@ -90,6 +90,10 @@ case class SpriteRasterizer(
     val drainPixel       = out Bits(4 bits)   // 0 = transparent / no sprite
     val drainPaletteBank = out UInt(3 bits)
     val drainPriority    = out UInt(2 bits)
+    // Slot-0 provenance bit (PM #9244 (ii)): asserts when the drained
+    // pixel was written by the slot-0 (lowest descriptor index) sprite.
+    // Preserves the existing `sprite0HitPulse` semantic at drain time.
+    val drainSlot0       = out Bool()
 
     // Ping-pong swap (typically tied to hCounter === hTotal-1).
     val bufferSwap = in Bool()
@@ -141,6 +145,8 @@ case class SpriteRasterizer(
   val slotMatrixDR  = Reg(Bits(16 bits))                  init 0
   val slotTransXR   = Reg(Bits(16 bits))                  init 0
   val slotTransYR   = Reg(Bits(16 bits))                  init 0
+  // Slot-0 provenance: latched at SF_LOAD when slotIdx === 0.
+  val slotIsZeroR   = Reg(Bool())                         init False
 
   val slotWidth = slotSizeSelR.mux(
     U(0, 2 bits) -> U( 8, 7 bits),
@@ -223,7 +229,7 @@ case class SpriteRasterizer(
   val pixelVisible = (rState === ST_RUN) && onPixel && !pixelTransparent
 
   // ----- sprite line buffer (ping-pong, 2 banks of hActive × 9 bits) ----
-  val SLB_W = 4 + 3 + 2  // pixel + paletteBank + priority
+  val SLB_W = 4 + 3 + 2 + 1  // pixel + paletteBank + priority + slot0 flag
 
   val activeFillBank = Reg(Bool()) init False
   when(io.bufferSwap) {
@@ -233,9 +239,8 @@ case class SpriteRasterizer(
   val slbA = Mem(Bits(SLB_W bits), initialContent = Array.fill(hActive)(B(0, SLB_W bits)))
   val slbB = Mem(Bits(SLB_W bits), initialContent = Array.fill(hActive)(B(0, SLB_W bits)))
 
-  // The write payload is composed from CURRENT slot regs (slotPrioR,
-  // slotBankR) and the just-unpacked pixel.
-  val wrData = (slotPrioR.asBits ## slotBankR.asBits ## pixel).resize(SLB_W)
+  // Layout: [9]=slot0 [8:7]=prio [6:4]=bank [3:0]=pixel
+  val wrData = (slotIsZeroR.asBits ## slotPrioR.asBits ## slotBankR.asBits ## pixel).resize(SLB_W)
   val wrAddr = writeXR.resize(log2Up(hActive))
   val wrEnA  = pixelVisible && !activeFillBank
   val wrEnB  = pixelVisible &&  activeFillBank
@@ -253,6 +258,7 @@ case class SpriteRasterizer(
   io.drainPixel       := drainData(3 downto 0)
   io.drainPaletteBank := drainData(6 downto 4).asUInt
   io.drainPriority    := drainData(8 downto 7).asUInt
+  io.drainSlot0       := drainData(9)
 
   // ===== unified FSM state-update block ================================
   // The two FSMs share a single `always` block via SpinalHDL's
@@ -313,6 +319,7 @@ case class SpriteRasterizer(
       slotMatrixDR := io.activeMatrixD(sIdx)
       slotTransXR  := io.activeTransX(sIdx)
       slotTransYR  := io.activeTransY(sIdx)
+      slotIsZeroR  := slotIdx === U(0, slotIdxW bits)
       startRender  := True
 
       // Advance slot pointer
