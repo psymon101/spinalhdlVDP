@@ -4,7 +4,15 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib.BufferCC
 
-case class VdpTop() extends Component {
+case class VdpTop(sdramCd: ClockDomain = null) extends Component {
+  // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM is migrated
+  // into the SDRAM clock domain. When `sdramCd` is null (sim-default),
+  // use the current pixel ClockDomain so single-clock sims keep working;
+  // top-level integrations (TopTang20kHdmi, Hdmi720pMode0ProofTop) pass
+  // the real `sdramClockDomain` so the FSM runs natively on the SDRAM
+  // side.
+  private val effectiveSdramCd: ClockDomain =
+    if (sdramCd != null) sdramCd else ClockDomain.current
   val io = new Bundle {
     val hsync   = out Bool()
     val vsync   = out Bool()
@@ -833,7 +841,7 @@ case class VdpTop() extends Component {
   // that refactors planeWords to Mem-backed storage.
   val PLANE_COUNT = 5
   val PLANE_PIXELS = 320
-  val planarLineFetch = PlanarLineFetch(planeCount = PLANE_COUNT, planePixels = PLANE_PIXELS, addrWidth = 23)
+  val planarLineFetch = PlanarLineFetch(sdramCd = effectiveSdramCd, planeCount = PLANE_COUNT, planePixels = PLANE_PIXELS, addrWidth = 23)
   val planarCtrlReg     = Reg(Bits(16 bits)) init 0
   val planeBaseAddrReg  = Vec.fill(PLANE_COUNT)(Reg(UInt(23 bits)) init 0)
   val planarFetchEnable = planarCtrlReg(0)
@@ -878,16 +886,14 @@ case class VdpTop() extends Component {
   // future-proofing if either constant changes.
   planarLineFetch.io.start          := planarFetchEnable && (hCounter === U(hTotal - 160, log2Up(hTotal) bits))
   planarLineFetch.io.pixelIdx       := hCounter.resize(log2Up(PLANE_PIXELS))
-  // CDC: io.planarSdram* arrive from the SDRAM clock domain (driven by
-  // sdramArbiter in TopTang20kHdmi). BufferCC breaks the combinational
-  // sdram↔pixel loop between sdramRd/clientGrant and sdramBusy/state.
-  // Note: 32-bit dout32 BufferCC has the standard caveat (per-bit
-  // synchronization, no gray code). Acceptable here because the
-  // dataReady handshake gates consumption — PlanarLineFetch only
-  // samples dout32 when dataReady is asserted.
-  planarLineFetch.io.sdramBusy      := BufferCC(io.planarSdramBusy,      False)
-  planarLineFetch.io.sdramDataReady := BufferCC(io.planarSdramDataReady, False)
-  planarLineFetch.io.sdramDout32    := BufferCC(io.planarSdramDout32,    B(0, 32 bits))
+  // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM lives in
+  // `effectiveSdramCd` and consumes data_ready/dout32/busy natively in
+  // that domain. The top-level wires `io.planarSdram*` directly with
+  // sdram-domain signals (no BufferCC stack here). On single-clock sims
+  // (effectiveSdramCd == pixel CD), the wiring degenerates trivially.
+  planarLineFetch.io.sdramBusy      := io.planarSdramBusy
+  planarLineFetch.io.sdramDataReady := io.planarSdramDataReady
+  planarLineFetch.io.sdramDout32    := io.planarSdramDout32
   io.planarSdramRd   := planarLineFetch.io.sdramRd
   io.planarSdramAddr := planarLineFetch.io.sdramAddr
 

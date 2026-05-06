@@ -96,6 +96,7 @@ case class Hdmi720pPlanarProofTop() extends Component {
     }
 
     val planeFetch = PlanarLineFetch(
+      sdramCd     = ClockDomain.current,
       planeCount  = PlaneCount,
       planePixels = PlanePixels
     )

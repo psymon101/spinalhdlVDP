@@ -151,7 +151,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
   // Pixel-domain logic (VdpTop + SDRAM fetch instance)
   // --------------------------------------------------------------------------
   val pixelArea = new ClockingArea(pixelClockDomain) {
-    val video = VdpTop()
+    val video = VdpTop(sdramCd = sdramClockDomain)
 
     // Frame counter drives scroll offsets for visible motion proof.
     val vsyncPrev = RegNext(video.io.vsync) init True
@@ -1790,28 +1790,16 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
   // throughout slot 2's granted hCounter window — what we actually need.
   pixelArea.video.io.planarSdramBusy := !sdramArbiter.io.clientSlotValid(2)
 
-  // Task 3 fix #9344 part 2: source-domain toggle generator (sdram
-  // domain). Flip on each qualified data_ready pulse; capture dout32
-  // into a held register so the synced data stays stable between events.
-  val planarDataReadyArea = new ClockingArea(sdramClockDomain) {
-    val planarDataReadySrc = sdramArea.ctrl.io.data_ready &&
-                             (sdramArbiter.io.grantClientId === U(2, sdramArbiter.idBits bits))
-    val planarDataReadyToggle = Reg(Bool())        init False
-    val planarDout32Held      = Reg(Bits(32 bits)) init 0
-    when(planarDataReadySrc) {
-      planarDataReadyToggle := !planarDataReadyToggle
-      planarDout32Held      := sdramArea.ctrl.io.dout32
-    }
-  }
-  // Pixel-domain side: 2-stage sync the toggle, edge-detect to recover
-  // a 1-cycle pulse. Held dout32 is a stable level signal between
-  // events, so plain BufferCC is safe.
-  val planarToggleSync     = BufferCC(planarDataReadyArea.planarDataReadyToggle, False)
-  val planarTogglePrev     = RegNext(planarToggleSync) init False
-  val planarDataReadyPulse = planarToggleSync =/= planarTogglePrev
-  val planarDout32Sync     = BufferCC(planarDataReadyArea.planarDout32Held, B(0, 32 bits))
-  pixelArea.video.io.planarSdramDataReady := planarDataReadyPulse
-  pixelArea.video.io.planarSdramDout32    := planarDout32Sync
+  // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM lives in
+  // sdramClockDomain. Wire data_ready/dout32 natively from the SDRAM
+  // controller, qualified by `grantClientId === 2`. No CDC stack on
+  // this path — the FSM samples both signals directly in the sdram
+  // domain, eliminating per-read CDC latency that was the root of the
+  // gray-output blocker on hardware (#9351 / #9362 / #9366).
+  val planarDataReadyNative = sdramArea.ctrl.io.data_ready &&
+                              (sdramArbiter.io.grantClientId === U(2, sdramArbiter.idBits bits))
+  pixelArea.video.io.planarSdramDataReady := planarDataReadyNative
+  pixelArea.video.io.planarSdramDout32    := sdramArea.ctrl.io.dout32
   // Client 3 — reserved.
   sdramArbiter.io.clientRd(3)   := False
   sdramArbiter.io.clientWr(3)   := False

@@ -24,11 +24,12 @@ object PlanarLineFetchSim extends App {
   val planePixels = 320
   val readsPerPlane = planePixels / 32
 
-  Config.sim.compile(PlanarLineFetch(
-    planeCount  = planeCount,
-    planePixels = planePixels
-  )).doSim { dut =>
+  Config.sim.compile {
+    val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(84000000 Hz))
+    PlanarLineFetch(sdramCd, planeCount = planeCount, planePixels = planePixels)
+  }.doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)
+    dut.sdramCd.forkStimulus(period = 10)
 
     val planeMagics = Array(0xAAAA0000L, 0xBBBB0000L, 0xCCCC0000L,
                              0xDDDD0000L, 0xEEEE0000L)
@@ -58,7 +59,7 @@ object PlanarLineFetchSim extends App {
     var pendingTicks = 0
     fork {
       while (true) {
-        dut.clockDomain.waitSampling()
+        dut.sdramCd.waitSampling()
         if (pendingTicks > 0) {
           pendingTicks -= 1
           if (pendingTicks == 0) {

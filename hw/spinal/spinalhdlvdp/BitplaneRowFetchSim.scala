@@ -26,11 +26,12 @@ object BitplaneRowFetchSim extends App {
   val planePixels = 320     // 10 dout32 reads per plane
   val readsPerPlane = planePixels / 32
 
-  Config.sim.compile(BitplaneRowFetch(
-    planeCount  = planeCount,
-    planePixels = planePixels
-  )).doSim { dut =>
+  Config.sim.compile {
+    val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(84000000 Hz))
+    BitplaneRowFetch(sdramCd, planeCount = planeCount, planePixels = planePixels)
+  }.doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)
+    dut.sdramCd.forkStimulus(period = 10)
 
     // Plane bases at 0x10000, 0x11000, 0x12000, 0x13000, 0x14000.
     val planeBases = (0 until planeCount).map(p => 0x10000 + p * 0x1000)
@@ -56,7 +57,7 @@ object BitplaneRowFetchSim extends App {
     var pendingTicks = 0
     fork {
       while (true) {
-        dut.clockDomain.waitSampling()
+        dut.sdramCd.waitSampling()
         if (pendingTicks > 0) {
           pendingTicks -= 1
           if (pendingTicks == 0) {

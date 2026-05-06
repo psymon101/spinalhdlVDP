@@ -32,6 +32,7 @@ import spinal.core._
   * `dout32` aperture stores rows naturally.
   */
 case class PlanarLineFetch(
+    sdramCd:     ClockDomain,
     planeCount:  Int = 5,
     planePixels: Int = 320,
     addrWidth:   Int = 23
@@ -64,6 +65,7 @@ case class PlanarLineFetch(
 
   // ---- H-2 fetch ----
   val rowFetch = BitplaneRowFetch(
+    sdramCd     = sdramCd,
     planeCount  = planeCount,
     planePixels = planePixels,
     addrWidth   = addrWidth
