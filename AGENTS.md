@@ -161,6 +161,14 @@ decision depends on it.
 - `BronzeGate`: sequencing, stall intervention, scope control
 
 Routine lane mechanics stay with `CoralReef`.
+Operational routing rule:
+
+- `CyanPeak` should receive bounded audit and diagnosis asks by default
+- `CoralReef` should receive broad exploratory research, repo-wide evidence
+  gathering, and first-pass blocker decomposition by default
+- when the work can be split into “explore broadly” then “judge narrowly,”
+  split it that way instead of asking `CyanPeak` to do both
+
 `BronzeGate` steps in only for drift, ambiguity, stalls, lane transitions,
 blocker decisions, or priority changes.
 If the next owner is obvious and standing policy already covers the handoff,
@@ -255,6 +263,11 @@ Artifact fast-path rule:
 - `CyanPeak` should answer with one compact ruling:
   - `PASS`
   - or `HOLD` with the exact missing requirement
+- default `CyanPeak` to bounded packet work:
+  one compact ruling, one exact evidence request, or one diagnosis packet
+  against one blocker
+- do not route broad open-ended lane exploration to `CyanPeak` when
+  `CoralReef` can first gather and compress the evidence set
 - if the ruling is `PASS` and the next owner is `BrightForge`, coding starts
   immediately with no second authorization round
 - if the ruling is `HOLD`, name the single cheapest missing correction or
@@ -306,6 +319,9 @@ Working rule:
 - `CoralReef` supports with research, hardware/ledger sync, and blocker
   assistance, but should not become a routine blocker on the coding critical
   path
+- when the work naturally splits into broad exploration plus bounded judgment,
+  `CoralReef` should own the exploration and `CyanPeak` should own the final
+  judgment
 - `BronzeGate` is only reintroduced for scope changes, priority changes,
   hardware-risk pivots, contradictory evidence, or genuine ambiguity
 
@@ -530,6 +546,11 @@ Default audit behavior:
   - `PASS`
   - `HOLD`
   - `FAIL`
+- keep `CyanPeak` assignments narrow by default:
+  one artifact, one proof packet, or one explicitly scoped blocker packet at a
+  time
+- avoid giving `CyanPeak` broad “think through the whole lane” work when
+  `CoralReef` can first assemble the evidence and candidate paths
 - keep routine audit mail compact:
   - ruling
   - exact reason
