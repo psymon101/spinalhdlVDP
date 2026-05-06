@@ -31,9 +31,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement
 | **Latest Commit** | `ee3b436` (Task 3 artifact landing) |
 | **Commits in lane** | None yet — coding authorized |
-| **Latest Auth Mail** | #9306 (BronzeGate activation); #9308 (CoralReef artifact); #9309 (CyanPeak PASS) |
+| **Latest Auth Mail** | #9306 (BronzeGate activation); #9308 (CoralReef artifact); #9309 (CyanPeak PASS); #9312 (BrightForge Checkpoint A design packet) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Next Deliverable** | BrightForge: Checkpoint A (Design Packet) |
+| **Next Deliverable** | CyanPeak: Checkpoint B (audit design packet) → BrightForge: Checkpoint C (integration) |
 
 **Context:** Tasks 2a/2c/2b all CLOSED. Task 2b HW proof v2: 30s capture, 868 frames, 28 visible sprites, freeze=0.0000. V=32 baseline: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. Task 3 is an **integration lane** — standalone primitives `BitplaneReconstruct`, `BitplaneRowFetch`, `PlanarLineFetch`, and `Hdmi720pPlanarProofTop` already exist and are proven. The gap is integrating `PlanarLineFetch` into the main `VdpTop` pipeline as a selectable L0 source with scheduler slot allocation and SDRAM `dout32` arbitration.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
