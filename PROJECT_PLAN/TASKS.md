@@ -31,7 +31,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement (domain migration Path A) |
 | **Latest Commit** | `f4b04a9` (unified unblock: FIFO + scheduler + window + bypass revert — sims 9/9 green, HW still gray) |
 | **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt) |
-| **Latest Auth Mail** | #9364 (BronzeGate PM ruling — pivot to PlanarLineFetch domain migration Path A; stop narrow-path widening) |
+| **Latest Auth Mail** | #9369 (BrightForge Path A start — exit proof declared; sdramClockDomain migration active) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
 | **Next Deliverable** | BrightForge: domain migration — move `PlanarLineFetch` / row-fetch consumption into `sdramClockDomain` per #9364 scope boundary; sim+synth+flash+capture with direct visual review per #9345; explicit statement whether bars traverse SDRAM end-to-end |
 
