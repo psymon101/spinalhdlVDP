@@ -35,6 +35,11 @@ object BitplaneRowFetchSim extends App {
     // Plane bases at 0x10000, 0x11000, 0x12000, 0x13000, 0x14000.
     val planeBases = (0 until planeCount).map(p => 0x10000 + p * 0x1000)
     for (p <- 0 until planeCount) dut.io.planeBaseAddr(p) #= planeBases(p)
+    // CyanPeak HOLD #9325 refactor introduces a new `slotIdx` input on
+    // BitplaneRowFetch (used by VdpTop's pixel-pipeline consumer). This
+    // sim doesn't exercise the slot read port — it probes the legacy
+    // wide `planeRows` output — so just hold slotIdx at 0.
+    dut.io.slotIdx #= 0
 
     // ---- Synthetic SDRAM model ----
     // dout32 at byte address A returns value 0x10000000 + (A/4) - i.e. the

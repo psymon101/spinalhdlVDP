@@ -100,15 +100,23 @@ case class PlanarLineFetch(
   val subIdx   = io.pixelIdx(subIdxBits - 1 downto 0)                    // bottom 5 bits
 
   val recon = BitplaneReconstruct(planeCount = planeCount, planeWidth = 32)
+  // Drive BitplaneRowFetch's slot read port from the current slot index;
+  // each plane's slot word feeds BitplaneReconstruct directly.
+  // Replaces the prior wide-row slicing (`planeRows(p)(msb downto lsb)`
+  // mux'd by slot) which forced multi-port read on `planeWords` and
+  // blocked LUTRAM inference (CyanPeak HOLD #9325).
+  rowFetch.io.slotIdx := slot
   for (p <- 0 until planeCount) {
-    // For each plane, present the 32-bit word at the current slot.
-    val slotWords = Vec((0 until readsPerPlane).map { r =>
-      val msb = planePixels - 1 - r * 32
-      val lsb = planePixels - (r + 1) * 32
-      rowFetch.io.planeRows(p)(msb downto lsb)
-    })
-    recon.io.planes(p) := slotWords(slot)
+    recon.io.planes(p) := rowFetch.io.slotWord(p)
   }
   recon.io.bitIdx := subIdx
-  io.pixel := recon.io.pixel
+  // Gate the pixel output until at least one row has been fetched. The
+  // Mem-backed planeMems in BitplaneRowFetch (post-#9325 refactor) read
+  // X/undefined before any write — so prior to the first SDRAM-driven
+  // row fetch, recon.io.pixel could carry junk. PlanarIntegrationSim
+  // exercises the integration boundary with a quiescent SDRAM (no
+  // dataReady ever fires), and expects pixel=0 in that case.
+  val hasRow = Reg(Bool()) init False
+  when(rowFetch.io.rowReady) { hasRow := True }
+  io.pixel := Mux(hasRow, recon.io.pixel, B(0, planeCount bits))
 }

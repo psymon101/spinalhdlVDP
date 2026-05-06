@@ -831,8 +831,8 @@ case class VdpTop() extends Component {
   // intent without reopening the standalone PlanarLineFetch primitive.
   // 5/6-plane Amiga OCS / EHB coverage deferred to a follow-on lane
   // that refactors planeWords to Mem-backed storage.
-  val PLANE_COUNT = 3
-  val PLANE_PIXELS = 256
+  val PLANE_COUNT = 5
+  val PLANE_PIXELS = 320
   val planarLineFetch = PlanarLineFetch(planeCount = PLANE_COUNT, planePixels = PLANE_PIXELS, addrWidth = 23)
   val planarCtrlReg     = Reg(Bits(16 bits)) init 0
   val planeBaseAddrReg  = Vec.fill(PLANE_COUNT)(Reg(UInt(23 bits)) init 0)
@@ -1101,12 +1101,11 @@ case class VdpTop() extends Component {
   //   idx[3:0] := planarPixel[3:0]
   //   bank[0]  := planarPixel[4]   (other bank bits = 0 → palette banks 0/1)
   //   prio     := False (priority handled by adapter-local future work)
-  // 4-plane pixel = 4-bit palette idx (16 colors). Bank stays at 0.
-  // (When a future lane raises planeCount to 5 with Mem-backed planeWords,
-  // re-introduce bit 4 → bank-bit 0 for 32-color Amiga OCS coverage.)
+  // 5-plane pixel = 4-bit palette idx + 1-bit bank-select for Amiga OCS
+  // 32-color coverage (idx[3:0] in palette banks 0/1).
   val planarPixel = planarLineFetch.io.pixel
-  val planarIdx4  = planarPixel.resize(4)
-  val planarBank3 = U(0, 3 bits)
+  val planarIdx4  = planarPixel(3 downto 0)
+  val planarBank3 = (B"00" ## planarPixel(4)).asUInt
   val layer0Index = (Mux(planarFetchEnable, planarIdx4,
                          Mux(affineEnable, affineIndex,
                          Mux(io.layer0TestPatternEnable,

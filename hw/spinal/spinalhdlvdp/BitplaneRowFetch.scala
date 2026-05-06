@@ -53,7 +53,19 @@ case class BitplaneRowFetch(
     val sdramDataReady = in  Bool()
     val sdramDout32    = in  Bits(32 bits)
 
-    // Per-plane assembled row data + completion strobe.
+    // Slot read port (CyanPeak HOLD #9325 refactor): consumer drives
+    // `slotIdx` to select one of `readsPerPlane` 32-bit slots; the
+    // module returns one 32-bit word per plane combinationally. This
+    // single read port enables LUTRAM/BSRAM inference (vs the prior
+    // wide `planeRows` IO which forced multi-read fan-out and FF
+    // storage). For sim/legacy compatibility, `planeRows` is also
+    // driven (combinationally from per-r readAsync calls); when
+    // unused at the top level it prunes cleanly.
+    val slotIdx        = in  UInt(readIdxBits bits)
+    val slotWord       = out Vec(Bits(32 bits), planeCount)
+
+    // Legacy wide-row output (preserved for `BitplaneRowFetchSim`
+    // and any other consumer that expects the full row at once).
     val planeRows      = out Vec(Bits(planePixels bits), planeCount)
     val rowReady       = out Bool()
     val busy           = out Bool()
@@ -70,7 +82,17 @@ case class BitplaneRowFetch(
   // `LUT4_RAM`/`SP9KB`-style aspect ratios with each LUT cell holding
   // ~16 entries of 1 bit, so the 1,600 bit total spans ~100 LUTs of
   // LUTRAM rather than 1,600 dedicated FFs).
-  val planeMems = Vec.fill(planeCount)(Mem(Bits(32 bits), readsPerPlane))
+  val planeMems = Seq.fill(planeCount)(Mem(Bits(32 bits), readsPerPlane))
+  // Primary slot read port — single readAsync per Mem for the consumer
+  // to use. This is the LUTRAM-inference-friendly path.
+  for (p <- 0 until planeCount) {
+    io.slotWord(p) := planeMems(p).readAsync(io.slotIdx)
+  }
+  // Legacy wide-row output: combinationally assembled via per-slot
+  // readAsync. Spinal will prune this when `planeRows` is unused at
+  // the top level. When consumed (e.g. BitplaneRowFetchSim probing
+  // the full row), the synth tool may need to duplicate the LUTRAM —
+  // accepted overhead for sim transparency.
   for (p <- 0 until planeCount) {
     for (r <- 0 until readsPerPlane) {
       val msb = planePixels - 1 - r * 32
@@ -130,5 +152,18 @@ case class BitplaneRowFetch(
       io.rowReady := True
       state       := State.Idle
     }
+  }
+
+  // Mem-side write logic: gated per plane so only the currently-active
+  // plane's Mem captures the dout32 word. Outside the FSM block so the
+  // write port can sit at the Mem's normal write interface (rather than
+  // inside a switch that would create a clocked-write inference issue).
+  val memWriteEn = (state === State.WaitData) && io.sdramDataReady
+  for (p <- 0 until planeCount) {
+    planeMems(p).write(
+      address = readIdx,
+      data    = io.sdramDout32,
+      enable  = memWriteEn && (planeIdx === U(p, planeIdxBits bits))
+    )
   }
 }

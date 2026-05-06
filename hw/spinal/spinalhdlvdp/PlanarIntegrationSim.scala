@@ -78,13 +78,13 @@ object PlanarIntegrationSim extends App {
     val testAddrs = Seq(
       0x123456, 0x000010, 0x7AC0DE, 0x040000, 0x7FFFFF
     )
-    for (p <- 0 until 3) {
+    for (p <- 0 until 5) {
       val addr = testAddrs(p)
       writeReg(0x0D40 + p * 2 + 0, addr & 0xFFFF)         // lo
       writeReg(0x0D40 + p * 2 + 1, (addr >> 16) & 0x7F)   // hi (7 bits)
     }
     var case1Failed = false
-    for (p <- 0 until 3) {
+    for (p <- 0 until 5) {
       val got = dut.planeBaseAddrReg(p).toLong.toInt
       val exp = testAddrs(p) & 0x7FFFFF
       if (got != exp) {
