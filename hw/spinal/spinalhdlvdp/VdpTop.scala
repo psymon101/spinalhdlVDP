@@ -825,6 +825,9 @@ case class VdpTop() extends Component {
   val planarCtrlReg     = Reg(Bits(16 bits)) init 0
   val planeBaseAddrReg  = Vec.fill(5)(Reg(UInt(23 bits)) init 0)
   val planarFetchEnable = planarCtrlReg(0)
+  // simPublic taps for PlanarIntegrationSim probes
+  planarCtrlReg.simPublic()
+  for (p <- 0 until 5) planeBaseAddrReg(p).simPublic()
 
   // Register-bus decode for plane base addresses (5 planes × 2 words each, lo/hi).
   val planarPlaneRangeHit = effWrite &&
