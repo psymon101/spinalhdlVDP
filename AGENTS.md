@@ -507,6 +507,9 @@ Routine mail should be compact and structured by packet type.
 - claim under test when hardware proof is involved
 - exact scene or workload shown when hardware proof is involved
 - why the retained artifact proves that claim, not just general liveness
+- explicit statement that `BrightForge` personally reviewed the retained
+  capture or still frames and that the visible result matches the claimed
+  feature, or else a blocker stating the mismatch
 - blocker / none
 - next expected owner
 
@@ -615,6 +618,12 @@ Hardware-proof claim rule:
 - a hardware-proof packet must state the exact feature claim under test
 - it must state what is visibly on screen or otherwise directly observable
 - it must explain why that scene or observable proves the claimed feature
+- `BrightForge` must inspect the retained capture or representative stills
+  directly before calling the packet done; analyzer output alone is not
+  sufficient
+- if the visible result does not clearly correspond to the claimed feature or
+  code change, do not call the work done; treat it as an open blocker and
+  investigate the mismatch
 - generic “live output” or “stable video” evidence is not sufficient when the
   claim is about a specific feature such as sprite count, priority, collision,
   or mode behavior
