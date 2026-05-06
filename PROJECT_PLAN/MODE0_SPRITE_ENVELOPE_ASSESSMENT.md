@@ -1,11 +1,13 @@
 # Mode0 Sprite Envelope Assessment Report
 
-**Assessment version:** 1.0  
+**Assessment version:** 1.1-updated  
 **Author:** CoralReef  
-**Date:** 2026-04-25  
-**Commit:** `31e3de0`  
+**Date:** 2026-04-25 (updated 2026-05-06)  
+**Commit:** `31e3de0` (assessment base); recommendations implemented in Tasks 2a/2c/2b  
 **Audit:** PASS #8577  
 **Scope:** Assessment / analysis only; no substrate implementation changes authorized
+
+**Implementation note:** The recommendations in this assessment have been implemented and closed via Tasks 2a, 2c, and 2b (Sprite Capacity Expansion epic). Current Mode0 defaults: `descCount=64`, `visiblePerLine=32`. See `TASKS.md` and `MODE0_GAP_TASKLIST.md` for closure evidence.
 
 ---
 
@@ -15,12 +17,12 @@ This assessment answers the four acceptance questions defined in `TASK_MODE0_SPR
 
 | Question | Ruling |
 |---|---|
-| Q1 — Is `visiblePerLine=8` sufficient? | **NO — increase to 32 recommended** (covers SNES; Neo Geo deferred) |
+| Q1 — Is `visiblePerLine=8` sufficient? | **NO — increase to 32 recommended** (covers SNES; Neo Geo deferred) — **IMPLEMENTED** via Tasks 2a/2c/2b. Current default: `visiblePerLine=32`, `descCount=64`. |
 | Q2 — Which descriptor fields belong in shared substrate? | **flip H/V, palette bank (3b), priority bit, size select (2b)** — all shared |
 | Q3 — Can current evaluator absorb extensions without a second engine? | **YES — two-pass architecture is fundamentally sound; no second engine needed** |
 | Q4 — Exact stop-line-aware cost? | **+~900 LUT, +~1,200 FF, +0 DSP, +0–1 BSRAM** — stays green zone |
 
-**Top-line recommendation:** Open a bounded **Sprite Descriptor Extension** task (flip + palette + priority + size, visiblePerLine 8→32) before serious Genesis/SNES adapter claims. Neo Geo's 96 sprites/line remains adapter-local or deferred.
+**Top-line recommendation:** ✅ **IMPLEMENTED** via Tasks 2a/2c/2b (Sprite Capacity Expansion epic). The substrate now supports `visiblePerLine=32`, `descCount=64` with zero unplaced REGs on Tang Nano 20K. For remaining gaps (Genesis 80 desc, SNES 128 desc, Neo Geo 96/line), see `MODE0_GAP_TASKLIST.md` §Task 4.
 
 ---
 

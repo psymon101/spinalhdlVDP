@@ -188,7 +188,7 @@ The TMS9918A has a **fixed 16-color palette**. Colors cannot be changed.
 | **Fetch** | VDP reads name table → pattern table → color table from private VRAM | `SdramTileAttributeFetch` + `SdramTileFetch` | Direct — tile+attr fetch |
 | **Decode** | 1bpp pattern + 2-color color set → 2-color pixel | Tile decoder with 1bpp mode | Direct — Mode0 supports 1bpp |
 | **Staging** | Internal shift register | Tile pipeline buffers | Direct |
-| **Sprite evaluation** | 32 sprites, 4/line, monochrome | `SpriteEvaluator` (R2) | Approximate — Mode0 has 32 desc/8 per line. TMS has 32 desc/4 per line. **Sprite color is 1-color (monochrome) vs Mode0 multi-color** |
+| **Sprite evaluation** | 32 sprites, 4/line, monochrome | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc/32 per line. TMS has 32 desc/4 per line. **Sprite color is 1-color (monochrome) vs Mode0 multi-color** |
 | **Composition** | BG + sprites (priority by index) | `FourLayerCompositor` | Direct — L0 = BG, sprite layer on top |
 | **Palette** | 16 fixed colors | CW-1 palette RAM | Direct — load fixed palette at init |
 | **Beam/raster** | VBlank only | `RasterTriggerUnit` at line 0 or last line | Approximate — no mid-frame raster IRQ on TMS |
@@ -212,8 +212,8 @@ The TMS9918A has a **fixed 16-color palette**. Colors cannot be changed.
 
 | TMS function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
-| 32 sprites | `SpriteEvaluator` (32 desc) | Direct match | None |
-| 4 sprites/scanline | `SpriteEvaluator` (8/line limit) | Mode0 limit is 8/line — superset | None (adapter can enforce 4/line if needed for authenticity) |
+| 32 sprites | `SpriteEvaluator` (64 desc) | Direct match | None |
+| 4 sprites/scanline | `SpriteEvaluator` (8/line limit) | Mode0 limit is 32/line — superset | None (adapter can enforce 4/line if needed for authenticity) |
 | 1 color per sprite | `SpriteEvaluator` paletteBank | Set sprite palette to single color per descriptor | Minor — Mode0 sprites use multi-color palette; adapter sets paletteBank to force 1-color |
 | Sprite collision | `STATUS_STICKY` bit | Hardware collision not in Mode0 | **Gap:** Mode0 has no hardware sprite-sprite collision. Adapter can approximate in software or leave as honest gap. |
 | 16×16 / magnified sprites | `SpriteEvaluator` descriptor | Map TMS sprite size/magnify bits to descriptor dimensions | Minor — Mode0 supports variable sizes via descriptor |
@@ -395,7 +395,7 @@ Mode 4 is enabled by setting bit 2 of VDP Register 0. This is the mode used by v
 | 256×192/224/240 tile BG | `SdramTileAttributeFetch` + `SdramTileFetch` | Set 4bpp tile mode; configure 32×28 name table | None — tile+attr proven |
 | 4bpp tiles (16 colors) | `SdramTileFetch` with 4bpp decode | Tile mode may need 4bpp planar encoding | Minor — verify Mode0 tile decoder supports 4bpp planar |
 | 2 palettes × 16 colors | CW-1 palette RAM | Map CRAM to palette entries; palette 0 = entries 0..15, palette 1 = entries 16..31 | None |
-| 64 sprites, 8/line | `SpriteEvaluator` (32 desc) | **Gap:** Mode0 has 32 desc; SMS needs 64. MVP with 32 acceptable. | Medium — same gap as NES |
+| 64 sprites, 8/line | `SpriteEvaluator` (64 desc) | **Direct match** — Mode0 has 64 desc; SMS needs 64. | None |
 | Sprite 15 colors | `SpriteEvaluator` + paletteBank | Set sprite paletteBank to palette 1 | None |
 | Hardware scroll X/Y | `layer0ScrollX/Y` | Map R8/R9 to scroll regs | Direct |
 | Line interrupts | `RasterTriggerUnit` | Map R10 line counter to triggerLine | Direct |
@@ -494,7 +494,7 @@ This means:
 - Tile+attribute fetch, sprite evaluation, palette RAM, raster triggers, scroll.
 
 ### 9.2 Approximate
-- **Sprite count (SMS/GG):** Mode0 has 32 descriptors; SMS/GG need 64. MVP with 32 acceptable.
+- **Sprite count (SMS/GG):** Mode0 has 64 descriptors; SMS/GG need 64. MVP with 32 acceptable.
 - **TMS9918A text mode:** 6×8 characters not natively supported by Mode0 tiles. Approximate with 8×8.
 - **Game Gear viewport:** Mode0 window can clip, but the "hidden border" behavior (sprites still evaluated outside window) may not be perfectly replicated.
 
@@ -524,7 +524,7 @@ This means:
 ### 10.2 Prerequisites
 
 - R4.1a/b/c Tile+Attribute Fetch — ✅ DONE
-- R2 Sprite Evaluator — ✅ DONE (32 desc; 64 needed for honest SMS/GG)
+- R2 Sprite Evaluator — ✅ DONE (64 desc; 32/line) for honest SMS/GG)
 - R1 Raster Trigger — ✅ DONE
 - CW-1 Palette RAM — ✅ DONE
 - Mode0 tile decoder 4bpp support — ⚠️ Verify before SMS v1.1

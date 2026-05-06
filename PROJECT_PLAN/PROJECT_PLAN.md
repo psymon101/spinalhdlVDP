@@ -1,6 +1,6 @@
 # PROJECT_PLAN.md
 
-**Updated:** 2026-04-28
+**Updated:** 2026-05-06 (post-Task 2 closure, Task 3 active)
 **Purpose:** Entry point for the `PROJECT_PLAN/` documentation set. Read this file first, then read the other files in the order listed below.
 
 ---
@@ -40,10 +40,10 @@ The currently validated slice is:
 - Generated HDL target directory: `hw/gen`
 - Board flow: `fpga/tang20k/`
 - Top-level board entry: `TopTang20kHdmi.scala`
-- Current visible hardware output: **SDRAM-backed Mode0 rendering** with tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control — 20 hardware-proven scenarios
-- Current validated output path: Tang Nano 20K HDMI output captured locally on this machine through `/dev/video2` and via RTSP stream
+- Current visible hardware output: **SDRAM-backed Mode0 rendering** with tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control — 20+ hardware-proven scenarios
+- Current validated output path: Tang Nano 20K HDMI output captured via RTSP stream (`rtsp://192.168.1.95:8554/live`) and local webcam fallback
 
-Do not treat this repository as if it were still at the "empty stub" stage. Tasks 1–52 and all substrate hardening lanes are **DONE**. The project is currently at a **PM reassessment checkpoint** (no active lane) following the closure of #9026 (Zero-Footprint ROM Elimination).
+Do not treat this repository as if it were still at the "empty stub" stage. Tasks 1–52 and substrate hardening lanes through Task 2 are **DONE**. The project is currently at **Task 3 — Planar Fetch Hardening** (integration lane: 2→5+ planes) following the closure of Tasks 2a/2c/2b (Sprite Capacity Expansion epic).
 
 ---
 
@@ -121,12 +121,15 @@ The following are already proven on this repository state:
 The current validated baseline is **past the entire mainline substrate construction and primary hardening phases**. Tasks 1–52 and the critical substrate lanes are complete.
 
 **Project Status:**
+- **Task 2b — Sprite Capacity Bump:** DONE — audit PASS #9298 (HW proof v2). V=32/64 committed defaults.
+- **Task 2c — Sprite Evaluator Hardening:** DONE — audit PASS #9278.
+- **Task 2a — Sprite Capacity Substrate Pre-Hardening:** DONE — audit PASS #9250.
 - **#9026 Zero-Footprint ROM Elimination:** DONE — audit PASS #9142.
 - **Task 52 Per-Sprite X/Y Flip:** DONE — audit PASS #9127.
 - **Task 50 ZX Spectrum Adapter:** DONE — closure #8976.
 
 **Current Checkpoint:**
-- Awaiting PM activation of the next project lane from the existing gap backlog.
+- **Task 3 — Planar Fetch Hardening (2→5+ planes):** ACTIVE — artifact audit PASS #9309; Checkpoint A design packet delivered #9312; awaiting CyanPeak audit Checkpoint B.
 
 **Previous lanes (all closed):**
 - #9026 Zero-Footprint ROM Elimination — DONE (#9142)
@@ -138,8 +141,8 @@ The current validated baseline is **past the entire mainline substrate construct
 - Mode0 Sprite Envelope Hardening — DONE (`d44a9c0`, audit PASS #8589)
 - Mode0 Fetch Envelope Hardening — DONE
 
-**Next expected work after Task 50 closeout:**
-- Additional platform adapters (Amiga, Genesis/MD, SNES)
-- Substrate hardening if adapter gaps emerge
+**Next expected work after Task 3:**
+- **Task 4 — Sprite Pattern Address Width Expansion** (per `MODE0_GAP_TASKLIST.md`)
+- Additional platform adapters (Atari ST lowest-risk Tier 1, then Amiga/Genesis/SNES)
 
 For the strategic `Mode0` build order and adapter roadmap, use `MODE0_PLANNING.md` §3 (Strategic Roadmap). For the authoritative execution ledger, use `TASKS.md`.

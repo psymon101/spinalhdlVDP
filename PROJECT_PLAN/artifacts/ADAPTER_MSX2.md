@@ -121,7 +121,7 @@ The **Yamaha V9938** (MSX-VIDEO) is a major evolution of the TMS9918A. It adds b
 | **Fetch** | VDC reads nametable → pattern table (G1-G3) or bitplane data (G4-G7) from VRAM | `SdramTileAttributeFetch` (G1-G3) / `PlanarLineFetch` (G4-G6) / `BitmapRowFetch` (G7) | Direct — multiple fetch paths already proven |
 | **Decode** | 2bpp/4bpp/8bpp → pixel + palette lookup | Tile decoder / bitplane reconstruct | Direct |
 | **Staging** | Internal shift registers | Line buffers | Direct |
-| **Sprite evaluation** | 32 sprites, 4 or 8/line | `SpriteEvaluator` (R2) | Approximate — Mode0 has 32 desc/8 per line. **Sprite Mode 2 color attribute table not in Mode0** |
+| **Sprite evaluation** | 32 sprites, 4 or 8/line | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc/32 per line. **Sprite Mode 2 color attribute table not in Mode0** |
 | **Composition** | BG + sprites | `FourLayerCompositor` | Direct |
 | **Palette** | 16-entry × 9-bit palette RAM | CW-1 palette RAM (24-bit entries) | Direct — Mode0 palette is superset |
 | **Beam/raster** | Line interrupt + VBlank | `RasterTriggerUnit` (R1) | Direct |
@@ -145,7 +145,7 @@ The **Yamaha V9938** (MSX-VIDEO) is a major evolution of the TMS9918A. It adds b
 
 | MSX2 function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
-| 32 sprites | `SpriteEvaluator` (32 desc) | Direct match | None |
+| 32 sprites | `SpriteEvaluator` (64 desc) | Direct match | None |
 | 8 sprites/line (Mode 2) | `SpriteEvaluator` (8/line limit) | Direct match | None |
 | Sprite Mode 2 color attr table | N/A | **Gap:** Mode0 has no per-line sprite color attribute table | Medium — each sprite line can have a different color in MSX2 |
 | Sprite-0 hit / overflow | `STATUS_STICKY` | Direct map | None |
@@ -260,7 +260,7 @@ The **Yamaha V9938** (MSX-VIDEO) is a major evolution of the TMS9918A. It adds b
 - Tile+attribute fetch (G1-G3) — direct match
 - Planar bitmap fetch (G4-G6) — direct match
 - Packed bitmap fetch (G7) — direct match
-- Sprite evaluation (32 desc, 8/line) — direct match for Mode 2
+- Sprite evaluation (64 desc, 32/line) — direct match for Mode 2
 - Palette RAM — superset
 - Raster IRQ — direct match
 - Vertical scroll — direct match
@@ -311,7 +311,7 @@ Estimated cost: ~250 LUT, ~200 FF (G1-G3 / G4-G7 basic). Command engine adds ~15
 - **R4.1a/b Tile+Attribute Fetch** — ✅ DONE
 - **R7.1 Planar Line Fetch** — ✅ DONE
 - **R4.1d Bitmap Row Fetch** — ✅ DONE
-- **R2 Sprite Evaluator** — ✅ DONE (32 desc, 8/line)
+- **R2 Sprite Evaluator — ✅ DONE (64 desc, 32/line)
 - **R1 Raster Trigger** — ✅ DONE
 - **CW-1 Palette RAM** — ✅ DONE
 - **Task 49 BlitterEngine** — ⚠️ **Required for v2 command engine**

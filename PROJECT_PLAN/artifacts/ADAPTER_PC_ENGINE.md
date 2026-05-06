@@ -142,7 +142,7 @@ No hardware windowing. No color math.
 | **Fetch** | VDC reads tilemap → pattern table from VRAM | `SdramTileAttributeFetch` + `SdramTileFetch` | Direct — tile+attr fetch |
 | **Decode** | 4bpp planar → 16-color pixel | Tile decoder with 4bpp mode | Direct — Mode0 supports 4bpp |
 | **Staging** | Internal shift registers | Tile pipeline buffers | Direct |
-| **Sprite evaluation** | 64 sprites, 16/line, variable size | `SpriteEvaluator` (R2) | Approximate — Mode0 has 32 desc/8 per line. **Gap: needs 64 desc and 16/line** |
+| **Sprite evaluation** | 64 sprites, 16/line, variable size | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc/32 per line. **Gap: CLOSED for desc count (64≥64); per-line limit (32≥16) closed.** |
 | **Composition** | BG + sprites → priority mux → palette index | `FourLayerCompositor` | Direct — 1 BG + sprite layer |
 | **Palette** | 512-entry 9-bit master palette | CW-1 palette RAM (24-bit entries) | Direct — Mode0 palette is superset |
 | **Beam/raster** | RCR raster IRQ at any line | `RasterTriggerUnit` (R1) | Direct |
@@ -168,8 +168,8 @@ No hardware windowing. No color math.
 
 | PC Engine function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
-| 64 sprites | `SpriteEvaluator` (32 desc) | Map SAT to descriptors | **Gap: Mode0 has 32 desc; PC Engine needs 64** |
-| 16 sprites/scanline | `SpriteEvaluator` (8/line limit) | Mode0 limit is 8/line | **Gap: needs 16/line** |
+| 64 sprites | `SpriteEvaluator` (64 desc) | Map SAT to descriptors | **Gap: Mode0 has 64 desc; PC Engine needs 64** |
+| 16 sprites/scanline | `SpriteEvaluator` (8/line limit) | Mode0 limit is 32/line | **Gap: needs 16/line** |
 | Variable sizes (16×16 to 32×32) | `SpriteEvaluator` descriptor | Map size bits to descriptor dimensions | Minor — Mode0 supports per-descriptor size |
 | 16 colors per sprite | `SpriteEvaluator` + paletteBank | Set sprite paletteBank per descriptor | None |
 | Sprite priority | `PixelMetadata` priority bit | Map per-sprite priority bit | Direct |
@@ -272,8 +272,8 @@ No hardware windowing. No color math.
 
 ### 5.2 What is approximate
 
-- **Sprite count:** Mode0 has 32 descriptors; PC Engine needs 64. MVP with 32 sprites is viable but not honest.
-- **Sprites per line:** Mode0 limit is 8/line; PC Engine needs 16/line. This is a harder limit than descriptor count because it affects scan-time budget.
+- **Sprite count:** Mode0 has 64 descriptors; PC Engine needs 64. MVP with 32 sprites is viable but not honest.
+- **Sprites per line:** Mode0 limit is 32/line; PC Engine needs 16/line. This is a harder limit than descriptor count because it affects scan-time budget.
 - **Per-tile palette bank:** Mode0 tile attributes may not support per-tile palette bank selection. The adapter may need to restrict BG to a single palette or use the tile attribute byte creatively.
 - **SATB DMA:** Mode0 has no DMA engine for descriptors. Host must write descriptors individually.
 
@@ -289,8 +289,8 @@ No hardware windowing. No color math.
 |---|---|---|
 | Tile+attr fetch | Shared | Already proven |
 | 4bpp decode | Shared | Already proven |
-| 64 sprite descriptors | **Shared expansion needed** | Mode0 currently 32 |
-| 16 sprites/line | **Shared expansion needed** | Mode0 currently 8 |
+| 64 sprite descriptors | **Direct match** | Mode0 currently 64 |
+| 16 sprites/line | **Direct match** | Mode0 currently 32 |
 | 9-bit palette | Adapter-local | Mode0 palette is 24-bit; adapter maps values |
 | Hardware scroll | Shared | Already proven |
 | Raster IRQ | Shared | Already proven |
@@ -315,7 +315,7 @@ Estimated cost: ~300 LUT, ~250 FF (v1 with 32 sprites). With 64/16 expansion: ~5
 
 - **R4.1a/b Tile+Attribute Fetch** — ✅ DONE
 - **R4.1b 4bpp Planar Decode** — ✅ DONE
-- **R2 Sprite Evaluator** — ✅ DONE (32 desc, 8/line)
+- **R2 Sprite Evaluator — ✅ DONE (64 desc, 32/line)
 - **R1 Raster Trigger** — ✅ DONE
 - **CW-1 Palette RAM** — ✅ DONE
 - **Sprite descriptor expansion (32→64)** — ⚠️ **Required for honest v1.1**

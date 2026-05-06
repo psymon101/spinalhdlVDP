@@ -158,7 +158,7 @@ The SNES uses two custom chips: **PPU1** (5C77, handles rendering and VRAM acces
 | **Fetch** | PPU reads tilemap → pattern table from VRAM for up to 4 BGs | `SdramTileAttributeFetch` + `SdramTileFetch` | Direct — tile+attr fetch |
 | **Decode** | 2bpp/4bpp/8bpp planar → pixel | Tile decoder | Direct |
 | **Staging** | Internal shift registers | Tile pipeline buffers | Direct |
-| **Sprite evaluation** | 128 sprites, 32/line | `SpriteEvaluator` (R2) | Approximate — Mode0 has 32 desc/8 per line. **Gap: needs 128 desc and 32/line** |
+| **Sprite evaluation** | 128 sprites, 32/line | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc/32 per line. **Gap: needs 128 desc and 32/line** |
 | **Composition** | Up to 4 BGs + sprites → priority + color math | `FourLayerCompositor` + color math | Approximate — Mode0 has 4 layers; color math is a **gap** |
 | **Palette** | 256-entry × 15-bit CGRAM | CW-1 palette RAM (24-bit entries) | Direct — Mode0 palette is superset |
 | **Beam/raster** | HBlank/VBlank IRQ + HDMA | `RasterTriggerUnit` + Copper/HDMA | Approximate — HDMA is a **gap** |
@@ -184,8 +184,8 @@ The SNES uses two custom chips: **PPU1** (5C77, handles rendering and VRAM acces
 
 | SNES function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
-| 128 sprites | `SpriteEvaluator` (32 desc) | Map OAM to descriptors | **Gap: Mode0 has 32 desc; SNES needs 128** |
-| 32 sprites/line | `SpriteEvaluator` (8/line) | Mode0 limit is 8/line | **Gap: needs 32/line** |
+| 128 sprites | `SpriteEvaluator` (64 desc) | Map OAM to descriptors | **Gap: Mode0 has 64 desc; SNES needs 128** |
+| 32 sprites/line | `SpriteEvaluator` (8/line) | Mode0 limit is 32/line | **Gap: needs 32/line** |
 | Variable sizes | `SpriteEvaluator` descriptor | Map size/MSB bits to descriptor | Minor |
 | 16 colors per sprite | `SpriteEvaluator` + paletteBank | Set sprite paletteBank | None |
 | Sprite priority | `PixelMetadata` priority bit | Map per-sprite priority | Direct |
@@ -336,8 +336,8 @@ The SNES uses two custom chips: **PPU1** (5C77, handles rendering and VRAM acces
 | Tile+attr fetch | Shared | Already proven |
 | Multi-layer composition | Shared (Task 48) | Mode0 has 4 layers |
 | 2bpp/4bpp/8bpp decode | Shared | Already proven |
-| 128 sprite descriptors | **Shared expansion needed** | Mode0 currently 32 |
-| 32 sprites/line | **Shared expansion needed** | Mode0 currently 8 |
+| 128 sprite descriptors | **Shared expansion needed** | Mode0 currently 64 |
+| 32 sprites/line | **Shared expansion needed** | Mode0 currently 64 |
 | 15-bit palette | Adapter-local | Mode0 uses 24-bit |
 | Hardware scroll | Shared | Already proven |
 | Mode 7 | Adapter-local (never?) | No Mode0 equivalent |
@@ -368,7 +368,7 @@ Estimated cost: ~400 LUT, ~350 FF (v1 limited MVP). With full expansion: ~1000+ 
 - **R4.1a/b Tile+Attribute Fetch** — ✅ DONE
 - **R4.1b 2bpp/4bpp/8bpp Decode** — ✅ DONE
 - **Task 48 FourLayerCompositor** — ✅ DONE
-- **R2 Sprite Evaluator** — ✅ DONE (32 desc, 8/line)
+- **R2 Sprite Evaluator — ✅ DONE (64 desc, 32/line)
 - **R1 Raster Trigger** — ✅ DONE
 - **CW-1 Palette RAM** — ✅ DONE
 - **R3 Copper** — ✅ DONE (for HDMA proxy)

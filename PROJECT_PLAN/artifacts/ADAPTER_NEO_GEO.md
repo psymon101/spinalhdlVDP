@@ -161,7 +161,7 @@ The **sprite system** is the defining feature of Neo Geo graphics.
 | **Fetch** | LSPC reads SCB1 → fetches sprite tiles from external ROM | `SdramTileFetch` (for Fix) + `SpriteEvaluator` (for sprites) | Approximate — Neo Geo tiles are in external ROM, not VRAM |
 | **Decode** | 4bpp planar → 16-color pixel | Tile decoder with 4bpp mode | Direct |
 | **Staging** | Line buffers for sprite compositing | Sprite pipeline buffers | Direct |
-| **Sprite evaluation** | 380 sprites, 96/line, variable height, shrinking | `SpriteEvaluator` (R2) | Approximate — Mode0 has 32 desc/8 per line. **Gap: needs 380 desc and 96/line** |
+| **Sprite evaluation** | 380 sprites, 96/line, variable height, shrinking | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc/32 per line. **Gap: needs 380 desc and 96/line** |
 | **Composition** | Fix layer + sprite layer → priority | `FourLayerCompositor` | Direct — Fix = top layer, sprites = bottom |
 | **Palette** | 4,096-entry × 16-bit palette RAM | CW-1 palette RAM (24-bit entries) | Direct — Mode0 palette may need expansion to 4,096 entries |
 | **Beam/raster** | VBlank only | `RasterTriggerUnit` (R1) | Direct |
@@ -184,8 +184,8 @@ The **sprite system** is the defining feature of Neo Geo graphics.
 
 | Neo Geo function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
-| 380 sprites | `SpriteEvaluator` (32 desc) | Map SCB to descriptors | **Gap: Mode0 has 32 desc; Neo Geo needs 380** |
-| 96 sprites/line | `SpriteEvaluator` (8/line) | Mode0 limit is 8/line | **Gap: needs 96/line** |
+| 380 sprites | `SpriteEvaluator` (64 desc) | Map SCB to descriptors | **Gap: Mode0 has 64 desc; Neo Geo needs 380** |
+| 96 sprites/line | `SpriteEvaluator` (8/line) | Mode0 limit is 32/line | **Gap: needs 96/line** |
 | Variable height (16–512px) | `SpriteEvaluator` descriptor | Map SCB3 height to descriptor | Minor — Mode0 supports variable height |
 | Sprite shrinking (H/V) | N/A | **Gap:** Mode0 has no hardware shrinking | **Medium** — defining Neo Geo feature |
 | Horizontal link (chaining) | `SpriteEvaluator` | Chain sprites by X-position offset | Minor — adapter can handle linking |
@@ -283,7 +283,7 @@ The **sprite system** is the defining feature of Neo Geo graphics.
 ### 5.1 What Mode0 supports well
 
 - 4bpp tile decode — direct match
-- Sprite evaluation (basic) — Mode0 has 32 desc
+- Sprite evaluation (basic) — Mode0 has 64 desc
 - Palette RAM — superset (may need expansion)
 - Raster triggers — direct match
 - Fix layer — direct match as a simple tilemap
@@ -307,8 +307,8 @@ The **sprite system** is the defining feature of Neo Geo graphics.
 |---|---|---|
 | 4bpp tile decode | Shared | Already proven |
 | Fix layer tilemap | Shared | Already proven |
-| 380 sprite descriptors | **Shared expansion needed** | Mode0 currently 32 |
-| 96 sprites/line | **Shared expansion needed** | Mode0 currently 8 |
+| 380 sprite descriptors | **Shared expansion needed** | Mode0 currently 64 |
+| 96 sprites/line | **Shared expansion needed** | Mode0 currently 64 |
 | Sprite shrinking | Adapter-local (never?) | No Mode0 equivalent |
 | 16-bit palette | Adapter-local | Mode0 uses 24-bit |
 | Palette expansion (512→4096) | **Shared expansion needed** | Mode0 currently 512 entries |
@@ -337,7 +337,7 @@ Estimated cost: ~300 LUT, ~250 FF (v1 limited Fix + 32 sprites). With full expan
 
 - **R4.1a/b Tile+Attribute Fetch** — ✅ DONE
 - **R4.1b 4bpp Planar Decode** — ✅ DONE
-- **R2 Sprite Evaluator** — ✅ DONE (32 desc, 8/line)
+- **R2 Sprite Evaluator — ✅ DONE (64 desc, 32/line)
 - **R1 Raster Trigger** — ✅ DONE
 - **CW-1 Palette RAM** — ✅ DONE (512 entries)
 - **Sprite descriptor expansion (32→380)** — ⚠️ **Required for honest v1.2**

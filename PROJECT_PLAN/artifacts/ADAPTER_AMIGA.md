@@ -152,7 +152,7 @@ The Amiga uses three custom chips: **Agnus** (DMA/blitter/Copper), **Denise** (v
 | **Fetch** | Agnus DMA fetches bitplane words from Chip RAM | `PlanarLineFetch` (R7.1) | Direct — bitplane fetch |
 | **Decode** | Denise combines 1–6 bitplanes → pixel index (or HAM decode) | `BitplaneReconstruct` + palette / HAM decoder | Direct for standard; **HAM is a gap** |
 | **Staging** | Internal latches | Line buffers | Direct |
-| **Sprite evaluation** | 8 sprites, DMA-fetched | `SpriteEvaluator` (R2) | Approximate — Mode0 has 32 desc. **Amiga has only 8 sprites but with DMA fetch** |
+| **Sprite evaluation** | 8 sprites, DMA-fetched | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc. **Amiga has only 8 sprites but with DMA fetch** |
 | **Composition** | Bitplanes + sprites → priority | `FourLayerCompositor` | Approximate — bitplanes are not tiles; composition model differs |
 | **Palette** | 32-entry × 12-bit color registers | CW-1 palette RAM (24-bit entries) | Direct — Mode0 palette is superset |
 | **Beam/raster** | Copper programs modify registers at any line | `RasterTriggerUnit` + `Copper` (R3) | Approximate — Copper is more general than raster trigger |
@@ -177,7 +177,7 @@ The Amiga uses three custom chips: **Agnus** (DMA/blitter/Copper), **Denise** (v
 
 | Amiga function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
-| 8 sprites | `SpriteEvaluator` (32 desc) | Direct match — Amiga has fewer sprites | None |
+| 8 sprites | `SpriteEvaluator` (64 desc) | Direct match — Amiga has fewer sprites | None |
 | 16-pixel wide sprites | `SpriteEvaluator` descriptor | Set width = 16 | None |
 | Variable height | `SpriteEvaluator` descriptor | Set height per descriptor | None |
 | Sprite DMA | Host QSPI / bus writes | No DMA in Mode0; host writes descriptors | Minor — functional equivalent |
@@ -300,7 +300,7 @@ The Amiga uses three custom chips: **Agnus** (DMA/blitter/Copper), **Denise** (v
 ### 5.1 What Mode0 supports well
 
 - Planar fetch (R7.1) — direct match for bitplanes
-- Sprite evaluation (R2) — Mode0 has 32 desc; Amiga has only 8
+- Sprite evaluation (R2) — Mode0 has 64 desc; Amiga has only 8
 - Palette RAM — superset
 - Raster triggers (R1) — direct match
 - Copper (R3) — direct match for beam-synchronous updates
@@ -323,7 +323,7 @@ The Amiga uses three custom chips: **Agnus** (DMA/blitter/Copper), **Denise** (v
 | Feature | Verdict | Rationale |
 |---|---|---|
 | Planar fetch (1–6 planes) | Shared | Already proven |
-| Sprite evaluation | Shared | Mode0 has 32; Amiga only needs 8 |
+| Sprite evaluation | Shared | Mode0 has 64; Amiga only needs 8 |
 | 12-bit palette | Adapter-local | Mode0 uses 24-bit |
 | Copper | Shared | Already proven |
 | Blitter | Shared (Task 49) | Mode0 blitter exists |

@@ -23,7 +23,7 @@ This repo currently targets:
 
 - Sipeed Tang Nano 20K
 - 27 MHz board clock
-- 640x480@60 blue/black checker output
+- 640x480@60 HDMI output with SDRAM-backed Mode0 rendering: tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control
 - HDMI / TMDS output path
 
 ## Common commands
@@ -86,6 +86,6 @@ Drive, SNES, Amiga, Atari ST, and other systems whose video behavior can be
 expressed through `Mode0` primitives.
 
 The strategic build order for those primitives now lives in
-`PROJECT_PLAN/MODE0_ROADMAP.md`. That file describes the capability progression
+`PROJECT_PLAN/MODE0_PLANNING.md`. That file describes the capability progression
 needed for `Mode0` to support the intended adapter platforms without baking
 platform-specific semantics into the substrate itself.

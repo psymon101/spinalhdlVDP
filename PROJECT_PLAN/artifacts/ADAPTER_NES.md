@@ -190,7 +190,7 @@ Palette RAM: 32 bytes at `$3F00-$3F1F` in PPU address space.
 | **Fetch** | PPU fetches nametable byte → attribute byte → 2 pattern table bytes per tile | `SdramTileAttributeFetch` (R4.1a/b) + `SdramTileFetch` | Direct — tile+attr fetch proven |
 | **Decode** | 2bpp planar → 4-color pixel + palette select | `BitmapFetch` / tile decoder | Direct — NES 2bpp planar is same as R4.1b |
 | **Staging** | Internal shift registers hold current + next tile | Tile fetch pipeline buffers | Direct |
-| **Sprite evaluation** | Per-scanline: check OAM Y vs scanline, load 8 sprites into secondary OAM | `SpriteEvaluator` (R2) | Approximate — Mode0 has 32 desc/8 per line; NES has 64 desc/8 per line. **Gap: needs 64 desc** |
+| **Sprite evaluation** | Per-scanline: check OAM Y vs scanline, load 8 sprites into secondary OAM | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc/32 per line; NES has 64 desc/8 per line. **Gap: CLOSED for desc count (64≥64); per-line limit (32≥8) closed.** |
 | **Composition** | BG pixel + up to 8 sprite pixels → priority mux → palette index | `FourLayerCompositor` (Task 48) | Direct — 1 BG layer + sprite layer |
 | **Palette** | 32-byte palette RAM → 6-bit color | CW-1 palette RAM (24-bit entries) | Direct — Mode0 palette is superset |
 | **Beam/raster** | VBlank NMI at line 241; sprite-0 hit for split | `RasterTriggerUnit` (R1) + sprite-0 hit flag | Direct — raster IRQ proven; sprite-0 hit proven (Task 29) |
@@ -215,7 +215,7 @@ Palette RAM: 32 bytes at `$3F00-$3F1F` in PPU address space.
 
 | NES function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
-| 64 sprites | `SpriteEvaluator` (32 desc) | Map OAM to sprite descriptors | **Gap: Mode0 has 32 desc; NES needs 64** |
+| 64 sprites | `SpriteEvaluator` (64 desc) | Map OAM to sprite descriptors | **Gap: Mode0 has 64 desc; NES needs 64** |
 | 8 sprites/scanline | `SpriteEvaluator` (8/line limit) | Same limit — direct match | None |
 | Sprite overflow | `STATUS_STICKY` bit 1 | Direct map | None — proven |
 | Sprite-0 hit | `STATUS_STICKY` bit 4 | Direct map | None — Task 29 proven |
@@ -326,7 +326,7 @@ Palette RAM: 32 bytes at `$3F00-$3F1F` in PPU address space.
 
 ### 5.2 What is approximate
 
-- **Sprite count:** Mode0 has 32 descriptors; NES has 64. The adapter can support 32 sprites (half the NES limit) without substrate expansion. This is acceptable for many games but not all.
+- **Sprite count:** Mode0 has 64 descriptors; NES has 64. The adapter can support 32 sprites (half the NES limit) without substrate expansion. This is acceptable for many games but not all.
 - **OAM DMA:** Mode0 has no DMA engine for sprite descriptors. The host must write descriptors individually via the bus. This is slower than NES OAM DMA but functionally equivalent.
 - **Color emphasis:** Mode0 has no global tint register. The adapter can approximate by rewriting all palette entries, but this is not efficient and is out of scope for v1.
 
@@ -343,7 +343,7 @@ Palette RAM: 32 bytes at `$3F00-$3F1F` in PPU address space.
 |---|---|---|
 | Tile+attr fetch | Shared | Already proven |
 | 2bpp planar decode | Shared | Already proven |
-| 64 sprite descriptors | **Shared expansion needed** | Mode0 currently 32; needs 64 for honest NES |
+| 64 sprite descriptors | **Direct match** | Mode0 currently 64; NES needs 64 |
 | Sprite-0 hit / overflow | Shared | Already proven |
 | 6-bit palette | Adapter-local | Mode0 palette is 24-bit; adapter maps NES 6-bit values |
 | Color emphasis | Adapter-local (v2?) | No Mode0 equivalent |
@@ -370,7 +370,7 @@ Estimated cost: ~250 LUT, ~200 FF. Well within Tang Nano 20K headroom.
 - **R4.1a/b Tile+Attribute Fetch** — ✅ DONE
 - **R4.1b 2bpp Planar Decode** — ✅ DONE
 - **R4.1c 2×2 Attribute Packing** — ✅ DONE
-- **R2 Sprite Evaluator** — ✅ DONE (32 desc, 8/line)
+- **R2 Sprite Evaluator — ✅ DONE (64 desc, 32/line)
 - **R1 Raster Trigger** — ✅ DONE
 - **Task 29 Sprite-0 Hit** — ✅ DONE
 - **Sprite descriptor expansion (32→64)** — ⚠️ **Required for honest v1.1**
