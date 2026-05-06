@@ -27,15 +27,15 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 3 — Planar Fetch Hardening (2→5+ planes)** |
-| **Status** | **IN-PROGRESS** (implementation phase — Checkpoints C+D+E complete, awaiting CyanPeak audit) |
-| **Phase** | implement
-| **Latest Commit** | `363e3e4` (Task 3 Checkpoint E: synthesis — planeCount=3, planePixels=256, 0 unplaced REGs) |
+| **Status** | **HOLD** — CyanPeak audit #9325 (3-plane fallback rejected) |
+| **Phase** | implement (refactor substep)
+| **Latest Commit** | `363e3e4` (Task 3 Checkpoint E: synthesis — planeCount=3 step-down) |
 | **Commits in lane** | `ee829e5` (Checkpoint C: RTL integration); `8cf0621` (Checkpoint D: PlanarIntegrationSim + PlanarBandwidthSim); `363e3e4` (Checkpoint E: synthesis tuning) |
-| **Latest Auth Mail** | #9323 (BrightForge C+D+E proof packet) |
+| **Latest Auth Mail** | #9325 (CyanPeak audit HOLD — 3-plane rejected; Mem refactor mandated) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Next Deliverable** | CyanPeak: audit proof packet #9323 → BronzeGate: PM ruling on planeCount=3 acceptance vs Task 3b refactor |
+| **Next Deliverable** | BrightForge: refactor `BitplaneRowFetch.planeWords` from `Vec(Reg)` to `Mem`-backed storage; retarget planeCount=5 |
 
-**Context:** Tasks 2a/2c/2b all CLOSED. Task 2b HW proof v2: 30s capture, 868 frames, 28 visible sprites, freeze=0.0000. V=32 baseline: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. Task 3 integration: BrightForge committed Checkpoints C (RTL wiring), D (sim proofs), E (synthesis). **planeCount=5 failed P&R** (797 unplaced REGs due to `BitplaneRowFetch.planeWords` FF storage). Step-down sweep: 4-plane=391 unplaced, 3-plane×256=**0 unplaced — PASS**. Committed config: `planeCount=3, planePixels=256`. LUT delta +562 (within +400–600 target). 11/11 sims PASS bit-identical. **Proposed Task 3b:** `BitplaneRowFetch.planeWords` refactor from `Vec(Reg)` to `Mem`-backed storage to reach 5+ planes for Amiga OCS 16-color / EHB 64-color. Awaiting CyanPeak audit + BronzeGate PM ruling.
+**Context:** Tasks 2a/2c/2b all CLOSED. Task 3 integration C/D/E complete. CyanPeak #9325 **HOLD**: 3-plane fallback rejected as insufficient for Task 3's "2→5+ planes" goal. Audit mandates `BitplaneRowFetch` storage refactor to `Mem`/BSRAM within Task 3 scope. Rationale: hardening requires fixing the architectural flaw (FF-density wall in `planeWords`), not lowering parameters until a broken primitive fits. Integration/sim/synth (C/D/E) all PASS; only the planeCount ceiling is blocked. Next: BrightForge estimates + executes Mem refactor, then reruns synthesis for planeCount=5.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |

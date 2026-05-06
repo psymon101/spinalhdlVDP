@@ -59,17 +59,23 @@ case class BitplaneRowFetch(
     val busy           = out Bool()
   }
 
-  // Per-plane row storage as `readsPerPlane`-element Vec of 32-bit slots,
-  // exposed combinationally as a single `planePixels`-wide row with read 0
-  // (leftmost on-screen) in the MSBs.
-  val planeWords = Vec.fill(planeCount)(
-    Vec(Reg(Bits(32 bits)) init 0, readsPerPlane)
-  )
+  // Per-plane row storage. CyanPeak audit HOLD #9325 mandated the
+  // refactor from `Vec.fill(Reg)` to Mem-backed storage to break the
+  // CLS placement wall (planeCount=5 / planePixels=320 produced 1,600
+  // FFs that exceeded available CLS sites at V=32). Now: one Mem per
+  // plane, each with `readsPerPlane` × 32-bit entries. SpinalHDL
+  // `readAsync` drives the combinational `planeRows` slice path; Gowin
+  // synthesizes these as distributed LUTRAM (small Mems with
+  // `readsPerPlane`-deep × 32-bit width fit cleanly in
+  // `LUT4_RAM`/`SP9KB`-style aspect ratios with each LUT cell holding
+  // ~16 entries of 1 bit, so the 1,600 bit total spans ~100 LUTs of
+  // LUTRAM rather than 1,600 dedicated FFs).
+  val planeMems = Vec.fill(planeCount)(Mem(Bits(32 bits), readsPerPlane))
   for (p <- 0 until planeCount) {
     for (r <- 0 until readsPerPlane) {
       val msb = planePixels - 1 - r * 32
       val lsb = planePixels - (r + 1) * 32
-      io.planeRows(p)(msb downto lsb) := planeWords(p)(r)
+      io.planeRows(p)(msb downto lsb) := planeMems(p).readAsync(U(r, readIdxBits bits))
     }
   }
 
@@ -105,7 +111,6 @@ case class BitplaneRowFetch(
     }
     is(State.WaitData) {
       when(io.sdramDataReady) {
-        planeWords(planeIdx)(readIdx) := io.sdramDout32
         when(readIdx === U(readsPerPlane - 1, readIdxBits bits)) {
           readIdx := 0
           when(planeIdx === U(planeCount - 1, planeIdxBits bits)) {
