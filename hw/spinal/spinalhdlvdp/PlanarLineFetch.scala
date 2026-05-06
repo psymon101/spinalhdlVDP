@@ -116,11 +116,7 @@ case class PlanarLineFetch(
   // row fetch, recon.io.pixel could carry junk. PlanarIntegrationSim
   // exercises the integration boundary with a quiescent SDRAM (no
   // dataReady ever fires), and expects pixel=0 in that case.
-  // Task 3 #9349 discriminator (PM ruling): force hasRow=True so the
-  // pixel output reflects the planeMems contents (now pre-initialized
-  // with SMPTE bars in BitplaneRowFetch) regardless of whether the
-  // SDRAM-driven fetch FSM ever completes a row. Revert after the
-  // discriminator answers fetch-vs-host-upload.
-  val hasRow = True
+  val hasRow = Reg(Bool()) init False
+  when(rowFetch.io.rowReady) { hasRow := True }
   io.pixel := Mux(hasRow, recon.io.pixel, B(0, planeCount bits))
 }

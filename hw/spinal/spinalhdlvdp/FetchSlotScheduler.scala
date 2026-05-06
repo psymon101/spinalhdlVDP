@@ -61,7 +61,32 @@ case class FetchSlotScheduler(slotCount: Int = 8) extends Component {
   io.slotValid     := inWindow.asBits.orR
   io.grant         := entering.asBits.orR
   io.preAnnounce   := preEnter.asBits.orR
-  io.grantClientId := io.schedule(grantSlot).clientId
+  // Task 3 #9350 fix (CyanPeak audit, BronzeGate convergence): the prior
+  // `io.schedule(grantSlot).clientId` was correct only on the one-cycle
+  // `entering` pulse — `grantSlot` is a combinational signal latched
+  // only when entering(i) fires. Outside that pulse it reverted to 0,
+  // and SDRAM `data_ready` arriving 5 cycles after the read issue was
+  // qualified against a stale grantClientId and silently discarded
+  // (causing the FSM deadlock observed in the planar fetch).
+  //
+  // Replacement: latch the last-entered slot's index in a register that
+  // HOLDS its value until the next entering event. Between entries
+  // grantClientId remains the last-granted slot's clientId, so the
+  // SDRAM arbiter correctly qualifies in-flight read responses for the
+  // duration of each transaction.
+  //
+  // Using `curSlot` directly (the in-window slot) was wrong here because
+  // multiple slots can overlap in window (e.g. slot 1 full-line +
+  // slot 2 planar), and the existing reverse-iter priority gave the
+  // lowest index, breaking slot 2's grant during the overlap.
+  val grantSlotHeld = Reg(UInt(log2Up(slotCount) bits)) init 0
+  val grantSlotNow  = UInt(log2Up(slotCount) bits)
+  grantSlotNow := grantSlotHeld
+  for (i <- 0 until slotCount) {
+    when(entering(i)) { grantSlotNow := U(i, log2Up(slotCount) bits) }
+  }
+  grantSlotHeld := grantSlotNow
+  io.grantClientId := io.schedule(grantSlotNow).clientId
 
   val count = Reg(UInt(log2Up(slotCount + 1) bits)) init 0
   when(io.lineStart) {

@@ -82,24 +82,7 @@ case class BitplaneRowFetch(
   // `LUT4_RAM`/`SP9KB`-style aspect ratios with each LUT cell holding
   // ~16 entries of 1 bit, so the 1,600 bit total spans ~100 LUTs of
   // LUTRAM rather than 1,600 dedicated FFs).
-  // Task 3 #9349 discriminator (PM ruling): pre-initialize planeMems
-  // with PlanarProofAssets SMPTE-bar pattern. This bypasses the SDRAM
-  // fetch path so we can isolate fetch/render correctness from
-  // host-upload correctness. If captured HW shows SMPTE bars with this
-  // bypass, fetch/render is alive and the remaining blocker is the
-  // host-upload path (#9335). If still gray, fetch/render is still
-  // broken. Revert this change after the discriminator answers.
-  val planeMems = Seq.tabulate(planeCount) { p =>
-    val initWords =
-      if (planeCount == PlanarProofAssets.PlaneCount &&
-          readsPerPlane == PlanarProofAssets.DwordsPerPlane &&
-          p < PlanarProofAssets.PlaneCount) {
-        PlanarProofAssets.planeInit(p).map(v => B(v, 32 bits))
-      } else {
-        Seq.fill(readsPerPlane)(B(0, 32 bits))
-      }
-    Mem(Bits(32 bits), initialContent = initWords.toArray)
-  }
+  val planeMems = Seq.fill(planeCount)(Mem(Bits(32 bits), readsPerPlane))
   // Primary slot read port — single readAsync per Mem for the consumer
   // to use. This is the LUTRAM-inference-friendly path.
   for (p <- 0 until planeCount) {

@@ -15,11 +15,11 @@ import spinal.core.sim._
   *
   * Approach: instantiate `FetchSlotScheduler(slotCount=8)` with the
   * same schedule VdpTop assigns when planar fetch is enabled (slot 0
-  * at hTotal-1, slot 1 full-line, slot 2 at hTotal-80..hTotal-1),
+  * at hTotal-1, slot 1 full-line, slot 2 at hTotal-160..hTotal-1),
   * walk hCounter across a full line (0..hTotal-1), and verify that:
   *
   *   1. `grant` pulses never co-occur (one slot per cycle)
-  *   2. Slot 2's grant fires exactly once per line at hTotal-80
+  *   2. Slot 2's grant fires exactly once per line at hTotal-160
   *   3. Slot 0's grant fires exactly once per line at hTotal-1
   *   4. Slot 1's grant fires exactly once per line at hCounter=0
   *      (window 0..hTotal-1)
@@ -51,10 +51,10 @@ object PlanarBandwidthSim extends App {
     dut.io.schedule(1).clientId #= 0
     dut.io.schedule(1).startH   #= 0
     dut.io.schedule(1).endH     #= hTotal - 1
-    // Slot 2: clientId=2, hTotal-80..hTotal-1 (planar fetch window)
+    // Slot 2: clientId=2, hTotal-160..hTotal-1 (planar fetch window)
     dut.io.schedule(2).enabled  #= true
     dut.io.schedule(2).clientId #= 2
-    dut.io.schedule(2).startH   #= hTotal - 80
+    dut.io.schedule(2).startH   #= hTotal - 160
     dut.io.schedule(2).endH     #= hTotal - 1
     dut.clockDomain.waitSampling(2)
 
@@ -75,7 +75,7 @@ object PlanarBandwidthSim extends App {
         grantCount += 1
         val clientId = dut.io.grantClientId.toInt
         if (h == 0)              { slot1Grants += 1; assert(clientId == 0, s"h=0 should be slot 1 (cid=0), got cid=$clientId") }
-        else if (h == hTotal - 80) { slot2Grants += 1; assert(clientId == 2, s"h=$h should be slot 2 (cid=2), got cid=$clientId") }
+        else if (h == hTotal - 160) { slot2Grants += 1; assert(clientId == 2, s"h=$h should be slot 2 (cid=2), got cid=$clientId") }
         else if (h == hTotal - 1)  { slot0Grants += 1; assert(clientId == 0, s"h=$h should be slot 0 (cid=0), got cid=$clientId") }
       }
     }
@@ -101,7 +101,7 @@ object PlanarBandwidthSim extends App {
       if (dut.io.grant.toBoolean) {
         val cid = dut.io.grantClientId.toInt
         if (h == 0)              multiLineSlot1 += 1
-        else if (h == hTotal-80) multiLineSlot2 += 1
+        else if (h == hTotal-160) multiLineSlot2 += 1
         else if (h == hTotal-1)  multiLineSlot0 += 1
       }
     }

@@ -869,7 +869,14 @@ case class VdpTop() extends Component {
   // Trigger row fetch one cycle into the active region — the FSM has
   // until next-line's display reaches pixelIdx N to land word N
   // (lead-time ≈ 160 cycles even for the first dout32 word).
-  planarLineFetch.io.start          := planarFetchEnable && (hCounter === U(hActive, log2Up(hTotal) bits))
+  // Task 3 #9351 fix: align FSM start with slot 2's widened window so the
+  // FSM transitions to State.Issue at the same cycle the slot opens
+  // (hTotal-160) rather than 80 cycles before — the prior `hCounter ===
+  // hActive` (= hTotal-160 only when hTotal=800 and hActive=640, which
+  // matches by coincidence) is preserved as-is for now since hActive
+  // happens to equal hTotal-160 with the widened slot. Documented for
+  // future-proofing if either constant changes.
+  planarLineFetch.io.start          := planarFetchEnable && (hCounter === U(hTotal - 160, log2Up(hTotal) bits))
   planarLineFetch.io.pixelIdx       := hCounter.resize(log2Up(PLANE_PIXELS))
   // CDC: io.planarSdram* arrive from the SDRAM clock domain (driven by
   // sdramArbiter in TopTang20kHdmi). BufferCC breaks the combinational
@@ -931,8 +938,14 @@ case class VdpTop() extends Component {
   // per design packet §1.
   scheduler.io.schedule(2).enabled  := planarFetchEnable
   scheduler.io.schedule(2).clientId := U(2, 2 bits)
-  scheduler.io.schedule(2).startH   := U(hTotal - 80, 10 bits)
-  scheduler.io.schedule(2).endH     := U(hTotal - 1,  10 bits)
+  // Task 3 #9351 fix (CoralReef bandwidth diagnosis): widen slot 2 from
+  // 80 cycles (hTotal-80..hTotal-1) to 160 cycles (hTotal-160..hTotal-1).
+  // 50 dout32 reads × 5 SDRAM cycles each = ~97 pixel-domain cycles
+  // minimum; the 80-cycle window was below that floor. 160 cycles gives
+  // headroom for FSM/CDC overhead and avoids deadlock when reads in
+  // flight straddle the slot boundary.
+  scheduler.io.schedule(2).startH   := U(hTotal - 160, 10 bits)
+  scheduler.io.schedule(2).endH     := U(hTotal - 1,   10 bits)
   for (i <- 3 until 8) {
     scheduler.io.schedule(i).enabled  := False
     scheduler.io.schedule(i).clientId := U(0, 2 bits)

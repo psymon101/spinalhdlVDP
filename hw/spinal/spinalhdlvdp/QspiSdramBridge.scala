@@ -1,6 +1,7 @@
 package spinalhdlvdp
 
 import spinal.core._
+import spinal.lib._
 import spinal.lib.fsm._
 
 /** Task 34 — Bridge between `QspiDecoder`'s SDRAM_WRITE payload stream and
@@ -67,8 +68,14 @@ case class QspiSdramBridge() extends Component {
 
   val addrReg    = Reg(UInt(23 bits)) init 0
   val bytesLeft  = Reg(UInt(17 bits)) init 0
-  val latchedByte = Reg(Bits(8 bits)) init 0
-  val hasByte    = Reg(Bool()) init False
+  // Task 3 host-upload repair (CoralReef #9360, CyanPeak audit PASS #9362):
+  // replace the prior single-byte latch (`latchedByte` + `hasByte`) with a
+  // 16-byte StreamFifo. The single-byte latch silently dropped bytes any
+  // time `allowUpload` was low (active video) — at 500 kHz QSPI, ~13 bytes
+  // arrived per active line and only 1 could be held. The 16-byte FIFO
+  // absorbs the per-line backlog with margin; H-blank drains it faster
+  // than active video can fill it.
+  val byteFifo = StreamFifo(Bits(8 bits), depth = 16)
 
   // The write address presented to the SDRAM controller lags addrReg by
   // one cycle so it carries the CURRENT byte's address on the cycle the
@@ -84,16 +91,19 @@ case class QspiSdramBridge() extends Component {
   wrPulse   := False   // default — single-cycle
   donePulse := False
 
-  // Capture incoming bytes into the single-entry holding register. If a
-  // byte arrives while `hasByte` is still True (host overran the bridge),
-  // the old byte is dropped. The host is responsible for pacing; per
-  // artifact §6 any overrun manifests as a visible data corruption when
-  // the asset is later read back. No silent error accounting in this
-  // bounded Checkpoint B/C scope.
-  when(io.byteValid) {
-    latchedByte := io.byteIn
-    hasByte     := True
-  }
+  // Push every incoming byte into the FIFO. Backpressure is intentionally
+  // ignored on `byteValid` (the QSPI decoder source has no flow-control
+  // input); depth=16 absorbs the worst-case ~13 bytes/active-line backlog
+  // with margin. If a sustained-overflow scenario is ever introduced,
+  // expose `byteFifo.io.push.ready` here.
+  byteFifo.io.push.valid   := io.byteValid
+  byteFifo.io.push.payload := io.byteIn
+
+  // Pop one byte per cycle when all gates open. canWrite is the unified
+  // pop+ready predicate: data available, blanking window open, controller
+  // not busy. The FSM observes `canWrite` to advance its byte counter.
+  val canWrite = byteFifo.io.pop.valid && io.allowUpload && !io.sdramBusy
+  byteFifo.io.pop.ready := canWrite
 
   val fsm = new StateMachine {
     val sIdle     = new State with EntryPoint
@@ -104,7 +114,6 @@ case class QspiSdramBridge() extends Component {
       when(io.headerValid) {
         addrReg   := io.addrInit
         bytesLeft := io.lenBytes
-        hasByte   := False
         goto(sActive)
       }
     }
@@ -113,12 +122,11 @@ case class QspiSdramBridge() extends Component {
       // Write one byte per cycle when all gates open. Capture the address
       // and data INTO the write-side regs and schedule the pulse; addrReg
       // advances in parallel so the following write targets the next byte.
-      when(hasByte && io.allowUpload && !io.sdramBusy) {
+      when(canWrite) {
         wrAddrReg := addrReg
-        wrDinReg  := latchedByte
+        wrDinReg  := byteFifo.io.pop.payload
         wrPulse   := True
         wrToggleReg := !wrToggleReg       // flip on each write — CDC source
-        hasByte   := False
         addrReg   := addrReg + 1          // wraps at 2^23 naturally
         bytesLeft := bytesLeft - 1
         when(bytesLeft === U(1, 17 bits)) {
