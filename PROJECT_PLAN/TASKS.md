@@ -97,17 +97,20 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |---|---|
 | **Task** | Task 3 — Planar Fetch Hardening (2→5+ planes) |
-| **Status** | **ARTIFACT OPEN** — awaiting CyanPeak audit |
-| **Phase** | artifact |
-| **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding after audit PASS) |
+| **Status** | **IN-PROGRESS** — domain migration Path A after f4b04a9 narrow-patch stack proved insufficient on hardware |
+| **Phase** | implement (domain migration) |
+| **Owner** | BrightForge (coding + proof), CyanPeak (audit), BronzeGate (PM), CoralReef (ledger/sync) |
 | **Baseline Commit** | `ef49c5f` (MODE0_GAP_TASKLIST.md updated post-Task-2b) |
+| **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Latest Auth Mail** | #9306 (BronzeGate activation) |
-| **Next Deliverable** | CyanPeak audit PASS → BrightForge coding |
+| **Latest Auth Mail** | #9369 (BrightForge Path A start — exit proof declared; sdramClockDomain migration active) |
+| **Next Deliverable** | BrightForge: domain migration proof packet — move `PlanarLineFetch` / row-fetch consumption into `sdramClockDomain`; sim+synth+flash+capture with direct visual review per #9345; explicit statement whether bars traverse SDRAM end-to-end |
 
 **Scope:** Integrate `PlanarLineFetch` into main `VdpTop` pipeline as selectable L0 source. Raise planar plane count from 2 → 5+ (target 5 for Amiga OCS, 6 for EHB). Add scheduler slot(s) for planar row fetch. Wire SDRAM `dout32` aperture to planar fetch client. Add `planeBaseAddr[0..4]` register-bus addresses. Bit-identical regression (Scenarios 9/10). Sim proof: `PlanarIntegrationSim` + `PlanarBandwidthSim`. Synthesis delta +400–600 LUT. HW proof: 5-plane diagnostic scene, 30s capture, freeze=0.
 
 **Key context:** This is an **integration lane**, not a rewrite. Standalone primitives `BitplaneReconstruct`, `BitplaneRowFetch`, `PlanarLineFetch`, and `Hdmi720pPlanarProofTop` already exist and are proven. Gap = production integration into scheduler + SDRAM arbiter + L0 source mux.
+
+**Current pivot:** The pixel-domain fetch path (narrow fix `527c026`, unified unblock `f4b04a9`) proved insufficient on hardware — uniform gray persisted despite sim PASS and synth clean. BronzeGate #9364 ruled Path A domain migration as the active unblock lane: move `PlanarLineFetch` / `BitplaneRowFetch` SDRAM consumption into `sdramClockDomain`, following the established `BitmapRowFetch` / `SdramTileAttributeFetch` pattern. Consume `data_ready`/`dout32` natively in the read source domain; return only stable completed results (`rowReady`, filled `planeMems`) to the pixel domain via `StreamFifoCC`. BrightForge declared exit proof at #9369 and is actively implementing. Task 31 scroll-table dependency remains historical/closed context (`ac3fb87`) — not a separate active lane.
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
