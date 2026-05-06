@@ -31,11 +31,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement
 | **Latest Commit** | `44efa3f` (Task 3: Mem-backed BitplaneRowFetch, planeCount=5 places with 0 unplaced REGs) |
 | **Commits in lane** | `ee829e5` (CP-C: RTL integration); `8cf0621` (CP-D: sims); `363e3e4` (CP-E: 3-plane step-down); `44efa3f` (CP-E-prime: Mem refactor, planeCount=5) |
-| **Latest Auth Mail** | #9327 (BrightForge HOLD cleared — Mem refactor proof packet supersedes #9323) |
+| **Latest Auth Mail** | #9330 (CyanPeak audit PASS — 5-plane target restored, Checkpoint F authorized) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Next Deliverable** | CyanPeak: audit proof packet #9327 → BrightForge: Checkpoint F (HW proof) |
+| **Next Deliverable** | BrightForge: Checkpoint F (HW proof — 30s ESP8266-driven 5-plane scene, retained artifact per policy #9294) |
 
-**Context:** Tasks 2a/2c/2b all CLOSED. Task 3: BrightForge cleared CyanPeak HOLD #9325 with a `BitplaneRowFetch` Mem refactor (`44efa3f`). `planeCount=5, planePixels=320` now places cleanly: Logic 14,419 (70%), LUT 9,827, FF 7,922, SSRAM 620, **0 unplaced REGs**, **0 timing violations**. FF count dropped 1,599 vs Vec(Reg) baseline. 5/5 sims PASS. The 3-plane fallback (`363e3e4`) is superseded; head-of-branch is the 5-plane build. Next: CyanPeak audit of #9327, then BrightForge Checkpoint F (HW proof: 30s capture, ESP8266-driven 5-plane scene, retained artifact per policy #9294).
+**Context:** Tasks 2a/2c/2b all CLOSED. Task 3 implementation (C/D/E/E-prime) is **COMPLETE and audit PASS #9330**. BrightForge's Mem refactor (`44efa3f`) restored the 5-plane / 320-pixel target. Synth: Logic 14,419 (70%), 0 unplaced REGs, 0 timing violations. 5/5 sims PASS. CyanPeak #9330 formally AUTHORIZED Checkpoint F. Next: BrightForge delivers 30s HW proof with visibly demonstrated 5-plane (32-color) content per policy #9294.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
