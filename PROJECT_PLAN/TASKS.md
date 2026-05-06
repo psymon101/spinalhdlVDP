@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-06 (Tasks 2a/2c/2b all CLOSED. Task 3 — Planar Fetch Hardening ACTIVE — Checkpoint B audit PASS #9313. Checkpoint C active.)
+**Updated:** 2026-05-06 (Tasks 2a/2c/2b all CLOSED. Task 3 — Planar Fetch Hardening ACTIVE — BronzeGate #9364 pivoted to domain migration Path A after f4b04a9 HW still gray.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -27,15 +27,15 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 3 — Planar Fetch Hardening (2→5+ planes)** |
-| **Status** | **IN-PROGRESS** (HOLD #9325 **CLEARED** — Mem refactor complete, planeCount=5 fits) |
-| **Phase** | implement
-| **Latest Commit** | `df57d61` (Discriminator 2: FPGA-resident plane data bypass — bars visible, render path alive) |
-| **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator) |
-| **Latest Auth Mail** | #9362 (CyanPeak audit PASS — host-upload repair #9360 GO; BrightForge authorized unified FIFO+Scheduler+Window commit) |
+| **Status** | **IN-PROGRESS** (HOLD #9325 CLEARED; f4b04a9 narrow-patch stack landed but HW gray #9363; lane pivoted to domain migration #9364) |
+| **Phase** | implement (domain migration Path A) |
+| **Latest Commit** | `f4b04a9` (unified unblock: FIFO + scheduler + window + bypass revert — sims 9/9 green, HW still gray) |
+| **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt) |
+| **Latest Auth Mail** | #9364 (BronzeGate PM ruling — pivot to PlanarLineFetch domain migration Path A; stop narrow-path widening) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Next Deliverable** | BrightForge: unified implementation — QspiSdramBridge FIFO (#9360) + scheduler slot ownership (#9350) + widened window (#9351) in single commit; sim+synth+flash+capture per #9345 |
+| **Next Deliverable** | BrightForge: domain migration — move `PlanarLineFetch` / row-fetch consumption into `sdramClockDomain` per #9364 scope boundary; sim+synth+flash+capture with direct visual review per #9345; explicit statement whether bars traverse SDRAM end-to-end |
 
-**Context:** Tasks 2a/2c/2b all CLOSED. Task 3 Checkpoint F blocker #9333 converged. Three structural repairs authorized in unified commit per CyanPeak #9362: (1) QspiSdramBridge 16-byte FIFO fix (host-upload byte-drop, CoralReef #9360, audit PASS #9362); (2) scheduler slot ownership (`grantClientId` one-shot → level, CyanPeak #9350); (3) widened window (80→160 cycles, CoralReef #9351). Discriminator `df57d61` proved fetch/render/palette/ctrl paths alive. BrightForge to land all three in single commit, revert bypass, sim+synth+flash+capture per #9345. CoralReef host-upload sidecar now converged into main lane.
+**Context:** Tasks 2a/2c/2b all CLOSED. Task 3 Checkpoint F blocker #9333 converged. Three structural repairs authorized in unified commit per CyanPeak #9362: (1) QspiSdramBridge 16-byte FIFO fix (host-upload byte-drop, CoralReef #9360, audit PASS #9362); (2) scheduler slot ownership (`grantClientId` one-shot → level, CyanPeak #9350); (3) widened window (80→160 cycles, CoralReef #9351). Discriminator `df57d61` proved fetch/render/palette/ctrl paths alive. BrightForge landed all three in `f4b04a9` (9/9 sims PASS, synth clean), but hardware remained uniform gray (#9363). BronzeGate #9364 ruled Path A domain migration as the active unblock lane: move `PlanarLineFetch` into `sdramClockDomain`, consume `data_ready`/`dout32` natively, keep return path to pixel domain as smallest safe level-signal boundary. Do not keep widening the pixel-domain slot/window path. CoralReef on standby for migration-local preflight only.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
