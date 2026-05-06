@@ -27,15 +27,15 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 3 — Planar Fetch Hardening (2→5+ planes)** |
-| **Status** | **IN-PROGRESS** (implementation phase — Checkpoint B PASS #9313) |
+| **Status** | **IN-PROGRESS** (implementation phase — Checkpoints C+D committed) |
 | **Phase** | implement
-| **Latest Commit** | `ee3b436` (Task 3 artifact landing) |
-| **Commits in lane** | None yet — Checkpoint C integration active |
+| **Latest Commit** | `8cf0621` (Task 3 Checkpoint D: PlanarIntegrationSim + PlanarBandwidthSim) |
+| **Commits in lane** | `ee829e5` (Checkpoint C: PlanarLineFetch integration into VdpTop); `8cf0621` (Checkpoint D: integration + bandwidth sims) |
 | **Latest Auth Mail** | #9306 (BronzeGate activation); #9308 (CoralReef artifact); #9309 (CyanPeak PASS); #9312 (BrightForge CP-A); #9313 (CyanPeak CP-B PASS) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Next Deliverable** | BrightForge: Checkpoint C (Integration: RTL wiring) |
+| **Next Deliverable** | BrightForge: Checkpoint E (Synthesis delta verification) or proof packet for CyanPeak audit |
 
-**Context:** Tasks 2a/2c/2b all CLOSED. Task 2b HW proof v2: 30s capture, 868 frames, 28 visible sprites, freeze=0.0000. V=32 baseline: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. Task 3 is an **integration lane** — standalone primitives `BitplaneReconstruct`, `BitplaneRowFetch`, `PlanarLineFetch`, and `Hdmi720pPlanarProofTop` already exist and are proven. The gap is integrating `PlanarLineFetch` into the main `VdpTop` pipeline as a selectable L0 source with scheduler slot allocation and SDRAM `dout32` arbitration. Checkpoint A Design Packet landed #9312; Checkpoint B Audit PASS #9313.
+**Context:** Tasks 2a/2c/2b all CLOSED. Task 2b HW proof v2: 30s capture, 868 frames, 28 visible sprites, freeze=0.0000. V=32 baseline: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. Task 3 is an **integration lane** — standalone primitives already proven. BrightForge has committed Checkpoint C (RTL integration: `PlanarLineFetch` wired into `VdpTop`, scheduler slot 2, arbiter client 2, register decode `0x0D40..0x0D4A`, L0 source mux) and Checkpoint D (`PlanarIntegrationSim` + `PlanarBandwidthSim`). Awaiting BrightForge proof packet or CyanPeak audit of C/D.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |

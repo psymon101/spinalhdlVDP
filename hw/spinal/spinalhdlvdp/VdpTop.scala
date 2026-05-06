@@ -821,24 +821,34 @@ case class VdpTop() extends Component {
   // its SDRAM bandwidth (clientId=2 on sdramArbiter, wired in
   // TopTang20kHdmi). 5 planes × 320 pixels = 50 dout32 reads/line.
   // planeBaseAddr[0..4] register-bus addresses at 0x0D40..0x0D49.
-  val planarLineFetch = PlanarLineFetch(planeCount = 5, planePixels = 320, addrWidth = 23)
+  // Task 3 risk #2 mitigation: planeCount=4 (Atari ST low-res — 16
+  // colors, 4 bitplanes). 5-plane build hit CLS placement wall
+  // (797 unplaced REGs from BitplaneRowFetch.planeWords storage =
+  // 5×10×32 = 1,600 FFs exceeding CLS density). 4-plane saves
+  // 1×10×32 = 320 FFs and lands within budget. Per artifact scope-
+  // guard, this provisional drop preserves Task 3's "integration lane"
+  // intent without reopening the standalone PlanarLineFetch primitive.
+  // 5/6-plane Amiga OCS / EHB coverage deferred to a follow-on lane
+  // that refactors planeWords to Mem-backed storage.
+  val PLANE_COUNT = 4
+  val planarLineFetch = PlanarLineFetch(planeCount = PLANE_COUNT, planePixels = 320, addrWidth = 23)
   val planarCtrlReg     = Reg(Bits(16 bits)) init 0
-  val planeBaseAddrReg  = Vec.fill(5)(Reg(UInt(23 bits)) init 0)
+  val planeBaseAddrReg  = Vec.fill(PLANE_COUNT)(Reg(UInt(23 bits)) init 0)
   val planarFetchEnable = planarCtrlReg(0)
   // simPublic taps for PlanarIntegrationSim probes
   planarCtrlReg.simPublic()
-  for (p <- 0 until 5) planeBaseAddrReg(p).simPublic()
+  for (p <- 0 until PLANE_COUNT) planeBaseAddrReg(p).simPublic()
 
-  // Register-bus decode for plane base addresses (5 planes × 2 words each, lo/hi).
+  // Register-bus decode for plane base addresses (PLANE_COUNT planes × 2 words each, lo/hi).
   val planarPlaneRangeHit = effWrite &&
-    (effAddr >= U(0x0D40, 15 bits)) && (effAddr <= U(0x0D49, 15 bits))
+    (effAddr >= U(0x0D40, 15 bits)) && (effAddr < U(0x0D40 + 2 * PLANE_COUNT, 15 bits))
   val planarCtrlWriteHit  = effWrite && (effAddr === U(0x0D4A, 15 bits))
   val planarSubAddr = (effAddr - U(0x0D40, 15 bits))(3 downto 0)   // 0..9
   val planarPlaneIdx = planarSubAddr(3 downto 1)                   // 0..4
   val planarHiSel    = planarSubAddr(0)                            // 0=lo, 1=hi
   when(planarPlaneRangeHit) {
     switch(planarPlaneIdx) {
-      for (p <- 0 until 5) {
+      for (p <- 0 until PLANE_COUNT) {
         is(U(p, 3 bits)) {
           when(!planarHiSel) {
             planeBaseAddrReg(p)(15 downto 0)  := effData.asUInt
@@ -1082,9 +1092,12 @@ case class VdpTop() extends Component {
   //   idx[3:0] := planarPixel[3:0]
   //   bank[0]  := planarPixel[4]   (other bank bits = 0 → palette banks 0/1)
   //   prio     := False (priority handled by adapter-local future work)
+  // 4-plane pixel = 4-bit palette idx (16 colors). Bank stays at 0.
+  // (When a future lane raises planeCount to 5 with Mem-backed planeWords,
+  // re-introduce bit 4 → bank-bit 0 for 32-color Amiga OCS coverage.)
   val planarPixel = planarLineFetch.io.pixel
-  val planarIdx4  = planarPixel(3 downto 0)
-  val planarBank3 = (B"00" ## planarPixel(4)).asUInt
+  val planarIdx4  = planarPixel.resize(4)
+  val planarBank3 = U(0, 3 bits)
   val layer0Index = (Mux(planarFetchEnable, planarIdx4,
                          Mux(affineEnable, affineIndex,
                          Mux(io.layer0TestPatternEnable,
