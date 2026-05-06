@@ -235,11 +235,37 @@ case class SpriteRasterizer(
   val wrEnA  = pixelVisible && !activeFillBank
   val wrEnB  = pixelVisible &&  activeFillBank
 
-  slbA.write(address = wrAddr, data = wrData, enable = wrEnA)
-  slbB.write(address = wrAddr, data = wrData, enable = wrEnB)
-
   // Drain reads the OPPOSITE bank.
   val drainBankIsA = activeFillBank      // when fill=B, drain=A
+
+  // Drain-side erase: as each address is read out for compositing, the
+  // same address in that bank is written back to 0. By the time
+  // bufferSwap re-uses this bank for fill, every address has been
+  // cleared — without this, sprite pixels persist across lines and
+  // appear as full-height vertical streaks at the sprite's X column
+  // (the stale-bank-leak symptom). Mem default is read-first, so the
+  // composer still sees the original sprite pixel on this cycle while
+  // the 0 is written for the next fill round.
+  //
+  // Clear and fill targets are always different banks (drain bank ==
+  // ¬fill bank), so the Mux on each bank's single write port is always
+  // safe — clear and fill writes are mutually exclusive on any one
+  // Mem. Predication uses the live `activeFillBank` so clears land in
+  // the bank currently being drained.
+  val clearAddr = io.drainAddr
+  val clearZero = B(0, SLB_W bits)
+  val clearEnA  =  activeFillBank    // drain=A when fill=B
+  val clearEnB  = !activeFillBank    // drain=B when fill=A
+  slbA.write(
+    address = Mux(clearEnA, clearAddr, wrAddr),
+    data    = Mux(clearEnA, clearZero, wrData),
+    enable  = clearEnA || wrEnA
+  )
+  slbB.write(
+    address = Mux(clearEnB, clearAddr, wrAddr),
+    data    = Mux(clearEnB, clearZero, wrData),
+    enable  = clearEnB || wrEnB
+  )
   val drainDataA = slbA.readSync(io.drainAddr)
   val drainDataB = slbB.readSync(io.drainAddr)
   val drainBankR = RegNext(drainBankIsA) init True
