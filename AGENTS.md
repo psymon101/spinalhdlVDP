@@ -141,6 +141,20 @@ This repo runs under a compact, event-driven coordination policy. Preserve
 momentum, but do not spend tokens reconstructing state that is already
 available in mail and the live-lane ledger.
 
+Fast-flow objective:
+
+- optimize for shortest trustworthy cycle time, not maximum packet volume
+- prefer fewer open lanes, smaller proof-sized batches, and earlier
+  discriminators over broad parallel churn
+
+Hard WIP rule:
+
+- keep at most **1 active engineering lane** on the critical path at a time
+- allow at most **1 sidecar research / preflight lane** in parallel when it
+  does not block the active engineering step
+- do not open a second implementation lane while the current one still lacks a
+  clear next owner
+
 ### Source of truth order
 
 Use this order every time:
@@ -252,6 +266,13 @@ For low-risk bounded lanes:
 - `BrightForge` starts immediately after audit GO
 - no extra PM message is required between those routine steps
 
+Small-batch rule:
+
+- prefer the smallest batch that can still produce one clean proof packet
+- if two changes do not share the same proof boundary, do not batch them
+- if a blocker can be separated by one cheap discriminator, run that before
+  planning a broader refactor
+
 Artifact fast-path rule:
 
 - for a routine bounded lane, `CoralReef` should land one compact artifact
@@ -276,6 +297,13 @@ Artifact fast-path rule:
   with clear scope and next owner `BrightForge`, treat that follow-on as the
   next active coding slice by default unless `CyanPeak` or `BronzeGate`
   explicitly places it on `HOLD`
+
+Done-shape rule:
+
+- every artifact packet must define the exact exit proof before coding starts
+- every proof packet must state the exact claim being proven
+- if the claim and retained evidence do not line up directly, the packet is not
+  done and must stay open as a blocker
 
 Proof-packet rule:
 
@@ -406,6 +434,24 @@ nudges.
   blocker, ambiguity, or explicit user priority change
 - when intervening, state the exact missing handoff and exact next owner rather
   than reconstructing full history
+
+Escalation priority:
+
+- first ask: who is the exact next owner?
+- second ask: what is the cheapest discriminator?
+- third ask: what proof boundary lets the lane move again?
+- do not broaden scope before those three are answered
+
+Workflow metrics rule:
+
+- optimize the workflow against these recurring measures:
+  - handoff latency
+  - blocker-to-discriminator time
+  - audit turnaround time
+  - proof reopen rate
+  - duplicate / no-change packet rate
+- if a lane reopens because the evidence shape was wrong, treat that as a
+  workflow defect and tighten the rule that allowed it
 
 ### Post-Completion Reassessment
 
