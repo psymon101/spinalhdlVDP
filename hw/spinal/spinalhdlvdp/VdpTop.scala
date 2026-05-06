@@ -2,6 +2,7 @@ package spinalhdlvdp
 
 import spinal.core._
 import spinal.core.sim._
+import spinal.lib.BufferCC
 
 case class VdpTop() extends Component {
   val io = new Bundle {
@@ -830,8 +831,9 @@ case class VdpTop() extends Component {
   // intent without reopening the standalone PlanarLineFetch primitive.
   // 5/6-plane Amiga OCS / EHB coverage deferred to a follow-on lane
   // that refactors planeWords to Mem-backed storage.
-  val PLANE_COUNT = 4
-  val planarLineFetch = PlanarLineFetch(planeCount = PLANE_COUNT, planePixels = 320, addrWidth = 23)
+  val PLANE_COUNT = 3
+  val PLANE_PIXELS = 256
+  val planarLineFetch = PlanarLineFetch(planeCount = PLANE_COUNT, planePixels = PLANE_PIXELS, addrWidth = 23)
   val planarCtrlReg     = Reg(Bits(16 bits)) init 0
   val planeBaseAddrReg  = Vec.fill(PLANE_COUNT)(Reg(UInt(23 bits)) init 0)
   val planarFetchEnable = planarCtrlReg(0)
@@ -868,10 +870,17 @@ case class VdpTop() extends Component {
   // until next-line's display reaches pixelIdx N to land word N
   // (lead-time ≈ 160 cycles even for the first dout32 word).
   planarLineFetch.io.start          := planarFetchEnable && (hCounter === U(hActive, log2Up(hTotal) bits))
-  planarLineFetch.io.pixelIdx       := hCounter.resize(log2Up(320))
-  planarLineFetch.io.sdramBusy      := io.planarSdramBusy
-  planarLineFetch.io.sdramDataReady := io.planarSdramDataReady
-  planarLineFetch.io.sdramDout32    := io.planarSdramDout32
+  planarLineFetch.io.pixelIdx       := hCounter.resize(log2Up(PLANE_PIXELS))
+  // CDC: io.planarSdram* arrive from the SDRAM clock domain (driven by
+  // sdramArbiter in TopTang20kHdmi). BufferCC breaks the combinational
+  // sdram↔pixel loop between sdramRd/clientGrant and sdramBusy/state.
+  // Note: 32-bit dout32 BufferCC has the standard caveat (per-bit
+  // synchronization, no gray code). Acceptable here because the
+  // dataReady handshake gates consumption — PlanarLineFetch only
+  // samples dout32 when dataReady is asserted.
+  planarLineFetch.io.sdramBusy      := BufferCC(io.planarSdramBusy,      False)
+  planarLineFetch.io.sdramDataReady := BufferCC(io.planarSdramDataReady, False)
+  planarLineFetch.io.sdramDout32    := BufferCC(io.planarSdramDout32,    B(0, 32 bits))
   io.planarSdramRd   := planarLineFetch.io.sdramRd
   io.planarSdramAddr := planarLineFetch.io.sdramAddr
 
