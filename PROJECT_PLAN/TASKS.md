@@ -29,9 +29,9 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 3 — Planar Fetch Hardening (2→5+ planes)** |
 | **Status** | **IN-PROGRESS** (HOLD #9325 CLEARED; f4b04a9 narrow-patch stack landed but HW gray #9363; lane pivoted to domain migration #9364) |
 | **Phase** | implement (domain migration Path A) |
-| **Latest Commit** | `f4b04a9` (unified unblock: FIFO + scheduler + window + bypass revert — sims 9/9 green, HW still gray) |
-| **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt) |
-| **Latest Auth Mail** | #9369 (BrightForge Path A start — exit proof declared; sdramClockDomain migration active) |
+| **Latest Commit** | `cf5722e` (Path A M1 sim-PASS — domain migration HDL + dual-clock sims green; M2 synth + M3 HW pending) |
+| **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt); `cf5722e` (Path A M1 sim-PASS) |
+| **Latest Auth Mail** | #9377 (BrightForge M1 sim-PASS — BitplaneRowFetch/PlanarLineFetch migrated to sdramCd, StreamFifoCC bridge, 3 sims PASS) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
 | **Next Deliverable** | BrightForge: domain migration — move `PlanarLineFetch` / row-fetch consumption into `sdramClockDomain` per #9364 scope boundary; sim+synth+flash+capture with direct visual review per #9345; explicit statement whether bars traverse SDRAM end-to-end |
 
@@ -110,7 +110,7 @@ This section tracks the single active lane so the team does not infer state from
 
 **Key context:** This is an **integration lane**, not a rewrite. Standalone primitives `BitplaneReconstruct`, `BitplaneRowFetch`, `PlanarLineFetch`, and `Hdmi720pPlanarProofTop` already exist and are proven. Gap = production integration into scheduler + SDRAM arbiter + L0 source mux.
 
-**Current pivot:** The pixel-domain fetch path (narrow fix `527c026`, unified unblock `f4b04a9`) proved insufficient on hardware — uniform gray persisted despite sim PASS and synth clean. BronzeGate #9364 ruled Path A domain migration as the active unblock lane: move `PlanarLineFetch` / `BitplaneRowFetch` SDRAM consumption into `sdramClockDomain`, following the established `BitmapRowFetch` / `SdramTileAttributeFetch` pattern. Consume `data_ready`/`dout32` natively in the read source domain; return only stable completed results (`rowReady`, filled `planeMems`) to the pixel domain via `StreamFifoCC`. BrightForge declared exit proof at #9369 and is actively implementing. Task 31 scroll-table dependency remains historical/closed context (`ac3fb87`) — not a separate active lane.
+**Current pivot:** The pixel-domain fetch path (narrow fix `527c026`, unified unblock `f4b04a9`) proved insufficient on hardware — uniform gray persisted despite sim PASS and synth clean. BronzeGate #9364 ruled Path A domain migration as the active unblock lane: move `PlanarLineFetch` / `BitplaneRowFetch` SDRAM consumption into `sdramClockDomain`, following the established `BitmapRowFetch` / `SdramTileAttributeFetch` pattern. Consume `data_ready`/`dout32` natively in the read source domain; return only stable completed results (`rowReady`, filled `planeMems`) to the pixel domain via `StreamFifoCC`. BrightForge declared exit proof at #9369 and landed M1 sim-PASS at `cf5722e` (#9377): `BitplaneRowFetchSim`, `PlanarLineFetchSim`, and `PlanarIntegrationSim` all PASS under dual-clock harness. M2 (synth) and M3 (flash + HDMI capture + direct visual review) remain pending. Task 31 scroll-table dependency remains historical/closed context (`ac3fb87`) — not a separate active lane.
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
