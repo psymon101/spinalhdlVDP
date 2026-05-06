@@ -27,15 +27,15 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 3 — Planar Fetch Hardening (2→5+ planes)** |
-| **Status** | **HOLD** — CyanPeak audit #9325 (3-plane fallback rejected) |
-| **Phase** | implement (refactor substep)
-| **Latest Commit** | `363e3e4` (Task 3 Checkpoint E: synthesis — planeCount=3 step-down) |
-| **Commits in lane** | `ee829e5` (Checkpoint C: RTL integration); `8cf0621` (Checkpoint D: PlanarIntegrationSim + PlanarBandwidthSim); `363e3e4` (Checkpoint E: synthesis tuning) |
-| **Latest Auth Mail** | #9325 (CyanPeak audit HOLD — 3-plane rejected; Mem refactor mandated) |
+| **Status** | **IN-PROGRESS** (HOLD #9325 **CLEARED** — Mem refactor complete, planeCount=5 fits) |
+| **Phase** | implement
+| **Latest Commit** | `44efa3f` (Task 3: Mem-backed BitplaneRowFetch, planeCount=5 places with 0 unplaced REGs) |
+| **Commits in lane** | `ee829e5` (CP-C: RTL integration); `8cf0621` (CP-D: sims); `363e3e4` (CP-E: 3-plane step-down); `44efa3f` (CP-E-prime: Mem refactor, planeCount=5) |
+| **Latest Auth Mail** | #9327 (BrightForge HOLD cleared — Mem refactor proof packet supersedes #9323) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Next Deliverable** | BrightForge: refactor `BitplaneRowFetch.planeWords` from `Vec(Reg)` to `Mem`-backed storage; retarget planeCount=5 |
+| **Next Deliverable** | CyanPeak: audit proof packet #9327 → BrightForge: Checkpoint F (HW proof) |
 
-**Context:** Tasks 2a/2c/2b all CLOSED. Task 3 integration C/D/E complete. CyanPeak #9325 **HOLD**: 3-plane fallback rejected as insufficient for Task 3's "2→5+ planes" goal. Audit mandates `BitplaneRowFetch` storage refactor to `Mem`/BSRAM within Task 3 scope. Rationale: hardening requires fixing the architectural flaw (FF-density wall in `planeWords`), not lowering parameters until a broken primitive fits. Integration/sim/synth (C/D/E) all PASS; only the planeCount ceiling is blocked. Next: BrightForge estimates + executes Mem refactor, then reruns synthesis for planeCount=5.
+**Context:** Tasks 2a/2c/2b all CLOSED. Task 3: BrightForge cleared CyanPeak HOLD #9325 with a `BitplaneRowFetch` Mem refactor (`44efa3f`). `planeCount=5, planePixels=320` now places cleanly: Logic 14,419 (70%), LUT 9,827, FF 7,922, SSRAM 620, **0 unplaced REGs**, **0 timing violations**. FF count dropped 1,599 vs Vec(Reg) baseline. 5/5 sims PASS. The 3-plane fallback (`363e3e4`) is superseded; head-of-branch is the 5-plane build. Next: CyanPeak audit of #9327, then BrightForge Checkpoint F (HW proof: 30s capture, ESP8266-driven 5-plane scene, retained artifact per policy #9294).
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
