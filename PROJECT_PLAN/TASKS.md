@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-05 (Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Task 2c activated IN-PROGRESS. Task 1 MODE_SELECT FULL LANE DONE per CyanPeak audit PASS #9201.)
+**Updated:** 2026-05-06 (Tasks 2a/2c/2b all CLOSED. Task 3 — Planar Fetch Hardening activated, artifact open, awaiting CyanPeak audit.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 2b — Sprite Capacity Bump** |
-| **Status** | **DONE** — FULLY CLOSED (sim/synth + HW proof v2) |
-| **Phase** | closed
-| **Latest Commit** | `a268e1e` (SpriteSubstrateSim Cases E + F) |
-| **Commits in lane** | `2281482` (parameter bump); `a268e1e` (Cases E+F) |
-| **Latest Auth Mail** | #9295 (BrightForge HW proof v2); #9298 (CyanPeak re-audit PASS) |
-| **Artifact** | `PROJECT_PLAN/artifacts/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
-| **Next Deliverable** | N/A — Task 2b fully closed |
+| **Task** | **Task 3 — Planar Fetch Hardening (2→5+ planes)** |
+| **Status** | **ARTIFACT OPEN** — awaiting CyanPeak audit |
+| **Phase** | artifact
+| **Latest Commit** | `ef49c5f` (MODE0_GAP_TASKLIST.md updated post-Task-2b) |
+| **Commits in lane** | None yet — artifact phase |
+| **Latest Auth Mail** | #9306 (BronzeGate activation); #9307 (CoralReef artifact delivery) |
+| **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
+| **Next Deliverable** | CyanPeak audit PASS → BrightForge coding |
 
-**Context:** Task 2a CLOSED per BronzeGate #9252 / CyanPeak #9250. Task 2c CLOSED per BronzeGate #9279 / CyanPeak #9278. Task 2b **FULLY CLOSED** per CyanPeak #9298 (HW proof v2 re-audit PASS). V=32 committed defaults: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. Regression 10/10 PASS. HW proof v2: 30s capture, 868 frames, 28 visible sprites, freeze=0.0000, glitch=0.0000. Total trajectory: 51,191 → 13,924 = 3.7× reduction. No active lane.
+**Context:** Tasks 2a/2c/2b all CLOSED. Task 2b HW proof v2: 30s capture, 868 frames, 28 visible sprites, freeze=0.0000. V=32 baseline: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. Task 3 is an **integration lane** — standalone primitives `BitplaneReconstruct`, `BitplaneRowFetch`, `PlanarLineFetch`, and `Hdmi720pPlanarProofTop` already exist and are proven. The gap is integrating `PlanarLineFetch` into the main `VdpTop` pipeline as a selectable L0 source with scheduler slot allocation and SDRAM `dout32` arbitration.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
@@ -76,20 +76,38 @@ This section tracks the single active lane so the team does not infer state from
 
 **Scope:** Replace SpriteEvaluator `active*` Vec FF duplication with RAM-based active-list storage; narrow SpriteRasterizer interface to RAM read port; remove dead `activeY`. Target: V=32 places with zero unplaced REGs.
 
-### Task 2b — Sprite Capacity Bump (ACTIVE)
+### Task 2b — Sprite Capacity Bump (CLOSED)
 
 | Field | Value |
 |---|---|
 | **Task** | Task 2b — Sprite Capacity Bump |
-| **Status** | **IN-PROGRESS** — artifact phase, awaiting CyanPeak audit |
+| **Status** | **DONE** — CyanPeak audit PASS #9286/#9298; BronzeGate closeout #9287/#9293/#9294 |
+| **Phase** | closed |
+| **Owner** | BrightForge (coding + proof), CyanPeak (audit PASS), BronzeGate (PM closeout) |
+| **Baseline Commit** | `b558cee` (Task 2c closure) |
+| **Commits in lane** | `2281482` (parameter bump V=8→32/D=32→64); `a268e1e` (SpriteSubstrateSim Cases E+F) |
+| **Artifact** | `PROJECT_PLAN/artifacts/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
+| **Latest Auth Mail** | #9295 (BrightForge HW proof v2); #9298 (CyanPeak re-audit PASS) |
+| **Next Deliverable** | N/A — fully closed |
+
+**Proof:** V=32: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. HW proof v2: 30s capture, 868 frames, 28 visible sprites, freeze=0.0000, glitch=0.0000. Regression 10/10 PASS. Total trajectory: 51,191 → 13,924 = 3.7× reduction.
+
+### Task 3 — Planar Fetch Hardening (ACTIVE)
+
+| Field | Value |
+|---|---|
+| **Task** | Task 3 — Planar Fetch Hardening (2→5+ planes) |
+| **Status** | **ARTIFACT OPEN** — awaiting CyanPeak audit |
 | **Phase** | artifact |
 | **Owner** | CoralReef (artifact), CyanPeak (audit), BrightForge (coding after audit PASS) |
-| **Baseline Commit** | `b558cee` (Task 2c closure) |
-| **Artifact** | `PROJECT_PLAN/artifacts/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
-| **Latest Auth Mail** | #9279 (BronzeGate activation) |
+| **Baseline Commit** | `ef49c5f` (MODE0_GAP_TASKLIST.md updated post-Task-2b) |
+| **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
+| **Latest Auth Mail** | #9306 (BronzeGate activation) |
 | **Next Deliverable** | CyanPeak audit PASS → BrightForge coding |
 
-**Scope:** Parameter bump `visiblePerLine=8→32`, `descCount=32→64` on hardened substrate. Adjust `evalStart` timing (`hTotal-45` → `hTotal-77`). Update sim defaults. Add capacity cases E–F. V=32 synthesis + 30s HW proof.
+**Scope:** Integrate `PlanarLineFetch` into main `VdpTop` pipeline as selectable L0 source. Raise planar plane count from 2 → 5+ (target 5 for Amiga OCS, 6 for EHB). Add scheduler slot(s) for planar row fetch. Wire SDRAM `dout32` aperture to planar fetch client. Add `planeBaseAddr[0..4]` register-bus addresses. Bit-identical regression (Scenarios 9/10). Sim proof: `PlanarIntegrationSim` + `PlanarBandwidthSim`. Synthesis delta +400–600 LUT. HW proof: 5-plane diagnostic scene, 30s capture, freeze=0.
+
+**Key context:** This is an **integration lane**, not a rewrite. Standalone primitives `BitplaneReconstruct`, `BitplaneRowFetch`, `PlanarLineFetch`, and `Hdmi720pPlanarProofTop` already exist and are proven. Gap = production integration into scheduler + SDRAM arbiter + L0 source mux.
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
