@@ -229,16 +229,56 @@ case class SpriteRasterizer(
   val slbA = Mem(Bits(SLB_W bits), initialContent = Array.fill(hActive)(B(0, SLB_W bits)))
   val slbB = Mem(Bits(SLB_W bits), initialContent = Array.fill(hActive)(B(0, SLB_W bits)))
 
+  // Latch the write-target bank at lineRenderStart and hold it for the
+  // whole burst. The 798-cycle render burst spans across the next
+  // bufferSwap (which flips activeFillBank 12 cycles after
+  // lineRenderStart fires), so using the live activeFillBank for the
+  // write target sends only the first ~12 cycles of writes to the
+  // correct bank and the remaining ~786 cycles to the wrong bank —
+  // i.e., almost no sprite data lands in the bank that's drained
+  // during the displayed line. Latching pins the target across the
+  // swap so the entire burst lands in one bank.
+  val fillBankLatched = Reg(Bool()) init False
+  when(io.lineRenderStart) {
+    fillBankLatched := activeFillBank
+  }
+
   // Layout: [9]=slot0 [8:7]=prio [6:4]=bank [3:0]=pixel
   val wrData = (slotIsZeroR.asBits ## slotPrioR.asBits ## slotBankR.asBits ## pixel).resize(SLB_W)
   val wrAddr = writeXR.resize(log2Up(hActive))
-  val wrEnA  = pixelVisible && !activeFillBank
-  val wrEnB  = pixelVisible &&  activeFillBank
+  val wrEnA  = pixelVisible && !fillBankLatched
+  val wrEnB  = pixelVisible &&  fillBankLatched
 
-  slbA.write(address = wrAddr, data = wrData, enable = wrEnA)
-  slbB.write(address = wrAddr, data = wrData, enable = wrEnB)
+  // Background-clear pass: every active-video cycle, write 0 to the
+  // bank OPPOSITE the latched render target at addr=drainAddr. Over a
+  // full active-video span this clears all hActive entries of that
+  // bank, so when the next lineRenderStart latches THAT bank as the
+  // new render target, every address starts at 0 (transparent). This
+  // is the missing piece that produced the original "vertical streak"
+  // symptom — without it, non-sprite addresses retained sprite pixels
+  // from prior bursts and leaked downward as full-height columns.
+  //
+  // Clear target = !fillBankLatched, i.e., the bank that will be the
+  // NEXT burst's render target. The current render target
+  // (fillBankLatched) is being actively written and read this line —
+  // we deliberately don't touch it. The opposite bank is idle for
+  // render this line, so clearing it is collision-free.
+  val clearAddr = io.drainAddr
+  val clearZero = B(0, SLB_W bits)
+  val clearEnA  =  fillBankLatched   // clear A when render targets B
+  val clearEnB  = !fillBankLatched   // clear B when render targets A
+  slbA.write(
+    address = Mux(clearEnA, clearAddr, wrAddr),
+    data    = Mux(clearEnA, clearZero, wrData),
+    enable  = clearEnA || wrEnA
+  )
+  slbB.write(
+    address = Mux(clearEnB, clearAddr, wrAddr),
+    data    = Mux(clearEnB, clearZero, wrData),
+    enable  = clearEnB || wrEnB
+  )
 
-  // Drain reads the OPPOSITE bank.
+  // Drain reads the OPPOSITE bank from the live fill role.
   val drainBankIsA = activeFillBank      // when fill=B, drain=A
   val drainDataA = slbA.readSync(io.drainAddr)
   val drainDataB = slbB.readSync(io.drainAddr)
