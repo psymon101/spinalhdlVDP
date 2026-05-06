@@ -31,11 +31,11 @@ This section tracks the single active lane so the team does not infer state from
 | **Phase** | implement
 | **Latest Commit** | `df57d61` (Discriminator 2: FPGA-resident plane data bypass — bars visible, render path alive) |
 | **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator) |
-| **Latest Auth Mail** | #9352 (BronzeGate PM ruling: fix scheduler slot ownership, then widened-window discriminator) |
+| **Latest Auth Mail** | #9362 (CyanPeak audit PASS — host-upload repair #9360 GO; BrightForge authorized unified FIFO+Scheduler+Window commit) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Next Deliverable** | BrightForge: scheduler slot ownership fix + widened-window discriminator (per #9352) |
+| **Next Deliverable** | BrightForge: unified implementation — QspiSdramBridge FIFO (#9360) + scheduler slot ownership (#9350) + widened window (#9351) in single commit; sim+synth+flash+capture per #9345 |
 
-**Context:** Tasks 2a/2c/2b all CLOSED. Task 3 Checkpoint F blocker #9333: narrow fix `527c026` failed (still gray). Discriminator `df57d61` (FPGA-resident plane data bypass) **proved fetch/render/palette/ctrl paths are alive** — SMPTE bars visible. Active blocker shifted to (1) scheduler slot ownership (`grantClientId` one-shot pulse, CyanPeak #9350) + (2) bandwidth deficit (80-cycle window < 97-cycle minimum, CoralReef #9351). BronzeGate #9352 authorized BrightForge to fix scheduler first, then run widened-window (160-cycle) discriminator. CoralReef on host-upload (#9335) sidecar standby. Host-upload bug remains latent and will become active once scheduler/bandwidth is fixed.
+**Context:** Tasks 2a/2c/2b all CLOSED. Task 3 Checkpoint F blocker #9333 converged. Three structural repairs authorized in unified commit per CyanPeak #9362: (1) QspiSdramBridge 16-byte FIFO fix (host-upload byte-drop, CoralReef #9360, audit PASS #9362); (2) scheduler slot ownership (`grantClientId` one-shot → level, CyanPeak #9350); (3) widened window (80→160 cycles, CoralReef #9351). Discriminator `df57d61` proved fetch/render/palette/ctrl paths alive. BrightForge to land all three in single commit, revert bypass, sim+synth+flash+capture per #9345. CoralReef host-upload sidecar now converged into main lane.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
