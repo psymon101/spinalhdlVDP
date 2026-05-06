@@ -1767,13 +1767,25 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
   pixelArea.bitmapRowFetch.io.sdramDout      := sdramArea.ctrl.io.dout
   pixelArea.bitmapRowFetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready
   pixelArea.bitmapRowFetch.io.sdramBusy      := sdramArea.ctrl.io.busy
-  // Clients 2..3 — reserved, tied inactive.
-  for (c <- 2 until 4) {
-    sdramArbiter.io.clientRd(c)   := False
-    sdramArbiter.io.clientWr(c)   := False
-    sdramArbiter.io.clientAddr(c) := U(0, 23 bits)
-    sdramArbiter.io.clientDin(c)  := B(0, 8 bits)
-  }
+  // Client 2 — Task 3 PlanarLineFetch SDRAM master (gated on
+  // planarFetchEnable inside VdpTop; when disabled, sdramRd stays low).
+  // Read-only client; clientDin tied 0. dout32 is broadcast from the
+  // SDRAM controller; the planar fetch FSM only consumes data when it
+  // sees its own clientGrant + dataReady, matching the existing tile
+  // and bitmap fetch gating pattern.
+  sdramArbiter.io.clientRd(2)   := pixelArea.video.io.planarSdramRd
+  sdramArbiter.io.clientWr(2)   := False
+  sdramArbiter.io.clientAddr(2) := pixelArea.video.io.planarSdramAddr
+  sdramArbiter.io.clientDin(2)  := B(0, 8 bits)
+  pixelArea.video.io.planarSdramBusy      := !sdramArbiter.io.clientGrant(2)
+  pixelArea.video.io.planarSdramDataReady := sdramArea.ctrl.io.data_ready &&
+                                             (sdramArbiter.io.grantClientId === U(2, sdramArbiter.idBits bits))
+  pixelArea.video.io.planarSdramDout32    := sdramArea.ctrl.io.dout32
+  // Client 3 — reserved.
+  sdramArbiter.io.clientRd(3)   := False
+  sdramArbiter.io.clientWr(3)   := False
+  sdramArbiter.io.clientAddr(3) := U(0, 23 bits)
+  sdramArbiter.io.clientDin(3)  := B(0, 8 bits)
 
   val uploadDrive = sdramCdcArea.uploadWrPulse
   sdramArea.ctrl.io.rd      := sdramArbiter.io.sdramRd

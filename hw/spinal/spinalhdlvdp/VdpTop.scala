@@ -148,6 +148,17 @@ case class VdpTop() extends Component {
     //   0x2 = ZX Spectrum adapter
     //   0x3..0xF reserved
     val modeSelect         = out UInt(4 bits)
+
+    // Task 3 — Planar Fetch Hardening: SDRAM master interface for
+    // PlanarLineFetch. The instance lives inside VdpTop; its SDRAM
+    // master ports route up to TopTang20kHdmi for arbitration as
+    // sdramArbiter client 2 alongside tile fetch (client 0) and
+    // bitmap row fetch (client 1).
+    val planarSdramRd        = out Bool()
+    val planarSdramAddr      = out UInt(23 bits)
+    val planarSdramBusy      = in  Bool()
+    val planarSdramDataReady = in  Bool()
+    val planarSdramDout32    = in  Bits(32 bits)
   }
 
   // 640x480@60 timing uses a 25.2 MHz pixel clock.
@@ -802,6 +813,55 @@ case class VdpTop() extends Component {
   testPattern.io.y := fillLine
   testPattern.io.patternSelect := io.layer0TestPatternSelect
 
+  // === Task 3 — Planar Fetch Hardening (Checkpoint C, audit PASS #9313) ===
+  // Multi-plane bitplane fetch path for Mode0 L0. PlanarLineFetch
+  // combines BitplaneRowFetch (sdram dout32 reader) + BitplaneReconstruct
+  // (per-pixel bit assembly). When planarFetchEnable is set via
+  // PLANAR_CTRL @ 0x0D4A, slot 2 of the scheduler grants this client
+  // its SDRAM bandwidth (clientId=2 on sdramArbiter, wired in
+  // TopTang20kHdmi). 5 planes × 320 pixels = 50 dout32 reads/line.
+  // planeBaseAddr[0..4] register-bus addresses at 0x0D40..0x0D49.
+  val planarLineFetch = PlanarLineFetch(planeCount = 5, planePixels = 320, addrWidth = 23)
+  val planarCtrlReg     = Reg(Bits(16 bits)) init 0
+  val planeBaseAddrReg  = Vec.fill(5)(Reg(UInt(23 bits)) init 0)
+  val planarFetchEnable = planarCtrlReg(0)
+
+  // Register-bus decode for plane base addresses (5 planes × 2 words each, lo/hi).
+  val planarPlaneRangeHit = effWrite &&
+    (effAddr >= U(0x0D40, 15 bits)) && (effAddr <= U(0x0D49, 15 bits))
+  val planarCtrlWriteHit  = effWrite && (effAddr === U(0x0D4A, 15 bits))
+  val planarSubAddr = (effAddr - U(0x0D40, 15 bits))(3 downto 0)   // 0..9
+  val planarPlaneIdx = planarSubAddr(3 downto 1)                   // 0..4
+  val planarHiSel    = planarSubAddr(0)                            // 0=lo, 1=hi
+  when(planarPlaneRangeHit) {
+    switch(planarPlaneIdx) {
+      for (p <- 0 until 5) {
+        is(U(p, 3 bits)) {
+          when(!planarHiSel) {
+            planeBaseAddrReg(p)(15 downto 0)  := effData.asUInt
+          } otherwise {
+            planeBaseAddrReg(p)(22 downto 16) := effData(6 downto 0).asUInt
+          }
+        }
+      }
+    }
+  }
+  when(planarCtrlWriteHit) {
+    planarCtrlReg := effData
+  }
+
+  planarLineFetch.io.planeBaseAddr  := planeBaseAddrReg
+  // Trigger row fetch one cycle into the active region — the FSM has
+  // until next-line's display reaches pixelIdx N to land word N
+  // (lead-time ≈ 160 cycles even for the first dout32 word).
+  planarLineFetch.io.start          := planarFetchEnable && (hCounter === U(hActive, log2Up(hTotal) bits))
+  planarLineFetch.io.pixelIdx       := hCounter.resize(log2Up(320))
+  planarLineFetch.io.sdramBusy      := io.planarSdramBusy
+  planarLineFetch.io.sdramDataReady := io.planarSdramDataReady
+  planarLineFetch.io.sdramDout32    := io.planarSdramDout32
+  io.planarSdramRd   := planarLineFetch.io.sdramRd
+  io.planarSdramAddr := planarLineFetch.io.sdramAddr
+
   // Task 15 fetch-control outputs. Atomic CDC pattern per 6626/6628:
   //   1) Pulse-harden fetchStart: widen to 4 pixel cycles so the SDRAM-side
   //      BufferCC (2-stage synchronizer) reliably samples it despite routing
@@ -841,10 +901,16 @@ case class VdpTop() extends Component {
   scheduler.io.schedule(1).clientId := U(0, 2 bits)
   scheduler.io.schedule(1).startH   := U(0, 10 bits)
   scheduler.io.schedule(1).endH     := U(hTotal - 1, 10 bits)
-  scheduler.io.schedule(2).enabled  := False
-  scheduler.io.schedule(2).clientId := U(0, 2 bits)
-  scheduler.io.schedule(2).startH   := U(0, 10 bits)
-  scheduler.io.schedule(2).endH     := U(0, 10 bits)
+  // Task 3 (Checkpoint A #9313): slot 2 dedicated to PlanarLineFetch
+  // (clientId=2), gated on planarFetchEnable. Window covers H-blank
+  // adjacent so 50 × dout32 reads for 5-plane × 320-pixel rows can be
+  // granted without colliding with tile fetch's slot 0 (hTotal-1) or
+  // slot 1 (full active line). FSM start is independent (mid-line)
+  // per design packet §1.
+  scheduler.io.schedule(2).enabled  := planarFetchEnable
+  scheduler.io.schedule(2).clientId := U(2, 2 bits)
+  scheduler.io.schedule(2).startH   := U(hTotal - 80, 10 bits)
+  scheduler.io.schedule(2).endH     := U(hTotal - 1,  10 bits)
   for (i <- 3 until 8) {
     scheduler.io.schedule(i).enabled  := False
     scheduler.io.schedule(i).clientId := U(0, 2 bits)
@@ -1007,21 +1073,33 @@ case class VdpTop() extends Component {
   // every other L0 source (test-pattern / SDRAM / on-chip). Task 44
   // inserts the bitmap-fetch path between affine and SDRAM; when
   // bitmapEnable=0 (default) the ordering and values are unchanged.
-  val layer0Index = (Mux(affineEnable, affineIndex,
+  // Task 3 — planar fetch is an additional L0 source. When
+  // planarFetchEnable is set, the planar pixel (5 bits) projects to the
+  // 4-bit L0 idx + 1-bit bank-select for Amiga OCS 32-color coverage:
+  //   idx[3:0] := planarPixel[3:0]
+  //   bank[0]  := planarPixel[4]   (other bank bits = 0 → palette banks 0/1)
+  //   prio     := False (priority handled by adapter-local future work)
+  val planarPixel = planarLineFetch.io.pixel
+  val planarIdx4  = planarPixel(3 downto 0)
+  val planarBank3 = (B"00" ## planarPixel(4)).asUInt
+  val layer0Index = (Mux(planarFetchEnable, planarIdx4,
+                         Mux(affineEnable, affineIndex,
                          Mux(io.layer0TestPatternEnable,
                              testPattern.io.pixelIndex,
                              Mux(bitmapEnable, bitmapFetch.io.pixelIndex.asBits,
-                                 Mux(io.layer0UseSdram, io.layer0SdramPixel, onChipIdx4))))).simPublic()
-  val layer0Bank  = (Mux(affineEnable, affineBank,
+                                 Mux(io.layer0UseSdram, io.layer0SdramPixel, onChipIdx4)))))).simPublic()
+  val layer0Bank  = (Mux(planarFetchEnable, planarBank3,
+                         Mux(affineEnable, affineBank,
                          Mux(io.layer0TestPatternEnable,
                              testPattern.io.paletteBank,
                              Mux(bitmapEnable, bitmapFetch.io.paletteBank,
-                                 Mux(io.layer0UseSdram, io.layer0SdramBank,  U(0, 3 bits)))))).simPublic()
-  val layer0Prio  = (Mux(affineEnable, affinePrio,
+                                 Mux(io.layer0UseSdram, io.layer0SdramBank,  U(0, 3 bits))))))).simPublic()
+  val layer0Prio  = (Mux(planarFetchEnable, False,
+                         Mux(affineEnable, affinePrio,
                          Mux(io.layer0TestPatternEnable,
                              False,
                              Mux(bitmapEnable, False,
-                                 Mux(io.layer0UseSdram, io.layer0SdramPriority, False))))).simPublic()
+                                 Mux(io.layer0UseSdram, io.layer0SdramPriority, False)))))).simPublic()
 
   // R5: fold global LAYER_ENABLE register into the per-line linestate enable.
   // Task 48: L2/L3 use global enable only (bits 3/4) — LinestateStore is
