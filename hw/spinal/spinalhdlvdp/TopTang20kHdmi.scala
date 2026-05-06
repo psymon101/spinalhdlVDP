@@ -1731,7 +1731,12 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
     val uploadToggleSync = BufferCC(pixelArea.qspiSdramBridge.io.wrToggle, False)
     val uploadTogglePrev = RegNext(uploadToggleSync) init False
     val uploadWrPulse    = uploadToggleSync =/= uploadTogglePrev
+
   }
+  // Task 3 fix (BronzeGate #9344, CoralReef convergence #9343):
+  // `planarDataReadyArea` defined AFTER `sdramArbiter` below — see post-
+  // arbiter wiring for the toggle-based pulse regeneration of
+  // PlanarLineFetch's sdramDataReady.
 
   // Wire SDRAM controller's logic-side signals to the fetch engine. Both live
   // in sdramClockDomain (the BlackBox via mapCurrentClockDomain, the fetch via
@@ -1777,10 +1782,36 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
   sdramArbiter.io.clientWr(2)   := False
   sdramArbiter.io.clientAddr(2) := pixelArea.video.io.planarSdramAddr
   sdramArbiter.io.clientDin(2)  := B(0, 8 bits)
-  pixelArea.video.io.planarSdramBusy      := !sdramArbiter.io.clientGrant(2)
-  pixelArea.video.io.planarSdramDataReady := sdramArea.ctrl.io.data_ready &&
-                                             (sdramArbiter.io.grantClientId === U(2, sdramArbiter.idBits bits))
-  pixelArea.video.io.planarSdramDout32    := sdramArea.ctrl.io.dout32
+  // Task 3 fix #9344 part 1: drive busy from level signal (clientSlotValid)
+  // not pulse (clientGrant). The arbiter's `grant` is a one-cycle pulse
+  // when slot 2's window opens; using it as a permanent busy gate keeps
+  // BitplaneRowFetch.State.Issue locked out forever (FSM never sees
+  // `!sdramBusy`). `clientSlotValid` is the continuous level high
+  // throughout slot 2's granted hCounter window — what we actually need.
+  pixelArea.video.io.planarSdramBusy := !sdramArbiter.io.clientSlotValid(2)
+
+  // Task 3 fix #9344 part 2: source-domain toggle generator (sdram
+  // domain). Flip on each qualified data_ready pulse; capture dout32
+  // into a held register so the synced data stays stable between events.
+  val planarDataReadyArea = new ClockingArea(sdramClockDomain) {
+    val planarDataReadySrc = sdramArea.ctrl.io.data_ready &&
+                             (sdramArbiter.io.grantClientId === U(2, sdramArbiter.idBits bits))
+    val planarDataReadyToggle = Reg(Bool())        init False
+    val planarDout32Held      = Reg(Bits(32 bits)) init 0
+    when(planarDataReadySrc) {
+      planarDataReadyToggle := !planarDataReadyToggle
+      planarDout32Held      := sdramArea.ctrl.io.dout32
+    }
+  }
+  // Pixel-domain side: 2-stage sync the toggle, edge-detect to recover
+  // a 1-cycle pulse. Held dout32 is a stable level signal between
+  // events, so plain BufferCC is safe.
+  val planarToggleSync     = BufferCC(planarDataReadyArea.planarDataReadyToggle, False)
+  val planarTogglePrev     = RegNext(planarToggleSync) init False
+  val planarDataReadyPulse = planarToggleSync =/= planarTogglePrev
+  val planarDout32Sync     = BufferCC(planarDataReadyArea.planarDout32Held, B(0, 32 bits))
+  pixelArea.video.io.planarSdramDataReady := planarDataReadyPulse
+  pixelArea.video.io.planarSdramDout32    := planarDout32Sync
   // Client 3 — reserved.
   sdramArbiter.io.clientRd(3)   := False
   sdramArbiter.io.clientWr(3)   := False
