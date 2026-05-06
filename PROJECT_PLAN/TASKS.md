@@ -29,13 +29,13 @@ This section tracks the single active lane so the team does not infer state from
 | **Task** | **Task 3 — Planar Fetch Hardening (2→5+ planes)** |
 | **Status** | **IN-PROGRESS** (HOLD #9325 **CLEARED** — Mem refactor complete, planeCount=5 fits) |
 | **Phase** | implement
-| **Latest Commit** | `44efa3f` (Task 3: Mem-backed BitplaneRowFetch, planeCount=5 places with 0 unplaced REGs) |
-| **Commits in lane** | `ee829e5` (CP-C: RTL integration); `8cf0621` (CP-D: sims); `363e3e4` (CP-E: 3-plane step-down); `44efa3f` (CP-E-prime: Mem refactor, planeCount=5) |
-| **Latest Auth Mail** | #9330 (CyanPeak audit PASS — 5-plane target restored, Checkpoint F authorized) |
+| **Latest Commit** | `df57d61` (Discriminator 2: FPGA-resident plane data bypass — bars visible, render path alive) |
+| **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator) |
+| **Latest Auth Mail** | #9352 (BronzeGate PM ruling: fix scheduler slot ownership, then widened-window discriminator) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Next Deliverable** | BrightForge: Checkpoint F (HW proof — 30s ESP8266-driven 5-plane scene, retained artifact per policy #9294) |
+| **Next Deliverable** | BrightForge: scheduler slot ownership fix + widened-window discriminator (per #9352) |
 
-**Context:** Tasks 2a/2c/2b all CLOSED. Task 3 implementation (C/D/E/E-prime) is **COMPLETE and audit PASS #9330**. BrightForge's Mem refactor (`44efa3f`) restored the 5-plane / 320-pixel target. Synth: Logic 14,419 (70%), 0 unplaced REGs, 0 timing violations. 5/5 sims PASS. CyanPeak #9330 formally AUTHORIZED Checkpoint F. Next: BrightForge delivers 30s HW proof with visibly demonstrated 5-plane (32-color) content per policy #9294.
+**Context:** Tasks 2a/2c/2b all CLOSED. Task 3 Checkpoint F blocker #9333: narrow fix `527c026` failed (still gray). Discriminator `df57d61` (FPGA-resident plane data bypass) **proved fetch/render/palette/ctrl paths are alive** — SMPTE bars visible. Active blocker shifted to (1) scheduler slot ownership (`grantClientId` one-shot pulse, CyanPeak #9350) + (2) bandwidth deficit (80-cycle window < 97-cycle minimum, CoralReef #9351). BronzeGate #9352 authorized BrightForge to fix scheduler first, then run widened-window (160-cycle) discriminator. CoralReef on host-upload (#9335) sidecar standby. Host-upload bug remains latent and will become active once scheduler/bandwidth is fixed.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
