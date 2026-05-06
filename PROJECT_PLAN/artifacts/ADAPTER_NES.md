@@ -216,7 +216,7 @@ Palette RAM: 32 bytes at `$3F00-$3F1F` in PPU address space.
 | NES function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
 | 64 sprites | `SpriteEvaluator` (64 desc) | Map OAM to sprite descriptors | **Gap: Mode0 has 64 desc; NES needs 64** |
-| 8 sprites/scanline | `SpriteEvaluator` (8/line limit) | Same limit — direct match | None |
+| 8 sprites/scanline | `SpriteEvaluator` (32/line hardware; adapter enforces 8/line) | Mode0 exceeds NES limit — adapter must emulate NES 8/line drop rule | Minor — adapter-local enforcement |
 | Sprite overflow | `STATUS_STICKY` bit 1 | Direct map | None — proven |
 | Sprite-0 hit | `STATUS_STICKY` bit 4 | Direct map | None — Task 29 proven |
 | 8×8 or 8×16 sprites | `SpriteEvaluator` descriptor format | Map OAM tile index + size bit to descriptor | Minor — descriptor word layout differs |

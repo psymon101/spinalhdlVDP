@@ -153,7 +153,7 @@ DMA is triggered by setting the DMA length and source address, then writing to t
 | **Fetch** | VDP reads tilemap → pattern table from VRAM for Plane A, B, Window | `SdramTileAttributeFetch` + `SdramTileFetch` | Direct — tile+attr fetch |
 | **Decode** | 4bpp planar → 16-color pixel | Tile decoder with 4bpp mode | Direct |
 | **Staging** | Internal shift registers | Tile pipeline buffers | Direct |
-| **Sprite evaluation** | 80 sprites, 20/16 per line, linked list | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc/32 per line. **Gap: needs 80 desc and 20/16/line** |
+| **Sprite evaluation** | 80 sprites, 20/16 per line, linked list | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc/32 per line. **Gap: needs 80 desc; per-line limit (32≥20) closed.** |
 | **Composition** | Plane A + Plane B + Window + Sprites → priority mux | `FourLayerCompositor` (Task 48) | Approximate — Mode0 has 4 layers; Genesis needs A+B+Window+Sprites. **Window is a hard gap** |
 | **Palette** | 64-entry × 9-bit CRAM | CW-1 palette RAM (24-bit entries) | Direct — Mode0 palette is superset |
 | **Beam/raster** | H-blank IRQ every N lines + VBlank | `RasterTriggerUnit` (R1) | Direct |
@@ -182,7 +182,7 @@ DMA is triggered by setting the DMA length and source address, then writing to t
 | Genesis function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
 | 80 sprites | `SpriteEvaluator` (64 desc) | Map SAT to descriptors | **Gap: Mode0 has 64 desc; Genesis needs 80** |
-| 20 sprites/line (H40) | `SpriteEvaluator` (8/line) | Mode0 limit is 32/line | **Gap: needs 20/line** |
+| 20 sprites/line (H40) | `SpriteEvaluator` (32/line) | Mode0 has 32/line — exceeds Genesis H40 | **Direct match** |
 | Linked-list sprite order | `SpriteEvaluator` | Mode0 uses index order | **Minor gap:** linked list vs index order may affect visual priority in edge cases |
 | Variable sprite sizes | `SpriteEvaluator` descriptor | Map size table to descriptor dimensions | Minor |
 | Sprite masking | Adapter-local logic | Sprite 0 at X=0 suppresses lower priorities | Minor — can be handled in adapter |

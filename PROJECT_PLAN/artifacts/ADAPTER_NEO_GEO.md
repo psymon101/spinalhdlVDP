@@ -185,7 +185,7 @@ The **sprite system** is the defining feature of Neo Geo graphics.
 | Neo Geo function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
 | 380 sprites | `SpriteEvaluator` (64 desc) | Map SCB to descriptors | **Gap: Mode0 has 64 desc; Neo Geo needs 380** |
-| 96 sprites/line | `SpriteEvaluator` (8/line) | Mode0 limit is 32/line | **Gap: needs 96/line** |
+| 96 sprites/line | `SpriteEvaluator` (32/line) | Mode0 has 32/line; Neo Geo needs 96 | **Large gap — remains open** |
 | Variable height (16–512px) | `SpriteEvaluator` descriptor | Map SCB3 height to descriptor | Minor — Mode0 supports variable height |
 | Sprite shrinking (H/V) | N/A | **Gap:** Mode0 has no hardware shrinking | **Medium** — defining Neo Geo feature |
 | Horizontal link (chaining) | `SpriteEvaluator` | Chain sprites by X-position offset | Minor — adapter can handle linking |

@@ -158,7 +158,7 @@ The SNES uses two custom chips: **PPU1** (5C77, handles rendering and VRAM acces
 | **Fetch** | PPU reads tilemap → pattern table from VRAM for up to 4 BGs | `SdramTileAttributeFetch` + `SdramTileFetch` | Direct — tile+attr fetch |
 | **Decode** | 2bpp/4bpp/8bpp planar → pixel | Tile decoder | Direct |
 | **Staging** | Internal shift registers | Tile pipeline buffers | Direct |
-| **Sprite evaluation** | 128 sprites, 32/line | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc/32 per line. **Gap: needs 128 desc and 32/line** |
+| **Sprite evaluation** | 128 sprites, 32/line | `SpriteEvaluator` (R2) | Approximate — Mode0 has 64 desc/32 per line. **Gap: needs 128 desc; per-line limit (32≥32) closed.** |
 | **Composition** | Up to 4 BGs + sprites → priority + color math | `FourLayerCompositor` + color math | Approximate — Mode0 has 4 layers; color math is a **gap** |
 | **Palette** | 256-entry × 15-bit CGRAM | CW-1 palette RAM (24-bit entries) | Direct — Mode0 palette is superset |
 | **Beam/raster** | HBlank/VBlank IRQ + HDMA | `RasterTriggerUnit` + Copper/HDMA | Approximate — HDMA is a **gap** |
@@ -185,7 +185,7 @@ The SNES uses two custom chips: **PPU1** (5C77, handles rendering and VRAM acces
 | SNES function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
 | 128 sprites | `SpriteEvaluator` (64 desc) | Map OAM to descriptors | **Gap: Mode0 has 64 desc; SNES needs 128** |
-| 32 sprites/line | `SpriteEvaluator` (8/line) | Mode0 limit is 32/line | **Gap: needs 32/line** |
+| 32 sprites/line | `SpriteEvaluator` (32/line) | Mode0 has 32/line — matches SNES | **Direct match** |
 | Variable sizes | `SpriteEvaluator` descriptor | Map size/MSB bits to descriptor | Minor |
 | 16 colors per sprite | `SpriteEvaluator` + paletteBank | Set sprite paletteBank | None |
 | Sprite priority | `PixelMetadata` priority bit | Map per-sprite priority | Direct |

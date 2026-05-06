@@ -169,7 +169,7 @@ No hardware windowing. No color math.
 | PC Engine function | Mode0 primitive | Adapter responsibility | Gap / risk |
 |---|---|---|---|
 | 64 sprites | `SpriteEvaluator` (64 desc) | Map SAT to descriptors | **Gap: Mode0 has 64 desc; PC Engine needs 64** |
-| 16 sprites/scanline | `SpriteEvaluator` (8/line limit) | Mode0 limit is 32/line | **Gap: needs 16/line** |
+| 16 sprites/scanline | `SpriteEvaluator` (32/line) | Mode0 has 32/line — exceeds PC Engine | **Direct match** |
 | Variable sizes (16×16 to 32×32) | `SpriteEvaluator` descriptor | Map size bits to descriptor dimensions | Minor — Mode0 supports per-descriptor size |
 | 16 colors per sprite | `SpriteEvaluator` + paletteBank | Set sprite paletteBank per descriptor | None |
 | Sprite priority | `PixelMetadata` priority bit | Map per-sprite priority bit | Direct |
@@ -273,7 +273,7 @@ No hardware windowing. No color math.
 ### 5.2 What is approximate
 
 - **Sprite count:** Mode0 has 64 descriptors; PC Engine needs 64. MVP with 32 sprites is viable but not honest.
-- **Sprites per line:** Mode0 limit is 32/line; PC Engine needs 16/line. This is a harder limit than descriptor count because it affects scan-time budget.
+- **Sprites per line:** Mode0 has 32/line; PC Engine needs 16/line. Mode0 exceeds PC Engine requirements. The adapter must enforce the 16/line limit if authentic behavior is required.
 - **Per-tile palette bank:** Mode0 tile attributes may not support per-tile palette bank selection. The adapter may need to restrict BG to a single palette or use the tile attribute byte creatively.
 - **SATB DMA:** Mode0 has no DMA engine for descriptors. Host must write descriptors individually.
 
