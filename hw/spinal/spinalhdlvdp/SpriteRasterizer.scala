@@ -143,6 +143,13 @@ case class SpriteRasterizer(
   val slotTransYR   = Reg(Bits(16 bits))                  init 0
   // Slot-0 provenance: latched at SF_LOAD when slotIdx === 0.
   val slotIsZeroR   = Reg(Bool())                         init False
+  // Task 55 — index of the slot currently being RENDERED. Latched at
+  // SF_LOAD because `slotIdx` is the *next-load pointer* (decremented
+  // during the same SF_LOAD cycle), so by the time rState=ST_RUN is
+  // writing this slot's pixels, `slotIdx` already points to the next
+  // slot to be loaded. The mask gate must use the render slot's
+  // index, not the lookahead pointer.
+  val slotRenderIdxR = Reg(UInt(log2Up(visiblePerLine + 1) bits)) init U(visiblePerLine)
 
   val slotWidth = slotSizeSelR.mux(
     U(0, 2 bits) -> U( 8, 7 bits),
@@ -230,7 +237,7 @@ case class SpriteRasterizer(
   when(io.lineRenderStart) {
     firstMaskSlotR := io.firstMaskSlot
   }
-  val slotMaskedOut = slotIdx.resize(log2Up(visiblePerLine + 1)) > firstMaskSlotR
+  val slotMaskedOut = slotRenderIdxR > firstMaskSlotR
   val pixelVisible = (rState === ST_RUN) && onPixel && !pixelTransparent && !slotMaskedOut
 
   // ----- sprite line buffer (ping-pong, 2 banks of hActive × 9 bits) ----
@@ -361,6 +368,7 @@ case class SpriteRasterizer(
       slotTransXR  := SpriteEvaluator.slotTransX(rdW)
       slotTransYR  := SpriteEvaluator.slotTransY(rdW)
       slotIsZeroR  := slotIdx === U(0, slotIdxW bits)
+      slotRenderIdxR := slotIdx.resize(log2Up(visiblePerLine + 1))   // Task 55
       startRender  := True
 
       // Advance slot pointer

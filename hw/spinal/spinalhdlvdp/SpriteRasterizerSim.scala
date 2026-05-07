@@ -201,6 +201,100 @@ object SpriteRasterizerSim extends App {
     if (!case3Failed) println("  Case 3 PASS")
     assert(!case3Failed, "Case 3 failed")
 
+    // ---------------------------------------------------------------
+    // Case 4 — Task 55 (#9440 #9457) behavioral pixel-suppression proof.
+    //   Three slots, all opaque, non-overlapping x ranges:
+    //     slot 0 [10..17] bank=1
+    //     slot 1 [50..57] bank=4   ← above firstMaskSlot, must be suppressed
+    //     slot 2 [90..97] bank=5   ← above firstMaskSlot, must be suppressed
+    //   With `firstMaskSlot = 0`, only slot 0 may write to the line
+    //   buffer; slots 1 and 2 must be entirely transparent on drain.
+    //   This is the rasterizer-side companion to the evaluator-level
+    //   Task55SpriteMaskingSim and exercises the
+    //   `slotIdx > firstMaskSlot ⇒ pixelVisible suppressed` gate
+    //   along the full render FSM path.
+    // ---------------------------------------------------------------
+    println("[sim] Case 4: pixel-suppression — firstMaskSlot=0, slots 1/2 must be transparent")
+    clearList()
+    setSlot(s = 0, x = 10, sizeSel = 0, bank = 1, prio = 1)
+    setSlot(s = 1, x = 50, sizeSel = 0, bank = 4, prio = 1)
+    setSlot(s = 2, x = 90, sizeSel = 0, bank = 5, prio = 1)
+    activeCount = 3
+    dut.io.firstMaskSlot #= 0   // suppress every slot with index > 0
+    dut.clockDomain.waitSampling(2)
+    runOneLine()
+    swapBuffers()
+
+    var case4Failed = false
+    // Slot 0 (allowed) — opaque pixel must reach the line buffer.
+    for (x <- 10 until 18) {
+      val (pix, bank, prio) = readDrain(x)
+      if (!(pix == 0xF && bank == 1 && prio == 1)) {
+        println(f"  x=$x  pix=0x$pix%X bank=$bank prio=$prio  slot 0 expected visible FAIL")
+        case4Failed = true
+      }
+    }
+    // Slot 1 region — must be fully transparent (suppressed).
+    for (x <- 50 until 58) {
+      val (pix, _, _) = readDrain(x)
+      if (pix != 0) {
+        println(f"  x=$x  pix=0x$pix%X — slot 1 must be suppressed (firstMaskSlot=0) FAIL")
+        case4Failed = true
+      }
+    }
+    // Slot 2 region — must be fully transparent (suppressed).
+    for (x <- 90 until 98) {
+      val (pix, _, _) = readDrain(x)
+      if (pix != 0) {
+        println(f"  x=$x  pix=0x$pix%X — slot 2 must be suppressed (firstMaskSlot=0) FAIL")
+        case4Failed = true
+      }
+    }
+    if (!case4Failed) println("  Case 4 PASS — pixel-suppression honored by render FSM")
+    assert(!case4Failed, "Case 4 failed (Task 55 pixel suppression)")
+
+    // ---------------------------------------------------------------
+    // Case 5 — Task 55 boundary: firstMaskSlot=1 keeps slots 0 & 1
+    // visible and suppresses slot 2. Confirms inequality is strict (>).
+    // ---------------------------------------------------------------
+    println("[sim] Case 5: firstMaskSlot=1 → slots 0,1 visible; slot 2 suppressed")
+    clearList()
+    setSlot(s = 0, x = 10, sizeSel = 0, bank = 1, prio = 1)
+    setSlot(s = 1, x = 50, sizeSel = 0, bank = 4, prio = 1)
+    setSlot(s = 2, x = 90, sizeSel = 0, bank = 5, prio = 1)
+    activeCount = 3
+    dut.io.firstMaskSlot #= 1
+    runOneLine()
+    swapBuffers()
+
+    var case5Failed = false
+    for (x <- 10 until 18) {
+      val (pix, bank, _) = readDrain(x)
+      if (!(pix == 0xF && bank == 1)) {
+        println(f"  x=$x  expected slot 0 visible (bank=1), got pix=0x$pix%X bank=$bank FAIL")
+        case5Failed = true
+      }
+    }
+    for (x <- 50 until 58) {
+      val (pix, bank, _) = readDrain(x)
+      if (!(pix == 0xF && bank == 4)) {
+        println(f"  x=$x  expected slot 1 visible (bank=4) at firstMaskSlot=1, got pix=0x$pix%X bank=$bank FAIL")
+        case5Failed = true
+      }
+    }
+    for (x <- 90 until 98) {
+      val (pix, _, _) = readDrain(x)
+      if (pix != 0) {
+        println(f"  x=$x  pix=0x$pix%X — slot 2 must be suppressed at firstMaskSlot=1 FAIL")
+        case5Failed = true
+      }
+    }
+    if (!case5Failed) println("  Case 5 PASS — strict-> boundary correct")
+    assert(!case5Failed, "Case 5 failed (Task 55 strict-> boundary)")
+
+    // Reset firstMaskSlot to default (no masking) for any downstream cases.
+    dut.io.firstMaskSlot #= 32
+
     println("SpriteRasterizerSim: PASS (modulo Case 2 clear-on-read TODO)")
   }
 }
