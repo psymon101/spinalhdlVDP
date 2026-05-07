@@ -32,7 +32,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Latest Commit** | `452c3db` (Path A M3 fix — one-line modulo wrap in `VdpTop.scala:888` + discriminator sim; CyanPeak audit PASS #9406) |
 | **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt); `cf5722e` (Path A M1 sim-PASS); `452c3db` (Path A M3 fix — modulo wrap + discriminator sim) |
 | **Latest Auth Mail** | #9406 (CyanPeak M3 audit PASS — Task 3 Path A CLOSED) |
-| **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
+| **Artifact** | `PROJECT_PLAN/archive/tasks/TASK_3_PLANAR_FETCH_HARDENING.md` |
 | **Next Deliverable** | N/A — Task 3 Path A closed. CyanPeak #9406 recommends follow-on lane for 320-pixel clipping mask / windowing logic if planar confinement to left half is required. |
 
 **Context:** Tasks 2a/2c/2b all CLOSED. Task 3 Checkpoint F blocker #9333 converged. Three structural repairs authorized in unified commit per CyanPeak #9362: (1) QspiSdramBridge 16-byte FIFO fix (host-upload byte-drop, CoralReef #9360, audit PASS #9362); (2) scheduler slot ownership (`grantClientId` one-shot → level, CyanPeak #9350); (3) widened window (80→160 cycles, CoralReef #9351). Discriminator `df57d61` proved fetch/render/palette/ctrl paths alive. BrightForge landed all three in `f4b04a9` (9/9 sims PASS, synth clean), but hardware remained uniform gray (#9363). BronzeGate #9364 ruled Path A domain migration as the active unblock lane: move `PlanarLineFetch` into `sdramClockDomain`, consume `data_ready`/`dout32` natively, keep return path to pixel domain as smallest safe level-signal boundary. Do not keep widening the pixel-domain slot/window path. CoralReef on standby for migration-local preflight only.
@@ -86,7 +86,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Owner** | BrightForge (coding + proof), CyanPeak (audit PASS), BronzeGate (PM closeout) |
 | **Baseline Commit** | `b558cee` (Task 2c closure) |
 | **Commits in lane** | `2281482` (parameter bump V=8→32/D=32→64); `a268e1e` (SpriteSubstrateSim Cases E+F) |
-| **Artifact** | `PROJECT_PLAN/artifacts/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
+| **Artifact** | `PROJECT_PLAN/archive/tasks/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
 | **Latest Auth Mail** | #9295 (BrightForge HW proof v2); #9298 (CyanPeak re-audit PASS) |
 | **Next Deliverable** | N/A — fully closed |
 
@@ -102,7 +102,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Owner** | BrightForge (coding + proof), CyanPeak (audit), BronzeGate (PM), CoralReef (ledger/sync) |
 | **Baseline Commit** | `ef49c5f` (gap task list updated post-Task-2b; now archived in `PROJECT_PLAN/archive/tasks/`) |
 | **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt); `cf5722e` (Path A M1 sim-PASS); `452c3db` (Path A M3 fix — modulo wrap + discriminator sim) |
-| **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
+| **Artifact** | `PROJECT_PLAN/archive/tasks/TASK_3_PLANAR_FETCH_HARDENING.md` |
 | **Latest Auth Mail** | #9406 (CyanPeak M3 audit PASS — Task 3 Path A CLOSED) |
 | **Next Deliverable** | N/A — Task 3 Path A closed. Follow-on: 320-pixel clipping mask per CyanPeak #9406 recommendation if planar window confinement is required. |
 
@@ -1579,7 +1579,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 - #8724: Historical capture analysis — sc45 was NEVER visibly working on hardware before v3. The Task 44b audit accepted black bitmap on canary evidence alone. Invalidates "v3 substrate regression" hypothesis.
 - #8718: CyanPeak authorized v3.4 A/B regression (sc45 vs sc50).
 
-**Task doc:** `PROJECT_PLAN/artifacts/TASK_50_ZX_SPECTRUM_ADAPTER.md`
+**Task doc:** `PROJECT_PLAN/archive/tasks/TASK_50_ZX_SPECTRUM_ADAPTER.md`
 
 ---
 
@@ -1778,6 +1778,22 @@ Every new implementation lane must open with one authoritative packet. Copy this
 ### Coding Authorized
 - YES / NO — [mail id]
 ```
+
+---
+
+## Historical Task Artifacts
+
+The following task artifacts contain detailed scope descriptions, design rationale, and proof records for closed lanes. They are **reference only** — `TASKS.md` remains the sole active task authority.
+
+| Task | Artifact Path | Status |
+|---|---|---|
+| Task 2 — Sprite Capacity Expansion | `archive/tasks/TASK_2_SPRITE_CAPACITY_EXPANSION.md` | CLOSED (Tasks 2a/2c/2b) |
+| Task 2a — Sprite Capacity Substrate Pre-Hardening | `archive/tasks/TASK_2A_SPRITE_CAPACITY_SUBSTRATE_PREHARDENING.md` | CLOSED |
+| Task 2b — Sprite Capacity Bump | `archive/tasks/TASK_2B_SPRITE_CAPACITY_BUMP.md` | CLOSED |
+| Task 2c — Sprite Evaluator Hardening | `archive/tasks/TASK_2C_SPRITE_EVALUATOR_HARDENING.md` | CLOSED |
+| Task 3 — Planar Fetch Hardening | `archive/tasks/TASK_3_PLANAR_FETCH_HARDENING.md` | CLOSED |
+| Task 50 — ZX Spectrum Adapter | `archive/tasks/TASK_50_ZX_SPECTRUM_ADAPTER.md` | CLOSED |
+| Task 53 — Sprite Pattern Address Width Expansion | `artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` | ACTIVE |
 
 Apply this template starting with Task 19 immediately.
 

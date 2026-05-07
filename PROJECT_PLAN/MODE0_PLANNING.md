@@ -1161,7 +1161,7 @@ The exact proof scenario can evolve, but it must map to real target-platform beh
 
 The substrate construction phases (R1–R8) are complete. Current execution targets:
 
-- **Active lane:** `PROJECT_PLAN/artifacts/TASK_50_ZX_SPECTRUM_ADAPTER.md` (IN-PROGRESS, BrightForge)
+- **Active lane:** `PROJECT_PLAN/archive/tasks/TASK_50_ZX_SPECTRUM_ADAPTER.md` (IN-PROGRESS, BrightForge)
 - **Next expected lanes:** Additional platform adapters (Amiga, Genesis/MD, SNES)
 - **Adapter work:** Open now — all substrate hardening complete
 
