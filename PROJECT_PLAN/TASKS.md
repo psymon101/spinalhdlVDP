@@ -168,6 +168,20 @@ This section tracks the single active lane so the team does not infer state from
 | **Owner** | BrightForge (coding + proof), CyanPeak (audit PASS), CoralReef (ledger sync) |
 | **Latest Auth Mail** | #9142 (CyanPeak final audit PASS), #9139 (BrightForge proof packet), #9133 (BronzeGate unblock ruling) |
 
+### Task 53 — Sprite Pattern Address Width Expansion (ACTIVE)
+
+| Field | Value |
+|---|---|
+| **Task** | Task 53 — Sprite Pattern Address Width Expansion |
+| **Status** | **ACTIVE** — PM authorized #9419; BrightForge implementation owner; CyanPeak audit pending |
+| **Phase** | implement |
+| **Owner** | BrightForge (coding + proof), CyanPeak (audit), BronzeGate (PM), CoralReef (ledger/sync) |
+| **Artifact** | `PROJECT_PLAN/artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` |
+| **Latest Auth Mail** | #9419 (BronzeGate lane OPEN) |
+| **Next Deliverable** | Checkpoint A — control/register contract + sim discriminator (BrightForge) |
+
+**Scope:** Expand `patIdx` from 4 → 6 bits (Option A) or 8 bits (Option B). Expand pattern RAM depth from 4096 → 16384 (Option A, 4 BSRAMs) or 65536 (Option B, 16 BSRAMs). Update `SpriteEvaluator` descriptor pack/unpack, `SpriteRasterizer` address generation, `VdpTop` pattern RAM instantiation and bus pointer. Proof: 32×32 sprite with 4 unique 16×16 tiles renders correctly; regression PASS; resource/timing clean.
+
 ---
 
 ## Closed Lanes
@@ -1648,7 +1662,7 @@ The following tasks were consolidated from `PROJECT_PLAN/archive/tasks/MODE0_GAP
 
 | Field | Value |
 |---|---|
-| **Status** | **OPEN** — awaits PM lane authorization |
+| **Status** | **ACTIVE** — see Live Lane State above for current status |
 | **Gap** | Pattern address limited to 16×16 tiles. Sprites >16×16 tile-repeat the same pattern. |
 | **Why it matters** | SNES 64×64 sprites need 16 unique 16×16 tiles. Genesis 32×32 needs 4 unique tiles. With only 16 patterns total, a single 64×64 sprite consumes the entire table. |
 | **Platforms helped** | SNES, Genesis, Neo Geo (groundwork) |
