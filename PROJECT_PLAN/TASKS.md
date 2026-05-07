@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-07 (Tasks 2a/2c/2b all CLOSED. Task 3 — Planar Fetch Hardening DONE — Path A M3 audit PASS #9406, fix commit 452c3db, gray block cleared, canonical SMPTE bars verified.)
+**Updated:** 2026-05-07 (Task 3 DONE. Task 53 — Sprite Pattern Address Width Expansion ACTIVE — PM authorized #9419, BrightForge implementation owner, CyanPeak audit pending.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,16 +26,16 @@ This section tracks the single active lane so the team does not infer state from
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 3 — Planar Fetch Hardening (2→5+ planes)** |
-| **Status** | **DONE** — Path A M3 audit PASS #9406. Fix commit `452c3db` (`VdpTop.scala:888` `% PLANE_PIXELS` modulo wrap + `PlanarPixelIdxBoundsSim` discriminator). Canonical 8-bar SMPTE order verified. Gray block at x≈320..511 **cleared**. Right-edge repeat resolved to clean modulo-320 wrap. |
-| **Phase** | implement (domain migration Path A) |
-| **Latest Commit** | `452c3db` (Path A M3 fix — one-line modulo wrap in `VdpTop.scala:888` + discriminator sim; CyanPeak audit PASS #9406) |
-| **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt); `cf5722e` (Path A M1 sim-PASS); `452c3db` (Path A M3 fix — modulo wrap + discriminator sim) |
-| **Latest Auth Mail** | #9406 (CyanPeak M3 audit PASS — Task 3 Path A CLOSED) |
-| **Artifact** | `PROJECT_PLAN/archive/tasks/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Next Deliverable** | N/A — Task 3 Path A closed. CyanPeak #9406 recommends follow-on lane for 320-pixel clipping mask / windowing logic if planar confinement to left half is required. |
+| **Task** | **Task 53 — Sprite Pattern Address Width Expansion** |
+| **Status** | **ACTIVE** — PM authorized #9419; BrightForge implementation owner; CyanPeak audit pending |
+| **Phase** | implement |
+| **Latest Commit** | `e230631` (Task 53 artifact backfill + TASKS.md sync) |
+| **Commits in lane** | `e230631` (artifact + ledger sync) |
+| **Latest Auth Mail** | #9419 (BronzeGate lane OPEN), #9422 (CoralReef completion packet) |
+| **Artifact** | `PROJECT_PLAN/artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` |
+| **Next Deliverable** | Checkpoint A — control/register contract + sim discriminator (BrightForge) |
 
-**Context:** Tasks 2a/2c/2b all CLOSED. Task 3 Checkpoint F blocker #9333 converged. Three structural repairs authorized in unified commit per CyanPeak #9362: (1) QspiSdramBridge 16-byte FIFO fix (host-upload byte-drop, CoralReef #9360, audit PASS #9362); (2) scheduler slot ownership (`grantClientId` one-shot → level, CyanPeak #9350); (3) widened window (80→160 cycles, CoralReef #9351). Discriminator `df57d61` proved fetch/render/palette/ctrl paths alive. BrightForge landed all three in `f4b04a9` (9/9 sims PASS, synth clean), but hardware remained uniform gray (#9363). BronzeGate #9364 ruled Path A domain migration as the active unblock lane: move `PlanarLineFetch` into `sdramClockDomain`, consume `data_ready`/`dout32` natively, keep return path to pixel domain as smallest safe level-signal boundary. Do not keep widening the pixel-domain slot/window path. CoralReef on standby for migration-local preflight only.
+**Context:** Tasks 2a/2c/2b and Task 3 all CLOSED. Doc consolidation complete (commits `eb7197c`, `3b91fdf`, `345b345`, `e230631`, `f988ba0`; CyanPeak audit PASS #9418). Task 53 opened as the active implementation lane per BronzeGate #9419. Scope: expand `patIdx` from 4 → 6+ bits and pattern RAM depth from 4096 → 16384+ entries so 32×32 and 64×64 sprites can use unique 16×16 tiles. BrightForge cleared to start implementation. CyanPeak audit pending first proof packet.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
