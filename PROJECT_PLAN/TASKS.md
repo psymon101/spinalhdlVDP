@@ -23,15 +23,15 @@ This section tracks the single active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 55 — Sprite Masking + Tile-Fetch Budget Counter** |
-| **Status** | **ACTIVE** — PM authorized #9440; BrightForge implementation owner; Checkpoint A audit PASS #9445; Checkpoint B proof delivered #9454; **Checkpoint B audit HOLD #9457** |
+| **Status** | **ACTIVE** — PM authorized #9440; BrightForge implementation owner; Checkpoint A audit PASS #9445; Checkpoint B proof #9454; HOLD #9457; **corrected proof #9460** |
 | **Phase** | implement |
-| **Latest Commit** | `0f96777` (Checkpoint B — sprite mask + tile-budget sims) |
+| **Latest Commit** | `26174a7` (Checkpoint B+ — pixel-suppression proof + render-idx latch fix) |
 | **Commits in lane** | N/A |
-| **Latest Auth Mail** | #9440 (lane OPEN), #9445 (Checkpoint A PASS), #9454 (Checkpoint B proof), #9457 (Checkpoint B audit HOLD) |
+| **Latest Auth Mail** | #9440 (lane OPEN), #9445 (Checkpoint A PASS), #9454 (Checkpoint B proof), #9457 (HOLD), #9460 (corrected proof) |
 | **Artifact** | N/A |
-| **Next Deliverable** | Checkpoint B correction — behavioral pixel suppression sim (BrightForge) |
+| **Next Deliverable** | Checkpoint B audit re-review (CyanPeak) |
 
-**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened per BronzeGate #9440. Checkpoint A contract APPROVED per CyanPeak #9445. BrightForge delivered Checkpoint B proof #9454 (5 sim cases A–E PASS; 10/10 sprite regression PASS). **CyanPeak audit HOLD #9457:** missing behavioral pixel suppression proof in rasterizer. BrightForge must extend sim to verify opaque pixels from slots with index > `firstMaskSlot` are transparent in output.
+**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened per BronzeGate #9440. Checkpoint A contract APPROVED per CyanPeak #9445. BrightForge delivered Checkpoint B proof #9454, received HOLD #9457 (missing behavioral pixel suppression), then delivered corrected proof #9460 (commit `26174a7`). Corrected proof includes: (1) bugfix — mask gate now uses `slotRenderIdxR` latched at SF_LOAD instead of `slotIdx`; (2) `SpriteRasterizerSim` Cases 4 & 5 proving pixel suppression; (3) full 10/10 sprite regression PASS. Awaiting CyanPeak re-audit.
 
 ---
 
