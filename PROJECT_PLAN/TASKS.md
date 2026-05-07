@@ -97,14 +97,14 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |---|---|
 | **Task** | Task 3 — Planar Fetch Hardening (2→5+ planes) |
-| **Status** | **IN-PROGRESS** — domain migration Path A after f4b04a9 narrow-patch stack proved insufficient on hardware |
+| **Status** | **IN-PROGRESS** — M1 sim-PASS at `cf5722e` (#9377), CyanPeak audit PASS #9378; M2 synth + M3 HW proof pending |
 | **Phase** | implement (domain migration) |
 | **Owner** | BrightForge (coding + proof), CyanPeak (audit), BronzeGate (PM), CoralReef (ledger/sync) |
 | **Baseline Commit** | `ef49c5f` (MODE0_GAP_TASKLIST.md updated post-Task-2b) |
-| **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt) |
+| **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt); `cf5722e` (Path A M1 sim-PASS) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Latest Auth Mail** | #9369 (BrightForge Path A start — exit proof declared; sdramClockDomain migration active) |
-| **Next Deliverable** | BrightForge: domain migration proof packet — move `PlanarLineFetch` / row-fetch consumption into `sdramClockDomain`; sim+synth+flash+capture with direct visual review per #9345; explicit statement whether bars traverse SDRAM end-to-end |
+| **Latest Auth Mail** | #9378 (CyanPeak audit PASS — M1 HDL + dual-clock sims green; BrightForge authorized to M2/M3) |
+| **Next Deliverable** | BrightForge: M2 synth status (0 unplaced REGs / timing) then M3 proof packet — flash + HDMI capture + direct visual review per #9345; explicit statement whether bars traverse SDRAM end-to-end |
 
 **Scope:** Integrate `PlanarLineFetch` into main `VdpTop` pipeline as selectable L0 source. Raise planar plane count from 2 → 5+ (target 5 for Amiga OCS, 6 for EHB). Add scheduler slot(s) for planar row fetch. Wire SDRAM `dout32` aperture to planar fetch client. Add `planeBaseAddr[0..4]` register-bus addresses. Bit-identical regression (Scenarios 9/10). Sim proof: `PlanarIntegrationSim` + `PlanarBandwidthSim`. Synthesis delta +400–600 LUT. HW proof: 5-plane diagnostic scene, 30s capture, freeze=0.
 
