@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **NONE** — Awaiting PM authorization for next lane (Task 54, 55, or 56) |
-| **Status** | IDLE |
-| **Phase** | N/A |
-| **Latest Commit** | `90b2dd8` (Task 53 DONE) |
+| **Task** | **Task 55 — Sprite Masking + Tile-Fetch Budget Counter** |
+| **Status** | **ACTIVE** — PM authorized #9440; BrightForge implementation owner; CyanPeak roadmap audit PASS #9441 |
+| **Phase** | implement |
+| **Latest Commit** | `2bebb81` (Roadmap expansion) |
 | **Commits in lane** | N/A |
-| **Latest Auth Mail** | #9433 (Task 53 FULL CLOSURE) |
+| **Latest Auth Mail** | #9440 (lane OPEN), #9441 (CyanPeak roadmap audit PASS) |
 | **Artifact** | N/A |
-| **Next Deliverable** | N/A |
+| **Next Deliverable** | Checkpoint A — control/register contract (BrightForge) |
 
-**Context:** Task 53 (Sprite Pattern Address Width Expansion) is CLOSED. Substrate now supports 64 unique 16×16 tiles (Option A) addressable via Word 0/8 split. Audit PASS #9433 confirmed HW proof and resource/timing safety. Standing by for next lane.
+**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened as the active implementation lane per BronzeGate #9440. Scope: (1) Genesis sprite masking via descriptor bit + compositor suppress; (2) SNES tile-fetch budget counter assertions. BrightForge cleared to start Checkpoint A.
 
 ---
 
@@ -57,7 +57,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **OPEN** — awaits PM lane authorization |
+| **Status** | **ACTIVE** — authorized #9440 |
 | **Gap** | Genesis sprite masking and SNES 34-tiles/line fetch budget are unimplemented. |
 | **Platforms helped** | Genesis, SNES |
 | **Impact** | **Medium** — 2 platforms; edge-case features |
