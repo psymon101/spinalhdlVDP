@@ -62,6 +62,11 @@ case class SpriteRasterizer(
     val activeReadAddr = out UInt(log2Up(visiblePerLine) bits)
     val activeReadData = in  Bits(SpriteEvaluator.SlotPackedW bits)
     val activeCount    = in  UInt(log2Up(visiblePerLine + 1) bits)
+    // Task 55 (#9440) — Genesis sprite-mask threshold from the
+    // evaluator. Slots with index strictly greater than `firstMaskSlot`
+    // are suppressed (transparent) for the line. Default
+    // `visiblePerLine` = no masking sprite, no suppression.
+    val firstMaskSlot  = in  UInt(log2Up(visiblePerLine + 1) bits)
 
     // Per-line trigger: pulse one cycle to start drawing for the line
     // identified by `fillLineY`. Caller responsibility to assert when the
@@ -217,7 +222,16 @@ case class SpriteRasterizer(
 
   val onPixel = Mux(affEnR, affOnR, True)         // flat hitbox is always on within slotWidth (gated by FSM)
   val pixelTransparent = pixel === B(0, 4 bits)
-  val pixelVisible = (rState === ST_RUN) && onPixel && !pixelTransparent
+  // Task 55 — Genesis sprite-mask suppression. Latched at
+  // lineRenderStart so the threshold applies for the whole render
+  // burst. Slots with index > firstMaskSlot are suppressed for the
+  // entire line (no writes to slbA/slbB).
+  val firstMaskSlotR = Reg(UInt(log2Up(visiblePerLine + 1) bits)) init U(visiblePerLine)
+  when(io.lineRenderStart) {
+    firstMaskSlotR := io.firstMaskSlot
+  }
+  val slotMaskedOut = slotIdx.resize(log2Up(visiblePerLine + 1)) > firstMaskSlotR
+  val pixelVisible = (rState === ST_RUN) && onPixel && !pixelTransparent && !slotMaskedOut
 
   // ----- sprite line buffer (ping-pong, 2 banks of hActive × 9 bits) ----
   val SLB_W = 4 + 3 + 2 + 1  // pixel + paletteBank + priority + slot0 flag

@@ -34,7 +34,7 @@ import spinal.lib._
   *       word 6: transX[15:0]    (Q10.6 signed)
   *       word 7: transY[15:0]
   *       word 8: {sizeSel[15:14], paletteBank[13:11], priority[10:9],
-  *                flipH[8], flipV[7], bppSel[6:5], _[4:2],
+  *                flipH[8], flipV[7], bppSel[6:5], mask[4], _[3:2],
   *                patIdx[5:4]@[1:0]}
   *                — Sprite Envelope Hardening fields (CyanPeak #8577 §4.3)
   *                + Phase 2 extensions (CyanPeak #8614): priority widened
@@ -108,6 +108,16 @@ case class SpriteEvaluator(
     // Sprite Envelope Hardening (CyanPeak #8577) + Phase 2 (#8614) outputs.
     val activeFlipH        = out Vec(Bool(), visiblePerLine)
     val activeFlipV        = out Vec(Bool(), visiblePerLine)
+    // Task 55 (#9440) — Genesis sprite-mask bit propagated to compositor.
+    val activeMask         = out Vec(Bool(), visiblePerLine)
+    // Task 55 — smallest slot index with `mask=1` in the current active
+    // list, defaulting to `visiblePerLine` (= "no masking sprite this
+    // line"). The compositor uses this to suppress all slots with index
+    // strictly greater than `firstMaskSlot` per Genesis sprite-mask
+    // semantics ("suppress all sprites with lower display priority on
+    // that scanline"; lower display priority == higher slot index in
+    // the existing rasterizer slot order).
+    val firstMaskSlot      = out UInt(log2Up(visiblePerLine + 1) bits)
     val activePaletteBank  = out Vec(UInt(3 bits), visiblePerLine)
     val activePriority     = out Vec(UInt(2 bits), visiblePerLine)   // P2-3b: 1→2 bits
     val activeSizeSel      = out Vec(UInt(2 bits), visiblePerLine)
@@ -146,6 +156,8 @@ case class SpriteEvaluator(
   // never write word 8 retain bit-identical behaviour.
   val regFlipH        = Vec.fill(extCount)(RegInit(False))
   val regFlipV        = Vec.fill(extCount)(RegInit(False))
+  // Task 55 (#9440) — Genesis sprite-mask bit at word 8 [4].
+  val regMask         = Vec.fill(extCount)(RegInit(False))
   val regPaletteBank  = Vec.fill(extCount)(RegInit(U(0, 3 bits)))
   val regPriority     = Vec.fill(extCount)(RegInit(U(0, 2 bits)))    // P2-3b: 1→2 bits
   val regSizeSel      = Vec.fill(extCount)(RegInit(U(SpriteDescriptor.DefaultSizeSel, 2 bits)))
@@ -212,6 +224,7 @@ case class SpriteEvaluator(
                 regPriority(i)    := io.busData(10 downto 9).asUInt   // P2-3b: 2 bits
                 regFlipH(i)       := io.busData(8)
                 regFlipV(i)       := io.busData(7)
+                regMask(i)        := io.busData(4)   // Task 55 — Genesis mask bit
                 regBppSel(i)      := io.busData(6 downto 5).asUInt    // P2-2: new
                 if (patternSelBits > 4) {
                   // Task 53 — patIdx high bits at [1:0]. Width is
@@ -261,6 +274,9 @@ case class SpriteEvaluator(
     if (i < legacyIoCount) False else regFlipH(i - legacyIoCount)
   def descFlipV(i: Int): Bool =
     if (i < legacyIoCount) False else regFlipV(i - legacyIoCount)
+  // Task 55 — legacy IO slots have no mask bit.
+  def descMask(i: Int): Bool =
+    if (i < legacyIoCount) False else regMask(i - legacyIoCount)
   def descPaletteBank(i: Int): UInt =
     if (i < legacyIoCount) U(0, 3 bits) else regPaletteBank(i - legacyIoCount)
   def descPriority(i: Int): UInt =
@@ -330,6 +346,7 @@ case class SpriteEvaluator(
   val curTransY       = Bits(16 bits);            curTransY := 0
   val curFlipH        = Bool();                   curFlipH := False
   val curFlipV        = Bool();                   curFlipV := False
+  val curMask         = Bool();                   curMask  := False   // Task 55
   val curPaletteBank  = UInt(3 bits);             curPaletteBank := 0
   val curPriority     = UInt(2 bits);             curPriority := U(0, 2 bits)
   val curSizeSel      = UInt(2 bits);             curSizeSel := U(SpriteDescriptor.DefaultSizeSel, 2 bits)
@@ -351,6 +368,7 @@ case class SpriteEvaluator(
           curTransY       := descMatrix(i, 5)
           curFlipH        := descFlipH(i)
           curFlipV        := descFlipV(i)
+          curMask         := descMask(i)
           curPaletteBank  := descPaletteBank(i)
           curPriority     := descPriority(i)
           curSizeSel      := descSizeSel(i)
@@ -449,7 +467,8 @@ case class SpriteEvaluator(
     bppSel    = curBppSel,
     affineEnable = curAffineEnable,
     flipH     = curFlipH,
-    flipV     = curFlipV
+    flipV     = curFlipV,
+    mask      = curMask
   )
   // Mem write occurs in the same conditions as the legacy active*Reg
   // Vec writes — gated on (scanBusy && dOnLine && activeCount<visiblePerLine).
@@ -483,19 +502,34 @@ case class SpriteEvaluator(
     io.activeTransY(s)       := SpriteEvaluator.slotTransY(w)
     io.activeFlipH(s)        := SpriteEvaluator.slotFlipH(w)
     io.activeFlipV(s)        := SpriteEvaluator.slotFlipV(w)
+    io.activeMask(s)         := SpriteEvaluator.slotMask(w)
     io.activePaletteBank(s)  := SpriteEvaluator.slotPaletteBank(w)
     io.activePriority(s)     := SpriteEvaluator.slotPriority(w)
     io.activeSizeSel(s)      := SpriteEvaluator.slotSizeSel(w)
     io.activeBppSel(s)       := SpriteEvaluator.slotBppSel(w)
   }
+
+  // Task 55 — combinational priority encoder over `activeMask` Vec
+  // returning the lowest active slot index with mask=1, or
+  // `visiblePerLine` if no active masking sprite. Reverse-then-overwrite
+  // pattern relies on SpinalHDL's last-assignment-wins semantics so the
+  // smallest matching index ends up retained.
+  private val firstMaskSlotW = log2Up(visiblePerLine + 1)
+  io.firstMaskSlot := U(visiblePerLine, firstMaskSlotW bits)
+  for (s <- (visiblePerLine - 1) to 0 by -1) {
+    when(io.activeMask(s) &&
+         (U(s, firstMaskSlotW bits) < activeCount.resize(firstMaskSlotW))) {
+      io.firstMaskSlot := U(s, firstMaskSlotW bits)
+    }
+  }
 }
 
 object SpriteEvaluator {
   // Task 2c — packed active-slot word width and field offsets.
-  // Task 53 (#9419) — `PatIdxWidth` widened 4→6, `SlotPackedW` 128→130
-  // by shifting matrices/x/row up by 2 and growing patIdx in place.
+  // Task 53 (#9419) — `PatIdxWidth` widened 4→6, `SlotPackedW` 128→130.
+  // Task 55 (#9440) — Genesis sprite-mask bit appended at MSB; `SlotPackedW` 130→131.
   val PatIdxWidth: Int = 6
-  val SlotPackedW: Int = 96 + 10 + 6 + PatIdxWidth + 3 + 2 + 2 + 2 + 1 + 1 + 1   // = 130
+  val SlotPackedW: Int = 1 + 96 + 10 + 6 + PatIdxWidth + 3 + 2 + 2 + 2 + 1 + 1 + 1   // = 131
 
   // Pack a slot's fields into a `SlotPackedW`-bit word.
   def packSlot(
@@ -504,7 +538,9 @@ object SpriteEvaluator {
       x: UInt, row: UInt,
       patIdx: UInt, paletteBank: UInt, priority: UInt,
       sizeSel: UInt, bppSel: UInt,
-      affineEnable: Bool, flipH: Bool, flipV: Bool): Bits = {
+      affineEnable: Bool, flipH: Bool, flipV: Bool,
+      mask: Bool): Bits = {
+    mask.asBits ##
     matrixA ## matrixB ## matrixC ## matrixD ##
     transX  ## transY  ##
     x.asBits.resize(10) ## row.asBits.resize(6) ##
@@ -515,7 +551,8 @@ object SpriteEvaluator {
   }
 
   // Field-extraction helpers (slot word from `activeReadData`).
-  // Bit positions match `packSlot` above. Total = 130 bits.
+  // Bit positions match `packSlot` above. Total = 131 bits.
+  //   [130]     mask          (1)   ← Task 55
   //   [129:114] matrixA       (16)
   //   [113: 98] matrixB       (16)
   //   [ 97: 82] matrixC       (16)
@@ -548,4 +585,5 @@ object SpriteEvaluator {
   def slotAffineEnable(w: Bits): Bool = w(2)
   def slotFlipH  (w: Bits)   : Bool = w(1)
   def slotFlipV  (w: Bits)   : Bool = w(0)
+  def slotMask   (w: Bits)   : Bool = w(130)   // Task 55
 }

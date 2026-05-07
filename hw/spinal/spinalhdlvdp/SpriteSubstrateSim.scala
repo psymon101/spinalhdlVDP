@@ -61,6 +61,7 @@ object SpriteSubstrateSim extends App {
 
     dut.io.activeReadData  #= 0
     dut.io.activeCount     #= 0
+    dut.io.firstMaskSlot   #= 32   // Task 55 — no masking sprite
     dut.io.lineRenderStart #= false
     dut.io.fillLineY       #= 0
     dut.io.patternRamData  #= 0xF

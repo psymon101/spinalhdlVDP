@@ -1380,6 +1380,7 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   spriteEval.io.activeReadAddr := spriteRasterizer.io.activeReadAddr
   spriteRasterizer.io.activeReadData := spriteEval.io.activeReadData
   spriteRasterizer.io.activeCount    := spriteEval.io.activeCountOut
+  spriteRasterizer.io.firstMaskSlot  := spriteEval.io.firstMaskSlot   // Task 55
   // Pattern Mem read interface — share with spritePatternRams(0). Adds a
   // second readSync port; Gowin will handle inference (LUTRAM fallback or
   // dual-port BSRAM split). Step 2 trims spritePatternRams to a single
