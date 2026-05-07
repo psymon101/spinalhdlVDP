@@ -23,15 +23,15 @@ This section tracks the single active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 55 — Sprite Masking + Tile-Fetch Budget Counter** |
-| **Status** | **ACTIVE** — PM authorized #9440; BrightForge implementation owner; CyanPeak roadmap audit PASS #9441 |
+| **Status** | **ACTIVE** — PM authorized #9440; BrightForge implementation owner; Checkpoint A audit PASS #9445 |
 | **Phase** | implement |
-| **Latest Commit** | `2bebb81` (Roadmap expansion) |
+| **Latest Commit** | `8628cb9` (Ledger sync) |
 | **Commits in lane** | N/A |
-| **Latest Auth Mail** | #9440 (lane OPEN), #9441 (CyanPeak roadmap audit PASS) |
+| **Latest Auth Mail** | #9440 (lane OPEN), #9445 (Checkpoint A PASS) |
 | **Artifact** | N/A |
-| **Next Deliverable** | Checkpoint A — control/register contract (BrightForge) |
+| **Next Deliverable** | Checkpoint B — simulation proof + regression (BrightForge) |
 
-**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened as the active implementation lane per BronzeGate #9440. Scope: (1) Genesis sprite masking via descriptor bit + compositor suppress; (2) SNES tile-fetch budget counter assertions. BrightForge cleared to start Checkpoint A.
+**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened per BronzeGate #9440. Checkpoint A contract (Word 8 bit [4] mask, slot-index priority, budget coverage) APPROVED per CyanPeak #9445. BrightForge authorized for Checkpoint B (Simulation).
 
 ---
 
