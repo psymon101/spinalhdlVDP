@@ -23,15 +23,15 @@ This section tracks the single active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 55 — Sprite Masking + Tile-Fetch Budget Counter** |
-| **Status** | **ACTIVE** — PM authorized #9440; BrightForge implementation owner; Checkpoint A audit PASS #9445 |
+| **Status** | **ACTIVE** — PM authorized #9440; BrightForge implementation owner; Checkpoint A audit PASS #9445; Checkpoint B proof delivered #9454 |
 | **Phase** | implement |
-| **Latest Commit** | `8628cb9` (Ledger sync) |
+| **Latest Commit** | `0f96777` (Checkpoint B — sprite mask + tile-budget sims) |
 | **Commits in lane** | N/A |
-| **Latest Auth Mail** | #9440 (lane OPEN), #9445 (Checkpoint A PASS) |
+| **Latest Auth Mail** | #9440 (lane OPEN), #9445 (Checkpoint A PASS), #9454 (Checkpoint B proof) |
 | **Artifact** | N/A |
-| **Next Deliverable** | Checkpoint B — simulation proof + regression (BrightForge) |
+| **Next Deliverable** | Checkpoint B audit (CyanPeak) |
 
-**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened per BronzeGate #9440. Checkpoint A contract (Word 8 bit [4] mask, slot-index priority, budget coverage) APPROVED per CyanPeak #9445. BrightForge authorized for Checkpoint B (Simulation).
+**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened per BronzeGate #9440. Checkpoint A contract APPROVED per CyanPeak #9445. BrightForge delivered Checkpoint B proof #9454 (5 sim cases A–E PASS; 10/10 sprite regression PASS). Awaiting CyanPeak audit.
 
 ---
 
