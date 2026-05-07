@@ -3,7 +3,7 @@
 **Updated:** 2026-05-07
 **Purpose:** Single canonical assessment document for the `spinalhdlVDP` Mode0 substrate. Consolidates all active assessment content into one indexed file.
 
-This document replaces the following previously-scattered assessment files:
+This document replaces the following previously-scattered assessment files (now archived in `PROJECT_PLAN/archive/assessments/`):
 - `MODE0_FETCH_ENVELOPE_ASSESSMENT.md` → §1 Fetch Envelope
 - `MODE0_SPRITE_ENVELOPE_ASSESSMENT.md` → §2 Sprite Envelope
 - `MODE0_COLOR_WINDOW_BEAM_ASSESSMENT.md` → §3 Color, Window, and Beam-Driven Automation
