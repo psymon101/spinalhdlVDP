@@ -1300,7 +1300,7 @@ This file is planning guidance, not status authority. `TASKS.md` remains the liv
 
 ### Priority A — Fetch Envelope Hardening ✅ DONE
 
-*Status: Implemented, audited, and closed. See `TASKS.md` live-lane history.*
+*Status: Implemented, audited, and closed. See `TASKS_HISTORY.md` for closed-lane detail.*
 
 **Why first:**
 
