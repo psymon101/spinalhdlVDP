@@ -885,7 +885,7 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // happens to equal hTotal-160 with the widened slot. Documented for
   // future-proofing if either constant changes.
   planarLineFetch.io.start          := planarFetchEnable && (hCounter === U(hTotal - 160, log2Up(hTotal) bits))
-  planarLineFetch.io.pixelIdx       := hCounter.resize(log2Up(PLANE_PIXELS))
+  planarLineFetch.io.pixelIdx       := (hCounter % U(PLANE_PIXELS)).resize(log2Up(PLANE_PIXELS))
   // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM lives in
   // `effectiveSdramCd` and consumes data_ready/dout32/busy natively in
   // that domain. The top-level wires `io.planarSdram*` directly with
