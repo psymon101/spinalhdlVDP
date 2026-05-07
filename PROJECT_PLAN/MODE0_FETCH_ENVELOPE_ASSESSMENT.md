@@ -1,3 +1,6 @@
+**DEPRECATED -- merged into ASSESSMENT.md. This file is now archive reference only.**
+
+
 # Mode0 Fetch Envelope Assessment Report
 
 **Assessment version:** 1.0  

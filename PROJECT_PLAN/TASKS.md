@@ -92,7 +92,7 @@ This section tracks the single active lane so the team does not infer state from
 
 **Proof:** V=32: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. HW proof v2: 30s capture, 868 frames, 28 visible sprites, freeze=0.0000, glitch=0.0000. Regression 10/10 PASS. Total trajectory: 51,191 → 13,924 = 3.7× reduction.
 
-### Task 3 — Planar Fetch Hardening (ACTIVE)
+### Task 3 — Planar Fetch Hardening (DONE)
 
 | Field | Value |
 |---|---|
@@ -1640,6 +1640,74 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ---
 
+## Open Gap Tasks
+
+The following tasks were consolidated from `MODE0_GAP_TASKLIST.md` (now archived). They are **OPEN** and await PM authorization to open as active implementation lanes.
+
+### Task 53 — Sprite Pattern Address Width Expansion
+
+| Field | Value |
+|---|---|
+| **Status** | **OPEN** — awaits PM lane authorization |
+| **Gap** | Pattern address limited to 16×16 tiles. Sprites >16×16 tile-repeat the same pattern. |
+| **Why it matters** | SNES 64×64 sprites need 16 unique 16×16 tiles. Genesis 32×32 needs 4 unique tiles. With only 16 patterns total, a single 64×64 sprite consumes the entire table. |
+| **Platforms helped** | SNES, Genesis, Neo Geo (groundwork) |
+| **Impact** | **Medium-High** — 3 platforms; blocks honest large-sprite claims |
+| **Risk/Complexity** | Medium. Expand `patIdx` width, expand pattern RAM depth, update fetch address generation. Pattern RAM already BSRAM-backed (broadcast writes), so depth expansion is a BSRAM count increase. |
+| **Proof shape** | Sim: 32×32 and 64×64 sprites render with unique tiles; pattern RAM upload/download via QSPI; resource report |
+| **Prerequisite for** | Honest SNES/Genesis sprite claims |
+| **Source assessment** | `ASSESSMENT.md` §5 (Universal Sprite Engine Gaps), §Gap 2 |
+
+---
+
+### Task 54 — Sprite-Sprite Collision Detector
+
+| Field | Value |
+|---|---|
+| **Status** | **OPEN** — awaits PM lane authorization |
+| **Gap** | No pairwise sprite-sprite overlap detection. C64 `$D01E` requires detecting any pair of sprites overlapping. |
+| **Why it matters** | C64 games rely on sprite-sprite collision for hit detection. Current substrate can only detect slot-0 vs background. |
+| **Platforms helped** | C64 (primary); NES/Genesis (secondary, some games use it) |
+| **Impact** | **Medium** — 1 primary platform; C64 adapter already honest without this (adapter-local enhancement) |
+| **Risk/Complexity** | Medium. Combinational overlap detector for 32 sprites = 496 pairwise comparisons. Can optimize to bounding-box first, then pixel-precision for candidates. |
+| **Proof shape** | Sim: overlapping sprites set collision bits; non-overlapping sprites do not; status register readback correct |
+| **Prerequisite for** | Honest C64 sprite collision claims |
+| **Source assessment** | `ASSESSMENT.md` §5 (Universal Sprite Engine Gaps), §Gap 4 |
+
+---
+
+### Task 55 — Sprite Masking + Tile-Fetch Budget Counter
+
+| Field | Value |
+|---|---|
+| **Status** | **OPEN** — awaits PM lane authorization |
+| **Gap** | Genesis sprite masking (one sprite suppresses all lower-priority sprites on a line) and SNES 34-tiles/line fetch budget are unimplemented. |
+| **Why it matters** | Genesis masking is used by games for sprite-culling effects. SNES 34-tile limit is hardware-enforced and affects large-sprite scenes. Both are edge cases — most games work without them. |
+| **Platforms helped** | Genesis, SNES |
+| **Impact** | **Medium** — 2 platforms; edge-case features, not foundation blockers |
+| **Risk/Complexity** | Low. Masking = 1 bit + suppress logic in compositor loop. Budget counter = counter + comparator in evaluator/fetch path. |
+| **Proof shape** | Sim: masked sprite suppresses lower slots; 35-tile scene triggers overflow flag; regression PASS |
+| **Prerequisite for** | Pixel-perfect Genesis/SNES behavior |
+| **Source assessment** | `ASSESSMENT.md` §5 (Universal Sprite Engine Gaps), §Gap 3, §Gap 5 |
+
+---
+
+### Task 56 — Multi-Layer SDRAM Fetch
+
+| Field | Value |
+|---|---|
+| **Status** | **OPEN** — awaits PM lane authorization |
+| **Gap** | No SDRAM-backed fetch for background layers beyond L0. Amiga dual-playfield and Genesis-style multi-layer backgrounds need multiple SDRAM-backed layers. |
+| **Why it matters** | Blocks honest Amiga dual-playfield claims and rich Genesis/SNES multi-layer scenes. High architectural cost. |
+| **Platforms helped** | Amiga, Genesis, SNES |
+| **Impact** | **Medium** — 3 platforms, but deferred in fetch assessment as "future task with its own stop-line review" |
+| **Risk/Complexity** | Large. New arbiter clients, fetch FSMs, slot allocation policy, per-line budget re-analysis. Could push scheduler into yellow zone. |
+| **Proof shape** | Sim: L0+L1 both fetch from SDRAM concurrently; arbitration priority correct; no line-drop under max load; resource + bandwidth report |
+| **Prerequisite for** | Honest Amiga dual-playfield; rich Genesis/SNES multi-layer scenes |
+| **Source assessment** | `ASSESSMENT.md` §1 (Fetch Envelope Assessment), §5.1, §8.1 |
+
+---
+
 ## Deferred Items
 
 The following items remain intentionally coarse or out of Mode0 scope. Where possible they have been decomposed into numbered tasks above.
@@ -1648,7 +1716,7 @@ The following items remain intentionally coarse or out of Mode0 scope. Where pos
 |------|--------|-------|
 | Additional output modes | DEFERRED | Not required for baseline bring-up |
 | Deep-angle affine tuning | DEFERRED | Only after affine base path is proven (Task 19, Task 37) |
-| Platform adapter modes | DEFERRED | Task 40 (C64) DONE; Task 50 (ZX Spectrum) DONE; Task 51 (MODE_SELECT) TODO |
+| Platform adapter modes | DEFERRED | Task 40 (C64) DONE; Task 50 (ZX Spectrum) DONE; Task 51 (MODE_SELECT) DONE (#9201); Task 53–56 are open gap tasks awaiting PM authorization |
 | Alternate memory strategies | DEFERRED | Only if baseline memory path becomes a blocker |
 | E3.45 bottom-band stripes | **DONE** | BrightForge #8976. `bitmapYActive = bitmapEnable && (vCounter < 192)` at source mux in `VdpTop.scala`. Analyzer PASS. |
 | Parallel bus implementation | DEFERRED | After QSPI path is stable (Task 25) |

@@ -10,12 +10,9 @@
 1. `PROJECT_PLAN.md` — current architecture snapshot, document precedence, and working rules
 2. `MODE0_PLANNING.md` — consolidated Mode0 strategy: capability envelope, stop-lines, roadmap, coverage, and backlog
 3. `ADAPTER_NUANCES.md` — platform-facing visual rules and adapter fidelity expectations
-4. `MODE0_FETCH_ENVELOPE_ASSESSMENT.md` — deep-dive on planar/shuffled/bitmap fetch strength
-5. `MODE0_SPRITE_ENVELOPE_ASSESSMENT.md` — measurement of current sprite capability vs high-pressure targets
-6. `MODE0_COLOR_WINDOW_BEAM_ASSESSMENT.md` — audit of post-compositor effects and beam automation
-7. `MODE0_PLATFORM_COVERAGE_AUDIT.md` — cross-check of substrate vs all 12 target platforms
-8. `TASK_TEMPLATE.md` — reusable planning template for turning roadmap items into bounded execution tasks
-9. `TASKS.md` — authoritative execution order and task status
+4. `ASSESSMENT.md` — consolidated substrate assessments (fetch envelope, sprite envelope, color/window/beam, platform coverage, sprite engine gaps)
+5. `TASK_TEMPLATE.md` — reusable planning template for turning roadmap items into bounded execution tasks
+6. `TASKS.md` — authoritative execution order and task status
 10. `CONVENTIONS.md` — coding, naming, clock/reset, and simulation rules
 11. `PLATFORM.md` — board facts and validated hardware data
 12. `REPO_STRUCTURE.md` — where code and board assets live today
@@ -142,7 +139,7 @@ The current validated baseline is **past the entire mainline substrate construct
 - Mode0 Fetch Envelope Hardening — DONE
 
 **Next expected work after Task 3:**
-- **Task 4 — Sprite Pattern Address Width Expansion** (per `MODE0_GAP_TASKLIST.md`)
+- **Task 53 — Sprite Pattern Address Width Expansion** (per `TASKS.md` §Open Gap Tasks)
 - Additional platform adapters (Atari ST lowest-risk Tier 1, then Amiga/Genesis/SNES)
 
 For the strategic `Mode0` build order and adapter roadmap, use `MODE0_PLANNING.md` §3 (Strategic Roadmap). For the authoritative execution ledger, use `TASKS.md`.

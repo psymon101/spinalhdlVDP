@@ -1,3 +1,6 @@
+**DEPRECATED -- merged into ASSESSMENT.md. This file is now archive reference only.**
+
+
 # Mode0 Universal Sprite Engine — Gap Analysis
 
 **Assessment version:** 1.0  

@@ -1,3 +1,6 @@
+**DEPRECATED -- merged into ASSESSMENT.md. This file is now archive reference only.**
+
+
 # Mode0 Platform-by-Platform Adapter Coverage Audit
 
 **Audit version:** 1.0  

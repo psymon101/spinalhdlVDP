@@ -1,3 +1,6 @@
+**DEPRECATED -- merged into ASSESSMENT.md. This file is now archive reference only.**
+
+
 # Mode0 Color / Window / Beam-Driven Assessment Report
 
 **Assessment version:** 1.0  
