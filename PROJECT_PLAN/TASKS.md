@@ -23,15 +23,15 @@ This section tracks the single active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 55 — Sprite Masking + Tile-Fetch Budget Counter** |
-| **Status** | **ACTIVE** — PM authorized #9440; BrightForge implementation owner; Checkpoint A audit PASS #9445; Checkpoint B proof delivered #9454 |
+| **Status** | **ACTIVE** — PM authorized #9440; BrightForge implementation owner; Checkpoint A audit PASS #9445; Checkpoint B proof delivered #9454; **Checkpoint B audit HOLD #9457** |
 | **Phase** | implement |
 | **Latest Commit** | `0f96777` (Checkpoint B — sprite mask + tile-budget sims) |
 | **Commits in lane** | N/A |
-| **Latest Auth Mail** | #9440 (lane OPEN), #9445 (Checkpoint A PASS), #9454 (Checkpoint B proof) |
+| **Latest Auth Mail** | #9440 (lane OPEN), #9445 (Checkpoint A PASS), #9454 (Checkpoint B proof), #9457 (Checkpoint B audit HOLD) |
 | **Artifact** | N/A |
-| **Next Deliverable** | Checkpoint B audit (CyanPeak) |
+| **Next Deliverable** | Checkpoint B correction — behavioral pixel suppression sim (BrightForge) |
 
-**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened per BronzeGate #9440. Checkpoint A contract APPROVED per CyanPeak #9445. BrightForge delivered Checkpoint B proof #9454 (5 sim cases A–E PASS; 10/10 sprite regression PASS). Awaiting CyanPeak audit.
+**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened per BronzeGate #9440. Checkpoint A contract APPROVED per CyanPeak #9445. BrightForge delivered Checkpoint B proof #9454 (5 sim cases A–E PASS; 10/10 sprite regression PASS). **CyanPeak audit HOLD #9457:** missing behavioral pixel suppression proof in rasterizer. BrightForge must extend sim to verify opaque pixels from slots with index > `firstMaskSlot` are transparent in output.
 
 ---
 
