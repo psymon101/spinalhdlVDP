@@ -45,12 +45,13 @@ import spinal.lib._
   */
 case class SpriteRasterizer(
   visiblePerLine: Int = 32,
-  patternSelBits: Int = 4,
+  patternSelBits: Int = 6,
   hActive: Int       = 640,
   cycleBudget: Int   = 798
 ) extends Component {
 
-  val patAddrBits = 12  // {patIdx[3:0], row[3:0], col[3:0]}
+  // Task 53 (#9419): {patIdx[patternSelBits-1:0], row[3:0], col[3:0]}
+  val patAddrBits = patternSelBits + 8
 
   val io = new Bundle {
     // === Task 2c Checkpoint D: narrow active-list RAM read port ===
@@ -201,7 +202,7 @@ case class SpriteRasterizer(
   val affAddr = (vIntFull(3 downto 0).asBits ## uIntFull(3 downto 0).asBits).asUInt
 
   val finalAddr = Mux(slotAffEnR, affAddr, effFlatAddr)
-  io.patternRamAddr := (slotPatIdxR(3 downto 0).asBits ## finalAddr.asBits.resize(8)).asUInt
+  io.patternRamAddr := (slotPatIdxR.asBits.resize(patternSelBits) ## finalAddr.asBits.resize(8)).asUInt
 
   // ----- pixel unpack from registered alignment signals -----------------
   val rawPixel = io.patternRamData

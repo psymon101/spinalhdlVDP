@@ -1219,24 +1219,24 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
     // — substrate redesign (shared pattern Mems / pipelined
     // compositor) required before capacity bump can land.
     visiblePerLine = 32,
-    patternSelBits = 4,
+    patternSelBits = SpriteEvaluator.PatIdxWidth,   // Task 53 (#9419): 6 bits
     legacyIoCount  = 4)
   spriteEval.io.descX(0)          := io.sprite0X
   spriteEval.io.descY(0)          := io.sprite0Y
   spriteEval.io.descEnabled(0)    := io.sprite0Enabled
-  spriteEval.io.descPatternIdx(0) := io.sprite0PatternIdx.resize(4)
+  spriteEval.io.descPatternIdx(0) := io.sprite0PatternIdx.resize(SpriteEvaluator.PatIdxWidth)
   spriteEval.io.descX(1)          := io.sprite1X
   spriteEval.io.descY(1)          := io.sprite1Y
   spriteEval.io.descEnabled(1)    := io.sprite1Enabled
-  spriteEval.io.descPatternIdx(1) := io.sprite1PatternIdx.resize(4)
+  spriteEval.io.descPatternIdx(1) := io.sprite1PatternIdx.resize(SpriteEvaluator.PatIdxWidth)
   spriteEval.io.descX(2)          := io.sprite2X
   spriteEval.io.descY(2)          := io.sprite2Y
   spriteEval.io.descEnabled(2)    := io.sprite2Enabled
-  spriteEval.io.descPatternIdx(2) := io.sprite2PatternIdx.resize(4)
+  spriteEval.io.descPatternIdx(2) := io.sprite2PatternIdx.resize(SpriteEvaluator.PatIdxWidth)
   spriteEval.io.descX(3)          := io.sprite3X
   spriteEval.io.descY(3)          := io.sprite3Y
   spriteEval.io.descEnabled(3)    := io.sprite3Enabled
-  spriteEval.io.descPatternIdx(3) := io.sprite3PatternIdx.resize(4)
+  spriteEval.io.descPatternIdx(3) := io.sprite3PatternIdx.resize(SpriteEvaluator.PatIdxWidth)
 
   // Mode0RegBus decode for 0x0800..0x08FF → evaluator bus-write port.
   // Task 37 extended layout: 8 words per slot (word 0..7 = enable/pat/aff/y,
@@ -1326,9 +1326,11 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // Blitter range ending at 0x0D0F.
   val patternRamPtrWriteHit  = effWrite && (effAddr === U(0x0D11, 15 bits))
   val patternRamDataWriteHit = effWrite && (effAddr === U(0x0D10, 15 bits))
-  val patternRamPtr = Reg(UInt(12 bits)) init 0
+  // Task 53 (#9419): pointer widened 12→14 to address the new
+  // 16384-entry pattern RAM (64 unique 16×16 tiles, Option A).
+  val patternRamPtr = Reg(UInt(14 bits)) init 0
   when(patternRamPtrWriteHit) {
-    patternRamPtr := effData(11 downto 0).asUInt
+    patternRamPtr := effData(13 downto 0).asUInt
   }.elsewhen(patternRamDataWriteHit) {
     patternRamPtr := patternRamPtr + 1
   }
@@ -1367,7 +1369,7 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // ============================================================
   val spriteRasterizer = SpriteRasterizer(
     visiblePerLine = NUM_SLOTS,
-    patternSelBits = 4,
+    patternSelBits = SpriteEvaluator.PatIdxWidth,   // Task 53 (#9419): 6 bits
     hActive = hActive,
     cycleBudget = 798
   )
@@ -1978,7 +1980,8 @@ object VdpTop {
   def spritePatternRamInit: Seq[Bits] = {
     val slot0 = spritePatternData.flatten          // 256 nibbles
     val slot1 = sprite1PatternData.flatten         // 256 nibbles
-    val zeros = Seq.fill(4096 - 2 * 256)(0)        // slots 2..15
+    // Task 53 (#9419): RAM depth 4096 → 16384 (64 slots × 256 entries).
+    val zeros = Seq.fill(16384 - 2 * 256)(0)       // slots 2..63
     (slot0 ++ slot1 ++ zeros).map(v => B(v, 4 bits))
   }
 

@@ -22,7 +22,10 @@ import spinal.lib._
   *     hardwired to defaults).
   *   - Slots `[legacyIoCount .. descCount)` Reg-backed, programmable via
   *     the `bus*` write port. Bus layout is 16 words per slot:
-  *       word 0: {enabled[15], patIdx[14:11], affineEnable[10], y[9:0]}
+  *       word 0: {enabled[15], patIdx[3:0]@[14:11], affineEnable[10], y[9:0]}
+  *       (Task 53 — patIdx high bits live in word 8 [1:0]; with
+  *        patternSelBits=4 they are unused/zero so legacy hosts are
+  *        unchanged.)
   *       word 1: {_[15:10], x[9:0]}
   *       word 2: matrixA[15:0]   (Q8.8 signed)
   *       word 3: matrixB[15:0]
@@ -31,10 +34,14 @@ import spinal.lib._
   *       word 6: transX[15:0]    (Q10.6 signed)
   *       word 7: transY[15:0]
   *       word 8: {sizeSel[15:14], paletteBank[13:11], priority[10:9],
-  *                flipH[8], flipV[7], bppSel[6:5], _[4:0]}
+  *                flipH[8], flipV[7], bppSel[6:5], _[4:2],
+  *                patIdx[5:4]@[1:0]}
   *                — Sprite Envelope Hardening fields (CyanPeak #8577 §4.3)
   *                + Phase 2 extensions (CyanPeak #8614): priority widened
   *                  1→2 bits, bppSel new (4/2/1 bpp pattern format).
+  *                + Task 53 (#9419): bits [1:0] carry patIdx[5:4] when
+  *                  patternSelBits > 4. Legacy hosts that always wrote
+  *                  zero into [4:0] keep working unchanged.
   *       words 9..15: reserved (zeroed by hardware on read; ignored on
   *                write so future extension can claim them without
   *                breaking the host bus protocol).
@@ -54,7 +61,7 @@ import spinal.lib._
 case class SpriteEvaluator(
     descCount: Int = 64,
     visiblePerLine: Int = 32,
-    patternSelBits: Int = 4,
+    patternSelBits: Int = 6,
     legacyIoCount: Int = 4
 ) extends Component {
   require(descCount >= legacyIoCount, "descCount must be ≥ legacyIoCount")
@@ -168,7 +175,10 @@ case class SpriteEvaluator(
     when(slot >= U(legacyIoCount, descIdxBits bits)) {
       val rel = (slot - U(legacyIoCount, descIdxBits bits)).resize(log2Up(extCount))
       val enBit = io.busData(15)
-      val patW0 = io.busData(14 downto (15 - patternSelBits)).asUInt
+      // Task 53 — word 0 always carries the LOW 4 bits of patIdx at
+      // [14:11]; the high bits live in word 8 [1:0]. With
+      // `patternSelBits = 4` (legacy) the .resize(4) is a no-op.
+      val patW0Low = io.busData(14 downto 11).asUInt
       val affW0 = io.busData(10)
       val yW0   = io.busData(9 downto 0).asUInt
       val xW1   = io.busData(9 downto 0).asUInt
@@ -178,7 +188,14 @@ case class SpriteEvaluator(
             switch(io.busWord) {
               is(U(0, busWordBits bits)) {
                 regEnabled(i)      := enBit
-                regPatternIndex(i) := patW0
+                if (patternSelBits > 4) {
+                  // Update only patIdx[3:0]; preserve patIdx[5:4] from a
+                  // previous word-8 write so the host can write the two
+                  // halves in either order.
+                  regPatternIndex(i)(3 downto 0) := patW0Low
+                } else {
+                  regPatternIndex(i) := patW0Low.resize(patternSelBits)
+                }
                 regAffineEnable(i) := affW0
                 regY(i)            := yW0
               }
@@ -196,6 +213,15 @@ case class SpriteEvaluator(
                 regFlipH(i)       := io.busData(8)
                 regFlipV(i)       := io.busData(7)
                 regBppSel(i)      := io.busData(6 downto 5).asUInt    // P2-2: new
+                if (patternSelBits > 4) {
+                  // Task 53 — patIdx high bits at [1:0]. Width is
+                  // (patternSelBits - 4) — 2 bits for Option A, more if
+                  // Option B is later opened. Preserves low 4 bits set
+                  // by a prior word-0 write.
+                  val highW = patternSelBits - 4
+                  regPatternIndex(i)(patternSelBits - 1 downto 4) :=
+                    io.busData(highW - 1 downto 0).asUInt
+                }
               }
               // words 9..15 reserved — no write effect; reads omitted.
             }
@@ -466,10 +492,12 @@ case class SpriteEvaluator(
 
 object SpriteEvaluator {
   // Task 2c — packed active-slot word width and field offsets.
-  val SlotPackedW: Int = 128
-  val PatIdxWidth: Int = 4   // bits — fixed by descriptor format
+  // Task 53 (#9419) — `PatIdxWidth` widened 4→6, `SlotPackedW` 128→130
+  // by shifting matrices/x/row up by 2 and growing patIdx in place.
+  val PatIdxWidth: Int = 6
+  val SlotPackedW: Int = 96 + 10 + 6 + PatIdxWidth + 3 + 2 + 2 + 2 + 1 + 1 + 1   // = 130
 
-  // Pack a slot's fields into a 128-bit word.
+  // Pack a slot's fields into a `SlotPackedW`-bit word.
   def packSlot(
       matrixA: Bits, matrixB: Bits, matrixC: Bits, matrixD: Bits,
       transX: Bits, transY: Bits,
@@ -480,23 +508,39 @@ object SpriteEvaluator {
     matrixA ## matrixB ## matrixC ## matrixD ##
     transX  ## transY  ##
     x.asBits.resize(10) ## row.asBits.resize(6) ##
-    patIdx.asBits.resize(4) ## paletteBank.asBits.resize(3) ##
+    patIdx.asBits.resize(PatIdxWidth) ## paletteBank.asBits.resize(3) ##
     priority.asBits.resize(2) ##
     sizeSel.asBits.resize(2) ## bppSel.asBits.resize(2) ##
     affineEnable.asBits ## flipH.asBits ## flipV.asBits
   }
 
   // Field-extraction helpers (slot word from `activeReadData`).
-  // Bit positions match `packSlot` above.
-  def slotMatrixA(w: Bits)   : Bits = w(127 downto 112)
-  def slotMatrixB(w: Bits)   : Bits = w(111 downto  96)
-  def slotMatrixC(w: Bits)   : Bits = w( 95 downto  80)
-  def slotMatrixD(w: Bits)   : Bits = w( 79 downto  64)
-  def slotTransX (w: Bits)   : Bits = w( 63 downto  48)
-  def slotTransY (w: Bits)   : Bits = w( 47 downto  32)
-  def slotX      (w: Bits)   : UInt = w( 31 downto  22).asUInt
-  def slotRow    (w: Bits)   : UInt = w( 21 downto  16).asUInt
-  def slotPatIdx (w: Bits)   : UInt = w( 15 downto  12).asUInt
+  // Bit positions match `packSlot` above. Total = 130 bits.
+  //   [129:114] matrixA       (16)
+  //   [113: 98] matrixB       (16)
+  //   [ 97: 82] matrixC       (16)
+  //   [ 81: 66] matrixD       (16)
+  //   [ 65: 50] transX        (16)
+  //   [ 49: 34] transY        (16)
+  //   [ 33: 24] x             (10)
+  //   [ 23: 18] row           (6)
+  //   [ 17: 12] patIdx        (6)   ← Task 53
+  //   [ 11:  9] paletteBank   (3)
+  //   [  8:  7] priority      (2)
+  //   [  6:  5] sizeSel       (2)
+  //   [  4:  3] bppSel        (2)
+  //   [  2]     affineEnable  (1)
+  //   [  1]     flipH         (1)
+  //   [  0]     flipV         (1)
+  def slotMatrixA(w: Bits)   : Bits = w(129 downto 114)
+  def slotMatrixB(w: Bits)   : Bits = w(113 downto  98)
+  def slotMatrixC(w: Bits)   : Bits = w( 97 downto  82)
+  def slotMatrixD(w: Bits)   : Bits = w( 81 downto  66)
+  def slotTransX (w: Bits)   : Bits = w( 65 downto  50)
+  def slotTransY (w: Bits)   : Bits = w( 49 downto  34)
+  def slotX      (w: Bits)   : UInt = w( 33 downto  24).asUInt
+  def slotRow    (w: Bits)   : UInt = w( 23 downto  18).asUInt
+  def slotPatIdx (w: Bits)   : UInt = w( 17 downto  12).asUInt
   def slotPaletteBank(w: Bits): UInt = w(11 downto   9).asUInt
   def slotPriority(w: Bits)  : UInt = w(  8 downto   7).asUInt
   def slotSizeSel(w: Bits)   : UInt = w(  6 downto   5).asUInt

@@ -18,7 +18,8 @@ import spinal.core.sim._
   */
 object SpriteRasterizerSim extends App {
 
-  // Pack a slot's fields into a 128-bit BigInt matching SpriteEvaluator.packSlot.
+  // Pack a slot's fields into a 130-bit BigInt matching SpriteEvaluator.packSlot.
+  // Task 53 (#9419): patIdx widened 4→6.
   def packSlot(matrixA: Int = 0, matrixB: Int = 0, matrixC: Int = 0, matrixD: Int = 0,
                transX: Int = 0, transY: Int = 0,
                x: Int = 0, row: Int = 0,
@@ -35,7 +36,7 @@ object SpriteRasterizerSim extends App {
     w = (w << 16) | (transY  & 0xFFFF)
     w = (w << 10) | (x & 0x3FF)
     w = (w <<  6) | (row & 0x3F)
-    w = (w <<  4) | (patIdx & 0xF)
+    w = (w <<  6) | (patIdx & 0x3F)
     w = (w <<  3) | (paletteBank & 0x7)
     w = (w <<  2) | (priority & 0x3)
     w = (w <<  2) | (sizeSel & 0x3)
@@ -47,7 +48,7 @@ object SpriteRasterizerSim extends App {
   }
 
   Config.sim.compile(SpriteRasterizer(
-    visiblePerLine = 32, patternSelBits = 4, hActive = 640, cycleBudget = 798
+    visiblePerLine = 32, patternSelBits = 6, hActive = 640, cycleBudget = 798
   )).doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)
 

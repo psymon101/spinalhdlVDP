@@ -106,14 +106,15 @@ object SpritePatternRamSim extends App {
     }
     println("[sim] Case 3+4 streaming write to slot 5 readback correct — OK")
 
-    // --- Case 5: pointer wrap at 0xFFF → 0x000. Write a sentinel after wrap
-    // and verify it lands at slot 0 entry 0 (overwriting diamond[0]). ---
-    busPulse(0x0D11, 0xFFF)
-    busPulse(0x0D10, 0xA)        // writes RAM[0xFFF] = 0xA, ptr → 0x000
-    busPulse(0x0D10, 0xB)        // writes RAM[0x000] = 0xB, ptr → 0x001
-    assert(ramAt(0xFFF) == 0xA, s"Case 5: wrap-write at 0xFFF: expected 0xA, got ${ramAt(0xFFF)}")
-    assert(ramAt(0x000) == 0xB, s"Case 5: post-wrap write at 0x000: expected 0xB, got ${ramAt(0x000)}")
-    println("[sim] Case 5 pointer wrap 0xFFF → 0x000 — OK")
+    // --- Case 5: pointer wrap at the top of the 14-bit pointer range
+    // (Task 53 #9419: depth grew 4096 → 16384). Write a sentinel after
+    // wrap and verify it lands at entry 0 (overwriting diamond[0]). ---
+    busPulse(0x0D11, 0x3FFF)
+    busPulse(0x0D10, 0xA)        // writes RAM[0x3FFF] = 0xA, ptr → 0x0000
+    busPulse(0x0D10, 0xB)        // writes RAM[0x0000] = 0xB, ptr → 0x0001
+    assert(ramAt(0x3FFF) == 0xA, s"Case 5: wrap-write at 0x3FFF: expected 0xA, got ${ramAt(0x3FFF)}")
+    assert(ramAt(0x0000) == 0xB, s"Case 5: post-wrap write at 0x0000: expected 0xB, got ${ramAt(0x0000)}")
+    println("[sim] Case 5 pointer wrap 0x3FFF → 0x0000 — OK")
 
     println("[sim] SpritePatternRamSim: PASS")
   }

@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-07 (Task 3 DONE. Task 53 — Sprite Pattern Address Width Expansion ACTIVE — PM authorized #9419, BrightForge implementation owner, CyanPeak audit pending.)
+**Updated:** 2026-05-07 (Task 53 ACTIVE. Doc consolidation Audit PASS #9425.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -27,15 +27,15 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 53 — Sprite Pattern Address Width Expansion** |
-| **Status** | **ACTIVE** — PM authorized #9419; BrightForge implementation owner; CyanPeak audit pending |
+| **Status** | **ACTIVE** — PM authorized #9419; BrightForge implementation owner; Checkpoint A audit PASS #9427 |
 | **Phase** | implement |
 | **Latest Commit** | `e230631` (Task 53 artifact backfill + TASKS.md sync) |
 | **Commits in lane** | `e230631` (artifact + ledger sync) |
-| **Latest Auth Mail** | #9419 (BronzeGate lane OPEN), #9422 (CoralReef completion packet) |
+| **Latest Auth Mail** | #9419 (BronzeGate lane OPEN), #9422 (CoralReef completion packet), #9427 (CyanPeak Checkpoint A PASS) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` |
-| **Next Deliverable** | Checkpoint A — control/register contract + sim discriminator (BrightForge) |
+| **Next Deliverable** | Checkpoint B — simulation proof + regression (BrightForge) |
 
-**Context:** Tasks 2a/2c/2b and Task 3 all CLOSED. Doc consolidation complete (commits `eb7197c`, `3b91fdf`, `345b345`, `e230631`, `f988ba0`; CyanPeak audit PASS #9418). Task 53 opened as the active implementation lane per BronzeGate #9419. Scope: expand `patIdx` from 4 → 6+ bits and pattern RAM depth from 4096 → 16384+ entries so 32×32 and 64×64 sprites can use unique 16×16 tiles. BrightForge cleared to start implementation. CyanPeak audit pending first proof packet.
+**Context:** Tasks 2a/2c/2b and Task 3 all CLOSED. Doc consolidation complete (audit PASS #9425). Task 53 opened per BronzeGate #9419. Checkpoint A contract (Option A, PatIdxWidth=6 via Word 8 bit-reclamation) APPROVED per CyanPeak #9427. BrightForge authorized to proceed with implementation and simulation proof.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |

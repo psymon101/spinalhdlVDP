@@ -31,7 +31,7 @@ object SpriteSubstrateSim extends App {
     w = (w << 16) | (transY  & 0xFFFF)
     w = (w << 10) | (x & 0x3FF)
     w = (w <<  6) | (row & 0x3F)
-    w = (w <<  4) | (patIdx & 0xF)
+    w = (w <<  6) | (patIdx & 0x3F)
     w = (w <<  3) | (paletteBank & 0x7)
     w = (w <<  2) | (priority & 0x3)
     w = (w <<  2) | (sizeSel & 0x3)
@@ -43,7 +43,7 @@ object SpriteSubstrateSim extends App {
   }
 
   Config.sim.compile(SpriteRasterizer(
-    visiblePerLine = 32, patternSelBits = 4, hActive = 640, cycleBudget = 798
+    visiblePerLine = 32, patternSelBits = 6, hActive = 640, cycleBudget = 798
   )).doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)
 
