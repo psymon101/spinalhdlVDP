@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-06 (Tasks 2a/2c/2b all CLOSED. Task 3 — Planar Fetch Hardening ACTIVE — BronzeGate #9364 pivoted to domain migration Path A after f4b04a9 HW still gray.)
+**Updated:** 2026-05-07 (Tasks 2a/2c/2b all CLOSED. Task 3 — Planar Fetch Hardening ACTIVE — M2 synth PASS, M3 HW blocker #9392, paired diagnosis converged on resize(9) bug, PM #9402 authorized sim-first discriminator → one-line fix.)
 **Purpose:** Authoritative task list for the current `spinalhdlVDP` repository state. Agents must read the `depends_on` and `scope_boundary` fields before beginning any task.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -27,13 +27,13 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 3 — Planar Fetch Hardening (2→5+ planes)** |
-| **Status** | **IN-PROGRESS** (HOLD #9325 CLEARED; f4b04a9 narrow-patch stack landed but HW gray #9363; lane pivoted to domain migration #9364) |
+| **Status** | **IN-PROGRESS** — M2 synth PASS #9386 (0 violations, 0 unplaced REGs); M3 HW blocker #9392 (planar bars present but layout corrupted — gray block + wrap/repeat); paired diagnosis converged on `resize(9)` modulo-512 bug (#9400 CoralReef + #9401 BrightForge verify + #9403 CyanPeak concur); PM #9402 authorized Option C: sim-only discriminator first, then one-line HDL fix |
 | **Phase** | implement (domain migration Path A) |
-| **Latest Commit** | `cf5722e` (Path A M1 sim-PASS — domain migration HDL + dual-clock sims green; M2 synth + M3 HW pending) |
+| **Latest Commit** | `cf5722e` (Path A M1 sim-PASS + M2 synth PASS; M3 HW blocker under diagnosis) |
 | **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt); `cf5722e` (Path A M1 sim-PASS) |
-| **Latest Auth Mail** | #9377 (BrightForge M1 sim-PASS — BitplaneRowFetch/PlanarLineFetch migrated to sdramCd, StreamFifoCC bridge, 3 sims PASS) |
+| **Latest Auth Mail** | #9402 (BronzeGate PM ruling — Option C sim-first discriminator authorized after paired diagnosis convergence on `resize(9)` bug) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Next Deliverable** | BrightForge: domain migration — move `PlanarLineFetch` / row-fetch consumption into `sdramClockDomain` per #9364 scope boundary; sim+synth+flash+capture with direct visual review per #9345; explicit statement whether bars traverse SDRAM end-to-end |
+| **Next Deliverable** | BrightForge: sim-only discriminator confirming `resize(9)` modulo-512 bug in `VdpTop.scala:888`; then one-line HDL fix `(hCounter % U(PLANE_PIXELS)).resize(9)`; then synth+flash+capture proof per #9345 |
 
 **Context:** Tasks 2a/2c/2b all CLOSED. Task 3 Checkpoint F blocker #9333 converged. Three structural repairs authorized in unified commit per CyanPeak #9362: (1) QspiSdramBridge 16-byte FIFO fix (host-upload byte-drop, CoralReef #9360, audit PASS #9362); (2) scheduler slot ownership (`grantClientId` one-shot → level, CyanPeak #9350); (3) widened window (80→160 cycles, CoralReef #9351). Discriminator `df57d61` proved fetch/render/palette/ctrl paths alive. BrightForge landed all three in `f4b04a9` (9/9 sims PASS, synth clean), but hardware remained uniform gray (#9363). BronzeGate #9364 ruled Path A domain migration as the active unblock lane: move `PlanarLineFetch` into `sdramClockDomain`, consume `data_ready`/`dout32` natively, keep return path to pixel domain as smallest safe level-signal boundary. Do not keep widening the pixel-domain slot/window path. CoralReef on standby for migration-local preflight only.
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
@@ -97,20 +97,20 @@ This section tracks the single active lane so the team does not infer state from
 | Field | Value |
 |---|---|
 | **Task** | Task 3 — Planar Fetch Hardening (2→5+ planes) |
-| **Status** | **IN-PROGRESS** — M1 sim-PASS at `cf5722e` (#9377), CyanPeak audit PASS #9378; M2 synth + M3 HW proof pending |
+| **Status** | **IN-PROGRESS** — M2 synth PASS #9386 (0 violations, 0 unplaced REGs); M3 HW blocker #9392 (planar bars present but layout corrupted — gray block + wrap/repeat); paired diagnosis #9396/#9400 converged on `resize(9)` modulo-512 bug; BrightForge #9401 verified; CyanPeak #9403 concurs; PM #9402 authorized Option C: sim-first discriminator → one-line HDL fix |
 | **Phase** | implement (domain migration) |
 | **Owner** | BrightForge (coding + proof), CyanPeak (audit), BronzeGate (PM), CoralReef (ledger/sync) |
 | **Baseline Commit** | `ef49c5f` (MODE0_GAP_TASKLIST.md updated post-Task-2b) |
 | **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt); `cf5722e` (Path A M1 sim-PASS) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
-| **Latest Auth Mail** | #9378 (CyanPeak audit PASS — M1 HDL + dual-clock sims green; BrightForge authorized to M2/M3) |
-| **Next Deliverable** | BrightForge: M2 synth status (0 unplaced REGs / timing) then M3 proof packet — flash + HDMI capture + direct visual review per #9345; explicit statement whether bars traverse SDRAM end-to-end |
+| **Latest Auth Mail** | #9402 (BronzeGate PM ruling — Option C sim-first discriminator authorized after paired diagnosis convergence on `resize(9)` bug) |
+| **Next Deliverable** | BrightForge: sim-only discriminator confirming `resize(9)` modulo-512 bug in `VdpTop.scala:888`; then one-line HDL fix `(hCounter % U(PLANE_PIXELS)).resize(9)`; then synth+flash+capture proof per #9345 |
 
 **Scope:** Integrate `PlanarLineFetch` into main `VdpTop` pipeline as selectable L0 source. Raise planar plane count from 2 → 5+ (target 5 for Amiga OCS, 6 for EHB). Add scheduler slot(s) for planar row fetch. Wire SDRAM `dout32` aperture to planar fetch client. Add `planeBaseAddr[0..4]` register-bus addresses. Bit-identical regression (Scenarios 9/10). Sim proof: `PlanarIntegrationSim` + `PlanarBandwidthSim`. Synthesis delta +400–600 LUT. HW proof: 5-plane diagnostic scene, 30s capture, freeze=0.
 
 **Key context:** This is an **integration lane**, not a rewrite. Standalone primitives `BitplaneReconstruct`, `BitplaneRowFetch`, `PlanarLineFetch`, and `Hdmi720pPlanarProofTop` already exist and are proven. Gap = production integration into scheduler + SDRAM arbiter + L0 source mux.
 
-**Current pivot:** The pixel-domain fetch path (narrow fix `527c026`, unified unblock `f4b04a9`) proved insufficient on hardware — uniform gray persisted despite sim PASS and synth clean. BronzeGate #9364 ruled Path A domain migration as the active unblock lane: move `PlanarLineFetch` / `BitplaneRowFetch` SDRAM consumption into `sdramClockDomain`, following the established `BitmapRowFetch` / `SdramTileAttributeFetch` pattern. Consume `data_ready`/`dout32` natively in the read source domain; return only stable completed results (`rowReady`, filled `planeMems`) to the pixel domain via `StreamFifoCC`. BrightForge declared exit proof at #9369 and landed M1 sim-PASS at `cf5722e` (#9377): `BitplaneRowFetchSim`, `PlanarLineFetchSim`, and `PlanarIntegrationSim` all PASS under dual-clock harness. M2 (synth) and M3 (flash + HDMI capture + direct visual review) remain pending. Task 31 scroll-table dependency remains historical/closed context (`ac3fb87`) — not a separate active lane.
+**Current pivot:** The pixel-domain fetch path (narrow fix `527c026`, unified unblock `f4b04a9`) proved insufficient on hardware — uniform gray persisted despite sim PASS and synth clean. BronzeGate #9364 ruled Path A domain migration as the active unblock lane: move `PlanarLineFetch` / `BitplaneRowFetch` SDRAM consumption into `sdramClockDomain`, following the established `BitmapRowFetch` / `SdramTileAttributeFetch` pattern. BrightForge landed M1 sim-PASS at `cf5722e` (#9377) and M2 synth PASS #9386 (0 violations, 0 unplaced REGs). M3 hardware proof #9392 revealed planar bars ARE present end-to-end but layout is corrupted: hard boundary at x≈320, gray block x≈320..511, right-edge repeat x≈512..639. Paired diagnosis converged: CoralReef #9400 identified `VdpTop.scala:888` `hCounter.resize(9)` produces modulo-512 indexing instead of modulo-320, causing out-of-bounds `readAsync` on `planeMems` (slot 10..15, depth=10) → garbage/gray; BrightForge #9401 independently verified the mechanism against `cf5722e` HDL; CyanPeak #9403 concurs. PM #9402 authorized Option C: sim-only discriminator first, then one-line HDL fix `(hCounter % U(PLANE_PIXELS)).resize(9)`, then synth/flash/capture proof. Task 31 scroll-table dependency remains historical/closed context (`ac3fb87`) — not a separate active lane.
 
 ### Packet A Milestone — Task 1 Phases 1–4 + LIVE_MODE wire
 
