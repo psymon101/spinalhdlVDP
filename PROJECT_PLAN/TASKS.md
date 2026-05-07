@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-07 (Task 53 ACTIVE — Checkpoint B audit PASS #9430. BrightForge cleared for Checkpoint C HW proof.)  
+**Updated:** 2026-05-07 (Task 53 DONE. Doc restructure Audit PASS #9433. Awaiting next lane authorization.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 53 — Sprite Pattern Address Width Expansion** |
-| **Status** | **ACTIVE** — PM authorized #9419; BrightForge implementation owner; Checkpoint B audit PASS #9430 |
-| **Phase** | implement |
-| **Latest Commit** | `90b2dd8` (Option A implementation + sims) |
-| **Commits in lane** | `e230631` (artifact + ledger sync); `90b2dd8` (Checkpoint B) |
-| **Latest Auth Mail** | #9419 (lane OPEN), #9427 (Checkpoint A PASS), #9430 (Checkpoint B PASS) |
-| **Artifact** | `PROJECT_PLAN/artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` |
-| **Next Deliverable** | Checkpoint C — hardware proof + resource/timing report (BrightForge) |
+| **Task** | **NONE** — Awaiting PM authorization for next lane (Task 54, 55, or 56) |
+| **Status** | IDLE |
+| **Phase** | N/A |
+| **Latest Commit** | `90b2dd8` (Task 53 DONE) |
+| **Commits in lane** | N/A |
+| **Latest Auth Mail** | #9433 (Task 53 FULL CLOSURE) |
+| **Artifact** | N/A |
+| **Next Deliverable** | N/A |
 
-**Scope:** Expand `patIdx` from 4 → 6 bits (Option A). Expand pattern RAM depth from 4096 → 16384 (4 BSRAMs). Update `SpriteEvaluator` descriptor pack/unpack, `SpriteRasterizer` address generation, `VdpTop` pattern RAM instantiation and bus pointer. Proof: 32×32 sprite with 4 unique 16×16 tiles renders correctly; regression PASS; resource/timing clean.
+**Context:** Task 53 (Sprite Pattern Address Width Expansion) is CLOSED. Substrate now supports 64 unique 16×16 tiles (Option A) addressable via Word 0/8 split. Audit PASS #9433 confirmed HW proof and resource/timing safety. Standing by for next lane.
 
 ---
 
@@ -102,6 +102,7 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 
 | Task | Status | Closeout Mail | Archive Artifact |
 |---|---|---|---|
+| Task 53 — Sprite Pattern Address Width Expansion | **DONE** | #9433 | `artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` |
 | Task 2a — Sprite Capacity Substrate Pre-Hardening | **DONE** | #9252 | `archive/tasks/TASK_2A_SPRITE_CAPACITY_SUBSTRATE_PREHARDENING.md` |
 | Task 2c — Sprite Evaluator Hardening | **DONE** | #9279 | `archive/tasks/TASK_2C_SPRITE_EVALUATOR_HARDENING.md` |
 | Task 2b — Sprite Capacity Bump | **DONE** | #9294 | `archive/tasks/TASK_2B_SPRITE_CAPACITY_BUMP.md` |
