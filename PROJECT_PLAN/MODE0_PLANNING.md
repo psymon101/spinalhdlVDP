@@ -704,19 +704,25 @@ Example:
 
 ## Adapter-Readiness Closure Order
 
-Before opening broad platform-adapter work, close the highest-leverage substrate
-gaps in this order:
+**Completed substrate closures:**
 
-1. **Sprite flags / collision hooks** — needed for honest C64 / NES / Genesis claims
-2. **Raw bitmap + attribute fetch** — needed for C64 bitmap use and ZX Spectrum-style adapters
-3. **Sprite-capacity hardening** — needed once adapters outgrow the current bounded sprite counts
-4. **V-scroll table primitive** — needed for Genesis-class scroll semantics
+1. ✅ **Raw bitmap + attribute fetch** — DONE (Tasks 44/44B)
+2. ✅ **Sprite-capacity hardening** — DONE (Tasks 2a/2c/2b: V=32/D=64)
+3. ✅ **Sprite pattern address width** — DONE (Task 53: PatIdxWidth 4→6, 64 unique tiles)
 
-After those, the larger platform-enabling expansions remain:
+**Remaining shared substrate gaps (execution-ready):**
+
+4. **Sprite masking + tile-fetch budget counter** (Task 55) — needed for Genesis/SNES pixel-perfect edge cases
+5. **Sprite-sprite collision detector** (Task 54) — needed for honest C64 collision claims
+6. **Multi-layer SDRAM fetch** (Task 56) — needed for Amiga dual-playfield, Genesis/SNES rich backgrounds
+7. **V-scroll table primitive** — needed for Genesis-class per-column scroll semantics
+
+**Larger platform-enabling expansions (roadmap):**
 
 - **DMA-style transfer primitive** for OAM/VRAM-class bulk movement
 - **4-layer compositor expansion** for SNES-class adapter pressure
-- **Blitter-class engine** for Amiga-class adapter pressure
+- **Blitter-class engine** (Task 49) for Amiga-class adapter pressure
+- **Option B pattern RAM** (256 tiles) for dense SNES/Neo Geo scenes
 
 ---
 
@@ -746,10 +752,14 @@ This means the roadmap **substrate construction phase is complete**. All substra
 - Sprite Phase 2 + 2-bis — DONE
 - Color/Window Hardening — DONE
 - Beam-Driven Automation Hardening — DONE
+- Sprite Capacity Expansion (2a/2c/2b) — DONE
+- Planar Fetch Hardening (Task 3) — DONE
+- Sprite Pattern Address Width Expansion (Task 53) — DONE
 
-The strategic focus has shifted to **platform adapter development**:
+The strategic focus has shifted to **substrate gap closure + platform adapter development**:
 - Task 40 (C64 Adapter) — DONE
-- Task 50 (ZX Spectrum Adapter) — IN-PROGRESS
+- Task 50 (ZX Spectrum Adapter) — DONE
+- Task 51 (MODE_SELECT Runtime Adapter Selection) — DONE
 
 ---
 
@@ -1244,14 +1254,14 @@ These should not need a brand-new engine, but they likely still need shared hard
 
 ## Highest-Leverage Remaining Shared Questions
 
-The matrix suggests the next important shared planning questions are no longer "do we have any primitive at all?" but rather:
+The substrate construction phase is complete. The next important shared planning questions are:
 
-1. Is the current sprite envelope strong enough for Amiga/Neo Geo/strong Genesis pressure without a second sprite engine?
-2. Is the current planar/shuffled fetch implementation strong enough for serious Amiga/Atari ST/ZX Spectrum adapter work, or only for bounded proofs?
-3. Is the current color-math/window envelope broad enough for honest SNES/Genesis-style adapter semantics?
-4. Can the current scheduler/memory model absorb any richer adapter work without violating `MODE0_PLANNING.md` §2?
+1. Is the sprite engine behaviorally complete enough for Genesis/SNES pixel-perfect claims (masking, budget counter, collision)?
+2. Can the scheduler/memory model absorb multi-layer SDRAM fetch without violating stop-lines?
+3. Is the planar fetch strong enough for Amiga/Atari ST adapter work, or does it need 320-pixel confinement / clipping?
+4. Does the current compositor need 4-layer expansion before SNES-class adapters become realistic?
 
-Those are better next questions than reopening already-closed low-level primitives.
+These are gap-closure questions, not primitive-invention questions.
 
 ---
 
@@ -1446,6 +1456,86 @@ The hardening backlog execution order has been:
 2. **Mode0 Sprite Envelope Hardening** — DONE (including Phase 2 + 2-bis)
 3. **Color / Window Envelope Hardening** — DONE (BrightForge, audit PASS #8654)
 4. **Beam-Driven Automation Hardening** — DONE (BrightForge implementation `7c2a18b..6345fcc`; CyanPeak audit PASS #8660)
+5. **Sprite Capacity Expansion** — DONE (Tasks 2a/2c/2b, audit PASS #9286/#9298)
+6. **Planar Fetch Hardening** — DONE (Task 3, audit PASS #9406)
+7. **Sprite Pattern Address Width Expansion** — DONE (Task 53, audit PASS #9433)
+
+The project is now in the **substrate gap closure + adapter readiness** phase.
+
+---
+
+## 6. Execution-Ready Queue
+
+The following 3–6 tasks are bounded, have clear proof boundaries, and can open as active lanes immediately upon PM authorization.
+
+| Rank | Task | Why | Dependencies | Scope Boundary | Proof Shape | Risk |
+|---|---|---|---|---|---|---|
+| 1 | **Task 55 — Sprite Masking + Tile-Fetch Budget Counter** | Completes sprite engine Phase 2 honesty for Genesis/SNES. Lowest risk of all open gaps. | Task 53 DONE | No compositor rewrite; no BPP/palette change | Masked sprite suppresses lower slots; 35-tile scene triggers overflow; regression PASS | Low |
+| 2 | **Task 54 — Sprite-Sprite Collision Detector** | Honest C64 collision claims. Enhances NES/Genesis secondary. | Task 53 DONE | Bounding-box first, pixel-precision for candidates only | Overlapping sprites set collision bits; non-overlapping do not; status register readback correct | Medium |
+| 3 | **320-pixel planar clipping mask** | CyanPeak #9406 follow-on. Confines planar fetch to intended left-half window if required for adapter honesty. | Task 3 DONE | Clip only; no fetch rewrite | Planar bars confined to 0..319; no wrap visible; regression PASS | Low |
+| 4 | **Task 56 — Multi-Layer SDRAM Fetch** | Unblocks Amiga dual-playfield + rich Genesis/SNES backgrounds. | Task 3 DONE, Task 55 recommended first | L0+L1 only initially; L2/L3 deferred | L0+L1 concurrent SDRAM fetch; no line-drop under max load; resource + bandwidth report | Large |
+| 5 | **Atari ST Adapter Lane** | Lowest-risk Tier 1 adapter. Planar + raster only; no sprites needed. | Task 3 DONE | v1: 320×200 4-plane only; STE blitter deferred | Static test pattern renders correctly; palette swap via raster trigger; 30s capture freeze=0 | Low-Medium |
+| 6 | **NES Adapter Lane** | Highest-leverage Tier 2 adapter. Tile+sprite path already strong. | Task 2b DONE, Task 53 DONE | v1: 2bpp tiles + 64 sprites; no mapper IRQs | `NESAdapterSim` PASS; 30s HW capture with Mario-like test scene; freeze=0 | Medium |
+
+**Recommended next lane:** Task 55 (CyanPeak #9436 + CoralReef #9437 consensus).
+
+---
+
+## 7. Forward Roadmap
+
+The following 10–20 likely lanes are ordered by dependency and risk. They are **not** execution-ready until preflight work is complete.
+
+### Near-term (after execution-ready queue)
+
+| Lane | Ordering Rationale | Major Dependencies | Likely Proof Boundary | Current-Design Preservation |
+|---|---|---|---|---|
+| **Genesis Adapter (v1)** | Tier 3; sprite engine now strong enough for 20/line + 32×32 unique tiles | Task 2b DONE, Task 53 DONE, Task 55 recommended | `GenesisAdapterSim` PASS; 3-plane scroll + sprite scene; 30s capture | Preserve existing tile+sprite substrate; adapter owns scroll-table semantics |
+| **PC Engine Adapter (v1)** | Tier 2; 16 sprites/line now supported; variable sizes already exist | Task 2b DONE | `PCEAdapterSim` PASS; 64-sprite scene; 30s capture | Preserve existing tile fetch; adapter owns SATB DMA emulation |
+| **MSX2 Adapter (v1)** | Tier 2; bitmap + tile modes both supported | Task 44 DONE, planar DONE | `MSX2AdapterSim` PASS; G4–G7 bitmap modes; 30s capture | Preserve existing fetch variants; adapter owns V9938 command engine proxy |
+| **SNES Adapter (v1 bounded)** | Tier 4; start with modes 0–3 (2–4bpp tiles, no Mode 7) | Task 2b DONE, Task 53 DONE, Task 55 recommended, window hardening DONE | `SNESAdapterSim` PASS; 4-layer scene; 30s capture | Preserve existing compositor; adapter owns layer priority + window math |
+| **Neo Geo Adapter (v1 bounded)** | Tier 3; start with Fix layer + limited sprites | Task 2b DONE, Task 53 DONE | Fix layer renders correctly; 32-sprite scene; 30s capture | Preserve existing tile+sprite substrate; adapter owns sprite-list sorting |
+| **Amiga Adapter (v1 bounded)** | Tier 4; start with 3–5 plane OCS + 8 sprites + Copper-lite | Task 3 DONE, planar DONE, beam hardening DONE | `AmigaAdapterSim` PASS; 5-plane copper-bar scene; 30s capture | Preserve planar fetch; adapter owns Copper wait/move semantics |
+| **V-Scroll Table Primitive** | Needed for Genesis per-column scroll, SNES offset-per-tile | Task 3 DONE | Per-column V-scroll values applied to tile fetch; sim PASS; HW proof | Extend scroll-table primitive; do not break existing `layer0ScrollX/Y` |
+| **Sprite Compositing / Multi-Tile Rasterizer** | True 32×32/64×64 from unique 16×16 tiles (not repeated) | Task 53 DONE | 32×32 sprite stitches 4 unique tiles; sim PASS; HW proof | Extend rasterizer FSM; preserve existing `sizeSel` behavior |
+
+### Mid-term (structural expansion)
+
+| Lane | Ordering Rationale | Major Dependencies | Likely Proof Boundary | Current-Design Preservation |
+|---|---|---|---|---|
+| **Task 49 — Blitter Engine** | Amiga/MSX2 command engine proxy; DMA-class bulk movement | Scheduler stable, Task 55 closed | Blit fill/copy rect sim; no corruption of concurrent fetch; resource report | Add as scheduler client; do not starve existing fetch slots |
+| **4-Layer Compositor Expansion** | SNES modes 0–7 need >4 layers in some modes | Task 55 closed, window hardening DONE | 4-layer priority + transparency sim; HW proof; resource report | Extend `FourLayerCompositor`; preserve existing 2-layer path as subset |
+| **DMA-Style Transfer Primitive** | OAM/VRAM bulk movement for NES/SNES/PC Engine | Blitter engine foundation | DMA transfer sim; no frame-drop under load; bandwidth report | Use scheduler slots for DMA; preserve real-time fetch priority |
+| **Option B Pattern RAM** (256 tiles) | Dense SNES/Neo Geo scenes | Task 53 DONE, BSRAM headroom confirmed | 256 unique patterns addressable; sim PASS; resource report | Depth expansion only; no address-format change |
+| **Interlace Output Support** | SNES/Amiga interlace modes | Timing generator stable | Interlaced frame renders correctly; no jitter; analyzer PASS | Extend `VgaTiming` state machine; preserve progressive path |
+| **Color Math Add/Subtract/Blend** | SNES color math honesty | Color/Window hardening DONE | Add/sub/blend math sim; HW proof; resource report | Extend `ColorMathUnit`; preserve existing highlight/shadow |
+| **HDMA Full Implementation** | SNES-style per-line register updates beyond Copper-lite | Beam hardening DONE | HDMA channel sim; register updates at correct raster lines; HW proof | Extend `CopperLite`; preserve existing wait/move semantics |
+| **Offset-Per-Tile Scroll** | SNES Mode 2/4/6 feature | V-scroll primitive DONE | Per-tile scroll values applied; sim PASS; HW proof | Extend scroll-table format; preserve existing linear scroll |
+
+---
+
+## 8. Strategic Themes (Beyond 20 Lanes)
+
+These are not bounded tasks. They are thematic directions that become relevant only after the forward roadmap is substantially closed.
+
+- **Audio Integration:** No current audio primitive exists. Tang Nano 20K has no dedicated audio DAC. Would require external I2S/PCM chip or PWM approximation. Out of scope until video substrate is fully proven.
+- **Higher Output Resolutions:** 720p output shell exists (Active Side Lane, closed). Native higher-resolution rendering (e.g., 640×480 internal) would require SDRAM bandwidth re-analysis and likely pipelining. Deferred indefinitely.
+- **Full Tier 3/4 Ecosystem:** Genesis, SNES, Amiga, Neo Geo honest adapters with all edge cases. Requires most of the forward roadmap to be closed first.
+- **Multi-Platform Bitstream Coexistence:** MODE_SELECT already supports runtime switching. The question is which platform combinations fit simultaneously within the Tang Nano 20K LUT/BSRAM budget. This is a packing problem, not a substrate problem.
+- **External Memory Expansion:** SPI flash or QSPI PSRAM for larger frame buffers or tile sets. Would require new controller + scheduler client. Only relevant if current SDRAM bandwidth becomes the blocker.
+
+---
+
+## Current PM Recommendation
+
+The hardening backlog execution order has been:
+
+1. **Mode0 Fetch Envelope Hardening** — DONE
+2. **Mode0 Sprite Envelope Hardening** — DONE (including Phase 2 + 2-bis)
+3. **Color / Window Envelope Hardening** — DONE (BrightForge, audit PASS #8654)
+4. **Beam-Driven Automation Hardening** — DONE (BrightForge implementation `7c2a18b..6345fcc`; CyanPeak audit PASS #8660)
+5. **Sprite Capacity Expansion** — DONE (Tasks 2a/2c/2b, audit PASS #9286/#9298)
+6. **Planar Fetch Hardening** — DONE (Task 3, audit PASS #9406)
+7. **Sprite Pattern Address Width Expansion** — DONE (Task 53, audit PASS #9433)
 
 Only after Beam Hardening closes should adapter lanes open.
 
