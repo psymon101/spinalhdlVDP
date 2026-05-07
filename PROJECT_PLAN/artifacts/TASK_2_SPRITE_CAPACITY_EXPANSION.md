@@ -25,7 +25,7 @@ The current `SpriteEvaluator` supports 8 visible sprites per scanline and 32 tot
 | SNES | 32 | 128 | both gaps |
 | Neo Geo | 96 | 380 | both gaps (massive) |
 
-Raising to 32 visible / 64 descriptors unlocks honest NES support and brings Genesis/SNES/PC Engine within "approximate but usable" range. It is the highest-leverage substrate task after MODE_SELECT per `MODE0_GAP_TASKLIST.md`.
+Raising to 32 visible / 64 descriptors unlocks honest NES support and brings Genesis/SNES/PC Engine within "approximate but usable" range. It is the highest-leverage substrate task after MODE_SELECT per `TASKS.md`.
 
 ## Scope
 

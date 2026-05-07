@@ -279,7 +279,7 @@ No hardware windowing. No color math.
 
 ### 5.3 What is missing entirely
 
-- **64 sprite descriptors + 16/line:** Requires substrate expansion (Tasks 2 and 5 in MODE0_GAP_TASKLIST.md).
+- **64 sprite descriptors + 16/line:** Requires substrate expansion (Tasks 2 and 5 in TASKS.md).
 - **Variable sprite sizes:** Mode0 supports per-descriptor size, but the exact size encoding may differ.
 - **Y/X coordinate offsets:** PC Engine uses Y=64 and X=32 as visible origin. The adapter must subtract these on emit.
 

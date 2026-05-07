@@ -100,7 +100,7 @@ This section tracks the single active lane so the team does not infer state from
 | **Status** | **DONE** — M3 audit PASS #9406. Fix `452c3db`: one-line modulo wrap `VdpTop.scala:888` + `PlanarPixelIdxBoundsSim` discriminator. Canonical SMPTE bars, gray block cleared, 0 timing violations. |
 | **Phase** | implement (domain migration) |
 | **Owner** | BrightForge (coding + proof), CyanPeak (audit), BronzeGate (PM), CoralReef (ledger/sync) |
-| **Baseline Commit** | `ef49c5f` (MODE0_GAP_TASKLIST.md updated post-Task-2b) |
+| **Baseline Commit** | `ef49c5f` (gap task list updated post-Task-2b; now archived in `PROJECT_PLAN/archive/tasks/`) |
 | **Commits in lane** | `ee829e5` (CP-C); `8cf0621` (CP-D); `363e3e4` (CP-E); `44efa3f` (Mem refactor); `527c026` (narrow fix attempt); `df57d61` (bypass discriminator); `f4b04a9` (unified unblock attempt); `cf5722e` (Path A M1 sim-PASS); `452c3db` (Path A M3 fix — modulo wrap + discriminator sim) |
 | **Artifact** | `PROJECT_PLAN/artifacts/TASK_3_PLANAR_FETCH_HARDENING.md` |
 | **Latest Auth Mail** | #9406 (CyanPeak M3 audit PASS — Task 3 Path A CLOSED) |
@@ -1636,13 +1636,13 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 - `captures/sc62/sc62_30s.mp4` (new, 88 KB evidence)
 - `captures/sc62/sc62_sample.png` (new, evidence)
 
-**Task doc:** `PROJECT_PLAN/MODE0_PLANNING.md` §5 (Prioritized Backlog — Priority B: Sprite Envelope Hardening); see also `PROJECT_PLAN/MODE0_SPRITE_ENVELOPE_ASSESSMENT.md`
+**Task doc:** `PROJECT_PLAN/MODE0_PLANNING.md` §5 (Prioritized Backlog — Priority B: Sprite Envelope Hardening); see also `PROJECT_PLAN/ASSESSMENT.md` §2 (Sprite Envelope Assessment)
 
 ---
 
 ## Open Gap Tasks
 
-The following tasks were consolidated from `MODE0_GAP_TASKLIST.md` (now archived). They are **OPEN** and await PM authorization to open as active implementation lanes.
+The following tasks were consolidated from `PROJECT_PLAN/archive/tasks/MODE0_GAP_TASKLIST_v1.0.md`. They are **OPEN** and await PM authorization to open as active implementation lanes.
 
 ### Task 53 — Sprite Pattern Address Width Expansion
 

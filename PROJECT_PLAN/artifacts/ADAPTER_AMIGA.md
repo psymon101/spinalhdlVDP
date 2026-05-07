@@ -336,7 +336,7 @@ The Amiga uses three custom chips: **Agnus** (DMA/blitter/Copper), **Denise** (v
 
 Estimated cost: ~400 LUT, ~300 FF (standard bitplanes). HAM adds ~200 LUT if implemented.
 
-**Explicitly excluded from default bitstring** per `MODE0_GAP_TASKLIST.md` due to HAM/EHB complexity.
+**Explicitly excluded from default bitstring** per `TASKS.md` due to HAM/EHB complexity.
 
 ---
 

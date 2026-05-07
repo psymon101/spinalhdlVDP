@@ -8,7 +8,7 @@
 
 **Audit Pass:** #9309 (CyanPeak)
 
-**Tied back to:** MODE0_GAP_TASKLIST.md §Task 3, MODE0_FETCH_ENVELOPE_ASSESSMENT.md §3
+**Tied back to:** TASKS.md §Task 3, ASSESSMENT.md §1 (Fetch Envelope Assessment)
 
 ---
 

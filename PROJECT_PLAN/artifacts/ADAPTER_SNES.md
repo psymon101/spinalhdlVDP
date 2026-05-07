@@ -350,7 +350,7 @@ The SNES uses two custom chips: **PPU1** (5C77, handles rendering and VRAM acces
 
 Estimated cost: ~400 LUT, ~350 FF (v1 limited MVP). With full expansion: ~1000+ LUT, ~800 FF.
 
-**Explicitly excluded from default bitstring** per `MODE0_GAP_TASKLIST.md`.
+**Explicitly excluded from default bitstring** per `TASKS.md`.
 
 ---
 

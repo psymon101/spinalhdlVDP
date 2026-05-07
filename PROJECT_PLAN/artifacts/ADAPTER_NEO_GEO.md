@@ -320,7 +320,7 @@ The **sprite system** is the defining feature of Neo Geo graphics.
 
 Estimated cost: ~300 LUT, ~250 FF (v1 limited Fix + 32 sprites). With full expansion: ~1500+ LUT, ~1000 FF.
 
-**Explicitly excluded from default bitstring** per `MODE0_GAP_TASKLIST.md` until sprite expansion lands.
+**Explicitly excluded from default bitstring** per `TASKS.md` until sprite expansion lands.
 
 ---
 

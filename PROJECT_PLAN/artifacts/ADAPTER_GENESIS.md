@@ -335,7 +335,7 @@ DMA is triggered by setting the DMA length and source address, then writing to t
 
 Estimated cost: ~350 LUT, ~300 FF (v1 with 32 sprites). With 80/20 expansion: ~700 LUT, ~600 FF.
 
-**Explicitly excluded from default bitstring** per `MODE0_GAP_TASKLIST.md` until sprite expansion lands.
+**Explicitly excluded from default bitstring** per `TASKS.md` until sprite expansion lands.
 
 ---
 
