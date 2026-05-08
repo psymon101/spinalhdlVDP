@@ -762,6 +762,19 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
           (1 << 14) | 0x0380, 0x0003,                                 // HDMA_CTRL = enable + ch0 mask
           (3 << 14) | 0                                               // JUMP 0 (back to WAIT)
         )
+      case 55 =>
+        // Task 55 Checkpoint C — Sprite Masking + Tile-Fetch Budget Counter
+        // hardware proof. Bitstream provides:
+        //   - L0 + sprite layer enabled (`layerData` case 55 = 0x0005)
+        //   - sc55Canary (top-right 40×40 RED) wired to STATUS_STICKY[1]
+        //     per CyanPeak DECISION #9470
+        //   - copper does nothing — host (ESP8266) programs both proof
+        //     scenes (Genesis mask + 35-tile-overflow) over QSPI per
+        //     CoralReef #9466 claim.
+        Seq(
+          (0 << 14) | 0,           // WAIT y=0 (sync)
+          (3 << 14) | 0            // JUMP 0 (idle loop; host owns scene)
+        )
       case _ =>
         Seq(
           (0 << 14) | 160,              // WAIT y=160
@@ -855,7 +868,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
     // All other scenarios leave copper disabled even though the program is
     // uploaded to 0x0400+.
     val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 50 || scenarioId == 51 || scenarioId == 52 || scenarioId == 60 || scenarioId == 62) 0x0001
+      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 50 || scenarioId == 51 || scenarioId == 52 || scenarioId == 55 || scenarioId == 60 || scenarioId == 62) 0x0001
       else 0x0000, 16 bits)
     val layerAddr    = U(0x0300, 15 bits)
     val layerData    = B(scenarioId match {
@@ -879,6 +892,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
       case 20          => 0x0005  // Sc20 (Task 40): L0 + sprite; adapter toggles DEN
       case 51          => 0x0005  // Sc51 (CW HW proof): L0 + sprite (sprite is masked in window region)
       case 52          => 0x0005  // Sc52 (CW-6 sprite proof): L0 + sprite, programmed sprite at x=288/y=80
+      case 55          => 0x0004  // Sc55 (Task 55 Checkpoint C): sprite layer only over default backdrop (no SDRAM dependency, mirrors Sc62)
       case 60          => 0x0001  // Sc60 (BH-1 pixel-precise WAIT proof): L0 only
       case 62          => 0x0004  // Sc62 (Task 52 sprite-flip proof): sprite layer only over default backdrop
       case 50          => 0x0001  // Sc50 (Task 50 ZX Spectrum): L0 only — bitmap+attr fetch
@@ -1546,6 +1560,20 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
       sc29Canary := False
     }
 
+    // Task 55 Checkpoint C — sc55 SPRITE_OVERFLOW canary per CyanPeak
+    // DECISION #9470. Top-right 40×40 corner shows a RED block iff
+    // STATUS_STICKY[1] (SPRITE_OVERFLOW) is latched. Mirrors the
+    // Sc29 SPRITE_0_HIT canary pattern; gives a firmware-free visual
+    // confirmation that the SNES tile-fetch budget overflow path
+    // fires on Gowin silicon. Disabled for all other scenarios.
+    val sc55Canary = Bool()
+    if (scenarioId == 55) {
+      val inCanary = video.io.x >= U(600, 10 bits) && video.io.y < U(40, 10 bits)
+      sc55Canary := inCanary && video.io.statusSticky(1)
+    } else {
+      sc55Canary := False
+    }
+
     // Task 44b CP-B silicon debug canaries (CyanPeak #8028). Three
     // stripes in the top band (y < 40) prove:
     //   x <  40        : RED when !enableSync   (BITMAP_CTRL bit 0 not reaching sdramCd)
@@ -1667,9 +1695,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
       sc45ForcedOverlay := False
     }
 
-    val muxedRed   = Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryR, video.io.red)))
-    val muxedGreen = Mux(sc29Canary, B(0xFF, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryG, video.io.green)))
-    val muxedBlue  = Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryB, video.io.blue)))
+    val muxedRed   = Mux(sc55Canary, B(0xFF, 8 bits), Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryR, video.io.red))))
+    val muxedGreen = Mux(sc55Canary, B(0x00, 8 bits), Mux(sc29Canary, B(0xFF, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryG, video.io.green))))
+    val muxedBlue  = Mux(sc55Canary, B(0x00, 8 bits), Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryB, video.io.blue))))
 
     // Task 44b iter 6f (CyanPeak #8123 proposal): register the final HDMI
     // outputs after the canary/overlay muxes, immediately before the TMDS
@@ -1919,6 +1947,9 @@ object TopTang20kHdmiScenario60Verilog extends App {
 }
 object TopTang20kHdmiScenario62Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 62))   // Task 52 — Per-Sprite X/Y Flip primitive HW proof (sc62)
+}
+object TopTang20kHdmiScenario55Verilog extends App {
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 55))   // Task 55 Checkpoint C — sprite mask + tile-fetch budget HW proof (sc55Canary in top-right per #9470)
 }
 object TopTang20kHdmiScenario45HostVerilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 45, useHostInit = true))   // #9026 zero-footprint sc45-host proof — bootstrap bypass + skipSdramInit on both fetchers
