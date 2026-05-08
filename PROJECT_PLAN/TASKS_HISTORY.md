@@ -7,6 +7,26 @@
 
 ---
 
+### Task 55 — Sprite Masking + Tile-Fetch Budget Counter (CLOSED)
+
+| Field | Value |
+|---|---|
+| **Task** | Task 55 — Sprite Masking + Tile-Fetch Budget Counter |
+| **Status** | **DONE** — CyanPeak audit PASS #9479; sim-only closure approved |
+| **Phase** | closed |
+| **Owner** | BrightForge (coding + proof), CyanPeak (audit PASS), CoralReef (ledger sync) |
+| **Baseline Commit** | `90b2dd8` (Task 53 closure) |
+| **Commits** | `0f96777` (CP-B base); `26174a7` (CP-B+ fix); `9e888bd` (Sc55 gen) |
+| **Latest Auth Mail** | #9460 (BrightForge corrected proof); #9461 (CyanPeak B-PASS); #9474 (HW blocker); #9479 (CyanPeak final PASS) |
+| **Proof** | Behavioral sim Cases 4 & 5 prove pixel suppression; `Task55SpriteMaskingSim` Cases D/E prove 34/35 tile budget boundary; fixed `slotIdx` misalignment bug. |
+| **Next Deliverable** | N/A — Task 55 closed |
+
+**Scope:** Genesis-style sprite masking (word 8 bit [4] + suppression gate) and SNES-style 34-tiles/line fetch budget (counter + status flag).
+
+**Hardware Blocker:** Checkpoint C (hardware proof) was blocked by an authoritative DFF overrun on the Tang Nano 20K (17750 / 15915, 111%). Blocker is pre-existing substrate-wide (Task 2b). CyanPeak #9479 approved sim-only closure given the exceptionally strong behavioral proof and the risk of bundling a structural refactor into Task 55. Task 57 (Optimization) opened in backlog to recover headroom.
+
+---
+
 ### Task 2a Checkpoint 1 Milestone — Tree-Pipelined Sprite Priority Merge
 **Context:** Task 2 direct 64/32 bump blocked by #9210. BronzeGate #9212 → 2a/2b split. Checkpoint 1 PASS #9222. Checkpoint 2 WIP retired after V=16 P&R failed (#9231). Convergent diagnosis #9233/#9234 → Sequential Scanline Rasterizer. BronzeGate #9235 authorized reshape. BrightForge #9236 design packet. CyanPeak #9237 audit PASS. Coding active.
 | Field | Value |
@@ -1540,7 +1560,7 @@ is ready to prove a specific platform adapter on top of the shared substrate.
 
 ### Task 51 — MODE_SELECT Runtime Adapter Selection
 
-**Status:** IN-PROGRESS — Packet A Phases 1–4 DONE (audit PASS #9180); Phase 5a+5b active per PM #9184
+**Status:** DONE — Packet A audit PASS #9180; Packet B audit PASS #9192; Packet C audit PASS #9201
 **depends_on:** [32b, 40, 50 v3]
 **scope_boundary:** Infrastructure only. No new platform adapter behavior. No new substrate primitives. No changes to QSPI packet format (reuse REG_WRITE). No adapter-specific register semantics beyond gating.
 **delivers:**

@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 55 — Sprite Masking + Tile-Fetch Budget Counter** |
-| **Status** | **ACTIVE** — PM authorized #9440; Checkpoint A audit PASS #9445; Checkpoint B proof #9454; HOLD #9457; corrected proof #9460; **Checkpoint B audit PASS #9461** |
-| **Phase** | implement |
-| **Latest Commit** | `26174a7` (Checkpoint B+ — pixel-suppression proof + render-idx latch fix) |
+| **Task** | **NONE** — awaiting PM lane authorization |
+| **Status** | **IDLE** |
+| **Phase** | N/A |
+| **Latest Commit** | `9e888bd` (Sc55 gen + sc55Canary) |
 | **Commits in lane** | N/A |
-| **Latest Auth Mail** | #9440 (lane OPEN), #9445 (Checkpoint A PASS), #9454 (Checkpoint B proof), #9457 (HOLD), #9460 (corrected proof), #9461 (Checkpoint B audit PASS) |
+| **Latest Auth Mail** | #9479 (Task 55 Checkpoint C Audit PASS) |
 | **Artifact** | N/A |
-| **Next Deliverable** | Checkpoint C — hardware proof (BrightForge) |
+| **Next Deliverable** | N/A |
 
-**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened per BronzeGate #9440. Checkpoint A contract APPROVED per CyanPeak #9445. Checkpoint B simulation PASSED per CyanPeak #9461 after behavioral pixel suppression proof and render-index latch fix (#9460). Checkpoint C hardware-proof claim defined per CoralReef #9466; awaiting BrightForge implementation + evidence.
+**Context:** Task 55 CLOSED per CyanPeak #9479. Checkpoint C hardware proof was blocked by pre-existing substrate DFF overrun (11.5% over GW2AR-LV18 limit); sim-only closure approved via exceptionally strong behavioral proof (Cases A–E, 4–5, and regression). Task 57 (Substrate DFF Optimization) opened in queue to address the hardware headroom blocker.
 
 ---
 
@@ -57,7 +57,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **ACTIVE** — authorized #9440 |
+| **Status** | **DONE** — authorized #9440 |
 | **Gap** | Genesis sprite masking and SNES 34-tiles/line fetch budget are unimplemented. |
 | **Platforms helped** | Genesis, SNES |
 | **Impact** | **Medium** — 2 platforms; edge-case features |
@@ -78,6 +78,20 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 | **Risk/Complexity** | Large. New arbiter clients, fetch FSMs, slot allocation policy, per-line budget re-analysis. |
 | **Proof shape** | Sim: L0+L1 both fetch from SDRAM concurrently; arbitration priority correct; no line-drop under max load; resource + bandwidth report |
 | **Source assessment** | `ASSESSMENT.md` §1, §5.1, §8.1 |
+
+---
+
+### Task 57 — Substrate DFF Optimization (GW2AR-LV18 recovery)
+
+| Field | Value |
+|---|---|
+| **Status** | **OPEN** — awaits PM lane authorization |
+| **Gap** | Sprite substrate currently overruns 18K DFF budget (111% load). Blocks HW proof for all sprite-enabled scenarios. |
+| **Platforms helped** | All (sprite-dependent) |
+| **Impact** | **High** — restores hardware-readiness for future lanes |
+| **Risk/Complexity** | High. Structural refactor of `SpriteEvaluator` state storage (FF → BRAM/LUTRAM). |
+| **Proof shape** | Synthesis: sprite-enabled bitstream fits on GW2AR-LV18 with >10% headroom; regression PASS. |
+| **Source assessment** | #9474, #9478, #9479 |
 
 ---
 
@@ -141,6 +155,8 @@ Older closed tasks (Phase 1–8, R-Roadmap, sidecar lanes) are catalogued in `TA
 
 Every new implementation lane must open with one authoritative packet. Copy this template into the kick-off mail or doc update.
 
+For full pre-execution planning (primitive boundary, interfaces, data model, timing, risks, exit condition), use `TASK_TEMPLATE.md`.
+
 ```markdown
 ## Lane Open: [Task Name]
 
@@ -168,5 +184,3 @@ Every new implementation lane must open with one authoritative packet. Copy this
 ### Coding Authorized
 - YES / NO — [mail id]
 ```
-
-Apply this template starting with Task 19 immediately.
