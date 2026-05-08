@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **NONE** — awaiting PM lane authorization |
-| **Status** | **IDLE** |
-| **Phase** | N/A |
+| **Task** | **Task 57 — Substrate DFF Optimization** |
+| **Status** | **ACTIVE** — artifact audit PASS #9493; two-slice plan approved |
+| **Phase** | implement |
 | **Latest Commit** | `9e888bd` (Sc55 gen + sc55Canary) |
 | **Commits in lane** | N/A |
-| **Latest Auth Mail** | #9479 (Task 55 Checkpoint C Audit PASS) |
-| **Artifact** | N/A |
-| **Next Deliverable** | N/A |
+| **Latest Auth Mail** | #9488 (artifact), #9493 (audit PASS / two-slice ruling) |
+| **Artifact** | CoralReef #9488 |
+| **Next Deliverable** | Slice 1 — `descCount` 64→32 + regression + synthesis fit (BrightForge) |
 
-**Context:** Task 55 CLOSED per CyanPeak #9479. Checkpoint C hardware proof was blocked by pre-existing substrate DFF overrun (11.5% over GW2AR-LV18 limit); sim-only closure approved via exceptionally strong behavioral proof (Cases A–E, 4–5, and regression). Task 57 (Substrate DFF Optimization) opened in queue to address the hardware headroom blocker.
+**Context:** Task 55 CLOSED per CyanPeak #9479. Task 57 opened per BronzeGate #9483. Artifact #9488 audit PASS #9493. Two-slice ruling: **Slice 1** (First-aid): `descCount` 64→32 parameter change to clear DFF overrun; **Slice 2** (Structural cure): matrix state BRAM storage to restore `descCount=64` long-term. BrightForge authorized for Slice 1.
 
 ---
 
@@ -85,13 +85,17 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **OPEN** — awaits PM lane authorization |
-| **Gap** | Sprite substrate currently overruns 18K DFF budget (111% load). Blocks HW proof for all sprite-enabled scenarios. |
+| **Status** | **ACTIVE** — artifact audit PASS #9493 |
+| **Gap** | Sprite substrate overruns 18K DFF budget (111% load). Blocks HW proof for all sprite-enabled scenarios. |
 | **Platforms helped** | All (sprite-dependent) |
 | **Impact** | **High** — restores hardware-readiness for future lanes |
-| **Risk/Complexity** | High. Structural refactor of `SpriteEvaluator` state storage (FF → BRAM/LUTRAM). |
-| **Proof shape** | Synthesis: sprite-enabled bitstream fits on GW2AR-LV18 with >10% headroom; regression PASS. |
-| **Source assessment** | #9474, #9478, #9479 |
+| **Risk/Complexity** | Low (Slice 1); High (Slice 2). Slice 1 is parametric; Slice 2 is structural Mem refactor. |
+| **Proof shape** | Slice 1: synthesis fit ≥10% DFF headroom + regression PASS. Slice 2: restore descCount=64 with fit + `AffineSpriteSim` PASS. |
+| **Source assessment** | #9474, #9478, #9479, #9488, #9493 |
+
+**Slice 1 (First-aid):** `descCount` 64→32. One-line parameter change. Est. savings ~2300–2500 DFFs. Target headroom ≥10%. **Owner: BrightForge.**
+
+**Slice 2 (Structural cure):** Back affine matrix state with `Mem` instead of `Vec[Reg]`. Restores `descCount=64`. **Owner: TBD after Slice 1 closeout.**
 
 ---
 
