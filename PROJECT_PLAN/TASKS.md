@@ -29,9 +29,9 @@ This section tracks the single active lane.
 | **Commits in lane** | N/A |
 | **Latest Auth Mail** | #9440 (lane OPEN), #9445 (Checkpoint A PASS), #9454 (Checkpoint B proof), #9457 (HOLD), #9460 (corrected proof), #9461 (Checkpoint B audit PASS) |
 | **Artifact** | N/A |
-| **Next Deliverable** | Checkpoint C — hardware proof (CoralReef) |
+| **Next Deliverable** | Checkpoint C — hardware proof (BrightForge) |
 
-**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened per BronzeGate #9440. Checkpoint A contract APPROVED per CyanPeak #9445. Checkpoint B simulation PASSED per CyanPeak #9461 after behavioral pixel suppression proof and render-index latch fix (#9460). Awaiting Checkpoint C hardware proof (CoralReef setup).
+**Context:** Task 53 CLOSED. Forward roadmap expanded and audited (PASS #9441). Task 55 opened per BronzeGate #9440. Checkpoint A contract APPROVED per CyanPeak #9445. Checkpoint B simulation PASSED per CyanPeak #9461 after behavioral pixel suppression proof and render-index latch fix (#9460). Checkpoint C hardware-proof claim defined per CoralReef #9466; awaiting BrightForge implementation + evidence.
 
 ---
 
