@@ -147,6 +147,11 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
     val statusSticky       = out Bits(16 bits)
     // Host-visible IRQ line — asserted while any enabled sticky bit is set:
     val irq                = out Bool()
+    // Task 54 — sprite-sprite collision per-descriptor mask, addr 0x0322.
+    // Width fixed at 8 bits (Path 5A descCount=8); each bit set indicates
+    // the corresponding descriptor participated in at least one
+    // sprite-sprite overlap since the last write-1-to-clear.
+    val spriteCollMask     = out Bits(8 bits)
 
     // Task 1 (MODE_SELECT, #9154) — runtime adapter selection per
     // MODE_SELECT_ARCHITECTURE.md v1.1 §4.2. Live-mode 4-bit field exported
@@ -1412,6 +1417,11 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   spriteRasterizer.io.drainPriority.simPublic()
   spriteRasterizer.io.drainSlot0.simPublic()
   spriteRasterizer.io.cycleOverflow.simPublic()
+  // Task 54 — collision write-time pulse + participating descriptor IDs.
+  spriteRasterizer.io.spriteSpriteHit.simPublic()
+  spriteRasterizer.io.spriteSpriteHitDescA.simPublic()
+  spriteRasterizer.io.spriteSpriteHitDescB.simPublic()
+  spriteRasterizer.io.drainDescIdx.simPublic()
   // ============================================================
 
   // === Task 2a Checkpoint 2 Step 2 cutover (PM #9244): bg-only fillPacked ===
@@ -1742,8 +1752,15 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // Sticky bit 11 (next free slot above blitterEngine.io.done at bit 9).
   val evModeSelectChanged = modeCommitPulse && modeSelectPendHit
 
+  // Task 54 — SPRITE_SPRITE_HIT rollup pulse at bit 6 of STATUS_STICKY.
+  // OR-reduction of the rasterizer's per-cycle collision pulse: any
+  // sprite-sprite overlap pixel during the line sets the sticky bit;
+  // host clears via W1C @ 0x0320 like the other sticky events.
+  val evSpriteSpriteHit = spriteRasterizer.io.spriteSpriteHit
+
   val evBus = (B(0, 4 bits) ## evModeSelectChanged ## B(0, 1 bit) ##
-               blitterEngine.io.done ## dmaEngine.io.done ## B(0, 2 bits) ##
+               blitterEngine.io.done ## dmaEngine.io.done ##
+               B(0, 1 bit) ## evSpriteSpriteHit ##
                spriteBgHitPulse ## sprite0HitPulse ##
                evQspiError ## evQspiReady ## evSpriteOverflow ## evRasterMatch).asBits
 
@@ -1779,6 +1796,53 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
 
   io.statusSticky := statusStickyReg
   io.irq          := (statusStickyReg & statusEnableReg).orR
+
+  // -------------------------------------------------------------------
+  // Task 54 — Sprite-Sprite Collision per-Descriptor Mask Register.
+  //
+  // Address map (within the 0x0320..0x032F STATUS block):
+  //   0x0322  SPRITE_COLL_MASK — 8-bit per-descriptor sticky mask;
+  //                              write-1-to-clear, read via io.spriteCollMask.
+  //
+  // Set semantics:
+  //   - On every cycle the rasterizer asserts `spriteSpriteHit`, both
+  //     `spriteSpriteHitDescA` (incoming sprite) and
+  //     `spriteSpriteHitDescB` (existing sprite) bits are set in the
+  //     mask. Reverse-iter draw order makes this OR-accumulation
+  //     produce the canonical "every participating sprite has its bit
+  //     set" semantic (matches C64 $D01E MIB-MIB collision).
+  //
+  // Clear semantics:
+  //   - Same write-1-to-clear pattern as STATUS_STICKY @ 0x0320: bits
+  //     written as 1 clear; bits written as 0 are preserved. Sets and
+  //     clears in the same cycle: set wins (event takes precedence).
+  //
+  // Rollup into STATUS_STICKY bit 6 (SPRITE_SPRITE_HIT) is wired below
+  // by adding `spriteSpriteHit` into the evBus packing.
+  // -------------------------------------------------------------------
+  val SpriteCollWidth = 8   // Path 5A descCount=8 → 8-bit per-descriptor mask
+  val spriteCollMaskReg = Reg(Bits(SpriteCollWidth bits)) init 0
+
+  val spriteSpriteHit       = spriteRasterizer.io.spriteSpriteHit
+  val spriteSpriteHitDescA  = spriteRasterizer.io.spriteSpriteHitDescA
+  val spriteSpriteHitDescB  = spriteRasterizer.io.spriteSpriteHitDescB
+
+  val collSetA = (B(1, SpriteCollWidth bits) |<<
+                  spriteSpriteHitDescA.resize(log2Up(SpriteCollWidth)))
+  val collSetB = (B(1, SpriteCollWidth bits) |<<
+                  spriteSpriteHitDescB.resize(log2Up(SpriteCollWidth)))
+  val collSetMask = Mux(spriteSpriteHit,
+                        (collSetA | collSetB).resize(SpriteCollWidth),
+                        B(0, SpriteCollWidth bits))
+
+  val collClearMask = Bits(SpriteCollWidth bits)
+  collClearMask := B(0, SpriteCollWidth bits)
+  when(effWrite && effAddr === U(0x0322, 15 bits)) {
+    collClearMask := effData(SpriteCollWidth - 1 downto 0)
+  }
+
+  spriteCollMaskReg := (spriteCollMaskReg | collSetMask) & (~collClearMask)
+  io.spriteCollMask := spriteCollMaskReg
 
   // R6 Task 20: post-palette color-math + window stage. Mux on `paletteRgb`
   // controlled by the window comparator and the colorMath op/constant fields.

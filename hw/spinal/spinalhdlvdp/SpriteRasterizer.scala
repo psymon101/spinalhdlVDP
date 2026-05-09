@@ -47,7 +47,13 @@ case class SpriteRasterizer(
   visiblePerLine: Int = 32,
   patternSelBits: Int = 6,
   hActive: Int       = 640,
-  cycleBudget: Int   = 798
+  cycleBudget: Int   = 798,
+  // Task 54 (Checkpoint A #9619, audit PASS #9620): descriptor-index
+  // width carried per active slot and per line-buffer entry. Matches
+  // `SpriteEvaluator.DescIdxWidth=6` by default; callers can pass a
+  // narrower width matching their `descCount` (e.g. log2Up(8)=3 for
+  // the Path 5A substrate) to trim the line-buffer footprint.
+  descIdxWidth:   Int = 6
 ) extends Component {
 
   // Task 53 (#9419): {patIdx[patternSelBits-1:0], row[3:0], col[3:0]}
@@ -90,6 +96,10 @@ case class SpriteRasterizer(
     // pixel was written by the slot-0 (lowest descriptor index) sprite.
     // Preserves the existing `sprite0HitPulse` semantic at drain time.
     val drainSlot0       = out Bool()
+    // Task 54: descriptor index of the sprite that wrote the drained
+    // pixel. Valid only when `drainPixel != 0`; reads as 0 for empty
+    // (cleared) line-buffer entries.
+    val drainDescIdx     = out UInt(descIdxWidth bits)
 
     // Ping-pong swap (typically tied to hCounter === hTotal-1).
     val bufferSwap = in Bool()
@@ -97,6 +107,26 @@ case class SpriteRasterizer(
     // Status: pulses high while the cycle budget is exhausted with active
     // slots still pending — i.e., some sprites were dropped this line.
     val cycleOverflow = out Bool()
+
+    // Task 54 — sprite-sprite collision pulse.
+    //
+    // Asserts for one cycle when the rasterizer writes a non-transparent
+    // pixel into a line-buffer entry that already holds a non-transparent
+    // pixel from an earlier (higher-index) sprite this line. The
+    // `descA`/`descB` outputs carry the two participating descriptor
+    // indices: `descA` = the sprite about to overwrite, `descB` = the
+    // sprite whose pixel was already in the buffer. Consumers OR-set
+    // the per-descriptor collision mask using both indices.
+    //
+    // Detection point is *write-time* in the render burst, not
+    // drain-time: the line-buffer becomes the implicit pairwise
+    // detector since reverse-iter draw order accumulates all overlap
+    // pairs (sprite K wins over sprite J>K → K vs J event; subsequent
+    // sprite L<K writes over K → L vs K event; OR-accumulated mask
+    // ends up containing every participating sprite).
+    val spriteSpriteHit       = out Bool()
+    val spriteSpriteHitDescA  = out UInt(descIdxWidth bits)
+    val spriteSpriteHitDescB  = out UInt(descIdxWidth bits)
   }
 
   // ----- search FSM -----------------------------------------------------
@@ -150,6 +180,11 @@ case class SpriteRasterizer(
   // slot to be loaded. The mask gate must use the render slot's
   // index, not the lookahead pointer.
   val slotRenderIdxR = Reg(UInt(log2Up(visiblePerLine + 1) bits)) init U(visiblePerLine)
+  // Task 54: descriptor index of the slot currently being rendered. Latched
+  // at SF_LOAD; tagged into every pixel write this slot performs so the
+  // rasterizer can identify *which* sprite a buffer entry belongs to and
+  // emit pairwise collision events at write time.
+  val slotDescIdxR = Reg(UInt(descIdxWidth bits)) init 0
 
   val slotWidth = slotSizeSelR.mux(
     U(0, 2 bits) -> U( 8, 7 bits),
@@ -240,8 +275,12 @@ case class SpriteRasterizer(
   val slotMaskedOut = slotRenderIdxR > firstMaskSlotR
   val pixelVisible = (rState === ST_RUN) && onPixel && !pixelTransparent && !slotMaskedOut
 
-  // ----- sprite line buffer (ping-pong, 2 banks of hActive × 9 bits) ----
-  val SLB_W = 4 + 3 + 2 + 1  // pixel + paletteBank + priority + slot0 flag
+  // ----- sprite line buffer (ping-pong, 2 banks of hActive × N bits) ----
+  // Task 54: line-buffer entry widened to carry the writing sprite's
+  // descriptor index alongside pixel/bank/priority/slot0. The descIdx
+  // field is the basis for write-time pairwise collision detection
+  // and is also exposed at drain time via `io.drainDescIdx`.
+  val SLB_W = 4 + 3 + 2 + 1 + descIdxWidth  // pixel + paletteBank + priority + slot0 flag + descIdx
 
   val activeFillBank = Reg(Bool()) init False
   when(io.bufferSwap) {
@@ -265,11 +304,31 @@ case class SpriteRasterizer(
     fillBankLatched := activeFillBank
   }
 
-  // Layout: [9]=slot0 [8:7]=prio [6:4]=bank [3:0]=pixel
-  val wrData = (slotIsZeroR.asBits ## slotPrioR.asBits ## slotBankR.asBits ## pixel).resize(SLB_W)
+  // Layout (LSB→MSB): [3:0]=pixel [6:4]=bank [8:7]=prio [9]=slot0 [9+descIdxWidth:10]=descIdx
+  val wrData = (slotDescIdxR.asBits ## slotIsZeroR.asBits ## slotPrioR.asBits ## slotBankR.asBits ## pixel).resize(SLB_W)
   val wrAddr = writeXR.resize(log2Up(hActive))
   val wrEnA  = pixelVisible && !fillBankLatched
   val wrEnB  = pixelVisible &&  fillBankLatched
+
+  // Task 54 — sprite-sprite collision detection (check buffer before write).
+  // Async-read the live fill bank at the same address the rasterizer is
+  // about to write this cycle. SpinalHDL Mem.readAsync returns the
+  // currently-stored value (write-takes-effect-at-next-edge), so we see
+  // the *prior* sprite's pixel + descIdx, if any, before this slot's
+  // pixel overwrites it. Collision = current write is non-transparent
+  // AND the existing entry is non-transparent (pixel != 0). Both the
+  // incoming sprite (`slotDescIdxR`) and the stored sprite (`existingDescIdx`)
+  // are reported; VdpTop OR-sets the per-descriptor mask register.
+  val existingFromA      = slbA.readAsync(wrAddr)
+  val existingFromB      = slbB.readAsync(wrAddr)
+  val existingLive       = Mux(fillBankLatched, existingFromB, existingFromA)
+  val existingPixel      = existingLive(3 downto 0)
+  val existingDescIdx    = existingLive(9 + descIdxWidth downto 10).asUInt
+  val existingNonTransparent = existingPixel =/= B(0, 4 bits)
+  val collisionThisCycle = pixelVisible && existingNonTransparent
+  io.spriteSpriteHit       := collisionThisCycle
+  io.spriteSpriteHitDescA  := slotDescIdxR
+  io.spriteSpriteHitDescB  := existingDescIdx
 
   // Background-clear pass: every active-video cycle, write 0 to the
   // bank OPPOSITE the latched render target at addr=drainAddr. Over a
@@ -311,6 +370,7 @@ case class SpriteRasterizer(
   io.drainPaletteBank := drainData(6 downto 4).asUInt
   io.drainPriority    := drainData(8 downto 7).asUInt
   io.drainSlot0       := drainData(9)
+  io.drainDescIdx     := drainData(9 + descIdxWidth downto 10).asUInt   // Task 54
 
   // ===== unified FSM state-update block ================================
   // The two FSMs share a single `always` block via SpinalHDL's
@@ -369,6 +429,7 @@ case class SpriteRasterizer(
       slotTransYR  := SpriteEvaluator.slotTransY(rdW)
       slotIsZeroR  := slotIdx === U(0, slotIdxW bits)
       slotRenderIdxR := slotIdx.resize(log2Up(visiblePerLine + 1))   // Task 55
+      slotDescIdxR := SpriteEvaluator.slotDescIdx(rdW).resize(descIdxWidth)   // Task 54
       startRender  := True
 
       // Advance slot pointer
@@ -466,6 +527,7 @@ case class SpriteRasterizer(
 
 object SpriteRasterizer {
   def apply(): SpriteRasterizer = SpriteRasterizer(
-    visiblePerLine = 32, patternSelBits = 4, hActive = 640, cycleBudget = 798
+    visiblePerLine = 32, patternSelBits = 4, hActive = 640, cycleBudget = 798,
+    descIdxWidth  = 6
   )
 }

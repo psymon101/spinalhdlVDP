@@ -134,6 +134,16 @@ case class SpriteEvaluator(
     val activeReadAddr = in  UInt(log2Up(visiblePerLine) bits)
     val activeReadData = out Bits(SpriteEvaluator.SlotPackedW bits)
     val activeCountOut = out UInt(log2Up(visiblePerLine + 1) bits)
+
+    // Task 54 (Checkpoint A #9619, audit PASS #9620): per-active-slot
+    // descriptor index. Packed into the slot word at write time so the
+    // rasterizer can tag every pixel write with the descriptor that
+    // produced it; downstream sprite-sprite collision detector reads
+    // both the live write descIdx and the buffer's existing descIdx
+    // and OR-sets a per-descriptor mask. Width fixed at
+    // `DescIdxWidth=6` (covers any descCount ≤ 64); per-slot output
+    // is the low `descIdxBits` of the packed field.
+    val activeDescIdx      = out Vec(UInt(descIdxBits bits), visiblePerLine)
   }
 
   // ---------------------------------------------------------------------
@@ -598,7 +608,11 @@ case class SpriteEvaluator(
     affineEnable = curAffineEnable,
     flipH     = curFlipH,
     flipV     = curFlipV,
-    mask      = curMask
+    mask      = curMask,
+    // Task 54: descriptor index of the qualifying scanned descriptor,
+    // packed at write time. Resized up to `DescIdxWidth=6` so the
+    // packed slot word width is independent of `descCount`.
+    descIdx   = scanIdx.resize(SpriteEvaluator.DescIdxWidth)
   )
   // Mem write occurs in the same conditions as the legacy active*Reg
   // Vec writes — gated on (scanBusy && dOnLine && activeCount<visiblePerLine).
@@ -637,6 +651,7 @@ case class SpriteEvaluator(
     io.activePriority(s)     := SpriteEvaluator.slotPriority(w)
     io.activeSizeSel(s)      := SpriteEvaluator.slotSizeSel(w)
     io.activeBppSel(s)       := SpriteEvaluator.slotBppSel(w)
+    io.activeDescIdx(s)      := SpriteEvaluator.slotDescIdx(w).resize(descIdxBits)   // Task 54
   }
 
   // Task 55 — combinational priority encoder over `activeMask` Vec
@@ -658,8 +673,12 @@ object SpriteEvaluator {
   // Task 2c — packed active-slot word width and field offsets.
   // Task 53 (#9419) — `PatIdxWidth` widened 4→6, `SlotPackedW` 128→130.
   // Task 55 (#9440) — Genesis sprite-mask bit appended at MSB; `SlotPackedW` 130→131.
-  val PatIdxWidth: Int = 6
-  val SlotPackedW: Int = 1 + 96 + 10 + 6 + PatIdxWidth + 3 + 2 + 2 + 2 + 1 + 1 + 1   // = 131
+  // Task 54 (#9620) — descIdx field appended at MSB; `SlotPackedW` 131→137.
+  //   Width fixed at DescIdxWidth=6 (covers any descCount ≤ 64) so the
+  //   packed-word size is independent of the per-instance descCount param.
+  val PatIdxWidth:  Int = 6
+  val DescIdxWidth: Int = 6
+  val SlotPackedW:  Int = DescIdxWidth + 1 + 96 + 10 + 6 + PatIdxWidth + 3 + 2 + 2 + 2 + 1 + 1 + 1   // = 137
 
   // Pack a slot's fields into a `SlotPackedW`-bit word.
   def packSlot(
@@ -669,7 +688,9 @@ object SpriteEvaluator {
       patIdx: UInt, paletteBank: UInt, priority: UInt,
       sizeSel: UInt, bppSel: UInt,
       affineEnable: Bool, flipH: Bool, flipV: Bool,
-      mask: Bool): Bits = {
+      mask: Bool,
+      descIdx: UInt): Bits = {
+    descIdx.asBits.resize(DescIdxWidth) ##
     mask.asBits ##
     matrixA ## matrixB ## matrixC ## matrixD ##
     transX  ## transY  ##
@@ -681,7 +702,8 @@ object SpriteEvaluator {
   }
 
   // Field-extraction helpers (slot word from `activeReadData`).
-  // Bit positions match `packSlot` above. Total = 131 bits.
+  // Bit positions match `packSlot` above. Total = 137 bits.
+  //   [136:131] descIdx       (6)   ← Task 54
   //   [130]     mask          (1)   ← Task 55
   //   [129:114] matrixA       (16)
   //   [113: 98] matrixB       (16)
@@ -716,4 +738,5 @@ object SpriteEvaluator {
   def slotFlipH  (w: Bits)   : Bool = w(1)
   def slotFlipV  (w: Bits)   : Bool = w(0)
   def slotMask   (w: Bits)   : Bool = w(130)   // Task 55
+  def slotDescIdx(w: Bits)   : UInt = w(136 downto 131).asUInt   // Task 54
 }
