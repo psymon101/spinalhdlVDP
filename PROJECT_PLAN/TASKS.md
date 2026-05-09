@@ -23,15 +23,15 @@ This section tracks the single active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 57 — Substrate DFF Optimization** |
-| **Status** | **ACTIVE** — artifact audit PASS #9493; two-slice plan approved |
-| **Phase** | implement |
-| **Latest Commit** | `9e888bd` (Sc55 gen + sc55Canary) |
-| **Commits in lane** | N/A |
-| **Latest Auth Mail** | #9488 (artifact), #9493 (audit PASS / two-slice ruling) |
-| **Artifact** | CoralReef #9488 |
-| **Next Deliverable** | Slice 1 — `descCount` 64→32 + regression + synthesis fit (BrightForge) |
+| **Status** | **DONE** — Path 5A hardware proof PASS; bitstream produced |
+| **Phase** | closed |
+| **Latest Commit** | `fae0585` (Path 5A descCount=8 + Slice 2/3 Mem refactor) |
+| **Commits in lane** | `fae0585` |
+| **Latest Auth Mail** | #9605 (CyanPeak Path 5A ruling), #9601 (BrightForge correction) |
+| **Artifact** | `project.fs` at `fpga/tang20k/impl/pnr/project.fs` (7261998 bytes) |
+| **Next Deliverable** | N/A — lane closed |
 
-**Context:** Task 55 CLOSED per CyanPeak #9479. Task 57 opened per BronzeGate #9483. Artifact #9488 audit PASS #9493. Two-slice ruling: **Slice 1** (First-aid): `descCount` 64→32 parameter change to clear DFF overrun; **Slice 2** (Structural cure): matrix state BRAM storage to restore `descCount=64` long-term. BrightForge authorized for Slice 1.
+**Context:** Task 55 CLOSED per CyanPeak #9479. Task 57 opened per BronzeGate #9483. After multiple failed paths (Slice 1 insufficient, Slice 2 zero savings, Slice 3 + init removal still failing PnR), CyanPeak authorized **Path 5A** (`descCount=8, visiblePerLine=8, NUM_SLOTS=8`) as the final hardware discriminator. BrightForge implemented and **PnR PASSED** — first sprite-enabled bitstream since Task 2b. DFF utilization 44% (6834/15552), massive headroom. Sprite regression 11/11 PASS bit-identical.
 
 ---
 
@@ -85,17 +85,29 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **ACTIVE** — artifact audit PASS #9493 |
-| **Gap** | Sprite substrate overruns 18K DFF budget (111% load). Blocks HW proof for all sprite-enabled scenarios. |
+| **Status** | **DONE** — Path 5A PnR PASS #9605 |
+| **Gap** | Sprite substrate overran 18K DFF budget (111% load). **Resolved** by descCount=8 floor + cumulative Mem-refactor work (Slice 2/3). |
 | **Platforms helped** | All (sprite-dependent) |
-| **Impact** | **High** — restores hardware-readiness for future lanes |
-| **Risk/Complexity** | Low (Slice 1); High (Slice 2). Slice 1 is parametric; Slice 2 is structural Mem refactor. |
-| **Proof shape** | Slice 1: synthesis fit ≥10% DFF headroom + regression PASS. Slice 2: restore descCount=64 with fit + `AffineSpriteSim` PASS. |
-| **Source assessment** | #9474, #9478, #9479, #9488, #9493 |
+| **Impact** | **High** — restores hardware-readiness for sprite-enabled scenarios |
+| **Risk/Complexity** | Low (Slice 1 parametric); High (Slice 2/3 structural). Actual resolution was parametric (descCount=8) after structural work proved insufficient alone. |
+| **Proof shape** | PnR: zero `PR0003` errors, `project.fs` produced, DFF ≤ 44%. Sim: 11/11 sprite regression PASS bit-identical. |
+| **Source assessment** | #9474, #9478, #9479, #9488, #9493, #9547, #9549, #9601, #9605, #9604 |
 
-**Slice 1 (First-aid):** `descCount` 64→32. One-line parameter change. Est. savings ~2300–2500 DFFs. Target headroom ≥10%. **Owner: BrightForge.**
+**Slice 1 (First-aid):** `descCount` 64→32. Implemented by BrightForge (#9501). Regression 10/10 PASS. **Synthesis FAIL:** saves only 866 DFFs (16884 / 15915 = 106.1%). Gowin optimizer merges per-slot fields nonlinearly. **Ruling:** insufficient alone.
 
-**Slice 2 (Structural cure):** Back affine matrix state with `Mem` instead of `Vec[Reg]`. Restores `descCount=64`. **Owner: TBD after Slice 1 closeout.**
+**Slice 2 (Structural cure):** Back affine matrix state with `Mem` instead of `Vec[Reg]`. Implemented by BrightForge (#9543). Saved **0 DFFs** because Gowin was already auto-extracting RAM.
+
+**Diagnostic Phase (CoralReef #9545):** Temporary `descCount=16, visiblePerLine=16` synth. **Result:** Total 14,683 DFFs. **PnR FAIL** (`PR0003`, 7539 unplaced REGs). Misreported as fit in #9547; corrected in #9601.
+
+**Slice 3 + init removal (#9598, #9604):** Backed remaining per-slot registers with packed `Mem`s + removed `ScrollTable.init()`. **Synthesis PASS** at 14,676 DFFs (93%). **PnR FAIL** (`PR0003`, 7521 unplaced REGs). Root cause: `Mem.init()`/`initialContent` forces DFF inference in Gowin (cannot init SSRAM from `$readmemb`).
+
+**Path 5A (Final discriminator #9605):** `descCount=8, visiblePerLine=8, NUM_SLOTS=8`. **PnR PASS** — 6,834 DFFs (44%), 8,913 CLS (86%), 22 BSRAM (48%). `project.fs` produced. First sprite-enabled bitstream since Task 2b.
+
+**Key findings for future resource crunches:**
+- `syn_ramstyle="distributed"` is **invalid** in Gowin V1.9.12.01 (EX0200 warning). SpinalHDL auto-generates `ram_style="distributed"` which is the correct and sufficient attribute.
+- `Mem.init()` / `initialContent` emits Verilog `initial $readmemb(...)`. Gowin cannot initialize SSRAM/BSRAM from `$readmemb`, so it **silently infers DFFs** instead. Removing init is the only way to force SSRAM inference, but it breaks host-assumed zero-init.
+- descCount=16 still fails PnR even at 92% total DFF utilization. The GW2AR-LV18 placement bottleneck is **regional density**, not just total count.
+
 
 ---
 
@@ -120,6 +132,7 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 
 | Task | Status | Closeout Mail | Archive Artifact |
 |---|---|---|---|
+| Task 57 — Substrate DFF Optimization | **DONE** | #9605 | Commit `fae0585`, `impl/pnr/project.fs` |
 | Task 53 — Sprite Pattern Address Width Expansion | **DONE** | #9433 | `artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` |
 | Task 2a — Sprite Capacity Substrate Pre-Hardening | **DONE** | #9252 | `archive/tasks/TASK_2A_SPRITE_CAPACITY_SUBSTRATE_PREHARDENING.md` |
 | Task 2c — Sprite Evaluator Hardening | **DONE** | #9279 | `archive/tasks/TASK_2C_SPRITE_EVALUATOR_HARDENING.md` |
