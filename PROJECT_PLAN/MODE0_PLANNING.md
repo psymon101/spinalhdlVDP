@@ -709,19 +709,20 @@ Example:
 1. ✅ **Raw bitmap + attribute fetch** — DONE (Tasks 44/44B)
 2. ✅ **Sprite-capacity hardening** — DONE (Tasks 2a/2c/2b: V=32/D=64)
 3. ✅ **Sprite pattern address width** — DONE (Task 53: PatIdxWidth 4→6, 64 unique tiles)
+4. ✅ **Sprite masking + tile-fetch budget counter** — DONE (Task 55, PASS #9479)
+5. ✅ **Blitter-class engine** — DONE (Task 49, PASS #8248)
 
 **Remaining shared substrate gaps (execution-ready):**
 
-4. **Sprite masking + tile-fetch budget counter** (Task 55) — needed for Genesis/SNES pixel-perfect edge cases
-5. **Sprite-sprite collision detector** (Task 54) — needed for honest C64 collision claims
-6. **Multi-layer SDRAM fetch** (Task 56) — needed for Amiga dual-playfield, Genesis/SNES rich backgrounds
-7. **V-scroll table primitive** — needed for Genesis-class per-column scroll semantics
+6. **Substrate DFF Optimization** (Task 57) — **DONE** (Path 5A PnR PASS #9617)
+7. **Sprite-sprite collision detector** (Task 54) — **ACTIVE** — Checkpoint B IN-PROGRESS (#9620); BrightForge proof #9625 pending audit
+8. **Multi-layer SDRAM fetch** (Task 56) — needed for Amiga dual-playfield, Genesis/SNES rich backgrounds
+9. **V-scroll table primitive** — needed for Genesis-class per-column scroll semantics
 
 **Larger platform-enabling expansions (roadmap):**
 
 - **DMA-style transfer primitive** for OAM/VRAM-class bulk movement
 - **4-layer compositor expansion** for SNES-class adapter pressure
-- **Blitter-class engine** (Task 49) for Amiga-class adapter pressure
 - **Option B pattern RAM** (256 tiles) for dense SNES/Neo Geo scenes
 
 ---
@@ -744,6 +745,8 @@ Additional closed primitives:
 - QSPI bidirectional host control (Tasks 38A–38C)
 - Host driver library (Task 39)
 - Sprite palette bank plumbing (Sprite Phase 2)
+- Blitter-class engine (Task 49, PASS #8248)
+- Sprite masking + budget counter (Task 55, PASS #9479)
 
 This means the roadmap **substrate construction phase is complete**. All substrate hardening is DONE:
 - Fetch Envelope Hardening — DONE
@@ -755,11 +758,23 @@ This means the roadmap **substrate construction phase is complete**. All substra
 - Sprite Capacity Expansion (2a/2c/2b) — DONE
 - Planar Fetch Hardening (Task 3) — DONE
 - Sprite Pattern Address Width Expansion (Task 53) — DONE
+- Sprite Masking + Budget Counter (Task 55) — DONE
+- Blitter Engine (Task 49) — DONE
 
-The strategic focus has shifted to **substrate gap closure + platform adapter development**:
-- Task 40 (C64 Adapter) — DONE
-- Task 50 (ZX Spectrum Adapter) — DONE
-- Task 51 (MODE_SELECT Runtime Adapter Selection) — DONE
+---
+
+## 9. Blitter-Class Engine ✅ DONE
+
+*Status: Implemented and audited. Task 49 closed.*
+
+**Goal:** Provide a generic 2D blitter for rectangle copy/fill operations.
+
+**Needed by:**
+- Amiga (Blitter IC)
+- Atari ST (STE Blitter)
+- MSX2 (Command Engine)
+
+**Status:** DONE per PASS #8248. Supports basic 2D copy/fill. Next-step expansions for exact platform minterms or logical ops are deferred to adapter-local or future hardening lanes.
 
 ---
 

@@ -12,22 +12,30 @@ If any adapter spec disagrees with `TASKS.md` on execution priority, `TASKS.md` 
 
 ---
 
-## 1. Index
+## 1. Adapter Honesty Matrix
 
-| # | Platform | Tier | Status | Default Bitstring? | Archive Source |
-|---|---|---|---|---|---|
-| 1 | ZX Spectrum | 1 | ✅ Complete | Yes | `archive/tasks/TASK_50_ZX_SPECTRUM_ADAPTER.md` |
-| 2 | Commodore 64 | 1 | ✅ Complete | Yes | `archive/adapters/ADAPTER_C64.md` (if exists) |
-| 3 | Atari ST | 1 | ✅ Complete | Yes | `archive/adapters/ADAPTER_ATARI_ST.md` |
-| 4 | NES / Famicom | 2 | ✅ Complete | Yes | `archive/adapters/ADAPTER_NES.md` |
-| 5 | TMS9918-family / MSX1 | 1 | ✅ Complete | Yes | `archive/adapters/ADAPTER_TMS9918_FAMILY.md` |
-| 6 | Master System / Game Gear | 2 | ✅ Complete | Yes | (covered in TMS-family doc) |
-| 7 | PC Engine / TurboGrafx-16 | 2 | ✅ PASS #9192 | Yes | `archive/adapters/ADAPTER_PC_ENGINE.md` |
-| 8 | MSX2 | 2 | ✅ PASS #9192 | Yes | `archive/adapters/ADAPTER_MSX2.md` |
-| 9 | Genesis / Mega Drive | 3 | ✅ PASS #9192 | No — until sprite expansion | `archive/adapters/ADAPTER_GENESIS.md` |
-| 10 | SNES / Super Famicom | 4 | ✅ PASS #9192 | No | `archive/adapters/ADAPTER_SNES.md` |
-| 11 | Amiga OCS/ECS | 4 | ✅ PASS #9192 | No | `archive/adapters/ADAPTER_AMIGA.md` |
-| 12 | Neo Geo | 3 | ✅ PASS #9192 | No — until sprite expansion | `archive/adapters/ADAPTER_NEO_GEO.md` |
+This matrix tracks whether the current `Mode0` substrate supports an "honest" implementation of each platform's video hardware.
+
+| Adapter | Tier | Honest Now? | Blocked By | Acceptable Gaps |
+|---------|------|-------------|------------|-----------------|
+| ZX Spectrum | 1 | ✅ Yes | — | Border effects, ULA+ |
+| C64 | 1 | ✅ Yes | — | Sprite-sprite collision (Task 54) |
+| Atari ST | 1 | ✅ Yes | — | Immediate palette, blitter semantics |
+| NES | 2 | ✅ Yes | — | Colour emphasis, mapper IRQs |
+| PC Engine | 2 | ✅ Yes | descCount 64→80 | SATB DMA, per-tile palette bank |
+| SMS/GG | 1/2 | ⚠️ v1 only | Verify 4bpp tile decoder (v1.1) | Sprite zoom, line interrupt reload |
+| MSX2 | 2 | ✅ Yes | — | Command engine quirks |
+| Genesis | 3 | ⚠️ v1 only | descCount 64→80 | — |
+| SNES | 4 | ⚠️ v1 only | descCount 64→128 | — |
+| Neo Geo | 3 | 🔴 No | descCount 64→380, per-line 32→96, palette 512→4096 | — |
+| Amiga | 4 | ✅ Yes | — | Copper wait/move exact timing |
+
+**Rules:**
+- `✅ Yes` = substrate supports honest v1 claim now
+- `⚠️ v1 only` = honest for bounded v1, but higher-fidelity claims blocked
+- `🔴 No` = cannot claim honest implementation until blocker closes
+- `Blocked By` = substrate gap only; adapter-local simplifications go in `Acceptable Gaps`
+- Every `Blocked By` entry must reference a specific task or substrate capability
 
 ---
 
@@ -36,7 +44,7 @@ If any adapter spec disagrees with `TASKS.md` on execution priority, `TASKS.md` 
 ### 2.1 ZX Spectrum
 
 **Tier:** 1  
-**Status:** Complete (v3.8 + E3.45 polish, closure #8976)  
+**Status:** Implemented + proven (v3.8 + E3.45 polish, closure #8976)  
 **Default bitstring:** Yes  
 **Archive:** `archive/tasks/TASK_50_ZX_SPECTRUM_ADAPTER.md`
 
@@ -49,7 +57,7 @@ A 256×192 tile+attribute ULA-compatible adapter. Uses `SdramTileAttributeFetch`
 ### 2.2 Commodore 64
 
 **Tier:** 1  
-**Status:** Complete (smoke test proven; Task 40b gaps documented)  
+**Status:** Implemented + proven (smoke test proven; Task 40b gaps documented)  
 **Default bitstring:** Yes  
 **Archive:** `archive/adapters/ADAPTER_C64.md` (if present) or `archive/tasks/TASK_40_FIRST_PLATFORM_ADAPTER.md`
 
@@ -76,8 +84,6 @@ The SHIFTER IC scans planar bitplanes (1–4 planes, 320×200×16-color down to 
 - STE Blitter semantics differ from Mode0 blitter
 - Border removal / overscan tricks out of scope
 
-**Prerequisites for full honesty:** None for v1 (R7.1, R1, CW-1, Task 44 already done).
-
 ---
 
 ### 2.4 TMS9918 Family (MSX1 / SMS / GG)
@@ -97,8 +103,6 @@ The TMS9918A uses 1bpp tiles with a fixed 16-color palette, 32 sprites (4/line),
 - SMS/GG sprite zoom not directly supported
 - Line interrupt auto-reload may need substrate support
 - GG hidden border sprite evaluation may not replicate perfectly
-
-**Prerequisites for full honesty:** Verify Mode0 tile decoder 4bpp support before SMS v1.1.
 
 ---
 
@@ -122,8 +126,6 @@ The Ricoh PPU generates 256×224/240 video from 2bpp planar tiles, a single scro
 - PPU open-bus read quirks not emulated
 - PAL/NTSC composite artifacts not reproduced
 
-**Prerequisites for full honesty:** Sprite descriptor expansion 32→64 (DONE via Task 2b).
-
 ---
 
 ### 3.2 PC Engine / TurboGrafx-16
@@ -144,8 +146,6 @@ The HuC6270 VDC plus HuC6260 VCE provide a 256×239 4bpp tile background, 64 spr
 - Per-tile palette bank may not be natively supported
 - Y/X coordinate offsets (64/32) need adapter translation
 
-**Prerequisites for full honesty:** Sprite descriptor expansion 32→64 and visiblePerLine 8→32 (both DONE via Task 2b).
-
 ---
 
 ### 3.3 MSX2
@@ -165,8 +165,6 @@ Yamaha V9938 supports TMS9918A-compatible tile modes (G1–G3) and bitmap modes 
 - Text modes T1/T2 (40×24, 80×24) not supported
 - No horizontal scroll on V9938 (V9958 adds it)
 - Interlace modes not supported by Mode0
-
-**Prerequisites for full honesty:** Task 49 `BlitterEngine` for v2 command engine proxy.
 
 ---
 
@@ -190,8 +188,6 @@ The Genesis VDP provides three background layers (Plane A, Plane B, Window) plus
 - Linked-list sprite order vs Mode0 fixed index order
 - Per-column vertical scroll not natively supported
 
-**Prerequisites for full honesty:** Sprite descriptor expansion 64→80; sprite per-line expansion 32→20 (DONE via Task 2b).
-
 ---
 
 ### 4.2 Neo Geo
@@ -211,8 +207,6 @@ Neo Geo uses a unique line-sprite architecture where the entire screen is built 
 - Sprite shrinking (H/V scaling) has no Mode0 equivalent
 - External ROM graphics must be pre-loaded to SDRAM
 - Palette may need expansion from 512 to 4096 entries
-
-**Prerequisites for full honesty:** Sprite descriptor expansion 64→380; sprite per-line expansion 32→96; palette expansion 512→4096.
 
 ---
 
@@ -236,8 +230,6 @@ The SNES PPU1/PPU2 support up to 4 background layers plus sprites across modes 0
 - Interlace output not supported
 - Offset-per-tile scroll may not map natively
 
-**Prerequisites for full honesty:** Sprite descriptor expansion 64→128; sprite per-line expansion 8→32 (DONE via Task 2b).
-
 ---
 
 ### 5.2 Amiga OCS/ECS
@@ -258,11 +250,28 @@ Commodore Amiga OCS/ECS uses 1–6 bitplanes (2–64 colours) via Agnus/Denise/P
 - Sprite DMA fetch absent; host must write descriptors
 - Blitter minterms may not map fully to Mode0 blitter
 
-**Prerequisites for full honesty:** Task 49 `BlitterEngine` for blitter proxy.
+---
+
+## 6. Substrate Blocker Summary
+
+This table distills the prose above into actionable substrate gaps.
+
+| Substrate Gap | Task / Capability | Unblocks These Adapters |
+|---------------|-------------------|------------------------|
+| Sprite descriptor 64→80 | Task 2b extension | Genesis, PC Engine |
+| Sprite descriptor 80→128 | — | SNES |
+| Sprite descriptor 128→380 | — | Neo Geo |
+| Sprite per-line 32→96 | — | Neo Geo |
+| Palette 512→4096 | — | Neo Geo |
+| 4bpp tile decoder verify | — | SMS/GG v1.1 |
+
+**Rules:**
+- `Task / Capability` = the specific substrate work that closes the gap
+- `Unblocks These Adapters` = all adapters that become more honest when this gap closes
 
 ---
 
-## 6. Adapter Spec Template
+## 7. Adapter Spec Template
 
 Every platform adapter MUST include these sections when drafted:
 

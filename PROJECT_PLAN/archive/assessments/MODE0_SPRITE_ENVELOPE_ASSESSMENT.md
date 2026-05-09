@@ -1,3 +1,4 @@
+<!-- NON-CANONICAL: superseded by PROJECT_PLAN/ASSESSMENT.md -->
 **DEPRECATED -- merged into ASSESSMENT.md. This file is now archive reference only.**
 
 
