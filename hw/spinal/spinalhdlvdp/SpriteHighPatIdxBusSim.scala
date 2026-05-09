@@ -71,7 +71,13 @@ object SpriteHighPatIdxBusSim extends App {
       busPulse(v.slot, 0, w0)
       busPulse(v.slot, 8, w8)
       val rel = v.slot - L
-      val got = dut.regPatternIndex(rel).toInt
+      // Task 57 Slice 3: regPatternIndex moved to infoMemW0+infoMemW8.
+      // Low 4 bits: infoMemW0[4:1]; high 2 bits: infoMemW8[13:12].
+      val mw0 = dut.infoMemW0.getBigInt(rel)
+      val mw8 = dut.infoMemW8.getBigInt(rel)
+      val patLow = (mw0 >> 1).toInt & 0xF
+      val patHigh = (mw8 >> 12).toInt & 0x3
+      val got = (patHigh << 4) | patLow
       val exp = (v.high << 4) | v.low
       val ok  = got == exp
       println(f"  slot ${v.slot} rel $rel exp=0x$exp%02X got=0x$got%02X  ${if (ok) "PASS" else "FAIL"}")
@@ -87,7 +93,13 @@ object SpriteHighPatIdxBusSim extends App {
       busPulse(s, 8, w8)   // high first
       busPulse(s, 0, w0)   // low second
       val rel = s - L
-      val got = dut.regPatternIndex(rel).toInt
+      // Task 57 Slice 3: regPatternIndex moved to infoMemW0+infoMemW8.
+      // Low 4 bits: infoMemW0[4:1]; high 2 bits: infoMemW8[13:12].
+      val mw0 = dut.infoMemW0.getBigInt(rel)
+      val mw8 = dut.infoMemW8.getBigInt(rel)
+      val patLow = (mw0 >> 1).toInt & 0xF
+      val patHigh = (mw8 >> 12).toInt & 0x3
+      val got = (patHigh << 4) | patLow
       val exp = (v.high << 4) | v.low
       val ok  = got == exp
       println(f"  slot $s rel $rel exp=0x$exp%02X got=0x$got%02X  ${if (ok) "PASS" else "FAIL"}")
@@ -97,7 +109,9 @@ object SpriteHighPatIdxBusSim extends App {
     println("[sim] Phase C — legacy host (word 0 only, no word 8 write) yields patIdx ∈ 0..15")
     val legacySlot = 32
     busPulse(legacySlot, 0, (1 << 15) | (0xC << 11))   // patIdx low = 0xC, no word-8 write
-    val gotLegacy = dut.regPatternIndex(legacySlot - L).toInt
+    val w0Legacy = dut.infoMemW0.getBigInt(legacySlot - L)
+    val w8Legacy = dut.infoMemW8.getBigInt(legacySlot - L)
+    val gotLegacy = (((w8Legacy >> 12).toInt & 0x3) << 4) | ((w0Legacy >> 1).toInt & 0xF)
     println(f"  slot $legacySlot got=0x$gotLegacy%02X (expected 0x0C)")
     assert(gotLegacy == 0x0C,
       s"legacy word-0-only write should produce 0x0C; got 0x${gotLegacy.toHexString}")

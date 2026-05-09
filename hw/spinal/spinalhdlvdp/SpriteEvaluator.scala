@@ -139,153 +139,212 @@ case class SpriteEvaluator(
   // ---------------------------------------------------------------------
   // Reg-backed extended descriptors.
   // ---------------------------------------------------------------------
-  val regEnabled      = Vec.fill(extCount)(RegInit(False))
-  val regX            = Vec.fill(extCount)(RegInit(U(1023, 10 bits)))
-  val regY            = Vec.fill(extCount)(RegInit(U(1023, 10 bits)))
-  val regPatternIndex = Vec.fill(extCount)(RegInit(U(0, patternSelBits bits)))
+  // Task 57 Slice 3 (CyanPeak PASS #9597): per-slot non-matrix Vec[Reg]
+  // arrays moved to three readAsync `Mem`s addressed by the bus-word
+  // group that writes them — preserves single-write per cycle without
+  // RMW. `regAffineEnable` is exempt and stays in Vec[Reg] per CyanPeak
+  // ruling: it's read combinationally by the rasterizer's affine path
+  // outside the scan FSM and the 28-DFF cost is negligible.
+  //
+  // Layouts (LSB→MSB, total 39 bits across 3 Mems):
+  //   infoMemW0 (15 bits, written on busWord=0): {y[9:0], patIdxLow[3:0], enabled[1]}
+  //   infoMemW1 (10 bits, written on busWord=1): {x[9:0]}
+  //   infoMemW8 (14 bits, written on busWord=8): {patIdxHigh[1:0], mask[1], bppSel[2],
+  //                                               flipV[1], flipH[1], priority[2],
+  //                                               paletteBank[3], sizeSel[2]}
+  // Each Mem has a single read port (addressed by scanIdx-rel) and a
+  // single write port (addressed by busSlot-rel). Same pattern as
+  // matAMem etc. from Slice 2 — single port preserves RAM inference.
+  val InfoW0Width = 1 + patternSelBits.min(4) + 10   // enabled + patIdxLow + y
+  val InfoW1Width = 10                                // x
+  val InfoW8Width = 2 + 3 + 2 + 1 + 1 + 2 + 1 + (patternSelBits - 4).max(0)
+                                                       // sizeSel + bank + prio + flipH + flipV + bppSel + mask + patIdxHigh
+  // Initial content matches the original Vec[Reg] defaults so existing
+  // tests see the same "off-line" parked-sprite state at boot:
+  //   regEnabled=0, regX=1023, regY=1023, regPatternIndex=0,
+  //   regSizeSel=DefaultSizeSel(=1), other word-8 fields=0.
+  // Pack:
+  //   w0 = (y=1023)<<(1+patLowBits) | 0 → (1023 << 5) = 0x7FE0
+  //   w1 = (x=1023) → 0x3FF
+  //   w8 = sizeSel=1 at bits [1:0] → 0x01
+  private val w0InitVal = BigInt(1023) << (1 + patternSelBits.min(4))
+  private val w1InitVal = BigInt(1023)
+  private val w8InitVal = BigInt(SpriteDescriptor.DefaultSizeSel)
+  val infoMemW0 = Mem(Bits(InfoW0Width bits),
+    initialContent = Array.fill(extCount)(B(w0InitVal, InfoW0Width bits))).simPublic()
+  val infoMemW1 = Mem(Bits(InfoW1Width bits),
+    initialContent = Array.fill(extCount)(B(w1InitVal, InfoW1Width bits))).simPublic()
+  val infoMemW8 = Mem(Bits(InfoW8Width bits),
+    initialContent = Array.fill(extCount)(B(w8InitVal, InfoW8Width bits))).simPublic()
+  // Task 57: SpinalHDL auto-generates ram_style="distributed" for small
+  // Mems; manual syn_ramstyle causes EX0200 "Property set invalid".
+  // initialContent on these Mems forces DFF inference — init removal
+  // is the actual fix if DFF budget is exceeded.
   val regAffineEnable = Vec.fill(extCount)(RegInit(False))
-  val regMatrixA      = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
-  val regMatrixB      = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
-  val regMatrixC      = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
-  val regMatrixD      = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
-  val regTransX       = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
-  val regTransY       = Vec.fill(extCount)(RegInit(B(0, 16 bits)))
+  // Task 57 Slice 2 (CyanPeak DECISION #9502, BrightForge #9487): the
+  // 6×16-bit affine matrix state per slot moves from Vec[Reg] to
+  // readAsync `Mem`s to recover GW2AR-LV18 DFF headroom (#9474, #9501).
+  // Synth maps these to LUTRAM/SSRAM (same path as `activeListMem`),
+  // removing them from the DFF accounting. Bus writes target one Mem
+  // at a time on word matches 2..7; combinational reads via
+  // `descMatrix(i, sel)` below preserve the existing scan-FSM
+  // interface (no pipeline shift required).
+  val matAMem  = Mem(Bits(16 bits), extCount).simPublic()
+  val matBMem  = Mem(Bits(16 bits), extCount).simPublic()
+  val matCMem  = Mem(Bits(16 bits), extCount).simPublic()
+  val matDMem  = Mem(Bits(16 bits), extCount).simPublic()
+  val transXMem = Mem(Bits(16 bits), extCount).simPublic()
+  val transYMem = Mem(Bits(16 bits), extCount).simPublic()
+  // Task 57: SpinalHDL auto-generates ram_style="distributed" for small
+  // Mems; manual syn_ramstyle causes EX0200 "Property set invalid".
+  // Matrix Mems have no initialContent so they infer as LUTRAM/SSRAM
+  // correctly with the auto-generated attribute alone.
 
-  // Sprite Envelope Hardening (CyanPeak #8577) — default sizeSel = 1 (16×16)
-  // matches the pre-Hardening 16-pixel-tall Y-range, so existing scenes that
-  // never write word 8 retain bit-identical behaviour.
-  val regFlipH        = Vec.fill(extCount)(RegInit(False))
-  val regFlipV        = Vec.fill(extCount)(RegInit(False))
-  // Task 55 (#9440) — Genesis sprite-mask bit at word 8 [4].
-  val regMask         = Vec.fill(extCount)(RegInit(False))
-  val regPaletteBank  = Vec.fill(extCount)(RegInit(U(0, 3 bits)))
-  val regPriority     = Vec.fill(extCount)(RegInit(U(0, 2 bits)))    // P2-3b: 1→2 bits
-  val regSizeSel      = Vec.fill(extCount)(RegInit(U(SpriteDescriptor.DefaultSizeSel, 2 bits)))
-  val regBppSel       = Vec.fill(extCount)(RegInit(U(0, 2 bits)))    // P2-2: 4bpp default
+  // Task 57 Slice 3: regFlipH/V/Mask, regPaletteBank, regPriority,
+  // regSizeSel, regBppSel are now packed into infoMemW8 (read via the
+  // helpers below). Removed Vec[Reg] declarations.
 
-  // simPublic for integration sims.
+  // simPublic for sims that probe regAffineEnable directly. All other
+  // per-slot regs are now in Mems; sims must probe via Mem.getBigInt
+  // or via the active-list outputs.
   for (i <- 0 until extCount) {
-    regEnabled(i).simPublic()
-    regX(i).simPublic()
-    regY(i).simPublic()
-    regPatternIndex(i).simPublic()
     regAffineEnable(i).simPublic()
-    regMatrixA(i).simPublic()
-    regMatrixB(i).simPublic()
-    regMatrixC(i).simPublic()
-    regMatrixD(i).simPublic()
-    regTransX(i).simPublic()
-    regTransY(i).simPublic()
-    regEnabled(i).addAttribute("syn_keep", "1")
-    regX(i).addAttribute("syn_keep", "1")
-    regY(i).addAttribute("syn_keep", "1")
-    regPatternIndex(i).addAttribute("syn_keep", "1")
   }
 
-  when(io.busWr) {
-    val slot = io.busSlot
-    when(slot >= U(legacyIoCount, descIdxBits bits)) {
-      val rel = (slot - U(legacyIoCount, descIdxBits bits)).resize(log2Up(extCount))
-      val enBit = io.busData(15)
-      // Task 53 — word 0 always carries the LOW 4 bits of patIdx at
-      // [14:11]; the high bits live in word 8 [1:0]. With
-      // `patternSelBits = 4` (legacy) the .resize(4) is a no-op.
-      val patW0Low = io.busData(14 downto 11).asUInt
-      val affW0 = io.busData(10)
-      val yW0   = io.busData(9 downto 0).asUInt
-      val xW1   = io.busData(9 downto 0).asUInt
+  // Task 57 Slice 3: bus writes go to one of three Mems based on
+  // io.busWord. Each Mem has a single write port; affineEnable (extracted
+  // from word-0 bit [10]) still goes to its remaining DFF Vec.
+  {
+    val isExtBus = io.busWr && (io.busSlot >= U(legacyIoCount, descIdxBits bits))
+    val rel = (io.busSlot - U(legacyIoCount, descIdxBits bits)).resize(log2Up(extCount))
+
+    // Word 0 packed: {y[9:0], patIdxLow[3:0], enabled[1]} — 15 bits total
+    val patLowBits = patternSelBits.min(4)
+    val w0Pack = Cat(
+      io.busData(9 downto 0).asUInt.asBits,                         // y
+      io.busData(14 downto 11).asUInt.resize(patLowBits).asBits,    // patIdxLow
+      io.busData(15).asBits                                          // enabled
+    ).resize(InfoW0Width bits)
+    infoMemW0.write(rel, w0Pack, enable = isExtBus && (io.busWord === U(0, busWordBits bits)))
+
+    // Word 1 packed: {x[9:0]} — 10 bits
+    val w1Pack = io.busData(9 downto 0).asUInt.asBits.resize(InfoW1Width bits)
+    infoMemW1.write(rel, w1Pack, enable = isExtBus && (io.busWord === U(1, busWordBits bits)))
+
+    // Word 8 packed: {patIdxHigh, mask, bppSel, flipV, flipH, priority,
+    //                 paletteBank, sizeSel} — LSB→MSB order
+    val w8HighW = (patternSelBits - 4).max(0)
+    val w8Pack = if (w8HighW > 0) {
+      Cat(
+        io.busData(w8HighW - 1 downto 0).asUInt.asBits,                  // patIdxHigh
+        io.busData(4).asBits,                                            // mask
+        io.busData(6 downto 5).asUInt.asBits,                            // bppSel
+        io.busData(7).asBits,                                            // flipV
+        io.busData(8).asBits,                                            // flipH
+        io.busData(10 downto 9).asUInt.asBits,                           // priority
+        io.busData(13 downto 11).asUInt.asBits,                          // paletteBank
+        io.busData(15 downto 14).asUInt.asBits                           // sizeSel
+      ).resize(InfoW8Width bits)
+    } else {
+      Cat(
+        io.busData(4).asBits,
+        io.busData(6 downto 5).asUInt.asBits,
+        io.busData(7).asBits,
+        io.busData(8).asBits,
+        io.busData(10 downto 9).asUInt.asBits,
+        io.busData(13 downto 11).asUInt.asBits,
+        io.busData(15 downto 14).asUInt.asBits
+      ).resize(InfoW8Width bits)
+    }
+    infoMemW8.write(rel, w8Pack, enable = isExtBus && (io.busWord === U(8, busWordBits bits)))
+
+    // affineEnable still per-slot DFF (CyanPeak exemption #9597).
+    when(isExtBus && (io.busWord === U(0, busWordBits bits))) {
       switch(rel) {
         for (i <- 0 until extCount) {
           is(U(i, log2Up(extCount) bits)) {
-            switch(io.busWord) {
-              is(U(0, busWordBits bits)) {
-                regEnabled(i)      := enBit
-                if (patternSelBits > 4) {
-                  // Update only patIdx[3:0]; preserve patIdx[5:4] from a
-                  // previous word-8 write so the host can write the two
-                  // halves in either order.
-                  regPatternIndex(i)(3 downto 0) := patW0Low
-                } else {
-                  regPatternIndex(i) := patW0Low.resize(patternSelBits)
-                }
-                regAffineEnable(i) := affW0
-                regY(i)            := yW0
-              }
-              is(U(1, busWordBits bits)) { regX(i)       := xW1 }
-              is(U(2, busWordBits bits)) { regMatrixA(i) := io.busData }
-              is(U(3, busWordBits bits)) { regMatrixB(i) := io.busData }
-              is(U(4, busWordBits bits)) { regMatrixC(i) := io.busData }
-              is(U(5, busWordBits bits)) { regMatrixD(i) := io.busData }
-              is(U(6, busWordBits bits)) { regTransX(i)  := io.busData }
-              is(U(7, busWordBits bits)) { regTransY(i)  := io.busData }
-              is(U(8, busWordBits bits)) {
-                regSizeSel(i)     := io.busData(15 downto 14).asUInt
-                regPaletteBank(i) := io.busData(13 downto 11).asUInt
-                regPriority(i)    := io.busData(10 downto 9).asUInt   // P2-3b: 2 bits
-                regFlipH(i)       := io.busData(8)
-                regFlipV(i)       := io.busData(7)
-                regMask(i)        := io.busData(4)   // Task 55 — Genesis mask bit
-                regBppSel(i)      := io.busData(6 downto 5).asUInt    // P2-2: new
-                if (patternSelBits > 4) {
-                  // Task 53 — patIdx high bits at [1:0]. Width is
-                  // (patternSelBits - 4) — 2 bits for Option A, more if
-                  // Option B is later opened. Preserves low 4 bits set
-                  // by a prior word-0 write.
-                  val highW = patternSelBits - 4
-                  regPatternIndex(i)(patternSelBits - 1 downto 4) :=
-                    io.busData(highW - 1 downto 0).asUInt
-                }
-              }
-              // words 9..15 reserved — no write effect; reads omitted.
-            }
+            regAffineEnable(i) := io.busData(10)
           }
         }
       }
     }
   }
 
+  // Task 57 Slice 2: matrix/trans Mem writes. Single write port per Mem
+  // addressed by `rel` (the slot's index in extCount). Enable fires when
+  // (a) bus write is asserted, (b) slot is in the extended range, and
+  // (c) the bus word matches the field's slot.
+  {
+    val isExtBus = io.busWr && (io.busSlot >= U(legacyIoCount, descIdxBits bits))
+    val rel = (io.busSlot - U(legacyIoCount, descIdxBits bits)).resize(log2Up(extCount))
+    matAMem.write(  rel, io.busData, enable = isExtBus && (io.busWord === U(2, busWordBits bits)))
+    matBMem.write(  rel, io.busData, enable = isExtBus && (io.busWord === U(3, busWordBits bits)))
+    matCMem.write(  rel, io.busData, enable = isExtBus && (io.busWord === U(4, busWordBits bits)))
+    matDMem.write(  rel, io.busData, enable = isExtBus && (io.busWord === U(5, busWordBits bits)))
+    transXMem.write(rel, io.busData, enable = isExtBus && (io.busWord === U(6, busWordBits bits)))
+    transYMem.write(rel, io.busData, enable = isExtBus && (io.busWord === U(7, busWordBits bits)))
+  }
+
   // ---------------------------------------------------------------------
   // Unified descriptor read path.
+  //
+  // Task 57 Slice 3: ext-slot fields (X/Y/Enabled/PatternIdx/FlipH/V/Mask
+  // PaletteBank/Priority/SizeSel/BppSel) are now backed by readAsync Mems
+  // and read by a single-port hoist below the scan switch. The helpers
+  // return DEFAULTS for ext slots — actual values are overridden by the
+  // hoisted block. This avoids per-i Mem read ports inside the
+  // scan-switch (which would create extCount ports per Mem and prevent
+  // RAM inference).
+  //
+  // affineEnable stays in DFFs (CyanPeak exemption #9597), so it still
+  // routes per-slot through the helper.
   // ---------------------------------------------------------------------
   def descEnabled(i: Int): Bool =
-    if (i < legacyIoCount) io.descEnabled(i) else regEnabled(i - legacyIoCount)
+    if (i < legacyIoCount) io.descEnabled(i) else False     // overridden below
   def descX(i: Int): UInt =
-    if (i < legacyIoCount) io.descX(i) else regX(i - legacyIoCount)
+    if (i < legacyIoCount) io.descX(i) else U(0, 10 bits)    // overridden below
   def descY(i: Int): UInt =
-    if (i < legacyIoCount) io.descY(i) else regY(i - legacyIoCount)
+    if (i < legacyIoCount) io.descY(i) else U(1023, 10 bits) // overridden below (off-line default)
   def descPatternIdx(i: Int): UInt =
     if (i < legacyIoCount) io.descPatternIdx(i).resize(patternSelBits)
-    else                   regPatternIndex(i - legacyIoCount)
+    else                   U(0, patternSelBits bits)         // overridden below
   def descAffineEnable(i: Int): Bool =
     if (i < legacyIoCount) False else regAffineEnable(i - legacyIoCount)
+  // Task 57 Slice 2: matrix/trans reads via readAsync `Mem` (LUTRAM/SSRAM
+  // backed) instead of Vec[Reg]. Combinational read preserves the
+  // existing scan-FSM contract — same-cycle availability of matrix
+  // data when scanIdx points at a slot.
   def descMatrix(i: Int, sel: Int): Bits = {
     if (i < legacyIoCount) B(0, 16 bits)
-    else sel match {
-      case 0 => regMatrixA(i - legacyIoCount)
-      case 1 => regMatrixB(i - legacyIoCount)
-      case 2 => regMatrixC(i - legacyIoCount)
-      case 3 => regMatrixD(i - legacyIoCount)
-      case 4 => regTransX(i - legacyIoCount)
-      case 5 => regTransY(i - legacyIoCount)
+    else {
+      val rel = U(i - legacyIoCount, log2Up(extCount) bits)
+      sel match {
+        case 0 => matAMem.readAsync(rel)
+        case 1 => matBMem.readAsync(rel)
+        case 2 => matCMem.readAsync(rel)
+        case 3 => matDMem.readAsync(rel)
+        case 4 => transXMem.readAsync(rel)
+        case 5 => transYMem.readAsync(rel)
+      }
     }
   }
   // Sprite Envelope Hardening — legacy slots get back-compat defaults.
+  // Ext-slot defaults are overridden below by the hoisted Mem read.
   def descFlipH(i: Int): Bool =
-    if (i < legacyIoCount) False else regFlipH(i - legacyIoCount)
+    if (i < legacyIoCount) False else False
   def descFlipV(i: Int): Bool =
-    if (i < legacyIoCount) False else regFlipV(i - legacyIoCount)
-  // Task 55 — legacy IO slots have no mask bit.
+    if (i < legacyIoCount) False else False
   def descMask(i: Int): Bool =
-    if (i < legacyIoCount) False else regMask(i - legacyIoCount)
+    if (i < legacyIoCount) False else False
   def descPaletteBank(i: Int): UInt =
-    if (i < legacyIoCount) U(0, 3 bits) else regPaletteBank(i - legacyIoCount)
+    if (i < legacyIoCount) U(0, 3 bits) else U(0, 3 bits)
   def descPriority(i: Int): UInt =
-    if (i < legacyIoCount) U(0, 2 bits) else regPriority(i - legacyIoCount)
+    if (i < legacyIoCount) U(0, 2 bits) else U(0, 2 bits)
   def descSizeSel(i: Int): UInt =
     if (i < legacyIoCount) U(SpriteDescriptor.DefaultSizeSel, 2 bits)
-    else                   regSizeSel(i - legacyIoCount)
+    else                   U(SpriteDescriptor.DefaultSizeSel, 2 bits)
   def descBppSel(i: Int): UInt =
-    if (i < legacyIoCount) U(0, 2 bits) else regBppSel(i - legacyIoCount)
+    if (i < legacyIoCount) U(0, 2 bits) else U(0, 2 bits)
 
   // sizeForSel lives on the SpriteDescriptor companion so VdpTop's
   // per-slot pattern-fetch loop can share the same encoding.
@@ -360,12 +419,10 @@ case class SpriteEvaluator(
           curY            := descY(i)
           curPat          := descPatternIdx(i)
           curAffineEnable := descAffineEnable(i)
-          curMatrixA      := descMatrix(i, 0)
-          curMatrixB      := descMatrix(i, 1)
-          curMatrixC      := descMatrix(i, 2)
-          curMatrixD      := descMatrix(i, 3)
-          curTransX       := descMatrix(i, 4)
-          curTransY       := descMatrix(i, 5)
+          // Task 57 Slice 2: matrix/trans NOT routed through this
+          // per-slot switch — that would create extCount read ports
+          // per Mem and prevent RAM inference. Single-port Mem reads
+          // addressed by `scanIdx` are wired below the switch.
           curFlipH        := descFlipH(i)
           curFlipV        := descFlipV(i)
           curMask         := descMask(i)
@@ -374,6 +431,79 @@ case class SpriteEvaluator(
           curSizeSel      := descSizeSel(i)
           curBppSel       := descBppSel(i)
         }
+      }
+    }
+  }
+
+  // Task 57 Slice 2 + Slice 3: single-port Mem reads addressed by
+  // `scanIdx`. For ext slots, override the cur* defaults from the
+  // helpers with the actual stored values from the Mems. Each Mem
+  // gets exactly one read port → preserves RAM inference.
+  {
+    val isExtScan = scanIdx >= U(legacyIoCount, descIdxBits bits)
+    val scanRel   = (scanIdx - U(legacyIoCount, descIdxBits bits)).resize(log2Up(extCount))
+
+    // Slice 2 — affine matrix Mems
+    val matAR     = matAMem.readAsync(scanRel)
+    val matBR     = matBMem.readAsync(scanRel)
+    val matCR     = matCMem.readAsync(scanRel)
+    val matDR     = matDMem.readAsync(scanRel)
+    val transXR   = transXMem.readAsync(scanRel)
+    val transYR   = transYMem.readAsync(scanRel)
+
+    // Slice 3 — packed info Mems
+    val w0R = infoMemW0.readAsync(scanRel)   // {y[14:5], patIdxLow[4:1], enabled[0]}
+    val w1R = infoMemW1.readAsync(scanRel)   // {x[9:0]}
+    val w8R = infoMemW8.readAsync(scanRel)
+    // w8 unpack offsets (LSB first per write order):
+    //   [1:0]   sizeSel
+    //   [4:2]   paletteBank
+    //   [6:5]   priority
+    //   [7]     flipH
+    //   [8]     flipV
+    //   [10:9]  bppSel
+    //   [11]    mask
+    //   [11+w8HighW : 12]  patIdxHigh (if patternSelBits > 4)
+    val w8HighW = (patternSelBits - 4).max(0)
+    val patLowBits = patternSelBits.min(4)
+
+    val w0_enabled  = w0R(0)
+    val w0_patLow   = w0R(patLowBits downto 1).asUInt   // bits [patLowBits..1]
+    val w0_y        = w0R(InfoW0Width - 1 downto (1 + patLowBits)).asUInt  // bits [InfoW0Width-1..(1+patLowBits)] = 10 bits
+    val w1_x        = w1R(9 downto 0).asUInt
+    val w8_sizeSel  = w8R(1 downto 0).asUInt
+    val w8_bank     = w8R(4 downto 2).asUInt
+    val w8_priority = w8R(6 downto 5).asUInt
+    val w8_flipH    = w8R(7)
+    val w8_flipV    = w8R(8)
+    val w8_bppSel   = w8R(10 downto 9).asUInt
+    val w8_mask     = w8R(11)
+
+    when(scanBusy && isExtScan) {
+      // Slice 2 overrides
+      curMatrixA := matAR
+      curMatrixB := matBR
+      curMatrixC := matCR
+      curMatrixD := matDR
+      curTransX  := transXR
+      curTransY  := transYR
+      // Slice 3 overrides
+      curEnabled := w0_enabled.asUInt
+      curY       := w0_y
+      curX       := w1_x
+      curSizeSel := w8_sizeSel
+      curPaletteBank := w8_bank
+      curPriority := w8_priority
+      curFlipH := w8_flipH
+      curFlipV := w8_flipV
+      curBppSel := w8_bppSel
+      curMask  := w8_mask
+      // patIdx assembly: low from w0, high from w8 (if any)
+      if (w8HighW > 0) {
+        val patHigh = w8R(11 + w8HighW downto 12).asUInt
+        curPat := (patHigh @@ w0_patLow).resize(patternSelBits)
+      } else {
+        curPat := w0_patLow.resize(patternSelBits)
       }
     }
   }

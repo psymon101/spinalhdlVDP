@@ -86,11 +86,22 @@ object SpriteBusViaVdpTopSim extends App {
     )
 
     var allPass = true
+    // Task 57 Slice 3: per-slot fields moved to infoMem* — unpack via
+    // Mem.getBigInt. Layout per SpriteEvaluator.scala:
+    //   infoMemW0 (15 bits): {y[14:5], patIdxLow[4:1], enabled[0]}
+    //   infoMemW1 (10 bits): {x[9:0]}
+    //   infoMemW8 (14 bits): {patIdxHigh[13:12] (if PatIdxWidth>4), mask[11], bppSel[10:9],
+    //                          flipV[8], flipH[7], priority[6:5], paletteBank[4:2], sizeSel[1:0]}
     for (i <- 0 until 4) {
-      val en   = dut.spriteEval.regEnabled(i).toBoolean
-      val x    = dut.spriteEval.regX(i).toInt
-      val y    = dut.spriteEval.regY(i).toInt
-      val p    = dut.spriteEval.regPatternIndex(i).toInt
+      val w0 = dut.spriteEval.infoMemW0.getBigInt(i)
+      val w1 = dut.spriteEval.infoMemW1.getBigInt(i)
+      val w8 = dut.spriteEval.infoMemW8.getBigInt(i)
+      val en = ((w0 & 1) == 1)
+      val x  = (w1 & 0x3FF).toInt
+      val y  = ((w0 >> 5) & 0x3FF).toInt
+      val patLow  = ((w0 >> 1) & 0xF).toInt
+      val patHigh = ((w8 >> 12) & 0x3).toInt
+      val p = (patHigh << 4) | patLow
       val (expEn, expX, expY, expP) = expected(i)
       val slotOk = en == expEn && x == expX && y == expY && p == expP
       val status = if (slotOk) "PASS" else "FAIL"

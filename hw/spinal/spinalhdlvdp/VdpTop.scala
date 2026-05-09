@@ -1204,7 +1204,13 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // Gowin timing/resource reports show ample headroom. 4 legacy IO slots +
   // 28 bus-programmable extended slots.
   val spriteEval = SpriteEvaluator(
-    descCount      = 64,
+    // Task 57 (CyanPeak CORRECTED RULING #9605 = Path 5A): descCount 64 → 8
+    // as the final hardware discriminator. Diagnostic at descCount=16
+    // failed PnR (`PR0003`, 7539 unplaced REGs); #9601 corrects the prior
+    // false "fit" claim. Path 5A's 8-descriptor floor is the smallest
+    // meaningful sprite config; if this also fails PnR, CyanPeak's
+    // stop-line is Path 5D (sim-only closure per #9479 already in force).
+    descCount      = 8,
     // Sprite Envelope Hardening B-1 (CyanPeak #8577) — TIMING-BLOCKED
     // capacity bump. 32 blew the logic budget (51 k of 20.7 k); 16 ran
     // 1.06× over (21.9 k); 12 fit resource but missed timing by 2 ns
@@ -1218,7 +1224,7 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
     // mode reproduced when bumped to 64/32 directly. Blocker filed
     // — substrate redesign (shared pattern Mems / pipelined
     // compositor) required before capacity bump can land.
-    visiblePerLine = 32,
+    visiblePerLine = 8,   // Task 57 Path 5A (CyanPeak #9605): match descCount=8 floor
     patternSelBits = SpriteEvaluator.PatIdxWidth,   // Task 53 (#9419): 6 bits
     legacyIoCount  = 4)
   spriteEval.io.descX(0)          := io.sprite0X
@@ -1359,7 +1365,7 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // patternIndex is now 4 bits; the low bit selects pattern Mem 0 vs 1 for
   // this task. Wider pattern-Mem banks land in a future sprite-attribute
   // extension task (Task 37), so bits [3:1] are ignored here.
-  val NUM_SLOTS = 32  // Sprite Envelope Hardening B-1: capacity bump parked, fields-only landing
+  val NUM_SLOTS = 8  // Task 57 Path 5A (CyanPeak #9605): match evaluator visiblePerLine=8
 
   // === Task 2a Checkpoint 2 — Step 1 (PM #9244): SpriteRasterizer wired in
   // parallel to the existing per-slot pipeline. The rasterizer's drain

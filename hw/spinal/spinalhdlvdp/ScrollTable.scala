@@ -36,9 +36,8 @@ case class ScrollTable(
   }
 
   val mem = Mem(UInt(offsetWidth bits), entries)
-  // Explicit zero init so existing scenes remain bit-identical until
-  // the host programs the table.
-  mem.init(Seq.fill(entries)(U(0, offsetWidth bits)))
+  // Task 57 test: removed init to test SSRAM inference.
+  // Host must clear table before use.
 
   mem.write(address = io.wrAddr, data = io.wrData, enable = io.wr)
   io.rdData := mem.readAsync(io.rdAddr)

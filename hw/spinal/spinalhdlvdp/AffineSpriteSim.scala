@@ -78,17 +78,30 @@ object AffineSpriteSim extends App {
         assert(ok, s"regstore mismatch on $label")
       }
       val rel = 0
-      check("enabled",  if (dut.regEnabled(rel).toBoolean) 1 else 0, 1)
-      check("patIdx",   dut.regPatternIndex(rel).toInt, 2)
+      // Task 57 Slice 3: enabled/patIdx/x/y unpacked from info Mems.
+      val w0 = dut.infoMemW0.getBigInt(rel)
+      val w1 = dut.infoMemW1.getBigInt(rel)
+      val w8 = dut.infoMemW8.getBigInt(rel)
+      val enBit = ((w0 & 1) == 1)
+      val patLow = ((w0 >> 1) & 0xF).toInt
+      val patHigh = ((w8 >> 12) & 0x3).toInt
+      val patIdx = (patHigh << 4) | patLow
+      val xVal = (w1 & 0x3FF).toInt
+      val yVal = ((w0 >> 5) & 0x3FF).toInt
+      check("enabled",  if (enBit) 1 else 0, 1)
+      check("patIdx",   patIdx, 2)
       check("affine",   if (dut.regAffineEnable(rel).toBoolean) 1 else 0, 1)
-      check("x",        dut.regX(rel).toInt, sX)
-      check("y",        dut.regY(rel).toInt, sY)
-      check("matrixA",  dut.regMatrixA(rel).toInt, A)
-      check("matrixB",  dut.regMatrixB(rel).toInt, B)
-      check("matrixC",  dut.regMatrixC(rel).toInt, C)
-      check("matrixD",  dut.regMatrixD(rel).toInt, D)
-      check("transX",   dut.regTransX(rel).toInt, TX)
-      check("transY",   dut.regTransY(rel).toInt, TY)
+      check("x",        xVal, sX)
+      check("y",        yVal, sY)
+      // Task 57 Slice 2: matrix/trans state lives in Mems now. Sim
+      // probes via .getBigInt(rel) — Mem entries are simPublic on
+      // SpriteEvaluator.
+      check("matrixA",  dut.matAMem.getBigInt(rel).toInt & 0xFFFF, A)
+      check("matrixB",  dut.matBMem.getBigInt(rel).toInt & 0xFFFF, B)
+      check("matrixC",  dut.matCMem.getBigInt(rel).toInt & 0xFFFF, C)
+      check("matrixD",  dut.matDMem.getBigInt(rel).toInt & 0xFFFF, D)
+      check("transX",   dut.transXMem.getBigInt(rel).toInt & 0xFFFF, TX)
+      check("transY",   dut.transYMem.getBigInt(rel).toInt & 0xFFFF, TY)
 
       // Phase 2: kick off Pass-1 scan for a line covering sprite y=200.
       dut.io.evalLine  #= 205

@@ -62,6 +62,9 @@ case class BitplaneRowFetch(
   }
 
   // ---- Pixel-domain plane row storage ----
+  // Task 57: SpinalHDL auto-generates ram_style="distributed" for small
+  // Mems; this is sufficient for Gowin LUTRAM/SSRAM inference. Manual
+  // syn_ramstyle causes EX0200 "Property set invalid" and is stripped.
   val planeMems = Seq.fill(planeCount)(Mem(Bits(32 bits), readsPerPlane))
   for (p <- 0 until planeCount) {
     io.slotWord(p) := planeMems(p).readAsync(io.slotIdx)
