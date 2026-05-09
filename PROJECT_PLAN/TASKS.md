@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-07 (Task 53 DONE. Doc restructure Audit PASS #9433. Awaiting next lane authorization.)
+**Updated:** 2026-05-09 (Task 57 DONE. Task 54 ACTIVE — Checkpoint B. CyanPeak audit PASS #9620.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 57 — Substrate DFF Optimization** |
-| **Status** | **DONE** — Path 5A hardware proof PASS; bitstream produced |
-| **Phase** | closed |
-| **Latest Commit** | `fae0585` (Path 5A descCount=8 + Slice 2/3 Mem refactor) |
-| **Commits in lane** | `fae0585` |
-| **Latest Auth Mail** | #9605 (CyanPeak Path 5A ruling), #9601 (BrightForge correction) |
-| **Artifact** | `project.fs` at `fpga/tang20k/impl/pnr/project.fs` (7261998 bytes) |
-| **Next Deliverable** | N/A — lane closed |
+| **Task** | **Task 54 — Sprite-Sprite Collision Detector** |
+| **Status** | **IN-PROGRESS** — Checkpoint B (implementation + simulation + regression) |
+| **Phase** | Checkpoint B |
+| **Latest Commit** | `fae0585` (base — Task 57 closure, descCount=8 substrate) |
+| **Commits in lane** | (pending — BrightForge Checkpoint B proof packet expected) |
+| **Latest Auth Mail** | #9620 (CyanPeak Checkpoint A audit PASS), #9616 (BronzeGate lane open), #9619 (BrightForge Checkpoint A artifact) |
+| **Artifact** | Checkpoint A artifact: scope boundary + status surface defined (0x0322 `SPRITE_COLL_MASK`, 0x0320 bit 6 `SPRITE_SPRITE_HIT`) |
+| **Next Deliverable** | Checkpoint B proof packet (BrightForge): `SpriteSpriteCollisionSim.scala` Cases 1–5 + regression PASS |
 
-**Context:** Task 55 CLOSED per CyanPeak #9479. Task 57 opened per BronzeGate #9483. After multiple failed paths (Slice 1 insufficient, Slice 2 zero savings, Slice 3 + init removal still failing PnR), CyanPeak authorized **Path 5A** (`descCount=8, visiblePerLine=8, NUM_SLOTS=8`) as the final hardware discriminator. BrightForge implemented and **PnR PASSED** — first sprite-enabled bitstream since Task 2b. DFF utilization 44% (6834/15552), massive headroom. Sprite regression 11/11 PASS bit-identical.
+**Context:** Task 57 CLOSED per CyanPeak #9617. BronzeGate authorized Task 54 as next active lane (#9616). BrightForge submitted Checkpoint A artifact (#9619) defining implementation shape (per-pixel detection in rasterizer, 8-bit sticky mask, W1C) and status surface (smallest honest — no adapter-wide redesign). CyanPeak audited Checkpoint A PASS (#9620): coding authorized, line buffer must store `descriptorIndex`, evaluator `SlotPackedW` expansion approved. BrightForge now unblocked for Checkpoint B.
 
 ---
 
@@ -43,13 +43,16 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **OPEN** — awaits PM lane authorization |
+| **Status** | **IN-PROGRESS** — Checkpoint B (implementation + sim + regression) |
 | **Gap** | No pairwise sprite-sprite overlap detection. C64 `$D01E` requires detecting any pair of sprites overlapping. |
 | **Platforms helped** | C64 (primary); NES/Genesis (secondary) |
 | **Impact** | **Medium** — 1 primary platform; adapter-local enhancement |
-| **Risk/Complexity** | Medium. Combinational overlap detector for 32 sprites = 496 pairwise comparisons. Can optimize to bounding-box first, then pixel-precision for candidates. |
-| **Proof shape** | Sim: overlapping sprites set collision bits; non-overlapping sprites do not; status register readback correct |
+| **Risk/Complexity** | Medium. Per-pixel collision in sequential rasterizer via "check buffer before write" — honest for descCount=8 substrate. |
+| **Proof shape** | Sim: overlapping sprites set collision bits; non-overlapping sprites do not; W1C clears mask and sticky bit; regression PASS |
 | **Source assessment** | `ASSESSMENT.md` §5, §Gap 4 |
+| **Checkpoints** | A: implementation shape + status surface ✅ AUDIT PASS #9620; B: implement + sim + regression (BrightForge); C: audit + ledger sync |
+| **Coding authorized** | YES — #9616 |
+| **Depends on** | Task 53 DONE, Task 57 DONE |
 
 ---
 
