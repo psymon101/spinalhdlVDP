@@ -64,6 +64,12 @@ object VdpTopSim extends App {
     dut.io.layer0SdramPixel #= 0
     dut.io.layer0SdramBank #= 0
     dut.io.layer0SdramPriority #= false
+    // Task 56 L1 mux: tie off SDRAM inputs so uninitialized values don't
+    // corrupt the palette bank selection in Verilator.
+    dut.io.layer1UseSdram #= false
+    dut.io.layer1SdramPixel #= 0
+    dut.io.layer1SdramBank #= 0
+    dut.io.layer1SdramPriority #= false
     // R1 raster trigger defaults: disabled so VdpTopSim keeps its existing
     // pixel-level baseline behavior (no red-channel inversion).
     dut.io.rasterTriggerLine     #= 0
