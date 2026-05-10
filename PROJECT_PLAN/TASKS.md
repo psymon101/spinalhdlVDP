@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-10 (Task 54 DONE. Task 56 preflight ACTIVE — artifact pending audit.)
+**Updated:** 2026-05-10 (Task 54 DONE. Task 56 Checkpoint A landed; pending CyanPeak audit.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 56 — Multi-Layer SDRAM Fetch (Preflight Artifact)** |
-| **Status** | **PREFLIGHT** — artifact pending audit; coding NOT authorized |
-| **Phase** | Preflight artifact (#9673) |
-| **Latest Commit** | `00ae98e` (doc sync base) |
-| **Commits in lane** | (pending — preflight artifact + audit) |
-| **Latest Auth Mail** | #9673 (BronzeGate Task 56 preflight lane open), #9672 (CyanPeak Task 54 Checkpoint B audit PASS) |
-| **Artifact** | (pending — CoralReef preflight artifact) |
-| **Next Deliverable** | Task 56 preflight artifact (CoralReef): bounded first slice, proof shape, dependency statement |
+| **Task** | **Task 56 — Multi-Layer SDRAM Fetch** |
+| **Status** | **IN-PROGRESS** — Checkpoint A landed; awaiting CyanPeak audit |
+| **Phase** | Checkpoint A implementation + proof (#9685) |
+| **Latest Commit** | `93773d7` (Task 56 Checkpoint A: L0+L1 SDRAM scaffolding) |
+| **Commits in lane** | `93773d7` |
+| **Latest Auth Mail** | #9685 (BrightForge Checkpoint A proof), #9683 (CyanPeak preflight audit PASS), #9673 (BronzeGate lane open) |
+| **Artifact** | BrightForge #9685 / commit `93773d7` — L0+L1 scheduler scaffold + arbiter wiring + compositor mux |
+| **Next Deliverable** | CyanPeak audit PASS/HOLD/FAIL on Checkpoint A proof #9685 |
 
-**Context:** Task 54 CLOSED per CyanPeak #9672 (audit PASS on BrightForge #9625 / commit `e556ff5`). `SpriteSpriteCollisionSim` 5/5 PASS, regression 9/9 PASS bit-identical. BronzeGate authorized Task 56 preflight as next lane (#9673). Coding is NOT authorized for Task 56 implementation until preflight artifact is audited PASS.
+**Context:** Task 54 CLOSED per CyanPeak #9672 (audit PASS on BrightForge #9625 / commit `e556ff5`). `SpriteSpriteCollisionSim` 5/5 PASS, regression 9/9 PASS bit-identical. Task 56 preflight artifact audited PASS #9683; BrightForge landed Checkpoint A implementation in `93773d7` (#9685). Coding for Checkpoint B is NOT authorized until Checkpoint A audit PASS.
 
 ---
 
@@ -74,7 +74,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **PREFLIGHT** — artifact pending audit; coding NOT authorized (#9673) |
+| **Status** | **IN-PROGRESS** — Checkpoint A landed; awaiting CyanPeak audit (#9685) |
 | **Gap** | No SDRAM-backed fetch for background layers beyond L0. |
 | **Platforms helped** | Amiga, Genesis, SNES |
 | **Impact** | **Medium** — 3 platforms; deferred as "future task with its own stop-line review" |

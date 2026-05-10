@@ -1,6 +1,6 @@
 # PROJECT_PLAN.md
 
-**Updated:** 2026-05-07 (Task 55 active; Tasks 1–53 closed)
+**Updated:** 2026-05-10 (Task 54 DONE; Task 56 Checkpoint A IN-PROGRESS)
 **Purpose:** Entry point for the `PROJECT_PLAN/` documentation set. Read this file first, then read the other files in the order listed below.
 
 ---
@@ -40,7 +40,7 @@ The currently validated slice is:
 - Current visible hardware output: **SDRAM-backed Mode0 rendering** with tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control — 20+ hardware-proven scenarios
 - Current validated output path: Tang Nano 20K HDMI output captured via RTSP stream (`rtsp://192.168.1.95:8554/live`) and local webcam fallback
 
-Do not treat this repository as if it were still at the "empty stub" stage. Tasks 1–55 and all substrate hardening lanes are **DONE**. Task 57 is **DONE** (Path 5A PnR PASS #9617). The project is currently at **Task 54 — Sprite-Sprite Collision Detector** (Checkpoint B IN-PROGRESS per #9620, BrightForge proof packet #9625 pending CyanPeak audit).
+Do not treat this repository as if it were still at the "empty stub" stage. Tasks 1–55 and all substrate hardening lanes are **DONE**. Task 57 is **DONE** (Path 5A PnR PASS #9617). The project is currently at **Task 56 — Multi-Layer SDRAM Fetch** (Checkpoint A landed per BrightForge #9685 / commit `93773d7`; awaiting CyanPeak audit). Task 54 is DONE per CyanPeak #9672.
 
 ---
 
@@ -130,7 +130,8 @@ The current validated baseline is **past the entire mainline substrate construct
 
 **Current Checkpoint:**
 - **Task 57 — Substrate DFF Optimization:** **DONE** — Path 5A PnR PASS per CyanPeak #9617. descCount=8 substrate restores GW2AR-LV18 hardware-readiness.
-- **Task 54 — Sprite-Sprite Collision Detector:** **IN-PROGRESS** — Checkpoint B (implementation + sim + regression). BrightForge proof packet #9625 landed; awaiting CyanPeak audit.
+- **Task 54 — Sprite-Sprite Collision Detector:** **DONE** — CyanPeak audit PASS #9672. Commit `e556ff5`.
+- **Task 56 — Multi-Layer SDRAM Fetch:** **IN-PROGRESS** — Checkpoint A (L0+L1 scheduler scaffold + arbiter wiring + compositor mux). BrightForge proof packet #9685 landed; awaiting CyanPeak audit.
 
 **Previous lanes (all closed):**
 - #9026 Zero-Footprint ROM Elimination — DONE (#9142)
