@@ -157,6 +157,15 @@ Older closed tasks (Phase 1–8, R-Roadmap, sidecar lanes) are catalogued in `TA
 - When marking a task `IN-PROGRESS` or `DONE`, update the status field in this file.
 - Do not modify `depends_on` or `scope_boundary` fields without explicit instruction.
 
+### Deduplication Rule
+Before opening a new implementation lane, landing code, or sending a proof packet, verify the task ID does not already appear in:
+- `TASKS.md` Live Lane State, or
+- project mail from the last 48 hours.
+If the task is already in flight, halt and request a BronzeGate ruling.
+
+### Audit HOLD Iteration Limit
+If CyanPeak issues `HOLD` on a checkpoint, BrightForge may correct and resubmit once. A second `HOLD` on the same checkpoint scope must escalate to BronzeGate for re-scoping or closure. No third HOLD cycle without PM intervention.
+
 ---
 
 ## Lane-Open Packet Template
