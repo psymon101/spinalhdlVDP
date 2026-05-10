@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-10 (Task 54 DONE. Task 56 Checkpoint C landed; awaiting CyanPeak audit.)
+**Updated:** 2026-05-10 (Task 56 DONE per CyanPeak #9709. No active lane converged yet.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 56 — Multi-Layer SDRAM Fetch** |
-| **Status** | **IN-PROGRESS** — Checkpoint C landed; awaiting CyanPeak audit |
-| **Phase** | Checkpoint C implementation + proof (#9707) |
-| **Latest Commit** | `834c71e` (Task 56 Checkpoint C: scheduler slot retime + Cases 3-5 + L1-base FSM sim) |
-| **Commits in lane** | `93773d7`, `ee5820c`, `834c71e` |
-| **Latest Auth Mail** | #9707 (BrightForge Checkpoint C proof), #9699 (CyanPeak Checkpoint B audit PASS), #9697 (BrightForge Checkpoint B proof), #9689 (CyanPeak Checkpoint A audit PASS) |
-| **Artifact** | BrightForge #9707 / commit `834c71e` — scheduler retime + Cases 3-5 + TileAttributeFetchL1BaseSim |
-| **Next Deliverable** | CyanPeak audit PASS/HOLD/FAIL on Checkpoint C proof #9707 |
+| **Task** | *(none — next lane not yet converged)* |
+| **Status** | **NO ACTIVE LANE** — Task 56 closed per #9709; awaiting PM next-lane authorization |
+| **Phase** | — |
+| **Latest Commit** | — |
+| **Commits in lane** | — |
+| **Latest Auth Mail** | #9709 (CyanPeak Task 56 audit PASS / DONE), #9707 (BrightForge Checkpoint C proof) |
+| **Artifact** | — |
+| **Next Deliverable** | BronzeGate next-lane authorization or artifact |
 
-**Context:** Task 54 CLOSED per CyanPeak #9672 (audit PASS on BrightForge #9625 / commit `e556ff5`). `SpriteSpriteCollisionSim` 5/5 PASS, regression 9/9 PASS bit-identical. Task 56 preflight artifact audited PASS #9683; BrightForge landed Checkpoint A implementation in `93773d7` (#9685); CyanPeak audit PASS #9689; BrightForge landed Checkpoint B implementation in `ee5820c` (#9697); CyanPeak audit PASS #9699; BrightForge landed Checkpoint C implementation in `834c71e` (#9707). **Awaiting CyanPeak audit on Checkpoint C.**
+**Context:** Task 54 CLOSED per CyanPeak #9672 (audit PASS on BrightForge #9625 / commit `e556ff5`). `SpriteSpriteCollisionSim` 5/5 PASS, regression 9/9 PASS bit-identical. Task 56 preflight artifact audited PASS #9683; BrightForge landed Checkpoint A implementation in `93773d7` (#9685); CyanPeak audit PASS #9689; BrightForge landed Checkpoint B implementation in `ee5820c` (#9697); CyanPeak audit PASS #9699; BrightForge landed Checkpoint C implementation in `834c71e` (#9707); **CyanPeak audit PASS #9709**. Task 56 DONE. No next lane converged in docs per BronzeGate #9721.
 
 ---
 
@@ -74,7 +74,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **IN-PROGRESS** — Checkpoint C landed; awaiting CyanPeak audit (#9707) |
+| **Status** | **DONE** — CyanPeak audit PASS #9709 on commit `834c71e`. Sim-only contract fulfilled. |
 | **Gap** | No SDRAM-backed fetch for background layers beyond L0. |
 | **Platforms helped** | Amiga, Genesis, SNES |
 | **Impact** | **Medium** — 3 platforms; deferred as "future task with its own stop-line review" |
@@ -122,6 +122,7 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 
 | Task | Status | Closeout Mail | Archive Artifact |
 |---|---|---|---|
+| Task 56 — Multi-Layer SDRAM Fetch | **DONE** | #9709 | Commits `93773d7`, `ee5820c`, `834c71e` |
 | Task 54 — Sprite-Sprite Collision Detector | **DONE** | #9672 | Commit `e556ff5` |
 | Task 57 — Substrate DFF Optimization | **DONE** | #9605 | Commit `fae0585`, `impl/pnr/project.fs` |
 | Task 53 — Sprite Pattern Address Width Expansion | **DONE** | #9433 | `artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` |
