@@ -38,6 +38,15 @@ object TileAttributeAssets {
   val AttributeMapBase = 0x7000
   val TileRowBase      = 0x8000
 
+  // Task 56 Checkpoint A — L1 SDRAM layout (artifact #9678, audit PASS #9683).
+  // Disjoint from L0 (above), Planar (0xA000/0xB000) and Bitmap (0x3000/0x4000).
+  // L1 reuses the L0 tile-row pool addressing convention (16 rows × 8 bytes
+  // per tile) so the existing SdramTileAttributeFetch FSM can be reused for
+  // L1 unchanged when its base addresses are switched to these constants.
+  val L1TileMapBase      = 0xC000
+  val L1AttributeMapBase = 0xD000
+  val L1TileRowBase      = 0xE000
+
   // --- Palette geometry ------------------------------------------------------
   val PaletteBankBits = 3
   val PaletteBanks    = 1 << PaletteBankBits        // 8

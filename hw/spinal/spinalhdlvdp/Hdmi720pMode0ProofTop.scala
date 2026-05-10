@@ -120,6 +120,13 @@ case class Hdmi720pMode0ProofTop() extends Component {
       video.io.layer0TestPatternEnable := True
       video.io.layer0TestPatternSelect := U(6, 3 bits)   // grid (#8496 proof scene)
 
+      // Task 56 Checkpoint A — L1 SDRAM scaffolding tied off (no L1 fetch
+      // engine here; this top is a pure test-pattern proof rig).
+      video.io.layer1UseSdram      := False
+      video.io.layer1SdramPixel    := B(0, 4 bits)
+      video.io.layer1SdramBank     := U(0, 3 bits)
+      video.io.layer1SdramPriority := False
+
       // RegBus tied off — LAYER_ENABLE keeps its hardware default (0b00111).
       // L0 (test-pattern) renders; L1 has no SDRAM data driving it; sprites
       // are disabled via direct sprite-enable inputs below. If L1 produces

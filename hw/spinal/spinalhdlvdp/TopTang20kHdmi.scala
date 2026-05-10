@@ -1487,6 +1487,16 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
     video.io.layer0TestPatternEnable := False
     video.io.layer0TestPatternSelect := U(0, 3 bits)
 
+    // Task 56 Checkpoint A — L1 SDRAM inputs tied off; Checkpoint B will
+    // wire these to a second SdramTileAttributeFetch instance routed to
+    // sdramArbiter clientId=3 (per CyanPeak audit #9683). Stubbing off
+    // here keeps the existing on-chip BasicPatternSource L1 path
+    // bit-identical to pre-Task-56 behaviour.
+    video.io.layer1UseSdram      := False
+    video.io.layer1SdramPixel    := B(0, 4 bits)
+    video.io.layer1SdramBank     := U(0, 3 bits)
+    video.io.layer1SdramPriority := False
+
     // R1 Raster Trigger Unit — Task 34 Checkpoint C uses this as a host-
     // visible vblank indicator. Trigger fires on line 480 (first line of
     // vertical blanking in 640x480@60 timing) so host polling of
@@ -1828,7 +1838,13 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
                               (sdramArbiter.io.grantClientId === U(2, sdramArbiter.idBits bits))
   pixelArea.video.io.planarSdramDataReady := planarDataReadyNative
   pixelArea.video.io.planarSdramDout32    := sdramArea.ctrl.io.dout32
-  // Client 3 — reserved.
+  // Task 56 Checkpoint A — Client 3 reserved for the L1 SdramTileAttributeFetch
+  // engine that lands in Checkpoint B (artifact #9678, audit PASS #9683;
+  // CyanPeak's clientId=3 correction noted — clientId=1 is occupied by
+  // bitmapRowFetch, so the L1 fetch engine takes the free slot 3).
+  // Stubbed off until Checkpoint B instantiates the engine; the L1 schedule
+  // already exists on the FetchSlotScheduler (slots 3/4, gated False) so
+  // this client port stays inert from the arbiter's perspective.
   sdramArbiter.io.clientRd(3)   := False
   sdramArbiter.io.clientWr(3)   := False
   sdramArbiter.io.clientAddr(3) := U(0, 23 bits)

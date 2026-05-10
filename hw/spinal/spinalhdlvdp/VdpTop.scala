@@ -102,6 +102,22 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
     // available regardless of fetch-engine state).
     val layer0TestPatternSelect = in UInt(3 bits)
     val layer0TestPatternEnable = in Bool()
+
+    // Task 56 Checkpoint A — L1 SDRAM source interface (mirrors L0).
+    //
+    // Coding authorized per CyanPeak audit PASS #9683 on artifact #9678.
+    // CyanPeak's correction: L1 fetch engine uses sdramArbiter clientId=3
+    // (clientId=1 is occupied by Task 44b bitmapRowFetch).
+    //
+    // For Checkpoint A only the *plumbing* lands: VdpTop accepts the
+    // L1 SDRAM inputs and muxes them into the compositor in place of
+    // (or alongside) the existing on-chip BasicPatternSource L1 path.
+    // Top-level ties these inputs to default-off until Checkpoint B
+    // instantiates the second SdramTileAttributeFetch engine.
+    val layer1UseSdram          = in Bool()
+    val layer1SdramPixel        = in Bits(4 bits)
+    val layer1SdramBank         = in UInt(3 bits)
+    val layer1SdramPriority     = in Bool()
     // R4: scheduler outputs exposed so the top-level can wire them into the
     // new SdramTileAttributeFetch engine (which accepts grant / slotValid /
     // preAnnounce instead of the legacy level-based fetchStart).
@@ -957,7 +973,32 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // flight straddle the slot boundary.
   scheduler.io.schedule(2).startH   := U(hTotal - 160, 10 bits)
   scheduler.io.schedule(2).endH     := U(hTotal - 1,   10 bits)
-  for (i <- 3 until 8) {
+  // Task 56 Checkpoint A — L1 fetch slots reserved on the scheduler
+  // (clientId=3, per CyanPeak audit #9683 correction). Bandwidth plan
+  // per artifact #9678:
+  //   slot 3 (start):  hTotal-1   (single-cycle grant edge to start FSM)
+  //   slot 4 (burst):  [400, hTotal-1]   (continuous bandwidth window)
+  // Slots 0/1 still cover [hTotal-1] start and [0..hTotal-1] burst for
+  // L0; FetchSlotScheduler resolves overlap by lowest-slot-index wins,
+  // which gives Planar (slot 2) > L0 (slots 0/1) > L1 (slots 3/4) —
+  // matches the audit-confirmed priority ranking. L1 FSM stalls in Rq
+  // states during higher-priority overlap and resumes when slot 4 is
+  // again exclusive.
+  //
+  // `enabled` is held False until the L1 SdramTileAttributeFetch
+  // instance lands in Checkpoint B; at that point a new
+  // `layer1FetchEnable` signal will gate this the same way Task 3
+  // gates planar slot 2 on `planarFetchEnable`.
+  val layer1FetchEnable = False   // Checkpoint B: replace with real gate
+  scheduler.io.schedule(3).enabled  := layer1FetchEnable
+  scheduler.io.schedule(3).clientId := U(3, 2 bits)
+  scheduler.io.schedule(3).startH   := U(hTotal - 1, 10 bits)
+  scheduler.io.schedule(3).endH     := U(hTotal - 1, 10 bits)
+  scheduler.io.schedule(4).enabled  := layer1FetchEnable
+  scheduler.io.schedule(4).clientId := U(3, 2 bits)
+  scheduler.io.schedule(4).startH   := U(400,        10 bits)
+  scheduler.io.schedule(4).endH     := U(hTotal - 1, 10 bits)
+  for (i <- 5 until 8) {
     scheduler.io.schedule(i).enabled  := False
     scheduler.io.schedule(i).clientId := U(0, 2 bits)
     scheduler.io.schedule(i).startH   := U(0, 10 bits)
@@ -1158,7 +1199,17 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   val effectiveL3Enable = layerEnableReg(4)
   val layer0Pixel = Mux(effectiveL0Enable, layer0Index, B(0, 4 bits))
   val layer0PrioGated = effectiveL0Enable && layer0Prio
-  val layer1Pixel = Mux(effectiveL1Enable, layer1.io.pixelIndex.resize(4), B(0, 4 bits))
+  // Task 56 Checkpoint A — L1 source mux. When `layer1UseSdram` is
+  // asserted (driven by the L1 fetch engine in Checkpoint B), L1 takes
+  // its pixel/bank/priority from the SDRAM-backed inputs; otherwise the
+  // existing on-chip BasicPatternSource L1 path is preserved
+  // bit-identically.  Compositor priority logic (L3 > L2 > L1 > L0) is
+  // unchanged per artifact #9678 / audit #9683.
+  val layer1Index = Mux(io.layer1UseSdram, io.layer1SdramPixel, layer1.io.pixelIndex.resize(4))
+  val layer1Bank  = Mux(io.layer1UseSdram, io.layer1SdramBank,  U(0, 3 bits))
+  val layer1Prio  = Mux(io.layer1UseSdram, io.layer1SdramPriority, False)
+
+  val layer1Pixel = Mux(effectiveL1Enable, layer1Index, B(0, 4 bits))
   val layer2Pixel = Mux(effectiveL2Enable, layer2.io.pixelIndex.resize(4), B(0, 4 bits))
   val layer3Pixel = Mux(effectiveL3Enable, layer3.io.pixelIndex.resize(4), B(0, 4 bits))
 
@@ -1189,7 +1240,10 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
     composedBgSource := U(PixelMetadata.SourceBG2, 3 bits)
   }.elsewhen(layer1Opaque) {
     composedBgIdx    := layer1Pixel
-    composedBgBank   := U(0, 3 bits)
+    // Task 56 — when L1 is fed by SDRAM the bank can be non-zero (4×16
+    // colour banks of L0 mirror); falls back to bank 0 for the existing
+    // on-chip BasicPatternSource path (bit-identical pre-Task-56).
+    composedBgBank   := layer1Bank
     composedBgSource := U(PixelMetadata.SourceBG1, 3 bits)
   }.otherwise {
     composedBgIdx    := layer0Pixel
