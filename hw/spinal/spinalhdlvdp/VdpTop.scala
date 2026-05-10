@@ -952,6 +952,11 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // and remain available for future clients (e.g. sprite-to-SDRAM) without
   // further structural change.
   val scheduler = FetchSlotScheduler(slotCount = 8)
+  // Task 56 Checkpoint C: simPublic mirror so MultiLayerSdramFetchSim
+  // Cases 4-5 can observe per-line slot-grant counts (proves L1 slot 3
+  // fires after the CP-C scheduler retime and planar slot 2 coexists).
+  val schedulerLineGrantCount = CombInit(scheduler.io.lineGrantCount).simPublic()
+  val schedulerGrantClientId  = CombInit(scheduler.io.grantClientId).simPublic()
   scheduler.io.hCounter  := hCounter.resize(10)
   scheduler.io.lineStart := hCounter === 0
   // R4.1: multi-slot schedule for clientId=0 (tile+attribute fetch). Three
@@ -974,7 +979,11 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   scheduler.io.schedule(1).enabled  := True
   scheduler.io.schedule(1).clientId := U(0, 2 bits)
   scheduler.io.schedule(1).startH   := U(0, 10 bits)
-  scheduler.io.schedule(1).endH     := U(hTotal - 1, 10 bits)
+  // Task 56 Checkpoint C (#9678 §1 Resolution): narrow L0 burst window from
+  // [0, hTotal-1] to [0, 399] so L1 burst slot 4 [400, hTotal-1] is exclusive
+  // for clientId=3. L0 needs ~656 SDRAM cycles for 41 tiles ≈ 164 pixel cycles,
+  // so 400 pixel cycles still gives ~2.4× margin (per artifact bandwidth table).
+  scheduler.io.schedule(1).endH     := U(399, 10 bits)
   // Task 3 (Checkpoint A #9313): slot 2 dedicated to PlanarLineFetch
   // (clientId=2), gated on planarFetchEnable. Window covers H-blank
   // adjacent so 50 × dout32 reads for 5-plane × 320-pixel rows can be
@@ -1018,10 +1027,13 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // [0, 399] and move L1 start slot to h=400 per artifact #9678 §1
   // "Resolution" plan. CP-B only proves the integration plumbing.
   val layer1FetchEnable = io.layer1UseSdram
+  // Task 56 Checkpoint C (#9678 §1 Resolution): L1 start slot moved from
+  // hTotal-1 (collided with L0 slot 0) to h=400 so it now lands inside the
+  // freed L0 [400, hTotal-1] window. Slot 4 burst window unchanged.
   scheduler.io.schedule(3).enabled  := layer1FetchEnable
   scheduler.io.schedule(3).clientId := U(3, 2 bits)
-  scheduler.io.schedule(3).startH   := U(hTotal - 1, 10 bits)
-  scheduler.io.schedule(3).endH     := U(hTotal - 1, 10 bits)
+  scheduler.io.schedule(3).startH   := U(400, 10 bits)
+  scheduler.io.schedule(3).endH     := U(400, 10 bits)
   scheduler.io.schedule(4).enabled  := layer1FetchEnable
   scheduler.io.schedule(4).clientId := U(3, 2 bits)
   scheduler.io.schedule(4).startH   := U(400,        10 bits)
@@ -1290,8 +1302,11 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   val layer1Opaque = layer1Pixel =/= B(0, 4 bits)
   val layer2Opaque = layer2Pixel =/= B(0, 4 bits)
   val layer3Opaque = layer3Pixel =/= B(0, 4 bits)
-  val composedBgIdx    = Bits(4 bits)
-  val composedBgBank   = UInt(3 bits)
+  // Task 56 Checkpoint C: simPublic so MultiLayerSdramFetchSim Cases 3-5
+  // can observe the compositor's actual mux output (proves L1>L0 opaque
+  // priority and bank propagation under both-active workload).
+  val composedBgIdx    = Bits(4 bits).simPublic()
+  val composedBgBank   = UInt(3 bits).simPublic()
   val composedBgSource = UInt(3 bits)   // feeds fillMeta.layerSource
   when(layer0PrioGated && layer0Opaque) {
     composedBgIdx    := layer0Pixel

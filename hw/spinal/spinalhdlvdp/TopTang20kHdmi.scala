@@ -1501,9 +1501,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
       tileMapBaseAddr          = TileAttributeAssets.L1TileMapBase,
       attributeMapBaseAddr     = TileAttributeAssets.L1AttributeMapBase,
       tileRowBaseAddr          = TileAttributeAssets.L1TileRowBase,
-      tileMapBytesOverride     = Some(TileAttributeAssets.l1TileMapBytesInit),
-      attributeMapBytesOverride = Some(TileAttributeAssets.l1AttributeMapBytesInit),
-      tileRowBytesOverride     = Some(TileAttributeAssets.l1TileRowBytesInit),
+      tileMapBytesOverride      = Some(() => TileAttributeAssets.l1TileMapBytesInit),
+      attributeMapBytesOverride = Some(() => TileAttributeAssets.l1AttributeMapBytesInit),
+      tileRowBytesOverride      = Some(() => TileAttributeAssets.l1TileRowBytesInit),
       bootPlanarAssets         = false,
       runMemtest               = false
     )

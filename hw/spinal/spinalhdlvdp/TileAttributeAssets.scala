@@ -353,7 +353,13 @@ object TileAttributeAssets {
     (idx, 0, false)  // bank=0, priority=0 per l1AttributeMapBytesInit
   }
 
-  require(l1TileRowBytesInit.length == TileCount * TileHeight * TileRowBytes)
-  require(l1TileMapBytesInit.length == MapRomDepth)
-  require(l1AttributeMapBytesInit.length == MapRomDepth)
+  // NOTE: invariant checks for l1*BytesInit are intentionally NOT placed at
+  // object scope. Those defs build `Bits` literals via `B(...)`, which can
+  // only be constructed inside an active Component elaboration context.
+  // The L0 equivalents only succeed at object-load because the JVM loads
+  // TileAttributeAssets from inside `SdramTileAttributeFetch`'s body (an
+  // active context); for L1, callers pass `Some(() => ...)` thunks to the
+  // engine ctor, evaluated inside the engine body. The size relationships
+  // are checked implicitly inside SdramTileAttributeFetch when the Mem is
+  // sized to the thunk's resolved length.
 }

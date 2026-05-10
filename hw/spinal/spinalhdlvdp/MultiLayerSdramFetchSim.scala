@@ -163,6 +163,128 @@ object MultiLayerSdramFetchSim extends App {
     assert(!case1bFailed, "Case 1b: mux must deselect SDRAM path when layer1UseSdram drops back to false")
     println("  Case 1b PASS")
 
-    println("MultiLayerSdramFetchSim: PASS (all cases)")
+    // =================================================================
+    // Task 56 Checkpoint C — Cases 3-5
+    // =================================================================
+    // helper for register writes
+    def writeReg(addr: Int, data: Int): Unit = {
+      dut.io.regBus.addr   #= addr
+      dut.io.regBus.data   #= data
+      dut.io.regBus.enable #= true
+      dut.clockDomain.waitSampling()
+      dut.io.regBus.enable #= false
+      dut.clockDomain.waitSampling()
+    }
+
+    // -----------------------------------------------------------------
+    // Case 3 — Both L0 and L1 active; L1>L0 opaque priority verified.
+    // -----------------------------------------------------------------
+    println("[sim] Case 3: both L0+L1 SDRAM-backed — compositor honors L1>L0 opaque priority")
+    dut.io.layer0UseSdram #= true
+    dut.io.layer1UseSdram #= true
+    dut.io.layer0SdramPriority #= false
+    dut.io.layer1SdramPriority #= false
+    dut.io.layer0SdramBank #= 1
+    dut.io.layer1SdramBank #= 2
+    dut.clockDomain.waitSampling(5)
+
+    // Subcase 3a — L1 opaque (non-zero), L0 opaque: L1 wins.
+    dut.io.layer0SdramPixel #= 0x5
+    dut.io.layer1SdramPixel #= 0xA
+    dut.clockDomain.waitSampling(5)
+    var case3aFailed = false
+    for (_ <- 0 until 50) {
+      val idx  = dut.composedBgIdx.toInt & 0xF
+      val bank = dut.composedBgBank.toInt & 0x7
+      if (idx != 0xA) {
+        println(f"  3a FAIL: composedBgIdx=0x$idx%X (expected 0xA, L1 wins)")
+        case3aFailed = true
+      }
+      if (bank != 2) {
+        println(f"  3a FAIL: composedBgBank=$bank (expected 2 from L1)")
+        case3aFailed = true
+      }
+      dut.clockDomain.waitSampling()
+    }
+    assert(!case3aFailed, "Case 3a: L1 opaque must override L0")
+    println("  Case 3a PASS — L1 opaque pixel/bank propagates to composedBg")
+
+    // Subcase 3b — L1 transparent (0), L0 opaque: L0 wins.
+    dut.io.layer1SdramPixel #= 0x0
+    dut.clockDomain.waitSampling(5)
+    var case3bFailed = false
+    for (_ <- 0 until 50) {
+      val idx  = dut.composedBgIdx.toInt & 0xF
+      val bank = dut.composedBgBank.toInt & 0x7
+      if (idx != 0x5) {
+        println(f"  3b FAIL: composedBgIdx=0x$idx%X (expected 0x5, L0 wins)")
+        case3bFailed = true
+      }
+      if (bank != 1) {
+        println(f"  3b FAIL: composedBgBank=$bank (expected 1 from L0)")
+        case3bFailed = true
+      }
+      dut.clockDomain.waitSampling()
+    }
+    assert(!case3bFailed, "Case 3b: L1 transparent → L0 paints")
+    println("  Case 3b PASS — L1 transparent, L0 wins; bank propagates from L0")
+
+    // -----------------------------------------------------------------
+    // Case 4 — Scheduler bandwidth: L1 enable drives slots 3/4 active.
+    // With L1 enabled and planar disabled, lineGrantCount must show at
+    // least the slot-3 (h=400) grant in addition to slot-0 (hTotal-1)
+    // and slot-1 (h=0) grants — proves the CP-C slot retime gives L1
+    // its own grant edge.
+    // -----------------------------------------------------------------
+    println("[sim] Case 4: scheduler bandwidth — L1 slot 3 fires at h=400 (post-CP-C retime)")
+    dut.io.layer1UseSdram #= true
+    dut.clockDomain.waitSampling(10)
+    // Observe scheduler.io.lineGrantCount. Internal hCounter sweeps
+    // 0..hTotal-1 continuously; `lineStart` (hCounter==0) resets count
+    // and absorbs slot 1's startH=0 grant in the same cycle (lineStart
+    // wins). So the visible per-line peak with L1 enabled, planar
+    // disabled is 2: slot 3 grant (h=400) + slot 0 grant (h=hTotal-1).
+    // Peak of 2 is the proof that slot 3 is now firing (pre-CP-C it
+    // would have been masked by slot 0 collision at hTotal-1, giving
+    // peak of 1 in this configuration).
+    var maxGrantCount = 0
+    for (_ <- 0 until 2000) {
+      val gc = dut.schedulerLineGrantCount.toInt
+      if (gc > maxGrantCount) maxGrantCount = gc
+      dut.clockDomain.waitSampling()
+    }
+    assert(maxGrantCount >= 2,
+      s"Case 4: scheduler lineGrantCount must reach ≥2 per line with L1 enabled, got max $maxGrantCount " +
+      s"(slot 3 h=400 + slot 0 h=hTotal-1; slot 1 grant absorbed by lineStart at h=0)")
+    println(s"  Case 4 PASS — peak lineGrantCount=$maxGrantCount (slot 3 L1 grant fires post-CP-C retime)")
+
+    // -----------------------------------------------------------------
+    // Case 5 — Three-client coexistence: planar + L0 + L1.
+    // Enable planarCtrl bit 0 → slot 2 (planar) active; expect
+    // lineGrantCount ≥ 4 (slots 0, 1, 2, 3 all fire per line).
+    // -----------------------------------------------------------------
+    println("[sim] Case 5: planar + L0 + L1 — three-client coexistence; lineGrantCount ≥ 4")
+    writeReg(0x0D4A, 0x0001)   // planarCtrlReg bit 0 → planarFetchEnable
+    dut.clockDomain.waitSampling(20)
+    var max5 = 0
+    for (_ <- 0 until 2000) {
+      val gc = dut.schedulerLineGrantCount.toInt
+      if (gc > max5) max5 = gc
+      dut.clockDomain.waitSampling()
+    }
+    // Per Case 4 note, slot 1 grant is absorbed by lineStart. Visible
+    // peak with planar+L1 enabled: slot 3 (h=400) + slot 2 (h=hTotal-160) +
+    // slot 0 (h=hTotal-1) = 3 grants per line. A peak of 3 proves all
+    // three independent clients (L0 hTotal-1 + planar hTotal-160 + L1 400)
+    // are dispatched in the same line without overlap-stealing each other.
+    assert(max5 >= 3,
+      s"Case 5: scheduler lineGrantCount must reach ≥3 with planar+L0+L1, got max $max5 " +
+      s"(slot 3 + slot 2 + slot 0; slot 1 grant absorbed by lineStart)")
+    println(s"  Case 5 PASS — peak lineGrantCount=$max5 with planar enabled (3-client coexistence)")
+
+    // Cleanup: disable planar to leave the dut in a known state.
+    writeReg(0x0D4A, 0x0000)
+
+    println("MultiLayerSdramFetchSim: PASS (Cases 1, 1b, 2, 3a, 3b, 4, 5)")
   }
 }

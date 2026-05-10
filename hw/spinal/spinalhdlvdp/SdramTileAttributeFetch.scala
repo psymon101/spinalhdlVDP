@@ -33,9 +33,12 @@ case class SdramTileAttributeFetch(
     tileMapBaseAddr: Int = TileAttributeAssets.TileMapBase,
     attributeMapBaseAddr: Int = TileAttributeAssets.AttributeMapBase,
     tileRowBaseAddr: Int = TileAttributeAssets.TileRowBase,
-    tileMapBytesOverride: Option[Seq[Bits]] = None,
-    attributeMapBytesOverride: Option[Seq[Bits]] = None,
-    tileRowBytesOverride: Option[Seq[Bits]] = None,
+    // Overrides take a thunk so the `Bits` literals are built inside the
+    // engine's Component body (active elaboration context) rather than at
+    // the call site where no context exists yet.
+    tileMapBytesOverride: Option[() => Seq[Bits]] = None,
+    attributeMapBytesOverride: Option[() => Seq[Bits]] = None,
+    tileRowBytesOverride: Option[() => Seq[Bits]] = None,
     bootPlanarAssets: Boolean = true,
     runMemtest: Boolean = true
 ) extends Component {
@@ -282,9 +285,9 @@ case class SdramTileAttributeFetch(
     // recovers the BSRAM/LUT footprint. Length-only declarations match the
     // original depths so any unintended access reads as zero rather than
     // failing build.
-    val tileMapInit = tileMapBytesOverride.getOrElse(TileAttributeAssets.tileMapBytesInit)
-    val attrMapInit = attributeMapBytesOverride.getOrElse(TileAttributeAssets.attributeMapBytesInit)
-    val tileRowInit = tileRowBytesOverride.getOrElse(TileAttributeAssets.tileRowBytesInit)
+    val tileMapInit = tileMapBytesOverride.map(_()).getOrElse(TileAttributeAssets.tileMapBytesInit)
+    val attrMapInit = attributeMapBytesOverride.map(_()).getOrElse(TileAttributeAssets.attributeMapBytesInit)
+    val tileRowInit = tileRowBytesOverride.map(_()).getOrElse(TileAttributeAssets.tileRowBytesInit)
     val tileMapRom  = if (skipSdramInit) Mem(Bits(8 bits), tileMapInit.length)
                       else              Mem(Bits(8 bits), initialContent = tileMapInit)
     val attrMapRom  = if (skipSdramInit) Mem(Bits(8 bits), attrMapInit.length)
