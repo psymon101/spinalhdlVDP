@@ -2,8 +2,32 @@
 
 **Version:** 1.0-draft  
 **Author:** CoralReef  
-**Date:** 2026-05-07  
+**Date:** 2026-05-10 (Task 54 closure added)  
 **Purpose:** Deep historical record for closed lanes, extended task writeups, and archived execution detail. `TASKS.md` remains the sole active task authority; this file is reference only.
+
+---
+
+### Task 54 — Sprite-Sprite Collision Detector (CLOSED)
+
+| Field | Value |
+|---|---|
+| **Task** | Task 54 — Sprite-Sprite Collision Detector |
+| **Status** | **DONE** — CyanPeak audit PASS #9672; sim-only proof |
+| **Phase** | closed |
+| **Owner** | BrightForge (implementation + proof), CyanPeak (audit PASS), CoralReef (ledger sync) |
+| **Baseline Commit** | `fae0585` (Task 57 closure, descCount=8 substrate) |
+| **Commits in lane** | `e556ff5` (Implementation + SpriteSpriteCollisionSim) |
+| **Latest Auth Mail** | #9616 (Lane Open), #9620 (CP Checkpoint A PASS), #9625 (BF proof), #9672 (CP audit PASS) |
+| **Proof** | `SpriteSpriteCollisionSim` 5/5 cases PASS (non-overlap, two-overlap, three-overlap, W1C, lone-sprite). Regression 9/9 PASS bit-identical. |
+| **Next Deliverable** | N/A — Task 54 closed |
+
+**Scope:** Pairwise sprite-sprite overlap detection for active/visible sprites. Host-visible sticky mask at `0x0322` (`SPRITE_COLL_MASK`, 8-bit per-descriptor, W1C) and rollup bit in `STATUS_STICKY` @ `0x0320[6]` (`SPRITE_SPRITE_HIT`).
+
+**Implementation:** The `SpriteRasterizer` line-buffer was widened from 10 → 16 bits to store the `descriptorIndex` of the writing sprite. Write-time collision is detected by asynchronously reading the buffer's existing entry before overwriting; if both current and existing pixels are non-transparent, a collision event for both descriptor IDs is emitted. This architecture correctly accumulates all participating sprites in a multi-way overlap due to the reverse-iteration draw order.
+
+**Resource Impact:** Widening the line buffer (640 × 16 bits × 2 banks) added ~7,680 bits (~1.14 BSRAMs). DFF impact was negligible. Headroom remains >50% (BSRAM: 23/46 at descCount=8).
+
+**Out of scope held:** No widening of the C64 adapter `$D01E` shadow plumbing in this lane. The underlying mask register is host-readable via `io.spriteCollMask`; full adapter-side wiring is deferred to a follow-on if needed.
 
 ---
 

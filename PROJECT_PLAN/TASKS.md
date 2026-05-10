@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-09 (Task 57 DONE. Task 54 ACTIVE — Checkpoint B. CyanPeak audit PASS #9620.)
+**Updated:** 2026-05-10 (Task 54 DONE. Task 56 preflight ACTIVE — artifact pending audit.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Task 54 — Sprite-Sprite Collision Detector** |
-| **Status** | **IN-PROGRESS** — Checkpoint B (implementation + simulation + regression) |
-| **Phase** | Checkpoint B |
-| **Latest Commit** | `fae0585` (base — Task 57 closure, descCount=8 substrate) |
-| **Commits in lane** | (pending — BrightForge Checkpoint B proof packet expected) |
-| **Latest Auth Mail** | #9620 (CyanPeak Checkpoint A audit PASS), #9616 (BronzeGate lane open), #9619 (BrightForge Checkpoint A artifact) |
-| **Artifact** | Checkpoint A artifact: scope boundary + status surface defined (0x0322 `SPRITE_COLL_MASK`, 0x0320 bit 6 `SPRITE_SPRITE_HIT`) |
-| **Next Deliverable** | Checkpoint B proof packet (BrightForge): `SpriteSpriteCollisionSim.scala` Cases 1–5 + regression PASS |
+| **Task** | **Task 56 — Multi-Layer SDRAM Fetch (Preflight Artifact)** |
+| **Status** | **PREFLIGHT** — artifact pending audit; coding NOT authorized |
+| **Phase** | Preflight artifact (#9673) |
+| **Latest Commit** | `00ae98e` (doc sync base) |
+| **Commits in lane** | (pending — preflight artifact + audit) |
+| **Latest Auth Mail** | #9673 (BronzeGate Task 56 preflight lane open), #9672 (CyanPeak Task 54 Checkpoint B audit PASS) |
+| **Artifact** | (pending — CoralReef preflight artifact) |
+| **Next Deliverable** | Task 56 preflight artifact (CoralReef): bounded first slice, proof shape, dependency statement |
 
-**Context:** Task 57 CLOSED per CyanPeak #9617. BronzeGate authorized Task 54 as next active lane (#9616). BrightForge submitted Checkpoint A artifact (#9619) defining implementation shape (per-pixel detection in rasterizer, 8-bit sticky mask, W1C) and status surface (smallest honest — no adapter-wide redesign). CyanPeak audited Checkpoint A PASS (#9620): coding authorized, line buffer must store `descriptorIndex`, evaluator `SlotPackedW` expansion approved. BrightForge now unblocked for Checkpoint B.
+**Context:** Task 54 CLOSED per CyanPeak #9672 (audit PASS on BrightForge #9625 / commit `e556ff5`). `SpriteSpriteCollisionSim` 5/5 PASS, regression 9/9 PASS bit-identical. BronzeGate authorized Task 56 preflight as next lane (#9673). Coding is NOT authorized for Task 56 implementation until preflight artifact is audited PASS.
 
 ---
 
@@ -43,14 +43,14 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **IN-PROGRESS** — Checkpoint B (implementation + sim + regression) |
+| **Status** | **DONE** — CyanPeak audit PASS #9672; sim-only proof per #9620 |
 | **Gap** | No pairwise sprite-sprite overlap detection. C64 `$D01E` requires detecting any pair of sprites overlapping. |
 | **Platforms helped** | C64 (primary); NES/Genesis (secondary) |
 | **Impact** | **Medium** — 1 primary platform; adapter-local enhancement |
 | **Risk/Complexity** | Medium. Per-pixel collision in sequential rasterizer via "check buffer before write" — honest for descCount=8 substrate. |
 | **Proof shape** | Sim: overlapping sprites set collision bits; non-overlapping sprites do not; W1C clears mask and sticky bit; regression PASS |
 | **Source assessment** | `ASSESSMENT.md` §5, §Gap 4 |
-| **Checkpoints** | A: implementation shape + status surface ✅ AUDIT PASS #9620; B: implement + sim + regression (BrightForge); C: audit + ledger sync |
+| **Checkpoints** | A: implementation shape + status surface ✅ AUDIT PASS #9620; B: implement + sim + regression ✅ PASS #9625; C: audit + ledger sync ✅ PASS #9672 |
 | **Coding authorized** | YES — #9616 |
 | **Depends on** | Task 53 DONE, Task 57 DONE |
 
@@ -74,7 +74,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **OPEN** — awaits PM lane authorization |
+| **Status** | **PREFLIGHT** — artifact pending audit; coding NOT authorized (#9673) |
 | **Gap** | No SDRAM-backed fetch for background layers beyond L0. |
 | **Platforms helped** | Amiga, Genesis, SNES |
 | **Impact** | **Medium** — 3 platforms; deferred as "future task with its own stop-line review" |
@@ -135,6 +135,7 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 
 | Task | Status | Closeout Mail | Archive Artifact |
 |---|---|---|---|
+| Task 54 — Sprite-Sprite Collision Detector | **DONE** | #9672 | Commit `e556ff5` |
 | Task 57 — Substrate DFF Optimization | **DONE** | #9605 | Commit `fae0585`, `impl/pnr/project.fs` |
 | Task 53 — Sprite Pattern Address Width Expansion | **DONE** | #9433 | `artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` |
 | Task 2a — Sprite Capacity Substrate Pre-Hardening | **DONE** | #9252 | `archive/tasks/TASK_2A_SPRITE_CAPACITY_SUBSTRATE_PREHARDENING.md` |
