@@ -1,6 +1,6 @@
 # Mode0 Substrate Assessment Compilation
 
-**Updated:** 2026-05-07
+**Updated:** 2026-05-10
 **Purpose:** Single canonical assessment document for the `spinalhdlVDP` Mode0 substrate. Consolidates all active assessment content into one indexed file.
 
 This document replaces the following previously-scattered assessment files (now archived in `PROJECT_PLAN/archive/assessments/`):
@@ -21,6 +21,7 @@ If any assessment disagrees with `TASKS.md` on execution priority, `TASKS.md` wi
 - [§3 — Color, Window, and Beam-Driven Automation Assessment](#3-color-window-and-beam-driven-automation-assessment)
 - [§4 — Platform Coverage Audit](#4-platform-coverage-audit)
 - [§5 — Universal Sprite Engine Gaps](#5-universal-sprite-engine-gaps)
+- [§6 — Resource and Toolchain Gotchas](#6-resource-and-toolchain-gotchas)
 
 ---
 
@@ -1448,3 +1449,28 @@ This assessment is successful because it:
 5. Identifies stop-lines (Phase 3 collision/DMA is stretch; Phase 1+2 is honest for Genesis/SNES/NES/C64)
 
 **Recommendation:** Open **Phase 1 (Pattern Memory Foundation)** as the next sprite substrate lane after Stage B completes. Without it, the engine cannot honestly claim universal coverage regardless of how many descriptor fields are added.
+
+---
+
+# §6 — Resource and Toolchain Gotchas
+
+> Source: Task 57 deep findings (TASKS.md §Task 57, previously inline)
+> Verdict: Reusable findings for future resource crunches and toolchain behavior
+
+## Task 57 Resolution Narrative
+
+**Slice 1 (First-aid):** `descCount` 64→32. Implemented by BrightForge (#9501). Regression 10/10 PASS. **Synthesis FAIL:** saves only 866 DFFs (16884 / 15915 = 106.1%). Gowin optimizer merges per-slot fields nonlinearly. **Ruling:** insufficient alone.
+
+**Slice 2 (Structural cure):** Back affine matrix state with `Mem` instead of `Vec[Reg]`. Implemented by BrightForge (#9543). Saved **0 DFFs** because Gowin was already auto-extracting RAM.
+
+**Diagnostic Phase (CoralReef #9545):** Temporary `descCount=16, visiblePerLine=16` synth. **Result:** Total 14,683 DFFs. **PnR FAIL** (`PR0003`, 7539 unplaced REGs). Misreported as fit in #9547; corrected in #9601.
+
+**Slice 3 + init removal (#9598, #9604):** Backed remaining per-slot registers with packed `Mem`s + removed `ScrollTable.init()`. **Synthesis PASS** at 14,676 DFFs (93%). **PnR FAIL** (`PR0003`, 7521 unplaced REGs). Root cause: `Mem.init()`/`initialContent` forces DFF inference in Gowin (cannot init SSRAM from `$readmemb`).
+
+**Path 5A (Final discriminator #9605):** `descCount=8, visiblePerLine=8, NUM_SLOTS=8`. **PnR PASS** — 6,834 DFFs (44%), 8,913 CLS (86%), 22 BSRAM (48%). `project.fs` produced. First sprite-enabled bitstream since Task 2b.
+
+## Key Findings for Future Resource Crunches
+
+- `syn_ramstyle="distributed"` is **invalid** in Gowin V1.9.12.01 (EX0200 warning). SpinalHDL auto-generates `ram_style="distributed"` which is the correct and sufficient attribute.
+- `Mem.init()` / `initialContent` emits Verilog `initial $readmemb(...)`. Gowin cannot initialize SSRAM/BSRAM from `$readmemb`, so it **silently infers DFFs** instead. Removing init is the only way to force SSRAM inference, but it breaks host-assumed zero-init.
+- descCount=16 still fails PnR even at 92% total DFF utilization. The GW2AR-LV18 placement bottleneck is **regional density**, not just total count.

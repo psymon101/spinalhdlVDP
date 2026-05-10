@@ -1,6 +1,6 @@
 # ADAPTER_NUANCES.md
 
-**Updated:** 2026-04-28  
+**Updated:** 2026-05-10  
 **Purpose:** Platform-facing visual and behavioral nuance reference for adapter planning. This file captures what each adapter should preserve at the presentation layer so future adapter tasks stay honest about pixel shape, palette behavior, timing-visible artifacts, and display quirks.
 
 ---
@@ -35,6 +35,178 @@ Every serious adapter should document, at minimum:
 - which `Mode0` primitives those behaviors depend on
 
 An adapter should not flatten those into generic RGB output if doing so destroys the recognizable look of the target platform.
+
+---
+
+## Platform Adapter Fidelity Standards
+
+The following standards apply to all platform adapters (starting with Task 40). They are not optional enhancements; they are foundational to the definition of a "platform adapter" in this project.
+
+### 0. General Capability Rule
+
+Platform adapters must translate platform behavior onto the shared  substrate. They must not create separate platform-specific render engines when a general  primitive can serve multiple adapters honestly.
+
+Required interpretation:
+
+-  owns the reusable superset capability.
+- adapters own platform-specific register semantics, limits, quirks, and presentation choices.
+- an adapter may clamp or subset a richer  primitive to match its target platform.
+- a more demanding adapter may use more of the same primitive's range without requiring a second engine.
+
+Examples:
+
+- a stronger Amiga-facing sprite model and a more limited C64-facing sprite model should still sit on the same generic  sprite machinery if the underlying primitive is shareable
+- a blitter/DMA-style primitive belongs in  if multiple platforms can use it, even if they expose different platform-facing command semantics
+- Copper/HDMA/H-int style control should reuse beam-driven automation primitives rather than creating per-platform timing engines
+
+Do not:
+
+- add a C64-only, Amiga-only, or SNES-only hardware engine inside  when the need is actually a shared primitive with different adapter limits
+- weaken a shared primitive just to match the least demanding platform
+- bypass a reusable  primitive from an adapter merely to preserve platform naming
+
+### 0a. Transport Separation Rule
+
+Each external host transport must be internally complete and self-consistent. If a lane uses , then framing, synchronization, payload rules, completion, status, and error handling must all be defined and validated inside the  transport contract itself.
+
+Required interpretation:
+
+-  is one complete transport contract.
+- a future parallel address/data bus is a separate complete transport contract.
+- both transports may target the same shared  host/control surface.
+- transports must not borrow hidden timing, framing, or completion assumptions from each other.
+
+Do:
+
+- keep , header, payload-length, completion, and error semantics self-contained inside the  path
+- define any future parallel-bus framing / handshake / completion rules independently, even if it targets the same registers or upload surface
+- debug transport failures at the transport boundary first before blaming  primitives
+
+Do not:
+
+- mix  framing rules with address/data-bus assumptions
+- rely on a second transport's handshake model to explain or complete a  transaction
+- patch over a broken transport by leaning on side effects from another control path
+
+### 1. Circuitry-Accurate Palettes
+
+Palettes MUST NOT use generic RGB approximations. They must be derived from hardware-level circuitry analysis, specifically considering:
+
+- **DAC resistor values** and output network characteristics of the target system.
+- System-specific voltage levels and color-space mappings (e.g., YPbPr, S-Video nuances).
+- Measurement-based references (e.g., for C64, using Pepto's palette or similar circuitry-aware models).
+
+Adapter implementations must document the palette source and any assumptions in the artifact or code comments.
+
+### 2. Native Platform Fonts
+
+Every adapter must include the **default system font/ROM** (e.g., C64 character ROM) as its baseline text/tile asset to ensure authentic presentation. Fallback generated fonts are not acceptable for adapter proof.
+
+Font ROMs should be stored as  initial content or Scala  constants in the adapter source file or a dedicated  directory.
+
+### 3. Display Nuances
+
+Implementations must consider and document platform-specific display nuances:
+
+- Border/background relationships (e.g., C64 / interaction).
+- Aspect ratio considerations if the adapter/composition level can influence them.
+- Signal-level artifacts that are visually characteristic of the target platform.
+
+### 4. Gap Analysis
+
+Adapters must include an explicit "honest gap analysis" section listing:
+
+- Features that are emulated.
+- Features that are deliberately omitted and why.
+- Features that are architecturally impossible on the current Mode0 substrate.
+
+This prevents scope creep while maintaining honest claims about adapter fidelity.
+
+---
+
+## Platform Adapter Fidelity Standards
+
+The following standards apply to all platform adapters (starting with Task 40). They are not optional enhancements; they are foundational to the definition of a "platform adapter" in this project.
+
+### 0. General Capability Rule
+
+Platform adapters must translate platform behavior onto the shared `Mode0` substrate. They must not create separate platform-specific render engines when a general `Mode0` primitive can serve multiple adapters honestly.
+
+Required interpretation:
+
+- `Mode0` owns the reusable superset capability.
+- adapters own platform-specific register semantics, limits, quirks, and presentation choices.
+- an adapter may clamp or subset a richer `Mode0` primitive to match its target platform.
+- a more demanding adapter may use more of the same primitive's range without requiring a second engine.
+
+Examples:
+
+- a stronger Amiga-facing sprite model and a more limited C64-facing sprite model should still sit on the same generic `Mode0` sprite machinery if the underlying primitive is shareable
+- a blitter/DMA-style primitive belongs in `Mode0` if multiple platforms can use it, even if they expose different platform-facing command semantics
+- Copper/HDMA/H-int style control should reuse beam-driven automation primitives rather than creating per-platform timing engines
+
+Do not:
+
+- add a C64-only, Amiga-only, or SNES-only hardware engine inside `Mode0` when the need is actually a shared primitive with different adapter limits
+- weaken a shared primitive just to match the least demanding platform
+- bypass a reusable `Mode0` primitive from an adapter merely to preserve platform naming
+
+### 0a. Transport Separation Rule
+
+Each external host transport must be internally complete and self-consistent. If a lane uses `QSPI`, then framing, synchronization, payload rules, completion, status, and error handling must all be defined and validated inside the `QSPI` transport contract itself.
+
+Required interpretation:
+
+- `QSPI` is one complete transport contract.
+- a future parallel address/data bus is a separate complete transport contract.
+- both transports may target the same shared `Mode0` host/control surface.
+- transports must not borrow hidden timing, framing, or completion assumptions from each other.
+
+Do:
+
+- keep `CS`, header, payload-length, completion, and error semantics self-contained inside the `QSPI` path
+- define any future parallel-bus framing / handshake / completion rules independently, even if it targets the same registers or upload surface
+- debug transport failures at the transport boundary first before blaming `Mode0` primitives
+
+Do not:
+
+- mix `QSPI` framing rules with address/data-bus assumptions
+- rely on a second transport's handshake model to explain or complete a `QSPI` transaction
+- patch over a broken transport by leaning on side effects from another control path
+
+### 1. Circuitry-Accurate Palettes
+
+Palettes MUST NOT use generic RGB approximations. They must be derived from hardware-level circuitry analysis, specifically considering:
+
+- **DAC resistor values** and output network characteristics of the target system.
+- System-specific voltage levels and color-space mappings (e.g., YPbPr, S-Video nuances).
+- Measurement-based references (e.g., for C64, using Pepto's palette or similar circuitry-aware models).
+
+Adapter implementations must document the palette source and any assumptions in the artifact or code comments.
+
+### 2. Native Platform Fonts
+
+Every adapter must include the **default system font/ROM** (e.g., C64 character ROM) as its baseline text/tile asset to ensure authentic presentation. Fallback generated fonts are not acceptable for adapter proof.
+
+Font ROMs should be stored as `Mem` initial content or Scala `Seq[Bits]` constants in the adapter source file or a dedicated `assets/` directory.
+
+### 3. Display Nuances
+
+Implementations must consider and document platform-specific display nuances:
+
+- Border/background relationships (e.g., C64 $D020/$D021 interaction).
+- Aspect ratio considerations if the adapter/composition level can influence them.
+- Signal-level artifacts that are visually characteristic of the target platform.
+
+### 4. Gap Analysis
+
+Adapters must include an explicit "honest gap analysis" section listing:
+
+- Features that are emulated.
+- Features that are deliberately omitted and why.
+- Features that are architecturally impossible on the current Mode0 substrate.
+
+This prevents scope creep while maintaining honest claims about adapter fidelity.
 
 ---
 

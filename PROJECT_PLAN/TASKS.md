@@ -96,20 +96,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 | **Proof shape** | PnR: zero `PR0003` errors, `project.fs` produced, DFF ≤ 44%. Sim: 11/11 sprite regression PASS bit-identical. |
 | **Source assessment** | #9474, #9478, #9479, #9488, #9493, #9547, #9549, #9601, #9605, #9604 |
 
-**Slice 1 (First-aid):** `descCount` 64→32. Implemented by BrightForge (#9501). Regression 10/10 PASS. **Synthesis FAIL:** saves only 866 DFFs (16884 / 15915 = 106.1%). Gowin optimizer merges per-slot fields nonlinearly. **Ruling:** insufficient alone.
-
-**Slice 2 (Structural cure):** Back affine matrix state with `Mem` instead of `Vec[Reg]`. Implemented by BrightForge (#9543). Saved **0 DFFs** because Gowin was already auto-extracting RAM.
-
-**Diagnostic Phase (CoralReef #9545):** Temporary `descCount=16, visiblePerLine=16` synth. **Result:** Total 14,683 DFFs. **PnR FAIL** (`PR0003`, 7539 unplaced REGs). Misreported as fit in #9547; corrected in #9601.
-
-**Slice 3 + init removal (#9598, #9604):** Backed remaining per-slot registers with packed `Mem`s + removed `ScrollTable.init()`. **Synthesis PASS** at 14,676 DFFs (93%). **PnR FAIL** (`PR0003`, 7521 unplaced REGs). Root cause: `Mem.init()`/`initialContent` forces DFF inference in Gowin (cannot init SSRAM from `$readmemb`).
-
-**Path 5A (Final discriminator #9605):** `descCount=8, visiblePerLine=8, NUM_SLOTS=8`. **PnR PASS** — 6,834 DFFs (44%), 8,913 CLS (86%), 22 BSRAM (48%). `project.fs` produced. First sprite-enabled bitstream since Task 2b.
-
-**Key findings for future resource crunches:**
-- `syn_ramstyle="distributed"` is **invalid** in Gowin V1.9.12.01 (EX0200 warning). SpinalHDL auto-generates `ram_style="distributed"` which is the correct and sufficient attribute.
-- `Mem.init()` / `initialContent` emits Verilog `initial $readmemb(...)`. Gowin cannot initialize SSRAM/BSRAM from `$readmemb`, so it **silently infers DFFs** instead. Removing init is the only way to force SSRAM inference, but it breaks host-assumed zero-init.
-- descCount=16 still fails PnR even at 92% total DFF utilization. The GW2AR-LV18 placement bottleneck is **regional density**, not just total count.
+> Deep findings, slice narratives, and toolchain gotchas moved to `ASSESSMENT.md` §6 (Resource and Toolchain Gotchas) to keep the task ledger concise.
 
 
 ---
