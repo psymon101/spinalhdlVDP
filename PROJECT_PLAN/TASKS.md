@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-10 (Task 54 DONE. Task 56 Checkpoint A AUDIT PASS #9689. Checkpoint B coding authorized.)
+**Updated:** 2026-05-10 (Task 54 DONE. Task 56 Checkpoint B landed; awaiting CyanPeak audit.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -23,15 +23,15 @@ This section tracks the single active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | **Task 56 — Multi-Layer SDRAM Fetch** |
-| **Status** | **IN-PROGRESS** — Checkpoint B coding authorized |
-| **Phase** | Checkpoint B implementation (BrightForge authorized per #9689) |
-| **Latest Commit** | `93773d7` (Task 56 Checkpoint A: L0+L1 SDRAM scaffolding) |
-| **Commits in lane** | `93773d7` |
-| **Latest Auth Mail** | #9689 (CyanPeak Checkpoint A audit PASS), #9685 (BrightForge Checkpoint A proof), #9683 (CyanPeak preflight audit PASS), #9673 (BronzeGate lane open) |
-| **Artifact** | BrightForge #9685 / commit `93773d7` — L0+L1 scheduler scaffold + arbiter wiring + compositor mux |
-| **Next Deliverable** | BrightForge Checkpoint B proof packet (L1 fetch engine instance + MultiLayerSdramFetchSim Cases 1-2) |
+| **Status** | **IN-PROGRESS** — Checkpoint B landed; awaiting CyanPeak audit |
+| **Phase** | Checkpoint B implementation + proof (#9697) |
+| **Latest Commit** | `ee5820c` (Task 56 Checkpoint B: L1 SDRAM fetch engine instance + integration sim) |
+| **Commits in lane** | `93773d7`, `ee5820c` |
+| **Latest Auth Mail** | #9697 (BrightForge Checkpoint B proof), #9689 (CyanPeak Checkpoint A audit PASS), #9685 (BrightForge Checkpoint A proof), #9683 (CyanPeak preflight audit PASS) |
+| **Artifact** | BrightForge #9697 / commit `ee5820c` — L1 fetch engine instance + MultiLayerSdramFetchSim Cases 1-2 |
+| **Next Deliverable** | CyanPeak audit PASS/HOLD/FAIL on Checkpoint B proof #9697 |
 
-**Context:** Task 54 CLOSED per CyanPeak #9672 (audit PASS on BrightForge #9625 / commit `e556ff5`). `SpriteSpriteCollisionSim` 5/5 PASS, regression 9/9 PASS bit-identical. Task 56 preflight artifact audited PASS #9683; BrightForge landed Checkpoint A implementation in `93773d7` (#9685); CyanPeak audit PASS #9689. **Coding for Checkpoint B is AUTHORIZED.**
+**Context:** Task 54 CLOSED per CyanPeak #9672 (audit PASS on BrightForge #9625 / commit `e556ff5`). `SpriteSpriteCollisionSim` 5/5 PASS, regression 9/9 PASS bit-identical. Task 56 preflight artifact audited PASS #9683; BrightForge landed Checkpoint A implementation in `93773d7` (#9685); CyanPeak audit PASS #9689; BrightForge landed Checkpoint B implementation in `ee5820c` (#9697). **Awaiting CyanPeak audit on Checkpoint B.**
 
 ---
 
@@ -74,7 +74,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **IN-PROGRESS** — Checkpoint B coding authorized (#9689) |
+| **Status** | **IN-PROGRESS** — Checkpoint B landed; awaiting CyanPeak audit (#9697) |
 | **Gap** | No SDRAM-backed fetch for background layers beyond L0. |
 | **Platforms helped** | Amiga, Genesis, SNES |
 | **Impact** | **Medium** — 3 platforms; deferred as "future task with its own stop-line review" |
