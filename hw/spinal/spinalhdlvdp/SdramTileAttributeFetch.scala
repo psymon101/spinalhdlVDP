@@ -16,7 +16,29 @@ import spinal.lib.fsm._
   * Assets come from `TileAttributeAssets` and live at disjoint SDRAM addresses
   * from the retired 3bpp `SdramTileFetch` data (per CoralReef #6755).
   */
-case class SdramTileAttributeFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) extends Component {
+/** Task 56 Checkpoint B (#9678 / #9691 / #9693): the fetch engine is now
+  * parameterized on its SDRAM base addresses and optional boot-ROM init
+  * overrides so a second instance can serve Layer 1 from a disjoint region
+  * (0xC000 / 0xD000 / 0xE000) without colliding with the L0 instance.
+  *
+  * Defaults preserve byte-identical L0 behavior; L1 instances pass the
+  * `*Base` params, optional `*BytesOverride` data, and set
+  * `bootPlanarAssets=false` / `runMemtest=false` so they don't double-write
+  * the planar plane-0/plane-1 staging regions or the memtest scratchpad
+  * that L0 already initializes.
+  */
+case class SdramTileAttributeFetch(
+    sdramCd: ClockDomain,
+    skipSdramInit: Boolean = false,
+    tileMapBaseAddr: Int = TileAttributeAssets.TileMapBase,
+    attributeMapBaseAddr: Int = TileAttributeAssets.AttributeMapBase,
+    tileRowBaseAddr: Int = TileAttributeAssets.TileRowBase,
+    tileMapBytesOverride: Option[Seq[Bits]] = None,
+    attributeMapBytesOverride: Option[Seq[Bits]] = None,
+    tileRowBytesOverride: Option[Seq[Bits]] = None,
+    bootPlanarAssets: Boolean = true,
+    runMemtest: Boolean = true
+) extends Component {
   import TileAttributeAssets._
 
   val LineWidth      = MapPixelsX                      // 640
@@ -260,12 +282,15 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain, skipSdramInit: Boolean 
     // recovers the BSRAM/LUT footprint. Length-only declarations match the
     // original depths so any unintended access reads as zero rather than
     // failing build.
-    val tileMapRom  = if (skipSdramInit) Mem(Bits(8 bits), TileAttributeAssets.tileMapBytesInit.length)
-                      else              Mem(Bits(8 bits), initialContent = TileAttributeAssets.tileMapBytesInit)
-    val attrMapRom  = if (skipSdramInit) Mem(Bits(8 bits), TileAttributeAssets.attributeMapBytesInit.length)
-                      else              Mem(Bits(8 bits), initialContent = TileAttributeAssets.attributeMapBytesInit)
-    val tileRowRom  = if (skipSdramInit) Mem(Bits(8 bits), TileAttributeAssets.tileRowBytesInit.length)
-                      else              Mem(Bits(8 bits), initialContent = TileAttributeAssets.tileRowBytesInit)
+    val tileMapInit = tileMapBytesOverride.getOrElse(TileAttributeAssets.tileMapBytesInit)
+    val attrMapInit = attributeMapBytesOverride.getOrElse(TileAttributeAssets.attributeMapBytesInit)
+    val tileRowInit = tileRowBytesOverride.getOrElse(TileAttributeAssets.tileRowBytesInit)
+    val tileMapRom  = if (skipSdramInit) Mem(Bits(8 bits), tileMapInit.length)
+                      else              Mem(Bits(8 bits), initialContent = tileMapInit)
+    val attrMapRom  = if (skipSdramInit) Mem(Bits(8 bits), attrMapInit.length)
+                      else              Mem(Bits(8 bits), initialContent = attrMapInit)
+    val tileRowRom  = if (skipSdramInit) Mem(Bits(8 bits), tileRowInit.length)
+                      else              Mem(Bits(8 bits), initialContent = tileRowInit)
     // R4.1b stage 2: planar boot ROM lives alongside the packed ROMs and is
     // boot-copied to SDRAM at PlanarTileAssets.SdramBase (0xA000), disjoint
     // from the R4 packed regions.
@@ -327,11 +352,11 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain, skipSdramInit: Boolean 
     // wide-enough constant width closes that gap.
     def tileMapByteAddr(tx: UInt, ty: UInt): UInt = {
       val offset = (ty.resize(16) * U(MapTilesX, 16 bits) + tx.resize(16)).resize(23)
-      (U(TileMapBase, 23 bits) + offset).resize(23)
+      (U(tileMapBaseAddr, 23 bits) + offset).resize(23)
     }
     def attrMapByteAddr(tx: UInt, ty: UInt): UInt = {
       val offset = (ty.resize(16) * U(MapTilesX, 16 bits) + tx.resize(16)).resize(23)
-      (U(AttributeMapBase, 23 bits) + offset).resize(23)
+      (U(attributeMapBaseAddr, 23 bits) + offset).resize(23)
     }
     // R4.1b: planar mode reads tile rows from PlanarTileAssets.SdramBase
     // instead of TileRowBase. Tile row layout is identical (16 rows × 8 bytes
@@ -343,8 +368,8 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain, skipSdramInit: Boolean 
     val shuffledSel  = io.tileDecodeMode(1)
     val tileRowBaseSel = Mux(planarSel || shuffledSel,
                              U(PlanarTileAssets.SdramBase, 23 bits),
-                             U(TileRowBase, 23 bits))
-    val tileRowBaseSelSync = BufferCC(tileRowBaseSel, init = U(TileRowBase, 23 bits))
+                             U(tileRowBaseAddr, 23 bits))
+    val tileRowBaseSelSync = BufferCC(tileRowBaseSel, init = U(tileRowBaseAddr, 23 bits))
     val shuffledSync       = BufferCC(shuffledSel,    init = False)
 
     // R4.1c: packed-attribute mode select, 1-bit CDC (slow-changing register).
@@ -421,7 +446,7 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain, skipSdramInit: Boolean 
           when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 0; goto(sRefresh) }
           .elsewhen(bootCounter < TotalTileBytes) {
             cmdWr   := True
-            cmdAddr := (U(TileMapBase, 23 bits) + bootCounter.resize(23)).resized
+            cmdAddr := (U(tileMapBaseAddr, 23 bits) + bootCounter.resize(23)).resized
             cmdDin  := tileMapRom.readAsync(bootCounter.resize(log2Up(TotalTileBytes)))
             bootCounter := bootCounter + 1
           }.otherwise { bootCounter := 0; goto(sBootAttrMap) }
@@ -433,7 +458,7 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain, skipSdramInit: Boolean 
           when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 8; goto(sRefresh) }
           .elsewhen(bootCounter < TotalAttrBytes) {
             cmdWr   := True
-            cmdAddr := (U(AttributeMapBase, 23 bits) + bootCounter.resize(23)).resized
+            cmdAddr := (U(attributeMapBaseAddr, 23 bits) + bootCounter.resize(23)).resized
             cmdDin  := attrMapRom.readAsync(bootCounter.resize(log2Up(TotalAttrBytes)))
             bootCounter := bootCounter + 1
           }.otherwise { bootCounter := 0; goto(sBootTileRows) }
@@ -445,10 +470,26 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain, skipSdramInit: Boolean 
           when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 1; goto(sRefresh) }
           .elsewhen(bootCounter < TotalRowBytes) {
             cmdWr   := True
-            cmdAddr := (U(TileRowBase, 23 bits) + bootCounter.resize(23)).resized
+            cmdAddr := (U(tileRowBaseAddr, 23 bits) + bootCounter.resize(23)).resized
             cmdDin  := tileRowRom.readAsync(bootCounter.resize(log2Up(TotalRowBytes)))
             bootCounter := bootCounter + 1
-          }.otherwise { bootCounter := 0; goto(sBootPlanar) }
+          }.otherwise {
+            bootCounter := 0
+            if (bootPlanarAssets) {
+              goto(sBootPlanar)
+            } else {
+              // Task 56 Checkpoint B: L1 instance skips planar/plane1 boot
+              // (L0 already populates PlanarTileAssets.SdramBase / Plane1SdramBase;
+              // a second copy would double-write the same region).
+              bootDoneR := True
+              if (runMemtest) {
+                goto(sMemtestWrite)
+              } else {
+                memtestPassR := True
+                goto(sIdle)
+              }
+            }
+          }
         }
       }
 
@@ -477,7 +518,16 @@ case class SdramTileAttributeFetch(sdramCd: ClockDomain, skipSdramInit: Boolean 
             cmdAddr := (U(PlanarTileAssets.Plane1SdramBase, 23 bits) + bootCounter.resize(23)).resized
             cmdDin  := plane1RowRom.readAsync(bootCounter.resize(log2Up(PlanarTileAssets.TotalBytes)))
             bootCounter := bootCounter + 1
-          }.otherwise { bootCounter := 0; bootDoneR := True; goto(sMemtestWrite) }
+          }.otherwise {
+            bootCounter := 0
+            bootDoneR := True
+            if (runMemtest) {
+              goto(sMemtestWrite)
+            } else {
+              memtestPassR := True
+              goto(sIdle)
+            }
+          }
         }
       }
 

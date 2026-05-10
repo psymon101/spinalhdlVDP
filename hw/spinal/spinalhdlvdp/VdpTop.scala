@@ -133,6 +133,24 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
     val layer0FetchScrollY    = out UInt(10 bits)
     val layer0FetchPixelAddr  = out UInt(10 bits)
 
+    // Task 56 Checkpoint B (#9678 / #9693): L1 fetch scheduler outputs.
+    // Mirror the L0 surface so a second SdramTileAttributeFetch engine
+    // (clientId=3) can consume scheduler grants from slots 3/4. Driven
+    // off scheduler.io.grant gated on hCounter==hTotal-1 for the grant
+    // edge, and the layer1 scroll latches mirror the L0 earlyLatchStrobe
+    // pattern with `layer1Scroll*` substituted for `layer0Scroll*`.
+    // `layer1FetchEnable` follows `layer1UseSdram` (gates scheduler
+    // slots 3/4 and ANDed with the grant pulse so the FSM never starts
+    // when the engine is inactive).
+    val layer1FetchGrant        = out Bool()
+    val layer1FetchSlotValid    = out Bool()
+    val layer1FetchPreAnnounce  = out Bool()
+    val layer1FetchGrantClientId = out UInt(2 bits)
+    val layer1FetchLine         = out UInt(10 bits)
+    val layer1FetchScrollX      = out UInt(10 bits)
+    val layer1FetchScrollY      = out UInt(10 bits)
+    val layer1FetchPixelAddr    = out UInt(10 bits)
+
     // Task 44b — bitmap SDRAM-fetch coupling. When `bitmapEnable=1`,
     // BitmapFetch's `bitmapByte` / `attrByte` inputs are sourced from
     // these incoming ports instead of the Task 44 CP-B deterministic
@@ -989,7 +1007,17 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // instance lands in Checkpoint B; at that point a new
   // `layer1FetchEnable` signal will gate this the same way Task 3
   // gates planar slot 2 on `planarFetchEnable`.
-  val layer1FetchEnable = False   // Checkpoint B: replace with real gate
+  // Task 56 Checkpoint B (#9678 / #9693): scheduler L1 slots enabled when
+  // the top-level wires up an SDRAM-backed Layer 1 (clientId=3). When the
+  // host runs an L1-disabled scene, `layer1UseSdram` is False so slots 3/4
+  // stay gated off and the engine port stays inert at the arbiter.
+  // NOTE on bandwidth: CP-A reserved slot 3 at hTotal-1 (collides with L0
+  // slot 0) and L0 slot 1 still spans [0, hTotal-1] (full line). Under the
+  // current scheduler, L1's grant edge is always shadowed by L0 → L1 FSM
+  // stays in sIdle in practice. Checkpoint C will narrow L0 slot 1 to
+  // [0, 399] and move L1 start slot to h=400 per artifact #9678 §1
+  // "Resolution" plan. CP-B only proves the integration plumbing.
+  val layer1FetchEnable = io.layer1UseSdram
   scheduler.io.schedule(3).enabled  := layer1FetchEnable
   scheduler.io.schedule(3).clientId := U(3, 2 bits)
   scheduler.io.schedule(3).startH   := U(hTotal - 1, 10 bits)
@@ -1060,6 +1088,45 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   io.layer0FetchScrollX     := fetchScrollXReg
   io.layer0FetchScrollY     := fetchScrollYReg
   io.layer0FetchPixelAddr   := hCounter.resize(10)
+
+  // Task 56 Checkpoint B (#9678 / #9693): L1 fetch scheduler outputs.
+  // Latch registers mirror the L0 earlyLatchStrobe pattern with `layer1*`
+  // scroll inputs substituted. Grant pulse is gated on
+  // `grantClientId === 3` so only L1's slot entries propagate to the L1
+  // fetch engine; slotValid/preAnnounce are similarly client-id filtered
+  // so the L1 FSM never sees an L0/Planar window as its own.
+  val layer1FetchLineReg    = RegNextWhen((vCounter + 3).resize(10),
+                                          earlyLatchStrobe) init 0
+  // L1 has no linestate scroll contribution (linestate only carries
+  // layer0ScrollX); match the existing on-chip L1 scroll formula used by
+  // the BasicPatternSource path below: `io.layer1ScrollX + scrollTable1Offset`.
+  val layer1FetchScrollXReg = RegNextWhen(
+    (io.layer1ScrollX + scrollTable1Offset).resize(10),
+    earlyLatchStrobe) init 0
+  val layer1FetchScrollYReg = RegNextWhen(io.layer1ScrollY, earlyLatchStrobe) init 0
+
+  val layer1GrantRaw  = scheduler.io.grant &&
+                        (scheduler.io.grantClientId === U(3, 2 bits))
+  val layer1GrantHold = Reg(UInt(3 bits)) init 0
+  when(layer1GrantRaw) {
+    layer1GrantHold := 4
+  }.elsewhen(layer1GrantHold =/= 0) {
+    layer1GrantHold := layer1GrantHold - 1
+  }
+  // `grantClientId` is held until the next grant (per FetchSlotScheduler
+  // #9350 fix), so slotValid/preAnnounce filtered by `grantClientId===3`
+  // give the L1 engine a continuous in-window gate for the duration of
+  // its own slot, and stays low while L0/Planar own the bus.
+  io.layer1FetchGrant         := layer1GrantHold =/= 0
+  io.layer1FetchSlotValid     := scheduler.io.slotValid &&
+                                 (scheduler.io.grantClientId === U(3, 2 bits))
+  io.layer1FetchPreAnnounce   := scheduler.io.preAnnounce &&
+                                 (scheduler.io.grantClientId === U(3, 2 bits))
+  io.layer1FetchGrantClientId := scheduler.io.grantClientId
+  io.layer1FetchLine          := layer1FetchLineReg
+  io.layer1FetchScrollX       := layer1FetchScrollXReg
+  io.layer1FetchScrollY       := layer1FetchScrollYReg
+  io.layer1FetchPixelAddr     := hCounter.resize(10)
 
   // Layer 1 (higher priority background).
   val layer1 = BasicPatternSource()
@@ -1205,8 +1272,8 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // existing on-chip BasicPatternSource L1 path is preserved
   // bit-identically.  Compositor priority logic (L3 > L2 > L1 > L0) is
   // unchanged per artifact #9678 / audit #9683.
-  val layer1Index = Mux(io.layer1UseSdram, io.layer1SdramPixel, layer1.io.pixelIndex.resize(4))
-  val layer1Bank  = Mux(io.layer1UseSdram, io.layer1SdramBank,  U(0, 3 bits))
+  val layer1Index = Mux(io.layer1UseSdram, io.layer1SdramPixel, layer1.io.pixelIndex.resize(4)).simPublic()
+  val layer1Bank  = Mux(io.layer1UseSdram, io.layer1SdramBank,  U(0, 3 bits)).simPublic()
   val layer1Prio  = Mux(io.layer1UseSdram, io.layer1SdramPriority, False)
 
   val layer1Pixel = Mux(effectiveL1Enable, layer1Index, B(0, 4 bits))

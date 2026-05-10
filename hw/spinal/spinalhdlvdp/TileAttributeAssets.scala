@@ -288,4 +288,72 @@ object TileAttributeAssets {
   require(tileMapBytesInit.length == MapRomDepth)
   require(attributeMapBytesInit.length == MapRomDepth)
   require(paletteInit.length == PaletteDepth)
+
+  // ===========================================================================
+  // Task 56 Checkpoint B (#9678 / #9691 / #9693): distinct L1 boot data.
+  //
+  // CyanPeak directive (#9693 §4): "Using an 'inverted-band' or similar
+  // distinct pattern for L1 is strongly recommended to ensure Case 2 isn't
+  // just seeing L0 'leaking' through."
+  //
+  // L1 layout choice:
+  //   - Tile rows: 4 solid-color tiles (uniform pixel index 1, 2, 3, 4 across
+  //     the entire tile). When composited through bank 0 (legacy palette),
+  //     these render as white / red / green / blue solid blocks — visually
+  //     unambiguous against L0's gradient/diagonal/rings/checker patterns.
+  //   - Tile map: reuse the L0 2×2 tile-index layout so each quadrant gets
+  //     a distinct color band.
+  //   - Attribute map: bank 0, priority 0 — keeps L1 in the legacy palette
+  //     and disables L1 priority so the compositor's L1>L0 layering rules
+  //     are exercised by base layer ordering rather than per-tile priority.
+  // ===========================================================================
+  private def tileSolid(pixelIdx: Int): Seq[Seq[Int]] = {
+    require(pixelIdx >= 0 && pixelIdx < (1 << TilePixelBits))
+    (0 until TileHeight).map(_ => (0 until TileWidth).map(_ => pixelIdx))
+  }
+
+  private val l1TilePatterns: Seq[Seq[Seq[Int]]] =
+    Seq(tileSolid(0x1), tileSolid(0x2), tileSolid(0x3), tileSolid(0x4))
+
+  require(l1TilePatterns.length == TileCount,
+    s"l1TilePatterns.length=${l1TilePatterns.length} must equal TileCount=$TileCount")
+
+  def l1TileRowBytesInit: Seq[Bits] = l1TilePatterns.flatMap { tile =>
+    tile.flatMap { rowPixels =>
+      val packed = rowPixels.reverse.foldLeft(BigInt(0)) { case (acc, v) =>
+        require(v >= 0 && v < (1 << TilePixelBits))
+        (acc << TilePixelBits) | BigInt(v)
+      }
+      (0 until TileRowBytes).map(i => B((packed >> (i * 8)) & BigInt(0xFF), 8 bits))
+    }
+  }
+
+  // Reuse L0 tile-map layout (2×2 tile-index pattern).
+  def l1TileMapBytesInit: Seq[Bits] = tileMapBytesInit
+
+  // L1 attribute map: bank 0, priority 0 everywhere.
+  def l1AttributeMapBytesInit: Seq[Bits] = {
+    val out = new scala.collection.mutable.ArrayBuffer[Bits]()
+    for (_ <- 0 until MapTilesY; _ <- 0 until MapTilesX) {
+      out += B(0, 8 bits)
+    }
+    val padded = out.toSeq ++ Seq.fill(MapRomDepth - MapEntries)(B(0, 8 bits))
+    padded
+  }
+
+  /** Sim cross-check: pixel index that the L1 engine should emit at (x,y),
+    * mirroring `expectedPixel` for L0 but using the L1 tile-pattern set. */
+  def l1ExpectedPixel(x: Int, y: Int): (Int, Int, Boolean) = {
+    val tileX = x / TileWidth
+    val tileY = y / TileHeight
+    val pixelX = x % TileWidth
+    val pixelY = y % TileHeight
+    val tileIdx = (tileY & 1) * 2 + (tileX & 1)
+    val idx = l1TilePatterns(tileIdx)(pixelY)(pixelX)
+    (idx, 0, false)  // bank=0, priority=0 per l1AttributeMapBytesInit
+  }
+
+  require(l1TileRowBytesInit.length == TileCount * TileHeight * TileRowBytes)
+  require(l1TileMapBytesInit.length == MapRomDepth)
+  require(l1AttributeMapBytesInit.length == MapRomDepth)
 }

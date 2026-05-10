@@ -1487,15 +1487,41 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
     video.io.layer0TestPatternEnable := False
     video.io.layer0TestPatternSelect := U(0, 3 bits)
 
-    // Task 56 Checkpoint A — L1 SDRAM inputs tied off; Checkpoint B will
-    // wire these to a second SdramTileAttributeFetch instance routed to
-    // sdramArbiter clientId=3 (per CyanPeak audit #9683). Stubbing off
-    // here keeps the existing on-chip BasicPatternSource L1 path
-    // bit-identical to pre-Task-56 behaviour.
+    // Task 56 Checkpoint B (#9678 / #9693): second SdramTileAttributeFetch
+    // engine for Layer 1. Uses the L1 base address constants from
+    // TileAttributeAssets (0xC000 / 0xD000 / 0xE000) and a distinct
+    // 4-solid-tile boot pattern so L1 renders an unambiguous color-band
+    // signature against L0's gradient/diagonal/rings/checker. Planar
+    // assets boot and memtest are gated off — L0 already populates the
+    // planar staging regions and runs the memtest scratchpad at the
+    // shared SDRAM addresses, so this instance must not double-write.
+    val fetchL1 = SdramTileAttributeFetch(
+      sdramClockDomain,
+      skipSdramInit            = useHostInit,
+      tileMapBaseAddr          = TileAttributeAssets.L1TileMapBase,
+      attributeMapBaseAddr     = TileAttributeAssets.L1AttributeMapBase,
+      tileRowBaseAddr          = TileAttributeAssets.L1TileRowBase,
+      tileMapBytesOverride     = Some(TileAttributeAssets.l1TileMapBytesInit),
+      attributeMapBytesOverride = Some(TileAttributeAssets.l1AttributeMapBytesInit),
+      tileRowBytesOverride     = Some(TileAttributeAssets.l1TileRowBytesInit),
+      bootPlanarAssets         = false,
+      runMemtest               = false
+    )
+    fetchL1.io.fetchGrant       := video.io.layer1FetchGrant
+    fetchL1.io.fetchSlotValid   := video.io.layer1FetchSlotValid
+    fetchL1.io.fetchPreAnnounce := video.io.layer1FetchPreAnnounce
+    fetchL1.io.tileDecodeMode   := B(0, 2 bits)   // L1 stays packed-4bpp
+    fetchL1.io.attributeMode    := B(0, 1 bits)   // L1 stays linear attrs
+    fetchL1.io.fetchLine        := video.io.layer1FetchLine
+    fetchL1.io.fetchScrollX     := video.io.layer1FetchScrollX
+    fetchL1.io.fetchScrollY     := video.io.layer1FetchScrollY
+    fetchL1.io.pixelAddr        := video.io.layer0FetchPixelAddr   // same hCounter
+    // L1 is enabled only on scenarios that opt in (default off so pre-CP-B
+    // scenes remain bit-identical). Scenario-specific tops can override.
     video.io.layer1UseSdram      := False
-    video.io.layer1SdramPixel    := B(0, 4 bits)
-    video.io.layer1SdramBank     := U(0, 3 bits)
-    video.io.layer1SdramPriority := False
+    video.io.layer1SdramPixel    := fetchL1.io.pixelIndex
+    video.io.layer1SdramBank     := fetchL1.io.pixelPaletteBank
+    video.io.layer1SdramPriority := fetchL1.io.pixelPriority
 
     // R1 Raster Trigger Unit — Task 34 Checkpoint C uses this as a host-
     // visible vblank indicator. Trigger fires on line 480 (first line of
@@ -1838,17 +1864,20 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
                               (sdramArbiter.io.grantClientId === U(2, sdramArbiter.idBits bits))
   pixelArea.video.io.planarSdramDataReady := planarDataReadyNative
   pixelArea.video.io.planarSdramDout32    := sdramArea.ctrl.io.dout32
-  // Task 56 Checkpoint A — Client 3 reserved for the L1 SdramTileAttributeFetch
-  // engine that lands in Checkpoint B (artifact #9678, audit PASS #9683;
-  // CyanPeak's clientId=3 correction noted — clientId=1 is occupied by
-  // bitmapRowFetch, so the L1 fetch engine takes the free slot 3).
-  // Stubbed off until Checkpoint B instantiates the engine; the L1 schedule
-  // already exists on the FetchSlotScheduler (slots 3/4, gated False) so
-  // this client port stays inert from the arbiter's perspective.
-  sdramArbiter.io.clientRd(3)   := False
-  sdramArbiter.io.clientWr(3)   := False
-  sdramArbiter.io.clientAddr(3) := U(0, 23 bits)
-  sdramArbiter.io.clientDin(3)  := B(0, 8 bits)
+  // Task 56 Checkpoint B (#9678 / #9693) — Client 3 = L1 SdramTileAttributeFetch.
+  // Same SDRAM-bus contract as client 0 (L0). The arbiter serializes
+  // concurrent transactions; both L0 and L1 boot ROMs target disjoint
+  // SDRAM regions (L0: 0x6000/0x7000/0x8000, L1: 0xC000/0xD000/0xE000)
+  // so concurrent boot is collision-free even though both FSMs may
+  // simultaneously request writes during the power-on copy phase.
+  sdramArbiter.io.clientRd(3)   := pixelArea.fetchL1.io.sdramRd
+  sdramArbiter.io.clientWr(3)   := pixelArea.fetchL1.io.sdramWr
+  sdramArbiter.io.clientAddr(3) := pixelArea.fetchL1.io.sdramAddr
+  sdramArbiter.io.clientDin(3)  := pixelArea.fetchL1.io.sdramDin
+  pixelArea.fetchL1.io.sdramDout      := sdramArea.ctrl.io.dout
+  pixelArea.fetchL1.io.sdramDout32    := sdramArea.ctrl.io.dout32
+  pixelArea.fetchL1.io.sdramDataReady := sdramArea.ctrl.io.data_ready
+  pixelArea.fetchL1.io.sdramBusy      := sdramArea.ctrl.io.busy
 
   val uploadDrive = sdramCdcArea.uploadWrPulse
   sdramArea.ctrl.io.rd      := sdramArbiter.io.sdramRd
