@@ -139,6 +139,16 @@ Older closed tasks (Phase 1–8, R-Roadmap, sidecar lanes) are catalogued in `TA
 
 ---
 
+## Closed Side-Lanes
+
+Parallel work completed outside the FPGA critical path.
+
+| Task | Status | Owner | Audit | Closeout Mail | Commit |
+|---|---|---|---|---|---|
+| Firmware Platform Parity — ESP32 Scenario Coverage | **DONE** | FoggyWolf | CyanPeak PASS #9727 | #9727 | `e7c8a06` |
+
+---
+
 ## Historical Artifact Index
 
 | Category | Canonical Doc | Archive Location |
