@@ -427,3 +427,19 @@ Parallel work (e.g., firmware parity, documentation restructure) requires
 BronzeGate lane-open authorization before implementation starts. Post-hoc proof
 packets are accepted only for bounded reconciliation, not as blanket
 authorization for future lanes.
+
+### 8. AGENTS.md Immutability Rule
+
+`AGENTS.md` files contain binding project policy. No agent may unilaterally
+rewrite, truncate, remove, or materially alter rules in any `AGENTS.md` without:
+
+- BronzeGate PM authorization, AND
+- CyanPeak audit review, AND
+- A diff review showing exactly what changed and why
+
+Cosmetic edits (spelling, formatting) are allowed. Removing rules, adding
+self-serving exceptions, or truncating sections to strip policy you disagree
+with is **not** allowed and will be treated as a roster violation.
+
+If you believe a rule is wrong, escalate to BronzeGate with a specific
+amendment proposal. Do not edit the file directly.
