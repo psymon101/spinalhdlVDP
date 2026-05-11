@@ -1,26 +1,26 @@
 /**
  * vdp_qspi.c — Transport layer implementation.
- *
- * Lifted and cleaned from firmware/test_qspi_smoke/test_qspi_smoke.c
- * (Tasks 26, 27, 38a–c, 34). No protocol changes; this is a packaging
- * refactor only. All timing constants and PIO program remain identical
- * to the proven baseline.
  */
 #include "vdp_qspi.h"
 #include "vdp_platform.h"
 
+#if defined(PICO) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_RASPBERRY_PI_PICO)
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
 #include "hardware/gpio.h"
 #include "hardware/clocks.h"
-
 #include "qspi_quad.pio.h"
+#endif
 
-static uint   s_tx_offset;
 static bool   s_initialized = false;
 static int    s_last_error = 0;
 
 int vdp_last_error(void) { return s_last_error; }
+
+// ---- Pico 2 / RP2350 PIO Implementation -------------------------------------
+#if defined(PICO) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_RASPBERRY_PI_PICO)
+
+static uint   s_tx_offset;
 
 static inline void vdp_cs_assert(void)   { gpio_put(VDP_PIN_QSPI_CS_N, 0); }
 static inline void vdp_cs_deassert(void) { gpio_put(VDP_PIN_QSPI_CS_N, 1); }
@@ -63,9 +63,6 @@ void vdp_qspi_init(void)
     s_initialized = true;
 }
 
-/* Wait for PIO FIFO empty + OSR drain. Proven 20 µs margin from Task 38c.
- * Exposed as public API (vdp_qspi.h) per Task 42 §4.3 option A — any custom
- * PIO TX burst must call this before CS deassertion or pin-function switch. */
 void vdp_pio_wait_sm_idle(void)
 {
     while (!pio_sm_is_tx_fifo_empty(VDP_QSPI_PIO, VDP_QSPI_SM_TX)) { /* spin */ }
@@ -77,7 +74,6 @@ static inline void vdp_tx_word(uint32_t w)
     pio_sm_put_blocking(VDP_QSPI_PIO, VDP_QSPI_SM_TX, w);
 }
 
-/* Send N bytes via PIO (N must be a multiple of 4). */
 static void vdp_tx_bytes(const uint8_t *buf, size_t n)
 {
     size_t words = n / 4;
@@ -87,24 +83,6 @@ static void vdp_tx_bytes(const uint8_t *buf, size_t n)
     vdp_pio_wait_sm_idle();
 }
 
-void vdp_reg_write(uint32_t addr, uint16_t data)
-{
-    uint8_t frame[8];
-    frame[0] = 0x01;
-    frame[1] = (uint8_t)( addr        & 0xFF);
-    frame[2] = (uint8_t)((addr >> 8)  & 0xFF);
-    frame[3] = (uint8_t)((addr >> 16) & 0xFF);
-    frame[4] = 0x01;                     /* LEN = 1 word */
-    frame[5] = 0x00;
-    frame[6] = (uint8_t)( data       & 0xFF);
-    frame[7] = (uint8_t)((data >> 8) & 0xFF);
-    vdp_cs_assert();
-    vdp_tx_bytes(frame, sizeof frame);
-    vdp_cs_deassert();
-    sleep_us(10);
-}
-
-/* Bit-bang helpers (used by vdp_read_status). High nibble first. */
 static void vdp_bitbang_byte(uint8_t val)
 {
     uint32_t mask = 0xFu << VDP_PIN_QSPI_IO0;
@@ -133,7 +111,6 @@ static uint8_t vdp_bitbang_read_byte(void)
 
 uint32_t vdp_read_status(uint8_t sel)
 {
-    /* SIO-mode output for header. */
     gpio_set_function(VDP_PIN_QSPI_SCK, GPIO_FUNC_SIO);
     gpio_set_dir(VDP_PIN_QSPI_SCK, GPIO_OUT);
     gpio_put(VDP_PIN_QSPI_SCK, 0);
@@ -146,7 +123,6 @@ uint32_t vdp_read_status(uint8_t sel)
     uint8_t hdr[6] = { 0x04, sel, 0x00, 0x00, 0x00, 0x00 };
     for (int i = 0; i < 6; i++) vdp_bitbang_byte(hdr[i]);
 
-    /* 2-edge turnaround, IO[3:0] to input. */
     for (uint i = 0; i < 4; i++) gpio_set_dir(VDP_PIN_QSPI_IO0 + i, GPIO_IN);
     gpio_put(VDP_PIN_QSPI_SCK, 0);  busy_wait_us_32(1);
     gpio_put(VDP_PIN_QSPI_SCK, 1);  busy_wait_us_32(1);
@@ -161,34 +137,207 @@ uint32_t vdp_read_status(uint8_t sel)
     gpio_put(VDP_PIN_QSPI_SCK, 0);
     vdp_cs_deassert();
 
-    /* Restore PIO function for next TX. */
     pio_gpio_init(VDP_QSPI_PIO, VDP_PIN_QSPI_SCK);
     for (uint i = 0; i < 4; i++) pio_gpio_init(VDP_QSPI_PIO, VDP_PIN_QSPI_IO0 + i);
     pio_sm_set_consecutive_pindirs(VDP_QSPI_PIO, VDP_QSPI_SM_TX, VDP_PIN_QSPI_SCK, 1, true);
     pio_sm_set_consecutive_pindirs(VDP_QSPI_PIO, VDP_QSPI_SM_TX, VDP_PIN_QSPI_IO0, 4, true);
     sleep_us(10);
 
-    return (uint32_t)b0
-         | ((uint32_t)b1 << 8)
-         | ((uint32_t)b2 << 16)
-         | ((uint32_t)b3 << 24);
+    return (uint32_t)b0 | ((uint32_t)b1 << 8) | ((uint32_t)b2 << 16) | ((uint32_t)b3 << 24);
 }
 
-/* Maximum single-burst SDRAM_WRITE. Larger uploads must use vdp_upload_asset
- * which chunks into vblank-paced pieces. */
-#define VDP_SDRAM_WRITE_MAX_WORDS  253   /* 6 hdr + 506 payload = 512 byte frame */
+// ---- ESP32 / ESP8266 Arduino Bit-bang Implementation -------------------------
+#elif defined(ARDUINO)
+
+#define HALF_PERIOD_US 1
+
+static inline void vdp_cs_assert(void)   { digitalWrite(VDP_PIN_QSPI_CS_N, LOW); }
+static inline void vdp_cs_deassert(void) { digitalWrite(VDP_PIN_QSPI_CS_N, HIGH); }
+
+#if defined(ESP32)
+#define MASK_SCK    (1u << VDP_PIN_QSPI_SCK)
+#define MASK_IO0    (1u << VDP_PIN_QSPI_IO0)
+#define MASK_IO1    (1u << VDP_PIN_QSPI_IO1)
+#define MASK_IO2    (1u << VDP_PIN_QSPI_IO2)
+#define MASK_IO3    (1u << VDP_PIN_QSPI_IO3)
+#define MASK_IO_ALL (MASK_IO0 | MASK_IO1 | MASK_IO2 | MASK_IO3)
+
+static inline void vdp_drive_nibble(uint8_t n)
+{
+    uint32_t set = 0;
+    if (n & 0x1) set |= MASK_IO0;
+    if (n & 0x2) set |= MASK_IO1;
+    if (n & 0x4) set |= MASK_IO2;
+    if (n & 0x8) set |= MASK_IO3;
+    REG_WRITE(GPIO_OUT_W1TC_REG, MASK_IO_ALL);
+    if (set) REG_WRITE(GPIO_OUT_W1TS_REG, set);
+}
+
+static inline void vdp_set_sck(bool high)
+{
+    REG_WRITE(high ? GPIO_OUT_W1TS_REG : GPIO_OUT_W1TC_REG, MASK_SCK);
+}
+
+static inline uint8_t vdp_read_nibble(void)
+{
+    uint32_t pins = REG_READ(GPIO_IN_REG);
+    uint8_t n = 0;
+    if (pins & MASK_IO0) n |= 0x1;
+    if (pins & MASK_IO1) n |= 0x2;
+    if (pins & MASK_IO2) n |= 0x4;
+    if (pins & MASK_IO3) n |= 0x8;
+    return n;
+}
+
+#elif defined(ESP8266)
+#define MASK_SCK    (1u << VDP_PIN_QSPI_SCK)
+#define MASK_IO0    (1u << VDP_PIN_QSPI_IO0)
+#define MASK_IO1    (1u << VDP_PIN_QSPI_IO1)
+#define MASK_IO2    (1u << VDP_PIN_QSPI_IO2)
+/* IO3 (GPIO16) is RTC pad, no fast mask access. */
+#define MASK_IO_LOW (MASK_IO0 | MASK_IO1 | MASK_IO2)
+
+static inline void vdp_drive_nibble(uint8_t n)
+{
+    uint32_t set = 0;
+    if (n & 0x1) set |= MASK_IO0;
+    if (n & 0x2) set |= MASK_IO1;
+    if (n & 0x4) set |= MASK_IO2;
+    GPOC = MASK_IO_LOW;
+    if (set) GPOS = set;
+    digitalWrite(VDP_PIN_QSPI_IO3, (n & 0x8) ? HIGH : LOW);
+}
+
+static inline void vdp_set_sck(bool high)
+{
+    if (high) GPOS = MASK_SCK; else GPOC = MASK_SCK;
+}
+
+static inline uint8_t vdp_read_nibble(void)
+{
+    uint32_t pins = GPI;
+    uint8_t n = 0;
+    if (pins & MASK_IO0) n |= 0x1;
+    if (pins & MASK_IO1) n |= 0x2;
+    if (pins & MASK_IO2) n |= 0x4;
+    if (digitalRead(VDP_PIN_QSPI_IO3)) n |= 0x8;
+    return n;
+}
+#endif
+
+static void vdp_send_nibble(uint8_t n)
+{
+    vdp_drive_nibble(n);
+    vdp_set_sck(false);
+    delayMicroseconds(HALF_PERIOD_US);
+    vdp_set_sck(true);
+    delayMicroseconds(HALF_PERIOD_US);
+}
+
+static void vdp_send_byte(uint8_t b)
+{
+    vdp_send_nibble((b >> 4) & 0x0F);
+    vdp_send_nibble( b       & 0x0F);
+}
+
+void vdp_qspi_init(void)
+{
+    if (s_initialized) return;
+    pinMode(VDP_PIN_QSPI_SCK,  OUTPUT);
+    pinMode(VDP_PIN_QSPI_CS_N, OUTPUT);
+    pinMode(VDP_PIN_QSPI_IO0,  OUTPUT);
+    pinMode(VDP_PIN_QSPI_IO1,  OUTPUT);
+    pinMode(VDP_PIN_QSPI_IO2,  OUTPUT);
+    pinMode(VDP_PIN_QSPI_IO3,  OUTPUT);
+    vdp_cs_deassert();
+    vdp_set_sck(false);
+    s_initialized = true;
+}
+
+void vdp_pio_wait_sm_idle(void) { /* no-op on Arduino */ }
+
+static void vdp_tx_bytes(const uint8_t *buf, size_t n)
+{
+    for (size_t i = 0; i < n; ++i) vdp_send_byte(buf[i]);
+}
+
+uint32_t vdp_read_status(uint8_t sel)
+{
+    vdp_set_sck(false);
+    pinMode(VDP_PIN_QSPI_IO0, OUTPUT);
+    pinMode(VDP_PIN_QSPI_IO1, OUTPUT);
+    pinMode(VDP_PIN_QSPI_IO2, OUTPUT);
+    pinMode(VDP_PIN_QSPI_IO3, OUTPUT);
+
+    vdp_cs_assert();
+    uint8_t hdr[6] = { 0x04, sel, 0x00, 0x00, 0x00, 0x00 };
+    vdp_tx_bytes(hdr, 6);
+
+    /* 2-edge turnaround */
+    pinMode(VDP_PIN_QSPI_IO0, INPUT);
+    pinMode(VDP_PIN_QSPI_IO1, INPUT);
+    pinMode(VDP_PIN_QSPI_IO2, INPUT);
+    pinMode(VDP_PIN_QSPI_IO3, INPUT);
+    for (int i = 0; i < 2; i++) {
+        vdp_set_sck(false); delayMicroseconds(HALF_PERIOD_US);
+        vdp_set_sck(true);  delayMicroseconds(HALF_PERIOD_US);
+    }
+
+    uint8_t bytes[4];
+    for (int i = 0; i < 4; i++) {
+        vdp_set_sck(false); delayMicroseconds(HALF_PERIOD_US);
+        vdp_set_sck(true);  uint8_t hi = vdp_read_nibble(); delayMicroseconds(HALF_PERIOD_US);
+        vdp_set_sck(false); delayMicroseconds(HALF_PERIOD_US);
+        vdp_set_sck(true);  uint8_t lo = vdp_read_nibble(); delayMicroseconds(HALF_PERIOD_US);
+        bytes[i] = (hi << 4) | lo;
+    }
+
+    vdp_set_sck(false);
+    vdp_cs_deassert();
+    delayMicroseconds(10);
+
+    return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) |
+           ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
+}
+
+#endif // platform switch
+
+// ---- Common Shared Implementation -------------------------------------------
+
+void vdp_reg_write(uint32_t addr, uint16_t data)
+{
+    uint8_t frame[8];
+    frame[0] = 0x01;
+    frame[1] = (uint8_t)( addr        & 0xFF);
+    frame[2] = (uint8_t)((addr >>  8) & 0xFF);
+    frame[3] = (uint8_t)((addr >> 16) & 0xFF);
+    frame[4] = 0x01;                     /* LEN = 1 word */
+    frame[5] = 0x00;
+    frame[6] = (uint8_t)( data       & 0xFF);
+    frame[7] = (uint8_t)((data >> 8) & 0xFF);
+    vdp_cs_assert();
+    vdp_tx_bytes(frame, sizeof frame);
+    vdp_cs_deassert();
+#if defined(PICO) || defined(ARDUINO_ARCH_RP2040)
+    sleep_us(10);
+#else
+    delayMicroseconds(10);
+#endif
+}
+
+#define VDP_SDRAM_WRITE_MAX_WORDS  253
 
 void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words)
 {
     if (num_words == 0 || num_words > VDP_SDRAM_WRITE_MAX_WORDS) {
-        s_last_error = 2;   /* out-of-range LEN */
+        s_last_error = 2;
         return;
     }
     uint8_t frame[512];
     size_t n = 6 + 2 * (size_t)num_words;
-    frame[0] = 0x02;                     /* SDRAM_WRITE */
+    frame[0] = 0x02;
     frame[1] = (uint8_t)( addr        & 0xFF);
-    frame[2] = (uint8_t)((addr >> 8)  & 0xFF);
+    frame[2] = (uint8_t)((addr >>  8) & 0xFF);
     frame[3] = (uint8_t)((addr >> 16) & 0xFF);
     frame[4] = (uint8_t)( num_words       & 0xFF);
     frame[5] = (uint8_t)((num_words >> 8) & 0xFF);
@@ -196,9 +345,13 @@ void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words)
         frame[6 + 2*i + 0] = (uint8_t)( words[i]       & 0xFF);
         frame[6 + 2*i + 1] = (uint8_t)((words[i] >> 8) & 0xFF);
     }
-    while (n & 3) { frame[n++] = 0x00; }   /* pad to word boundary */
+    while (n & 3) { frame[n++] = 0x00; }
     vdp_cs_assert();
     vdp_tx_bytes(frame, n);
     vdp_cs_deassert();
+#if defined(PICO) || defined(ARDUINO_ARCH_RP2040)
     sleep_us(10);
+#else
+    delayMicroseconds(10);
+#endif
 }

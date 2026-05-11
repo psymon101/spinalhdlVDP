@@ -10,6 +10,7 @@
 #ifndef VDP_PLATFORM_H
 #define VDP_PLATFORM_H
 
+#if defined(PICO) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_RASPBERRY_PI_PICO)
 #include "hardware/pio.h"
 
 /* Pico 2 GPIO → Tang Nano 20K pin mapping (Task 27 full-quad-fidelity) */
@@ -20,12 +21,38 @@
 #define VDP_PIN_QSPI_IO2  12   /* Tang pin 51 */
 #define VDP_PIN_QSPI_IO3  13   /* Tang pin 54 */
 
-/* SCK frequency — 2 MHz matches the proven Task 34/35/38 cadence.
- * Higher rates require re-validating PIO OSR drain + SDRAM CDC margin. */
-#define VDP_QSPI_SCK_HZ    2000000u
-
 /* PIO unit + state-machine indices reserved for the VDP QSPI transport. */
 #define VDP_QSPI_PIO       pio0
 #define VDP_QSPI_SM_TX     0
+
+#elif defined(ESP32)
+#include <Arduino.h>
+
+/* ESP32 dev1 GPIO → Tang Nano 20K pin mapping (BronzeGate #8987) */
+#define VDP_PIN_QSPI_SCK   18
+#define VDP_PIN_QSPI_CS_N  19
+#define VDP_PIN_QSPI_IO0   23
+#define VDP_PIN_QSPI_IO1   22
+#define VDP_PIN_QSPI_IO2   25
+#define VDP_PIN_QSPI_IO3   27
+
+#elif defined(ESP8266)
+#include <Arduino.h>
+
+/* ESP8266 NodeMCU 1.0 GPIO → Tang Nano 20K pin mapping (BronzeGate #9123) */
+#define VDP_PIN_QSPI_SCK   14   /* D5 */
+#define VDP_PIN_QSPI_CS_N  12   /* D6 */
+#define VDP_PIN_QSPI_IO0   13   /* D7 */
+#define VDP_PIN_QSPI_IO1    5   /* D1 */
+#define VDP_PIN_QSPI_IO2    4   /* D2 */
+#define VDP_PIN_QSPI_IO3   16   /* D0 - RTC pad, needs digitalWrite */
+
+#else
+#error "Unsupported platform for libvdp"
+#endif
+
+/* SCK frequency — 2 MHz matches the proven Task 34/35/38 cadence.
+ * Higher rates require re-validating PIO OSR drain + SDRAM CDC margin. */
+#define VDP_QSPI_SCK_HZ    2000000u
 
 #endif /* VDP_PLATFORM_H */

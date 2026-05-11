@@ -1,5 +1,5 @@
 /**
- * esp8266_task55_sprite_mask.ino — Task 55 Checkpoint C HW proof for ESP8266.
+ * esp32_task55_sprite_mask.ino — Task 55 Checkpoint C HW proof for ESP32.
  *
  * 1. Genesis sprite masking (word 8 bit [4]) suppresses lower-priority
  *    sprites on the masked scanline.
@@ -8,8 +8,8 @@
  *
  * This version reuses libvdp for transport.
  *
- * Board:  NodeMCU 1.0 (ESP-12E)
- * FQBN:   esp8266:esp8266:nodemcuv2
+ * Board:  ESP32 dev1
+ * FQBN:   esp32:esp32:esp32
  */
 
 #include <Arduino.h>
@@ -73,36 +73,35 @@ void setup(void)
 {
     Serial.begin(115200);
     delay(50);
-    Serial.println();
-    Serial.println(F("ESP8266 task55_sprite_mask host (libvdp version) — booting"));
+    Serial.println("ESP32 task55_sprite_mask host (libvdp version) — booting");
 
     vdp_qspi_init();
     delay(200);
 
-    Serial.println(F("disabling slots 4..47..."));
+    Serial.println("disabling slots 4..47...");
     for (uint8_t s = 4; s < 48; ++s) {
         disable_sprite(s);
     }
 
-    Serial.println(F("programming mask band @ Y=200 — slot 4 mask=1, slots 5/6 opaque"));
+    Serial.println("programming mask band @ Y=200 — slot 4 mask=1, slots 5/6 opaque");
     program_sprite(4, 80, 200, 0, 1, 0, 2, true);
     program_sprite(5, 200, 200, 0, 1, 0, 2, false);
     program_sprite(6, 400, 200, 0, 1, 0, 2, false);
 
-    Serial.println(F("programming reference band @ Y=100 — slot 7 (no mask)"));
+    Serial.println("programming reference band @ Y=100 — slot 7 (no mask)");
     program_sprite(7, 320, 100, 0, 1, 0, 2, false);
 
-    Serial.println(F("programming overflow band @ Y=300 — 35 tiles"));
-    program_sprite(8, 0, 300, 0, 2, 0, 2, false);
-    program_sprite(9, 64, 300, 0, 1, 0, 2, false);
+    Serial.println("programming overflow band @ Y=300 — 35 tiles");
+    program_sprite(8, 0, 300, 0, 2, 0, 2, false);  // 16 tiles
+    program_sprite(9, 64, 300, 0, 1, 0, 2, false); // 4 tiles
     program_sprite(10, 96, 300, 0, 1, 0, 2, false);
     program_sprite(11, 128, 300, 0, 1, 0, 2, false);
     program_sprite(12, 160, 300, 0, 1, 0, 2, false);
-    program_sprite(13, 200, 300, 0, 0, 0, 2, false);
+    program_sprite(13, 200, 300, 0, 0, 0, 2, false); // 1 tile
     program_sprite(14, 216, 300, 0, 0, 0, 2, false);
     program_sprite(15, 232, 300, 0, 0, 0, 2, false);
 
-    Serial.println(F("setup complete; static scene running"));
+    Serial.println("setup complete; static scene running");
 }
 
 void loop(void)

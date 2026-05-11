@@ -1,13 +1,13 @@
 /**
- * esp8266_sc45_host_init.ino — #9026 sc45-host narrowed proof for ESP8266.
+ * esp32_sc45_host_init.ino — #9026 sc45-host narrowed proof for ESP32.
  *
  * Sc45: drive the copper sequence so the FPGA renders sc45 with the
  * bitstream's `useHostInit=true` boot bypass active.
  *
  * This version reuses libvdp for transport.
  *
- * Board:  NodeMCU 1.0 (ESP-12E)
- * FQBN:   esp8266:esp8266:nodemcuv2
+ * Board:  ESP32 dev1
+ * FQBN:   esp32:esp32:esp32
  */
 
 #include <Arduino.h>
@@ -15,7 +15,7 @@
 
 static void sc45_host_init(void)
 {
-    Serial.println(F("sc45-host: uploading copper program (220 words)..."));
+    Serial.println("sc45-host: uploading copper program (220 words)...");
 
     vdp_reg_write(0x0400u, 0x0000u);         // WAIT y=0
     vdp_reg_write(0x0401u, 0x4350u);         // WRITE BITMAP_CTRL opcode
@@ -32,7 +32,7 @@ static void sc45_host_init(void)
 
     vdp_reg_write(0x0400u + 219u, 0xC000u);  // JUMP 0
 
-    Serial.println(F("sc45-host: copper program uploaded; writing control regs..."));
+    Serial.println("sc45-host: copper program uploaded; writing control regs...");
 
     vdp_reg_write(0x0311u, 0x0000u);         // TILE_MODE = packed
     vdp_reg_write(0x0312u, 0x0000u);         // ATTR_MODE = linear
@@ -44,20 +44,19 @@ static void sc45_host_init(void)
     vdp_reg_write(0x0333u, 0x0000u);         // WIN_Y1
     vdp_reg_write(0x0334u, 0x0000u);         // COLOR_MATH = passthrough
 
-    Serial.println(F("sc45-host: control regs written; init complete"));
+    Serial.println("sc45-host: control regs written; init complete");
 }
 
 void setup(void)
 {
     Serial.begin(115200);
     delay(50);
-    Serial.println();
-    Serial.println(F("ESP8266 sc45-host host (libvdp version) — booting"));
+    Serial.println("ESP32 sc45-host host (libvdp version) — booting");
 
     vdp_qspi_init();
     delay(200);
     sc45_host_init();
-    Serial.println(F("Host-init done; idling (bitmap driven by copper running on FPGA)"));
+    Serial.println("Host-init done; idling (bitmap driven by copper running on FPGA)");
 }
 
 void loop(void)

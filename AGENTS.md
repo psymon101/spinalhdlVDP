@@ -15,10 +15,11 @@ Use the workspace canonical names:
 - `BrightForge` for Claude
 - `CoralReef` for Kimi
 - `CyanPeak` for Gemini
+- `FoggyWolf` for the MCU / host-transport agent
 
 Do not invent alternate names in this repository.
 
-External-review exception:
+External-review exception (only one):
 
 - `TopazCliff` is allowed to send **outside review / advisory** messages into
   this project mailbox
@@ -27,6 +28,10 @@ External-review exception:
 - `TopazCliff` must not replace `CoralReef` for lane ownership, ledger sync,
   approvals, or canonical Kimi identity inside this repo
 - all in-project Kimi workflow ownership here remains `CoralReef`
+
+**FoggyWolf is NOT an external-review exception.** `FoggyWolf` is part of the
+canonical execution roster and must register, commit, and operate inside this
+repository. An outside workspace is not permitted.
 
 ## Mail Registration
 
@@ -43,6 +48,7 @@ Required names:
 - `BrightForge` for Claude
 - `CoralReef` for Kimi
 - `CyanPeak` for Gemini
+- `FoggyWolf` for the MCU / host-transport agent
 
 Do not:
 
@@ -150,14 +156,77 @@ After running simulation:
 - One active engineering lane at a time on the critical path.
 - Source of truth order: (1) latest authoritative mail, (2) `TASKS.md` live-lane block, (3) current repo state.
 - Standing role split:
-  - `BrightForge`: implementation, validation, proof
+  - `BrightForge`: FPGA implementation, validation, proof
   - `CyanPeak`: audit, sign-off, memory curation
   - `CoralReef`: coordination, ledger/doc sync, preflight research
   - `BronzeGate`: sequencing, scope control, stall intervention
+  - `FoggyWolf`: MCU firmware, host transport, platform parity, scenario bootstrap sketches
 - Fast-flow: optimize for shortest trustworthy cycle time, smallest proof-sized batches, and earlier discriminators.
 - Ledger sync is part of closeout, not cleanup.
 
 For detailed packet templates, audit checklists, escalation policy, and coordination rules, see `PROJECT_PLAN/archive/AGENTS_WORKFLOW_RULES.md`.
+
+## FoggyWolf Scope and Rules
+
+`FoggyWolf` is the dedicated MCU / host-transport agent.
+
+**Registration name:** The mail system auto-generates adjective+noun names. FoggyWolf was assigned by the server. Do not attempt to force custom names; accept the auto-generated handle.
+**Workspace:** `/home/itadmin/github/spinalhdlVDP/` (may operate from repo root or `firmware/` subdirectory)
+**AGENTS.md hierarchy:** `firmware/AGENTS.md` governs firmware-specific work and overrides root `AGENTS.md` for operations inside `firmware/`. FoggyWolf may read the root `AGENTS.md` for general project identity, mail rules, and cross-agent coordination.
+
+### What FoggyWolf Owns
+
+- `firmware/libvdp/` — cross-platform host driver library (Pico PIO + ESP32/ESP8266 Arduino core)
+- `firmware/GOTCHAS.md` — firmware-specific pitfalls and proven fixes
+- `firmware/README.md` — build and flash instructions
+- Scenario bootstrap sketches for **all supported platforms**:
+  - ESP8266 (`esp8266_*`)
+  - ESP32 (`esp32_*`)
+  - Raspberry Pi Pico (`test_qspi_wire/`, `test_qspi_smoke/`, etc.)
+- QSPI transport validation and timing verification on each platform
+- Platform-specific build systems:
+  - CMake for Pico (`test_qspi_wire/CMakeLists.txt`)
+  - Arduino IDE / CLI for ESP8266 and ESP32
+
+### What FoggyWolf Must NOT Touch
+
+- `hw/spinal/` — SpinalHDL source
+- `hw/gen/` — generated HDL
+- `fpga/tang20k/` — FPGA build flow, constraints, pin assignments
+- `PROJECT_PLAN/` — substrate planning and task ledger (read-only for context)
+- RTL architecture decisions, synthesis, PnR, simulation
+
+### Working Rules
+
+1. **Inside-repo only.** `FoggyWolf` must work from `/home/itadmin/github/spinalhdlVDP/`, register in this repo's mail project, and commit directly to `firmware/` inside this repo. Operating from an external workspace (like `TopazCliff`) is **not permitted**.
+
+2. **Register contract is read-only.** FoggyWolf consumes the register map, QSPI framing spec, and scenario definitions from `BrightForge` / `CoralReef`. FoggyWolf does not invent new transport commands, header formats, or register addresses.
+
+3. **Scenario parity is mandatory.** Every hardware-proven scenario that gets an ESP8266 sketch must eventually receive matching ESP32 and Pico sketches. Do not add a new ESP8266 sketch without a plan (and ideally a task) to close the parity gap on the other platforms.
+
+4. **Host-side proof standard.** A firmware task is not closed until:
+   - The sketch builds cleanly for the target platform
+   - It produces the same HDMI output (or passes the same diagnostic check) as the canonical ESP8266 version
+   - `firmware/GOTCHAS.md` is updated if a new platform-specific pitfall is discovered
+
+5. **Library-first preference.** Reusable QSPI framing, upload, and status logic belongs in `libvdp/`. Scenario sketches should be thin wrappers that call `libvdp` APIs. Do not duplicate QSPI bit-bang logic across sketches.
+
+6. **Coordination handoff.** Before starting a firmware lane, FoggyWolf must:
+   - Check `TASKS.md` Live Lane State for conflicts
+   - Confirm the register contract and scenario definition with `BrightForge`
+   - Confirm the lane is authorized by `BronzeGate`
+
+7. **Platform identity.** FoggyWolf is part of the canonical execution roster for `spinalhdlVDP`, not an external reviewer. Use the same mail project, same git repo, and same task ledger as the FPGA agents.
+
+### MCP Servers Relevant to FoggyWolf
+
+From the server table below, FoggyWolf's primary tools are:
+
+- `clangd-lsp` — C firmware navigation and diagnostics
+- `gdb` — C firmware debugging
+- `uart` — Serial console sessions for target boards
+- `mcp-git` — Git history and diff queries
+- `mcp-agent-mail` — Cross-agent coordination
 
 ## Source of Truth Order
 
@@ -296,3 +365,65 @@ Add as appropriate:
 
 Do not dump raw mail or long project logs into memory. Store short,
 query-friendly summaries that point back to the authoritative mail/doc state.
+
+## Preventive Rules
+
+The following rules exist to prevent the identity, authorization, and contract
+drift that occurred during the Task 56 → FoggyWolf onboarding transition.
+These rules are mirrored from the workspace-authoritative `AGENTS.md` and
+are equally binding inside this repo.
+
+### 1. Role Transfer Rule
+
+No agent may self-declare absorption, consolidation, or transfer of another
+agent's role. Role changes require BronzeGate PM authorization in explicit
+mail, a transition mail CC'd to all affected agents, and update to the
+workspace `AGENTS.md` before the change takes effect.
+
+### 2. Audit Singleton Rule
+
+Only CyanPeak may issue authoritative PASS / HOLD / FAIL audit rulings.
+If audit ownership ever transfers, the outgoing owner must explicitly confirm
+retirement in mail before the incoming owner issues rulings.
+
+### 3. Commit-Within-Cycle Rule
+
+All work that has received audit PASS must be committed to git before the next
+PM review cycle or lane authorization. The audit owner may withhold PASS until
+the commit hash is included in the proof packet.
+
+### 4. Contract Deviation Documentation Rule
+
+Any implementation that deviates from a locked hardware contract by more than
+25 % must be documented in the relevant `GOTCHAS.md` with quantitative
+analysis and evidence that the hardware state machine tolerates it.
+
+The canonical QSPI contract is locked at: 2 MHz SCK, 10 µs CS hold, 20 µs OSR
+drain.
+
+### 5. Signoff Consistency Rule
+
+Each agent has one canonical signoff string. Do not use mixed aliases or
+alternate signatures mid-thread.
+
+- FoggyWolf signs as `— FoggyWolf`
+- CyanPeak signs as `— CyanPeak`
+- CoralReef signs as `— CoralReef`
+- BrightForge signs as `— BrightForge`
+- BronzeGate signs as `— BronzeGate`
+
+### 6. Identity Retirement Rule
+
+Retiring an agent identity requires explicit retirement mail, removal from all
+`AGENTS.md` rosters, confirmation that no pending audit rulings remain, and a
+24-hour observation window during which the retired identity must not send mail.
+
+An identity missing from the roster but still sending mail is not retired;
+it is a roster bug that must be fixed immediately.
+
+### 7. Side-Lane Authorization Rule
+
+Parallel work (e.g., firmware parity, documentation restructure) requires
+BronzeGate lane-open authorization before implementation starts. Post-hoc proof
+packets are accepted only for bounded reconciliation, not as blanket
+authorization for future lanes.

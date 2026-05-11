@@ -3,8 +3,13 @@
  */
 #include "vdp_status.h"
 #include "vdp_qspi.h"
+#include "vdp_platform.h"
 
+#if defined(PICO) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_RASPBERRY_PI_PICO)
 #include "pico/stdlib.h"
+#elif defined(ARDUINO)
+#include <Arduino.h>
+#endif
 
 void vdp_clear_sticky(uint16_t mask)
 {
@@ -18,7 +23,11 @@ bool vdp_wait_sticky(uint16_t bit_mask, uint32_t timeout_us)
         if ((s & bit_mask) == bit_mask) return true;
         if (timeout_us == 0) return false;
         uint32_t step = (timeout_us < 50u) ? timeout_us : 50u;
+#if defined(PICO) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_RASPBERRY_PI_PICO)
         busy_wait_us_32(step);
+#else
+        delayMicroseconds(step);
+#endif
         timeout_us -= step;
     }
 }
