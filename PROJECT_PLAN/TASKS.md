@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-12 (320-pixel planar clipping mask DONE per CyanPeak #9768. No active lane converged yet.)
+**Updated:** 2026-05-12 (Atari ST Adapter Lane opened #9776; 320-pixel planar clipping mask DONE per CyanPeak #9768.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,22 +22,40 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(none — next lane not yet converged)* |
-| **Status** | **NO ACTIVE LANE** — 320-pixel planar clipping mask closed per #9768; awaiting PM next-lane authorization |
-| **Phase** | — |
+| **Task** | **Atari ST Adapter Lane** — 320×200 4-plane planar v1 |
+| **Status** | **IN-PROGRESS** — opened #9776 (BronzeGate), owner BrightForge, audit CyanPeak |
+| **Phase** | implement |
 | **Latest Commit** | — |
 | **Commits in lane** | — |
-| **Latest Auth Mail** | #9768 (CyanPeak audit PASS on 77bedae), #9767 (BrightForge discriminator packet), #9741 (BrightForge Checkpoint A proof) |
+| **Latest Auth Mail** | #9776 (BronzeGate lane open) |
 | **Artifact** | — |
-| **Next Deliverable** | BronzeGate next-lane authorization or artifact |
+| **Next Deliverable** | BrightForge Checkpoint A/B proof packet |
 
-**Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** lane opened #9736 (BronzeGate), BrightForge implemented at `77bedae` (#9741), CyanPeak HOLD #9765 on `VdpTopSim` signature shift, BrightForge supplied bounded discriminator #9767, **CyanPeak audit PASS #9768**. Lane DONE. No next lane converged in docs.
+**Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** lane opened #9736, BrightForge implemented at `77bedae` (#9741), CyanPeak HOLD #9765, BrightForge discriminator #9767, **CyanPeak audit PASS #9768** (#9770 closeout, `755fd10`). **Atari ST Adapter Lane** opened #9776: v1 bounded to 320×200 4-plane planar, static test-pattern bring-up, STE blitter out of scope, dependency Task 3 DONE satisfied. No other open execution-ready gap tasks ranked above this lane in `MODE0_PLANNING.md` §6.
 
 ---
 
 ## Next Up / Open Queue
 
 The following tasks are **OPEN** and await PM authorization to become active lanes.
+
+### Atari ST Adapter Lane
+
+| Field | Value |
+|---|---|
+| **Status** | **IN-PROGRESS** — opened #9776; owner BrightForge, audit CyanPeak |
+| **Gap** | No Atari ST adapter. Bounded v1: 320×200 4-plane planar output only. |
+| **Platforms helped** | Atari ST (primary) |
+| **Impact** | **Low-Medium** — 1 platform; lowest-risk Tier 1 adapter per `MODE0_PLANNING.md` §6 |
+| **Risk/Complexity** | Low-Medium. Planar + raster only; no sprites needed for v1. |
+| **Proof shape** | Sim: adapter-local coherence proof; HW: static test pattern renders correctly, palette swap via raster trigger if used, 30s capture freeze=0 |
+| **Source assessment** | `MODE0_PLANNING.md` §6 rank 5; `ASSESSMENT.md` |
+| **Depends on** | Task 3 DONE |
+| **Scope Boundary** | v1: 320×200 4-plane planar only. STE blitter out of scope. No sprite expansion. No substrate rewrite. |
+| **Checkpoints** | A: adapter plan / register-mode mapping / proof shape; B: implementation + sim + hardware capture; C: CyanPeak audit ruling |
+| **Coding authorized** | YES — #9776 |
+
+---
 
 ### Task 54 — Sprite-Sprite Collision Detector
 
