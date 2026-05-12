@@ -1,39 +1,83 @@
 # Amiga OCS/ECS VDP (Denise/Agnus)
 
-## Primary References
-- [Amiga Hardware Reference Manual](https://archive.org/details/Amiga_Hardware_Reference_Manual_1991_Addison_Wesley) - The "Red Book", definitive reference for all chipset registers.
+## 1. Video Model Summary
+
+- **Native logical resolutions:**
+  - Lores: 320×200 (NTSC) / 320×256 (PAL)
+  - Hires: 640×200 (NTSC) / 640×256 (PAL)
+  - Interlace: Doubles vertical resolution
+- **Display structure:** Planar bitplane display with display-window placement
+- **Frame rate:** 50 Hz (PAL) / 60 Hz (NTSC)
+
+## 2. Supported Features
+
+- 1 to 6 bitplanes (up to 32 colors standard; 64 with EHB)
+- HAM (Hold-And-Modify): 6 bitplanes, 4096 colors on screen
+- EHB (Extra-Half-Brite): 6 bitplanes, entries 32–63 are half-brightness of 0–31
+- 8 sprites, 16 pixels wide, variable height; linked in pairs for 15 colors
+- Copper co-processor for beam-synchronous register writes
+- Blitter DMA engine for fast memory moves, area fills, line drawing
+- Display-window placement and border timing
+
+## 3. Unsupported / Deferred Features
+
+- **HAM/EHB decoder:** Requires a dedicated post-fetch/pre-compositor logic block in Mode0.
+- **Cycle-accurate DMA:** Agnus has a strict DMA slot cadence. Mode0 uses a more flexible but less timing-rigid arbiter.
+- **Blitter minterms:** Full 256-op Amiga minterm support is a future extension beyond Mode0 Task 49 basic copy/fill.
+- **Copper WAIT/MOVE/SKIP:** Beam-synchronous writes require Copper-lite / raster trigger support.
+
+## 4. Adapter Register Surface
+
+- **BPLxPTH/BPLxPTL:** Bitplane DMA pointers
+- **BPLCONx:** Bitplane control registers
+- **DIWxSTRT/DIWxSTOP:** Display window start/stop
+- **DDFxSTRT/DDFxSTOP:** Data fetch start/stop
+- **COLORxx:** Palette registers (32 entries)
+- **SPRXPOS/SPRxCTL/SPRxDATA:** Sprite position, control, and data
+- **COPxLC:** Copper list location
+- **BLTxPT/BLTxMOD/BLTCONx:** Blitter pointers, modulo, and control
+
+## 5. Mode0 Mapping
+
+| Amiga Function | Mode0 Primitive | Adapter Responsibility |
+|---|---|---|
+| Planar bitplanes | Planar fetch | Map BPLxPTH/BPLxPTL to planarLineFetch |
+| Sprites | Sprite evaluation (descCount=8) | Map sprite pairs to sprite slots |
+| Copper | Copper-lite / raster trigger | Beam-synchronous register writes |
+| Blitter | Blitter (Task 49) | Basic copy/fill/line operations |
+| Display window | Windowing primitive | Clamp output to DIW boundaries |
+
+## 6. Host Memory Layout
+
+- **Chip RAM:** Up to 2 MB (OCS/ECS)
+- **Bitplane data:** Interleaved or linear depending on Agnus DMA setup
+- **Sprite data:** Attached to sprite DMA pointers
+- **Copper list:** Instruction list in Chip RAM (MOVE, WAIT, SKIP)
+
+## 7. Firmware Workflow
+
+1. Host allocates Chip RAM for bitplanes, sprites, and Copper list
+2. Host sets bitplane pointers (BPLxPTH/BPLxPTL)
+3. Host loads palette into COLORxx registers
+4. Host configures display window (DIWxSTRT/DIWxSTOP)
+5. Host enables DMA and display via DMACON
+6. Host may use Copper for raster effects and Blitter for graphics operations
+
+## 8. Proof / Validation Plan
+
+- **Sim:** Verify planar fetch and display window behave correctly
+- **Hardware:** Static test pattern with display window and sprites; 30s capture freeze=0
+- **Scope check:** Do not claim HAM or full Copper support unless primitives are proven
+
+## 9. Known Gaps / Gotchas
+
+- **Display-window feel:** Preserve the display-window feel instead of pretending to be a generic framebuffer. Non-square presentation and mode-specific width choices should be documented.
+- **Border timing:** Display-window placement and border timing are part of the machine's look.
+- **Bitplane composition look:** The planar bitplane composition appearance is central to Amiga identity.
+- **Sprite priority:** Stronger sprite priority semantics than many other platforms.
+- **Minimum readiness:** Through `R7`, with `R5` especially important, per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
+
+## 10. Reference Links
+
+- [Amiga Hardware Reference Manual](https://archive.org/details/Amiga_Hardware_Reference_Manual_1991_Addison_Wesley)
 - [Amiga Graphics Guide](http://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node01A8.html)
-
-## Technical Summary
-- **Processors:** Agnus (DMA/Timing), Denise (Video/Bitplanes), Paula (Interrupts).
-- **Resolutions:**
-    - **Lores:** 320x200 (NTSC) / 320x256 (PAL).
-    - **Hires:** 640x200 (NTSC) / 640x256 (PAL).
-    - **Interlace:** Doubles vertical resolution.
-- **Bitplanes:** 1 to 6 bitplanes. 
-    - **HAM (Hold-And-Modify):** 6 bitplanes, allows 4096 colors on screen.
-    - **EHB (Extra-Half-Brite):** 6 bitplanes, entries 32-63 are half-brightness of 0-31.
-- **Sprites:** 8 sprites, 16 pixels wide, variable height. Linked in pairs for 15 colors.
-- **Copper:** Co-processor capable of beam-synchronous register writes (WAIT/MOVE/SKIP).
-- **Blitter:** DMA engine for fast memory moves, area fills, and line drawing with bitwise logic (minterms).
-
-## Programming Sequences & Details
-### Bitplane DMA
-Controlled by `BPLxPTH/BPLxPTL` (pointers) and `BPLCONx` (control). Bitplanes are fetched as interleaved or linear depending on Agnus DMA setup.
-
-### Copper Instructions
-- **MOVE:** `0 <register_offset> <value>`
-- **WAIT:** `1 <y_pos> <x_pos> | 1 <mask_y> <mask_x>`
-- **SKIP:** Similar to WAIT but skips next instruction if beam reached.
-
-### HAM Mode Logic
-Uses 6 bits per pixel:
-- `00`: Use Palette Entry (from bits 5:2 of pixel).
-- `01`: Modify Blue (replace B with bits 5:2).
-- `10`: Modify Red (replace R with bits 5:2).
-- `11`: Modify Green (replace G with bits 5:2).
-
-## Notable Gaps
-- **Cycle-Accurate DMA:** Agnus has a strict DMA slot cadence. Mode0 uses a more flexible but less timing-rigid arbiter.
-- **HAM/EHB Decoder:** Requires a dedicated post-fetch/pre-compositor logic block in Mode0.
-- **Blitter Minterms:** Mode0 Blitter (Task 49) handles basic copy/fill; full 256-op Amiga minterm support is a future extension.

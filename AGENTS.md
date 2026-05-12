@@ -236,6 +236,34 @@ Use this order every time:
 2. `PROJECT_PLAN/TASKS.md` live-lane block
 3. current repo state / commit under discussion
 
+## Adapter Documentation Policy
+
+To avoid adapter-spec sprawl, each platform adapter must have exactly one
+canonical knowledge file under `kb/`.
+
+Working rule:
+
+- use `kb/<Adapter>/README.md` as the single canonical adapter document
+- do not split the live adapter contract across `PROJECT_PLAN/`,
+  `firmware/README.md`, ad hoc notes, and task artifacts
+- `PROJECT_PLAN/` may summarize status, priority, and archive references, but
+  must point back to the `kb/` adapter file for the current contract
+- firmware sketches and proof code remain in `firmware/`, but the host-side
+  workflow they implement must be described in the adapter's `kb/` file
+
+Each canonical adapter file should contain, at minimum:
+
+1. video model summary
+2. supported features
+3. unsupported / deferred features
+4. adapter register surface
+5. Mode0 mapping
+6. host memory layout
+7. firmware workflow
+8. proof / validation plan
+9. known gaps / gotchas
+10. reference links
+
 ## Context Compression
 
 When resuming or handing off, compress state to:
