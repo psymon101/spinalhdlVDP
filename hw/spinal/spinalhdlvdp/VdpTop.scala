@@ -1250,19 +1250,30 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   val planarPixel = planarLineFetch.io.pixel
   val planarIdx4  = planarPixel(3 downto 0)
   val planarBank3 = (B"00" ## planarPixel(4)).asUInt
-  val layer0Index = (Mux(planarFetchEnable, planarIdx4,
+  // 320-pixel planar clipping mask (PM #9736, MODE0_PLANNING.md §6 rank 3).
+  // The planar source's native width is PLANE_PIXELS=320; `planarLineFetch
+  // .io.pixelIdx` is driven `hCounter % 320`, which means planar output
+  // wraps and repeats for hCounter in [320, 639]. Suppress the planar
+  // contribution to L0 outside the [0, 320) window so the existing L0
+  // source chain (affine → test pattern → bitmap → SDRAM → on-chip
+  // BasicPatternSource with layer0ScrollX/Y) is preserved bit-identically
+  // there. Consumer-side gate only — no planar fetch rewrite, no
+  // scheduler change, no scroll-latch change.
+  val planarClipActive          = (hCounter < U(PLANE_PIXELS, log2Up(hTotal) bits)).simPublic()
+  val planarFetchEnableClipped  = (planarFetchEnable && planarClipActive).simPublic()
+  val layer0Index = (Mux(planarFetchEnableClipped, planarIdx4,
                          Mux(affineEnable, affineIndex,
                          Mux(io.layer0TestPatternEnable,
                              testPattern.io.pixelIndex,
                              Mux(bitmapEnable, bitmapFetch.io.pixelIndex.asBits,
                                  Mux(io.layer0UseSdram, io.layer0SdramPixel, onChipIdx4)))))).simPublic()
-  val layer0Bank  = (Mux(planarFetchEnable, planarBank3,
+  val layer0Bank  = (Mux(planarFetchEnableClipped, planarBank3,
                          Mux(affineEnable, affineBank,
                          Mux(io.layer0TestPatternEnable,
                              testPattern.io.paletteBank,
                              Mux(bitmapEnable, bitmapFetch.io.paletteBank,
                                  Mux(io.layer0UseSdram, io.layer0SdramBank,  U(0, 3 bits))))))).simPublic()
-  val layer0Prio  = (Mux(planarFetchEnable, False,
+  val layer0Prio  = (Mux(planarFetchEnableClipped, False,
                          Mux(affineEnable, affinePrio,
                          Mux(io.layer0TestPatternEnable,
                              False,
