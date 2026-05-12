@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-10 (Task 56 DONE per CyanPeak #9709. No active lane converged yet.)
+**Updated:** 2026-05-12 (320-pixel planar clipping mask DONE per CyanPeak #9768. No active lane converged yet.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -23,15 +23,15 @@ This section tracks the single active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | *(none — next lane not yet converged)* |
-| **Status** | **NO ACTIVE LANE** — Task 56 closed per #9709; awaiting PM next-lane authorization |
+| **Status** | **NO ACTIVE LANE** — 320-pixel planar clipping mask closed per #9768; awaiting PM next-lane authorization |
 | **Phase** | — |
 | **Latest Commit** | — |
 | **Commits in lane** | — |
-| **Latest Auth Mail** | #9709 (CyanPeak Task 56 audit PASS / DONE), #9707 (BrightForge Checkpoint C proof) |
+| **Latest Auth Mail** | #9768 (CyanPeak audit PASS on 77bedae), #9767 (BrightForge discriminator packet), #9741 (BrightForge Checkpoint A proof) |
 | **Artifact** | — |
 | **Next Deliverable** | BronzeGate next-lane authorization or artifact |
 
-**Context:** Task 54 CLOSED per CyanPeak #9672 (audit PASS on BrightForge #9625 / commit `e556ff5`). `SpriteSpriteCollisionSim` 5/5 PASS, regression 9/9 PASS bit-identical. Task 56 preflight artifact audited PASS #9683; BrightForge landed Checkpoint A implementation in `93773d7` (#9685); CyanPeak audit PASS #9689; BrightForge landed Checkpoint B implementation in `ee5820c` (#9697); CyanPeak audit PASS #9699; BrightForge landed Checkpoint C implementation in `834c71e` (#9707); **CyanPeak audit PASS #9709**. Task 56 DONE. No next lane converged in docs per BronzeGate #9721.
+**Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** lane opened #9736 (BronzeGate), BrightForge implemented at `77bedae` (#9741), CyanPeak HOLD #9765 on `VdpTopSim` signature shift, BrightForge supplied bounded discriminator #9767, **CyanPeak audit PASS #9768**. Lane DONE. No next lane converged in docs.
 
 ---
 
@@ -122,6 +122,7 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 
 | Task | Status | Closeout Mail | Archive Artifact |
 |---|---|---|---|
+| 320-pixel planar clipping mask | **DONE** | #9768 | Commit `77bedae` |
 | Task 56 — Multi-Layer SDRAM Fetch | **DONE** | #9709 | Commits `93773d7`, `ee5820c`, `834c71e` |
 | Task 54 — Sprite-Sprite Collision Detector | **DONE** | #9672 | Commit `e556ff5` |
 | Task 57 — Substrate DFF Optimization | **DONE** | #9605 | Commit `fae0585`, `impl/pnr/project.fs` |
