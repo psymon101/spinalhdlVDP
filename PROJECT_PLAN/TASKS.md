@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-12 (Atari ST Adapter Lane opened #9776; 320-pixel planar clipping mask DONE per CyanPeak #9768.)
+**Updated:** 2026-05-12 (ZX Spectrum Firmware Host Flow opened #9783; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Atari ST Adapter Lane** — 320×200 4-plane planar v1 |
-| **Status** | **IN-PROGRESS** — opened #9776 (BronzeGate), owner BrightForge, audit CyanPeak |
+| **Task** | **ZX Spectrum Firmware Host Flow (v1)** |
+| **Status** | **IN-PROGRESS** — opened #9783 (BronzeGate), owner FoggyWolf, audit CyanPeak |
 | **Phase** | implement |
 | **Latest Commit** | — |
 | **Commits in lane** | — |
-| **Latest Auth Mail** | #9776 (BronzeGate lane open) |
+| **Latest Auth Mail** | #9783 (BronzeGate course correction / lane open) |
 | **Artifact** | — |
-| **Next Deliverable** | BrightForge Checkpoint A/B proof packet |
+| **Next Deliverable** | FoggyWolf Checkpoint A packet (host platform, register surface, upload layout, sketch plan) |
 
-**Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** lane opened #9736, BrightForge implemented at `77bedae` (#9741), CyanPeak HOLD #9765, BrightForge discriminator #9767, **CyanPeak audit PASS #9768** (#9770 closeout, `755fd10`). **Atari ST Adapter Lane** opened #9776: v1 bounded to 320×200 4-plane planar, static test-pattern bring-up, STE blitter out of scope, dependency Task 3 DONE satisfied. No other open execution-ready gap tasks ranked above this lane in `MODE0_PLANNING.md` §6.
+**Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** DONE #9768 (`755fd10`). **Atari ST Adapter Lane** opened #9776, Checkpoint A accepted #9782, then **PAUSED #9783** per user priority shift. **ZX Spectrum Firmware Host Flow (v1)** opened #9783: bounded firmware lane proving ZX host workflow end-to-end, bitmap + attribute upload, one canonical smoke sketch, no new substrate features, no unsupported ZX quirks.
 
 ---
 
@@ -39,11 +39,29 @@ This section tracks the single active lane.
 
 The following tasks are **OPEN** and await PM authorization to become active lanes.
 
+### ZX Spectrum Firmware Host Flow (v1)
+
+| Field | Value |
+|---|---|
+| **Status** | **IN-PROGRESS** — opened #9783; owner FoggyWolf, audit CyanPeak |
+| **Gap** | No canonical firmware-side ZX Spectrum host workflow proving end-to-end adapter honesty. |
+| **Platforms helped** | ZX Spectrum (primary) |
+| **Impact** | **High** — matures the first fully-proven adapter before expanding adapter breadth |
+| **Risk/Complexity** | Low. Uses existing substrate + adapter; firmware-only bounded scope. |
+| **Proof shape** | Firmware sketch selects/drives ZX path; static ZX-style image output; build proof; 30s hardware capture freeze=0; updated `kb/ZX_Spectrum/README.md` firmware workflow section |
+| **Source assessment** | `kb/ZX_Spectrum/README.md`, `MODE0_REGISTER_BUS_SPEC.md` |
+| **Depends on** | ZX Spectrum adapter substrate DONE (Task 50); Task 3 DONE |
+| **Scope Boundary** | Supported ZX video path only. No new substrate features. No unsupported ZX registers/quirks. No broad multi-platform parity on v1. Atari ST paused during this lane. |
+| **Checkpoints** | A: host platform choice, register surface, upload layout, sketch plan; B: implementation + build + hardware proof; C: CyanPeak audit ruling |
+| **Coding authorized** | YES — #9783 |
+
+---
+
 ### Atari ST Adapter Lane
 
 | Field | Value |
 |---|---|
-| **Status** | **IN-PROGRESS** — opened #9776; owner BrightForge, audit CyanPeak |
+| **Status** | **PAUSED** — Checkpoint A accepted #9782; paused #9783 per user priority shift |
 | **Gap** | No Atari ST adapter. Bounded v1: 320×200 4-plane planar output only. |
 | **Platforms helped** | Atari ST (primary) |
 | **Impact** | **Low-Medium** — 1 platform; lowest-risk Tier 1 adapter per `MODE0_PLANNING.md` §6 |
@@ -52,8 +70,8 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 | **Source assessment** | `MODE0_PLANNING.md` §6 rank 5; `ASSESSMENT.md` |
 | **Depends on** | Task 3 DONE |
 | **Scope Boundary** | v1: 320×200 4-plane planar only. STE blitter out of scope. No sprite expansion. No substrate rewrite. |
-| **Checkpoints** | A: adapter plan / register-mode mapping / proof shape; B: implementation + sim + hardware capture; C: CyanPeak audit ruling |
-| **Coding authorized** | YES — #9776 |
+| **Checkpoints** | A: adapter plan / register-mode mapping / proof shape ✅ ACCEPTED #9782; B: implementation + sim + hardware capture (PAUSED); C: CyanPeak audit ruling (pending reopen) |
+| **Coding authorized** | YES — #9776; PAUSED — #9783 |
 
 ---
 
