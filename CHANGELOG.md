@@ -14,7 +14,7 @@
 
 - **Task 53** — Sprite Pattern Address Width Expansion — DONE (audit PASS #9433)
   - `patIdxWidth` 4→6 (16→64 unique tiles)
-  - Commit `26174a7`; artifact in `PROJECT_PLAN/artifacts/TASK_53...md`
+  - Commit `26174a7`; artifact in `PROJECT_PLAN/archive/artifacts/TASK_53...md`
 - **Task 55** — Sprite Masking + Tile-Fetch Budget Counter — DONE (audit PASS #9479)
   - Checkpoint A audit PASS #9445; Checkpoint B audit PASS #9461; hardware proof PASS
 

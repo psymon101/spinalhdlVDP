@@ -162,7 +162,7 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 | Task 56 — Multi-Layer SDRAM Fetch | **DONE** | #9709 | Commits `93773d7`, `ee5820c`, `834c71e` |
 | Task 54 — Sprite-Sprite Collision Detector | **DONE** | #9672 | Commit `e556ff5` |
 | Task 57 — Substrate DFF Optimization | **DONE** | #9605 | Commit `fae0585`, `impl/pnr/project.fs` |
-| Task 53 — Sprite Pattern Address Width Expansion | **DONE** | #9433 | `artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` |
+| Task 53 — Sprite Pattern Address Width Expansion | **DONE** | #9433 | `archive/artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` |
 | Task 2a — Sprite Capacity Substrate Pre-Hardening | **DONE** | #9252 | `archive/tasks/TASK_2A_SPRITE_CAPACITY_SUBSTRATE_PREHARDENING.md` |
 | Task 2c — Sprite Evaluator Hardening | **DONE** | #9279 | `archive/tasks/TASK_2C_SPRITE_EVALUATOR_HARDENING.md` |
 | Task 2b — Sprite Capacity Bump | **DONE** | #9294 | `archive/tasks/TASK_2B_SPRITE_CAPACITY_BUMP.md` |

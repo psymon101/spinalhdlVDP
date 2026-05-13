@@ -1237,7 +1237,7 @@ If this file and actual code behavior disagree, the code and proof artifacts win
 | Window / mask / post-compositor effects | `Usable` | Phase/task structure records color math/window effects DONE | SNES/Genesis groundwork | may still need richer generalization or tightening before claiming broad adapter completeness |
 | Transfer engines | `Strong` | Task 47 DMA DONE; Task 49 blitter DONE | Amiga, Genesis, SNES, Neo Geo, general asset/OAM/tilemap movement support | adapter-visible command semantics remain adapter-local; substrate primitive now exists |
 | Event / status model | `Usable` | raster/status IRQ plumbing exists; sprite hooks exist; transfer done/busy exists | C64/NES/Genesis groundwork, general host visibility | exact historical status surfaces still adapter-local; broader shared event discipline may still need cleanup as adapters grow |
-| Presentation nuance support | `Partial` | first C64 adapter proof exists; `ADAPTER_NUANCES.md` now documents per-platform expectations | C64 explicitly; planning reference for all targets | most future adapters still need their own proof lanes to show aspect/border/clash/window behavior on top of current substrate |
+| Presentation nuance support | `Partial` | first C64 adapter proof exists; per-platform expectations documented in `kb/<Adapter>/README.md` | C64 explicitly; planning reference for all targets | most future adapters still need their own proof lanes to show aspect/border/clash/window behavior on top of current substrate |
 
 ---
 

@@ -1665,7 +1665,7 @@ The following task artifacts contain detailed scope descriptions, design rationa
 | Task 2c — Sprite Evaluator Hardening | `archive/tasks/TASK_2C_SPRITE_EVALUATOR_HARDENING.md` | CLOSED |
 | Task 3 — Planar Fetch Hardening | `archive/tasks/TASK_3_PLANAR_FETCH_HARDENING.md` | CLOSED |
 | Task 50 — ZX Spectrum Adapter | `archive/tasks/TASK_50_ZX_SPECTRUM_ADAPTER.md` | CLOSED |
-| Task 53 — Sprite Pattern Address Width Expansion | `artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` | ACTIVE |
+| Task 53 — Sprite Pattern Address Width Expansion | `archive/artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md` | CLOSED |
 
 Apply this template starting with Task 19 immediately.
 

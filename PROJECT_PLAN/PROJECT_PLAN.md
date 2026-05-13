@@ -7,7 +7,7 @@
 
 1. `PROJECT_PLAN.md` (this file)
 2. `MODE0_PLANNING.md`
-3. `ADAPTER_NUANCES.md`
+3. `PLATFORM_ADAPTERS.md`
 4. `ASSESSMENT.md`
 5. `TASK_TEMPLATE.md`
 6. `TASKS.md`

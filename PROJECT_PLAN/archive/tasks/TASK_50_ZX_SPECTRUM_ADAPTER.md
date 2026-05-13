@@ -287,6 +287,6 @@ Current baseline (Beam Hardening complete, commit `6345fcc`):
 - `hw/spinal/spinalhdlvdp/ZXSpectrumAdapter.scala` (NEW)
 - `hw/spinal/spinalhdlvdp/ZXSpectrumAdapterSim.scala` (NEW)
 - `hw/spinal/spinalhdlvdp/TopTang20kHdmi.scala` (case 50 + Verilog object)
-- `PROJECT_PLAN/scenarios/SCENARIO_50.md` (NEW)
+- `PROJECT_PLAN/archive/scenarios/SCENARIO_50.md`
 - `fpga/tang20k/impl/pnr/project.fs` (bitstream)
 - `captures/zx_sc50/` (HW capture)
