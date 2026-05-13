@@ -91,3 +91,14 @@
 
 - [Sega Genesis VDP Documentation (Charles MacDonald)](https://cgfm2.emuunlim.com/genesisvdp.txt)
 - [Genesis VDP Documentation (Sega Retro)](https://www.segaretro.org/Sega_Genesis_VDP)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/Genesis/references/Nuked-MD-FPGA`:
+- `ym7101.v`
+- `LICENSE`
+- `README.md`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

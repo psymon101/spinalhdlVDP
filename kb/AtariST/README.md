@@ -78,3 +78,14 @@
 ## 10. Reference Links
 
 - [Atari ST Shifter technical documentation (Info-Coach)](http://www.info-coach.fr/atari/hardware/video.php)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/AtariST/references/MiSTeryNano`:
+- `gstshifter.v`
+- `shifter_video.v`
+- `README.md`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

@@ -75,3 +75,14 @@
 
 - [ZX Spectrum ULA technical documentation (Chris Smith)](http://www.zxdesign.info/book.shtml) — Definitive guide to ULA timing and behavior
 - [Spectrum for Everyone - ULA details](https://spectrumforeveryone.com/technical/zx-spectrum-ula-details/)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/ZX_Spectrum/references/`:
+- `zx_ula_rtl.v`
+- `ula-details.html`
+- `zx_ula.html`
+- `INACCESSIBLE_SOURCES.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

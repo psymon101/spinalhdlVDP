@@ -81,3 +81,15 @@
 
 - [HuC6270 Technical Manual (Archive.org)](https://archive.org/details/huc6270-cmos-video-display-controller-manual)
 - [MagicEngine Hardware Doc: PC Engine VDC](http://www.magicengine.com/pce_project/doc/pce_vdc.html)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/PC_Engine/references/TurboGrafx16_MiSTer`:
+- `huc6260.vhd`
+- `huc6270.vhd`
+- `huc6202.vhd`
+- `pce_top.vhd`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

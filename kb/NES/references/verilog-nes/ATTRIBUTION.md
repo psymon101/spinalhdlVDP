@@ -12,3 +12,5 @@
   - Various address generation modules
 
 **Description:** Work-in-progress NES FPGA implementation with PPU background layer.
+
+**Project-local disclaimer:** These files are an external technical reference for study and comparison only. They are not the canonical Mode0 adapter contract and must not be silently incorporated into the project without independent license review.

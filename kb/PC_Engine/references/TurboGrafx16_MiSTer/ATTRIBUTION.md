@@ -11,3 +11,5 @@
 - `pce_top.vhd` — PC Engine top-level
 
 **Description:** MiSTer FPGA core for PC Engine / TurboGrafx-16.
+
+**Project-local disclaimer:** These files are an external technical reference for study and comparison only. They are not the canonical Mode0 adapter contract and must not be silently incorporated into the project without independent license review.

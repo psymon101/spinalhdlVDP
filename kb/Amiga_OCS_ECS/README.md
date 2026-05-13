@@ -81,3 +81,13 @@
 
 - [Amiga Hardware Reference Manual](https://archive.org/details/Amiga_Hardware_Reference_Manual_1991_Addison_Wesley)
 - [Amiga Graphics Guide](http://amigadev.elowar.com/read/ADCD_2.1/Hardware_Manual_guide/node01A8.html)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/Amiga_OCS_ECS/references/amiga_replacement_project`:
+- `denise.v`
+- `README.md`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

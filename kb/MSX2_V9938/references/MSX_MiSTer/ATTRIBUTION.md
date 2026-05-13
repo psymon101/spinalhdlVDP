@@ -25,3 +25,5 @@
 - `vdp_package.vhd` — VDP package/types
 
 **Description:** MiSTer FPGA core for MSX/MSX2/MSX2+ with V9938/V9958 VDP implementation.
+
+**Project-local disclaimer:** These files are an external technical reference for study and comparison only. They are not the canonical Mode0 adapter contract and must not be silently incorporated into the project without independent license review.

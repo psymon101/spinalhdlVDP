@@ -86,3 +86,27 @@
 
 - [NeoGeoDev Wiki](https://wiki.neogeodev.org)
 - [Neo Geo Official Development Manual](https://wiki.neogeodev.org/index.php?title=Official_development_manual)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/NeoGeo/references/NeoGeo_MiSTer`:
+- `lspc2_a2.v`
+- `lspc2_clk.v`
+- `lspc_regs.v`
+- `lspc_timer.v`
+- `neo_273.v`
+- `neo_b1.v`
+- `neo_cmc.v`
+- `hshrink.v`
+- `videosync.v`
+- `irq.v`
+- `zmc2_dot.v`
+- `autoanim.v`
+- `slow_cycle.v`
+- `fast_cycle.v`
+- `linebuffer.v`
+- `LICENSE`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

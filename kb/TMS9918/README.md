@@ -81,3 +81,13 @@
 
 - [TMS9918A/TMS9928A/TMS9929A Video Display Processors Data Manual (Bitsavers)](http://www.bitsavers.org/components/ti/TMS9900/TMS9918A_TMS9928A_TMS9929A_Video_Display_Processors_Data_Manual_Nov82.pdf)
 - [TI TMS9900 Series Documentation (Archive.org)](https://archive.org/details/bitsavers_tiTMS9900T929AVideoDisplayProcessorsDataManualNov8_6785534)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/TMS9918/references/EP994A`:
+- `tms9918.vhd`
+- `LICENSE`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

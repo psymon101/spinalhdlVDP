@@ -82,3 +82,13 @@
 
 - [The MOS 6567/6569 Video Interface Chip II (Christian Ludscheidt)](https://www.zimmers.net/cbemirror/cbm/c64/programming/documents/vic-ii.txt)
 - [Ultimate Commodore 64 Reference Guide (mist64/c64ref)](https://github.com/mist64/c64ref)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/Commodore64/references/vicii-kawari`:
+- `vicii.v`
+- `LICENSE`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

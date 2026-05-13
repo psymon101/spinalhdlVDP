@@ -87,3 +87,29 @@
 
 - [Yamaha V9938 Technical Data Book](https://grauw.nl/articles/v9938-technical-data-book/)
 - [V9938 MSX-Video Technical Reference (MSX Assembly Page)](http://map.grauw.nl/resources/video/v9938.php)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/MSX2_V9938/references/MSX_MiSTer`:
+- `vdp.vhd`
+- `vdp_graphic4567.vhd`
+- `vdp_graphic123m.vhd`
+- `vdp_text12.vhd`
+- `vdp_sprite.vhd`
+- `vdp_linebuf.vhd`
+- `vdp_doublebuf.vhd`
+- `vdp_hvcounter.vhd`
+- `vdp_colordec.vhd`
+- `vdp_register.vhd`
+- `vdp_interrupt.vhd`
+- `vdp_ssg.vhd`
+- `vdp_vga.vhd`
+- `vdp_ntsc_pal.vhd`
+- `vdp_wait_control.vhd`
+- `vdp_command.vhd`
+- `vdp_spinforam.vhd`
+- `vdp_package.vhd`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

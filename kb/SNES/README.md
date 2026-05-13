@@ -89,3 +89,14 @@
 
 - [Super Nintendo Entertainment System (SNES) Fullchip Technical Manual](https://romhack.github.io/doc/snes/snes_technical_manual.pdf)
 - [SNES PPU Rendering (NesDev Wiki / SNESDev)](https://snesdev.mesen.ca/wiki/index.php?title=PPU_rendering)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/SNES/references/FpgaSnes`:
+- `PPU.vhd`
+- `LICENSE`
+- `README.md`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

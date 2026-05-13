@@ -81,3 +81,17 @@
 
 - [Sega Master System VDP Documentation (Charles MacDonald)](https://cgfm2.emuunlim.com/smsvdp.txt)
 - [Sega VDP Documentation (Sega Retro)](https://www.segaretro.org/Sega_VDP)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/SMS_GG/references/SMS_MiSTer`:
+- `vdp.vhd`
+- `vdp_main.vhd`
+- `vdp_background.vhd`
+- `vdp_sprites.vhd`
+- `vdp_sprite_shifter.vhd`
+- `vdp_cram.vhd`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

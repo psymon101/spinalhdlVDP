@@ -82,3 +82,27 @@
 - [NesDev Wiki: PPU Rendering](https://www.nesdev.org/wiki/PPU_rendering)
 - [PPU Scrolling (Loopy)](https://www.nesdev.org/wiki/PPU_scrolling)
 - [NES Technical Documentation (Brad Taylor)](http://web.archive.org/web/20120211054044/http://nesdev.parodius.com/2C02tech.txt)
+
+### Localized References
+
+The following reference materials are stored locally in `kb/NES/references/verilog-nes`:
+- `PPU.v`
+- `Background.v`
+- `PaletteLookupRGB.v`
+- `Sprites.v`
+- `SpriteRasterizerPriority.v`
+- `PPUPatternTableAddress.v`
+- `PPUAttributeAddress.v`
+- `PPUTileAddress.v`
+- `PPUSprite8x8TileAddress.v`
+- `PPUIncrementX.v`
+- `PPUIncrementY.v`
+- `PPUChipEnable.v`
+- `Shift16.v`
+- `Shift8.v`
+- `ShiftParallelLoad8.v`
+- `README.md`
+- `ATTRIBUTION.md`
+
+See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+

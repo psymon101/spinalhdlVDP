@@ -9,3 +9,5 @@
 - `README.md` — Project documentation
 
 **Description:** Cycle-accurate Mega Drive FPGA core including VDP implementation.
+
+**Project-local disclaimer:** These files are an external technical reference for study and comparison only. They are not the canonical Mode0 adapter contract and must not be silently incorporated into the project without independent license review.

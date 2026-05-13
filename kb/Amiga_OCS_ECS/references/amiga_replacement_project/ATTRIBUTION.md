@@ -9,3 +9,5 @@
 
 **Description:** Clean Verilog replacements for classic Amiga custom chips.  
 **Note:** Non-commercial license. Not for commercial use without written permission.
+
+**Project-local disclaimer:** These files are an external technical reference for study and comparison only. They are not the canonical Mode0 adapter contract and must not be silently incorporated into the project without independent license review.
