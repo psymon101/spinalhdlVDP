@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-13 (ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
+**Updated:** 2026-05-13 (Host Platform Fidelity opened #9801; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
 **Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
 
 Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
@@ -22,22 +22,40 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **NO ACTIVE LANE** |
-| **Status** | Standing by for PM authorization |
-| **Phase** | — |
+| **Task** | **Host Platform Fidelity Requirements** — ESP8266 / ESP32 / Pico 2 |
+| **Status** | **IN-PROGRESS** — opened #9801 (BronzeGate), owner FoggyWolf, audit CyanPeak |
+| **Phase** | implement (doc-only) |
 | **Latest Commit** | — |
 | **Commits in lane** | — |
-| **Latest Auth Mail** | — |
+| **Latest Auth Mail** | #9801 (BronzeGate lane open) |
 | **Artifact** | — |
-| **Next Deliverable** | — |
+| **Next Deliverable** | FoggyWolf planning/proof packet for documentation updates |
 
-**Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** DONE #9768 (\`755fd10\`). **ZX Spectrum Firmware Host Flow (v1)** DONE #9797 (\`13989c1\`). **Atari ST Adapter Lane** opened #9776, Checkpoint A accepted #9782, then **PAUSED #9783** per user priority shift.
+**Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** DONE #9768 (\`755fd10\`). **ZX Spectrum Firmware Host Flow (v1)** DONE #9797 (\`13989c1\`). **Atari ST Adapter Lane** opened #9776, Checkpoint A accepted #9782, then **PAUSED #9783** per user priority shift. **Host Platform Fidelity Requirements** opened #9801: doc-only lane for per-platform fidelity notes, preferred authoritative proof host, transport limits, status/debug expectations.
 
 ---
 
 ## Next Up / Open Queue
 
 The following tasks are **OPEN** and await PM authorization to become active lanes.
+
+### Host Platform Fidelity Requirements (ESP8266 / ESP32 / Pico 2)
+
+| Field | Value |
+|---|---|
+| **Status** | **IN-PROGRESS** — opened #9801; owner FoggyWolf, audit CyanPeak |
+| **Gap** | No canonical documentation of host-platform constraints affecting visual fidelity and proof trustworthiness. |
+| **Platforms helped** | All (firmware/host-transport) |
+| **Impact** | **High** — establishes which host platform to trust for visual proof and why |
+| **Risk/Complexity** | Low. Documentation-only lane; no RTL or firmware feature implementation. |
+| **Proof shape** | Doc packet: per-platform fidelity notes, preferred authoritative host, acceptable functional hosts, transport/debug expectations, stale artifact disposition |
+| **Source assessment** | `firmware/README.md`, `firmware/GOTCHAS.md`, `kb/<Adapter>/README.md` |
+| **Depends on** | ZX Spectrum Firmware Host Flow DONE (#9797) |
+| **Scope Boundary** | ESP8266, ESP32, Pico 2 host-side constraints only. No new RTL. No new firmware features. No reopening closed ZX work. |
+| **Checkpoints** | A: planning/proof packet; B: documentation updates; C: CyanPeak audit ruling |
+| **Coding authorized** | YES — #9801 |
+
+---
 
 ### Atari ST Adapter Lane
 
