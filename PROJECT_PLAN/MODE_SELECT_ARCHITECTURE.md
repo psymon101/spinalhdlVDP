@@ -468,8 +468,8 @@ Total MODE_SELECT infrastructure: **~100 LUT**.
 | `hw/spinal/spinalhdlvdp/AdapterRegRouter.scala` | Routes QSPI writes to active adapter or Mode0 arbiter |
 | `hw/spinal/spinalhdlvdp/AdapterBusMux.scala` | Muxes gated adapter bus outputs into RegBusArbiter master 2 |
 | `hw/spinal/spinalhdlvdp/ModeSelectSim.scala` | Unit sim: mode switch, quiescence, router decode |
-| `PROJECT_PLAN/artifacts/TASK_51_NES_ADAPTER.md` | NES adapter artifact (Tier 2 candidate) |
-| `PROJECT_PLAN/artifacts/TASK_52_ATARI_ST_ADAPTER.md` | Atari ST adapter artifact (Tier 1 candidate) |
+| `kb/NES/README.md` | NES adapter canonical knowledge file (Tier 2) |
+| `kb/AtariST/README.md` | Atari ST adapter canonical knowledge file (Tier 1) |
 
 ### Modified files
 
