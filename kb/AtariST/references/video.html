@@ -1,0 +1,389 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>Atari ST Video Information By DrCoolZic</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<link href="../../_info-coach/infoCoach.css" rel="stylesheet" type="text/css" />
+<link rel="stylesheet" type="text/css" href="../_atari/atari.css">
+<script src="/SpryAssets/SpryMenuBar.js" type="text/javascript"></script>
+<link href="/SpryAssets/SpryMenuBarHorizontal.css" rel="stylesheet" type="text/css" />
+
+<script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-7991018-2']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+
+</script>
+
+
+</head>
+
+<body class="oneCol">
+<div id="container"><a name="top" id="top"></a>
+  <div id="header">
+    <h1>Atari ST Video</h1>
+    <p>Last updated <!-- #BeginDate format:Am1a -->August 5, 2012 6:41 PM<!-- #EndDate --></p>
+    <div id="siteNavBar">
+<ul>
+<li><a href="/index.php">Home</a></li>
+<li><a href="/atari/index.php" id="current">Atari</a></li>
+<li><a href="/pc/index.php">Pc</a></li>
+<li><a href="/research/index.php">Research</a></li>
+</ul>
+</div>
+<ul id="secNavBar" class="MenuBarHorizontal">
+<li><a class="MenuBarItemSubmenu" href="/atari/documents/index.php">Documents</a>
+<ul>
+<li><a href="/atari/documents/myFAQ.php">MyFAQ</a></li>
+<li><a href="/atari/documents/myDoc.php">MyDoc</a></li>
+<li><a href="/atari/documents/general.php">General</a></li>
+<li><a href="/atari/documents/datasheets.php">Datasheets</a></li>
+</ul></li>
+<li><a class="MenuBarItemSubmenu" href="/atari/hardware/index.php" id="current">Hardware</a>
+<ul>
+<li><a href="/atari/hardware/FD-Hard.php">FD-Hard</a></li>
+<li><a href="/atari/hardware/HD-Hard.php">HD-Hard</a></li>
+<li><a class="MenuBarItemSubmenu" href="/atari/hardware/devices/index.php">Devices</a>
+<ul>
+<li><a href="/atari/hardware/devices/CosmosEx.php">CosmosEx</a></li>
+<li><a href="/atari/hardware/devices/supercard.php">Supercard</a></li>
+<li><a href="/atari/hardware/devices/kryoflux.php">Kryoflux</a></li>
+<li><a href="/atari/hardware/devices/DC.php">DC</a></li>
+</ul></li>
+<li><a href="/atari/hardware/STE-HW.php">STE-HW</a></li>
+<li><a href="/atari/hardware/interfaces.php">Interfaces</a></li>
+<li><a href="/atari/hardware/video.php">Video</a></li>
+<li><a href="/atari/hardware/memory.php">Memory</a></li>
+<li><a href="/atari/hardware/disasembly.php">Disasembly</a></li>
+</ul></li>
+<li><a class="MenuBarItemSubmenu" href="/atari/software/index.php">Software</a>
+<ul>
+<li><a href="/atari/software/FD-Soft.php">FD-Soft</a></li>
+<li><a href="/atari/software/HD-Soft.php">HD-Soft</a></li>
+<li><a class="MenuBarItemSubmenu" href="/atari/software/PC-projects/index.php">PC-projects</a>
+<ul>
+<li><a href="/atari/software/PC-projects/Aufit.php">Aufit</a></li>
+<li><a href="/atari/software/PC-projects/analyzer.php">Analyzer</a></li>
+<li><a href="/atari/software/PC-projects/steem.php">Steem</a></li>
+<li><a href="/atari/software/PC-projects/utilities.php">Utilities</a></li>
+</ul></li>
+<li><a class="MenuBarItemSubmenu" href="/atari/software/ST-projects/index.php">ST-projects</a>
+<ul>
+<li><a href="/atari/software/ST-projects/BIG.php">BIG</a></li>
+<li><a href="/atari/software/ST-projects/Disk-Lib.php">Disk-Lib</a></li>
+<li><a href="/atari/software/ST-projects/Utilities.php">Utilities</a></li>
+</ul></li>
+<li><a href="/atari/software/Development.php">Development</a></li>
+<li><a href="/atari/software/preservation.php">Preservation</a></li>
+<li><a href="/atari/software/protection.php">Protection</a></li>
+<li><a href="/atari/software/Image-formats.php">Image-formats</a></li>
+<li><a href="/atari/software/GameAnalysis.php">GameAnalysis</a></li>
+</ul></li>
+<li><a href="/atari/links.php">Links</a></li>
+</ul>
+<script type="text/javascript">
+var navBar1 = new Spry.Widget.MenuBar("secNavBar", {imgDown:"/SpryAssets/SpryMenuBarDownHover.gif", imgRight:"/SpryAssets/SpryMenuBarRightHover.gif"});
+</script>
+  </div>
+  <!-- end #header -->
+  
+  <div id="mainContent">
+    <ul>
+      <li><a href="#video-presentation">Atari Video Presentation</a></li>
+      <li><a href="#schematic">Atari STE Video Schematic</a></li>
+      <li><a href="#connect_monitors">Connecting Modern LCD/CRT to an Atari</a></li>
+      <li><a href="#create-composite">Creating Composite Sync Signal on an Atari STFM</a></li>
+      <li><a href="#create_s-video">Creating S-video Signals on an Atari
+        STFM</a></li>
+      <li><a href="#video_composite_description">Atari STFM Composite Video Signal Description</a></li>
+      <li><a href="#basic_video_info">Basic Video Information</a></li>
+      <li><a href="#references">References</a></li>
+    </ul>
+    <h1><a name="video-presentation" id="video-presentation"></a>Atari Video  Presentation    </h1>
+    <p><a href="/atari/hardware/_video/video_bd.jpg"><img src="/atari/hardware/_video/video_bd.png" width="606" height="360" class="imageRightFloat" /></a></p>
+    <p>On the right is a high level diagram of the Atari Video circuitry. The associated timings are <a href="/atari/hardware/_video/video_timing.jpg">here</a></p>
+   <br class="clearfloat" />
+    <p><a href="/atari/hardware/_video/video-diagram.jpg"><img src="/atari/hardware/_video/video-diagram.png" width="450" height="581" class="imageRightFloat" /></a>The Atari video outputs are connected mainly to the  Video shifter circuitry as shown on this block diagram. Audio out and in are coming  from the Yamaha YM-2149 sound circuit, and the synchronization signals are coming  from the Atari Glue chip.<br />
+    The color outputs on pin 6 (Green), 7 (Red), and 10 (Blue) pass through an amplifier followed by   a dump resistor of 27 Ohm resistors on the STF and 75 Ohms resistors on the STE. </p>
+<p>The output pin 2 of the video connector depends on the Atari (<a href="#schematic">schematic</a>):</p>
+<ul>
+  <li>For an Atari <strong>without</strong> RF modulator the output on pin 2 is a Composite Sync that only combines the Vsync and Hsync signals, and </li>
+  <li>For an Atari <strong>with</strong> an RF modulator the output on pin 2 is a <a href="#video_composite_description">Composite Video signal</a>. </li>
+</ul>
+<p> Pin 8 is connected to 12V / 10mA pins on &quot;recent&quot; ST. However  on 520STF this pin is actually connected to GND.</p>
+    <p>Pin 5 accept an  optional audio input signal that can be mixed with the internally generated  signal before going to the audio out on pin 1. </p>
+    <p>Output pin 3 is a programmable  TTL output connected to sound chip YM-2149. </p>
+    <p>Pin 4 is connected the MFP68901  circuit and is used to set the Atari in Hi-resolution when grounded and to  Med/Low-resolution when left open. A transition on this pin generates a reset  of the system. </p><a href="#Top" class="btt"> Back to the top</a>
+    
+    <h1><a name="schematic" id="schematic"></a>Atari STE Video Schematic</a></h1>
+    <p>The following schematic describe most of the Atari STE  video circuitry. The schematic for an Atari Mega STE is very close to  this one but the locations of the components are different. However note that the video schematic  for an Atari STF is quite different. This is due mainly because of the  usage of a totally different version of the <strong>Shifter</strong>.</p>
+    <p class="highlight">Note the presence of two  sections  which are stuffed or not depending if the Atari is equipped with an RF modulator or not. </p>
+    <p>The components values indicated  on the schematic are for the NTSC version.</p>    
+    <p><img name=schematic src="/atari/hardware/_video/video-schematic.png" width="927" height="1091" class="imageCenter" /></p>
+    <a href="#Top" class="btt"> Back to the top</a>
+    <h1><a name="connect_monitors" id="connect_monitors"></a>Connecting Modern LCD/CRT  Monitors to an Atari</h1>
+    <p>There are several problems when trying to connect an Atari to a modern LCD/CRT monitor: The output voltages used are not standard, and the frequencies in Low/Medium color resolution are beyond the capability of most of the recent monitors.</p>
+    <ul>
+      <li><a href="#video_signals">Atari ST Video Signals</a></li>
+      <li><a href="#atari_with_rf_modulator">Connecting an Atari with RF Modulator</a>
+        <ul>
+          <li><a href="#connect_rf">Connection using the Atari RF output</a></li>
+          <li><a href="#connect_composite">Connection using the Atari Composite Video</a></li>
+          <li><a href="#connect_mono">Connection using the Atari Monochrome Signal</a></li>
+          <li><a href="#connect_all">Connection using the Composite and Monochrome Signals</a></li>
+          <li><a href="#cabling">Cabling Summary</a></li>
+        </ul>
+      </li>
+      <li><a href="#atari_without_rf_modulator">Connection to an Atari without RF Modulator</a>
+<ul>
+          <li><a href="#generate_composite">Generating a composite video signal</a></li>
+          <li><a href="#generate_vga">Generating directly a VGA signal</a>
+            <ul>
+              <li><a href="#GBS">Gonbes GBS 8200/8220 CGA-EGA-YUV to VGA Converter</a></li>
+            </ul>
+          </li>
+        </ul>
+      </li>
+    </ul><a href="#Top" class="btt"> Back to the top</a>
+<h2><a name="video_signals" id="video_signals"></a>Atari ST Video Signals Characteristics</h2>
+    <p>The Characteristics of the Video Signals used by the Atari are the following: </p>
+    <ul>
+      <li>Output Level 1 Volt Peak to  Peak (P-P) for Video (R.G.B.) and Synchronization lines</li>
+      <li> Horizontal /Vertical  Synchronization frequencies:
+        <ul>
+          <li> 15.75 kHz Horizontal, 50/60 Hz  Vertical for Color display, </li>
+          <li> 35.7 kHz Horizontal, 71.2Hz  Vertical for Monochrome display.</li>
+        </ul>
+      </li>
+    </ul>
+    <p>If you  can  find an old &quot;multisync&quot; monitor like the NEC 14&quot; CRT Multisync II  -- built  in 1988 it accepts a horizontal frequency  in range 15.5-35 kHz and a vertical frequency in range 50-80 Hz and therefore it can directly displays the 3 resolutions of the Atari. <br />
+    </p>
+    <p>Unfortunately modern &quot;VGA monitors&quot; do not support directly all the resolution of the Atari. While in most case they should work  with the Atari in monochrome mode (high resolution), they  will probably not work for the color mode  (medium-low resolutions) due to the fact that their minimal Horizontal Sync must usually be above 30 KHz and voltages can also be a problem.</p>
+    <p> The following sections describes some possible solutions to connect modern monitors to the Atari ST. You first need to find out if your Atari is equiped with an RF modulator or not. For that look at the back of your Atari and if it has an RF/TV output then it has an RF modulator:</p>
+    <ul>
+      <li>In that case your Atari generates a composite video signal and you just need a Composite to VGA converter. </li>
+      <li>Otherwise you either need to create a Video Composite signal to feed to a composite to VGA converter or you can use a  RGB to VGA conveter.</li>
+    </ul><a href="#Top" class="btt"> Back to the top</a>
+    <h2><a name="atari_with_rf_modulator" id="atari_with_rf_modulator"></a>Connection to an Atari with an RF modulator</h2>
+    <p>This is the easy case! You just need to feed the Composite video from pin 2 to the converter. For a <a href="#video_composite_description">description of the Composite Video signal </a>please refer to this section taken from <a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=17488&amp;start=150#p162966">1024Mak</a>. You can find on the Web many Composite / S-Video to VGA converter box.    </p>
+    <p>For example the <a href="http://www.dealextreme.com/details.dx/sku.15178">Geniatech Supera Color HD Box</a> or   Composite + <a href="http://www.dealextreme.com/details.dx/sku.28534">S-Video to VGA Converter Box</a>. We will look in detail to the Supera HD box solution but the presentation can be adapted to any box.</p>
+    <p class="highlight">It is sometimes possible to use the s-video input from these boxes. However you need to know that the quality will be the same as using the composite video input as the Atari does not generate S-Video output (see <a href="#create_s-video">here</a>).</p>
+    <p><strong>The Supera Color HD Box</strong></p>
+    <p><img src="/atari/hardware/_video/supera-diagram.png" width="596" height="290" class="imageRightFloat" />This solution    allows to connect an Atari ST machine running in low-medium-high resolution to a LCD or CRT monitor using the Supera Color HD Box (referred as the SCHD box later in this text). <span class="quote">Basically the SCHD box accept TV RF input, Composite Video input, S-Video input, YPbPr Input, or VGA input to produce a HD VGA output.</span></p>
+<p><span class="quote"><strong>Important reminder:</strong> This solution can only be used on ST machines that are <strong>equiped with a RF modulator</strong> (like a STFM).</span> If your Atari does <strong>not</strong> have an RF modulator look at this <a href="#GBS">solution</a>.</p>
+    <p>You first need to buy the <strong><em>Geniatech Supera Color HD Standalone External TV Tuner Box for LCD Monitors (1920*1200 Max Res)</em></strong>. For example <a href="http://www.dealextreme.com/details.dx/sku.15178">DealExtreme</a> sell it for about $50. For the detailed specification about this box please  follow  the <a href="http://www.dealextreme.com/details.dx/sku.15178">DealExtreme</a> link.</p>
+    <p><img src="/atari/hardware/_video/schd-front.jpg" width="199" height="600" class="imageLeftFloat" /><img src="/atari/hardware/_video/schd-back.jpg" width="158" height="600" class="imageLeftFloat" />There are several possible solutions to connect an Atari <strong>with a RF modulator</strong> to this box and we will review them below. Most of the information presented here are extracted  from the<a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=17488"> ST to VGA Success</a> <img src="/_info-coach/sm_smile1.gif" alt="" width="19" height="19" /> thread on the Atari-Forum.</p>
+    <p>In all the  following solutions the VGA output from the SCHD box needs to be connected to the VGA input of your LCD/CRT monitor and of course the box needs to be powered with the supplied power supply (7.5V). The proper input needs to be selected using the remote control or switches on the unit and the correct definition for your LCD/CRT monitor needs to be selected (up to 1920x1200 allowing to use HD monitors).</p>
+    <h3><a name="connect_rf" id="connect_rf"></a>Connection using the Atari RF output</h3>
+    <p>This is the easiest solution but also the one that gives the worst video quality. In this solution you just have to connect the <a href="/atari/hardware/interfaces.php#Atari_TV_Connector">Atari RF composite video output </a>to the ANT antena input of the SCHD. This solution works for the Atari in Low and Medium resolutions.</p>
+    <h3><a name="connect_composite" id="connect_composite"></a>Connection using the Atari Composite Video</h3>
+    <p>The goal is to get the  Atari Composite video signal coming from pin 2 of the Atari to one of the composite inputs from the SCHD. This solution works for low-medium resolutions.</p>
+    <p>This can be done by using directly an Atari to <a href="/atari/hardware/interfaces.php#rca_composite_cable">RCA composite video cable</a>. This cable is connected on one side to the DIN13 video output of the Atari and on the other side to the &quot;Phono plug&quot; (yellow RCA video plug) of the SCHD. </p>
+    <p>A second possibility is to use an <a href="/atari/hardware/interfaces.php#scart_peritel_cable">Atari to SCART video cable</a>. The SCART connector is then connected to a <a href="/atari/hardware/interfaces.php#scart_s-video_adapter">SCART to S-Video / Phono adapter</a>. And finally from the adapter you have to connect either an s-video cable or a RCA-RCA cable to the corresponding input on the SCHD box.</p>
+    <p>Note that even if you use a s-video cable connected to the s-video input of the SCHD in fact you are <strong>not</strong> really using s-video signals (that the Atari does not produce anyway) but the composite video signal. The composite video signal from pin 2 of the Atari  is connected to pin 20 of the SCART connecter, which is in turn connected to pin 3 (Luma Y) of the s-video connector. See  Atari STFM Composite Video Signal section later for more technical details.</p>
+    <h3><a name="connect_mono" id="connect_mono"></a>Connection using the Atari Monochrome Signal</h3>
+    <p>It is also possible to take the monochrome output signal (from pin 11) from the Atari and to connect it the VGA input of the SCHD Box. This is done by using a DIN13 to VGA cable. This solution works only for the high resolution of the Atari.</p>
+    <h3><a name="connect_all" id="connect_all"></a>Connection using the Composite and Monochrome Signals</h3>
+    <p>It is useful to have a solution that works for all the resolutions of the Atari (low-medium-high). This require to use the composite video signal for the low-medium resolutions and the monochrome video signal for the high resolution. For that matter the best solution is to use an <a href="/atari/hardware/interfaces.php#atari_monitor_switch">Atari monitor switch box</a>. The input of the switching box is connected to the Atari,  the monochrome output is connected to the VGA input of the SCHD and the color output is connected to the composite input of the SCHD. These connections are done using the previously described cables.</p>
+    <p>An example of connection  of an Atari to a SCHD box has been given by <strong>Shredder11</strong> in the thread <a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=17488&amp;start=100#p159383">here with nice pictures</a>.</p>
+    <p>In term of cables a better solution would be to use a cable <a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=15614&amp;start=80#p143613">like this </a>from <strong>techie_alison</strong> or an even better solution would be to build a similar cable where the SCART connector would be replaced by  a RCA plug.</p>
+    <h3><a name="cabling" id="cabling"></a>Cabling Summary</h3>
+    <p>TODO</p><a href="#Top" class="btt"> Back to the top</a>
+    <h2><a name="atari_without_rf_modulator" id="atari_without_rf_modulator"></a>Connection to an Atari without RF Modulator</h2>
+    <p>In this case remember that the Atari does not produce a video composite signal. We have therefore two possible solutions:</p>
+    <ul>
+      <li>Generate a composite video signal that we can feed to a box described above, or</li>
+      <li>Directly takes the outputs of the Atari and generate a VGA signal.</li>
+    </ul>
+    <h3><a name="generate_composite" id="generate_composite"></a>Generating a composite video signal</h3>
+    <p>In this solution we use the RGB and sync signals to generate a composite video signal as well as a s-video signal. Note that this  solution works even for an Atari without an RF modulator. </p>
+    <p>Two examples:</p>
+    <ul>
+      <li>The <a href="http://www.amigamaniac.com/RGB_to_PAL_NTSC_adapter.html">Amiga RGB to PAL/NTSC Adapter</a>. <br />
+      This solution is described by Anemos on the Amiga forum <a href="http://www.ultimateamiga.co.uk/index.php/topic,4383.msg38686.html#msg38686">here</a> uses the amiga converter adapted to Atari signals. </li>
+      <li>Using the Atari ST Evolution Video Adapter from <a href="http://atari-sales.com/store/frames.html">Kjmann's Atari Sales</a>.<br />
+      Unfortunately this solution is not yet available. Look at  <a href="http://www.atariage.com/forums/topic/142424-new-video-adapter-for-s-video-on-atari-sttt-systems/">project</a> description. The project status as been moved to a new <a href="http://atari-sales.com/forums/showthread.php?tid=25">site</a> (you first need to create an account to see the threads).    </li>
+    </ul>
+    <h3><a name="generate_vga" id="generate_vga"></a>Generating directly a VGA signal</h3>
+    <p>In this solution we use the RGB and Sync signals from the Atari to generate a VGA/SVGA signal that can be used directly by a LCD/CRT monitor. There are plenty of boxes on the Web that takes CGA/EGA RGB signals to produce VGA output but it seems that in many cases the box is not adapted to Atari signals or the results are not  good. </p>
+    <p>For example the <em><a href="http://www.ambery.com/rgbcgatovgac.html">Ambery 15Khz RGB CGA YUV Component Video   YCbCr to VGA Converter Scaler </a></em> seems to be a nice solution on the paper but according to DarkLord <a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=17153&amp;hilit=8220#p149898">it does not seems</a> to work well: <span class="quote"><em>&quot;works ok in ST Low (but not Med - blurry and text drops out)&quot;</em></span>.</p>
+    <h4><a name="GBS" id="GBS"></a>Gonbes GBS 8200/8220 CGA-EGA-YUV to VGA Converter</h4>
+    <p>The  <strong>Gonbes GBS 8200/8220 CGA-EGA-YUV to VGA Converter</strong> board that allows to connect an Atari ST machine running in low-medium resolution to a LCD or CRT monitor. The <a href="/atari/hardware/_video/GBS-8200.pdf">GBS-8200</a> and the <a href="/atari/hardware/_video/GBS-8220.pdf">GBS-8220</a> boards (referred as the GBS board later in this text)  are almost identical the only difference beeing an extra VGA output on the 8220 model. Note that this model is sometimes known as GBS 6220.</p>
+<p><span class="quote">Basically the GBS board accept CGA, EGA,  YUV, and VGA inputs to produce a VGA output.</span></p>
+    <p><span class="quote"><strong> note:</strong> This solution is best suited for ST machines that are <strong>not equiped with a RF modulator</strong>.</span> If your Atari have an RF modulator you can use the above solution otherwise you may need to <a href="#create-composite">recreate</a> a composite synchro signal.</p>
+    <p>You first need to buy the <em><strong>Gonbes GBS 8200/8220 CGA-EGA-YUV to VGA Converter</strong></em> board. You should be able to find them from <a href="http://shop.ebay.com/i.html?_kw=RGB%2FCGA%2FEGA%2FYUV&amp;_kw=VGA">eBay</a> for about $40. For the detail specification about this board read the <a href="/atari/hardware/_video/GBS-8220_CGA_to_VGA_HD-Converter.pdf">user's manual</a>.</p>
+    <p>As I was a bit confused about the different inputs connectors and  the operating modes  of the board so I first did some measurements and experiments. Here is a summary of what I have found. </p>
+    <p>There are two type of entries: </p>
+    <ul>
+      <li> one for YUV, and</li>
+      <li> three for RGB </li>
+    </ul>
+    <p>and three modes of operations (selected with the SW button):</p>
+    <ul>
+      <li> one for YPBPR,</li>
+      <li> one for RGBS, and</li>
+      <li> one for RGBHV </li>
+    </ul>
+    <p>You also need to know   that<strong> </strong>the matching RGB  input pins of  the different connectors (that is the 5-Pins connectors P3, the 8-Pins connector P10 , and the 15-Pins connector P11) are directly connected together<strong></strong>.  
+      We have the following internal connections: </p>
+    <ul>
+<li> Red Signal    P3-1  P10-01  P11-1</li>
+
+<li> Green Signal  P3-2  P10-02  P11-2</li>
+
+<li> Blue Signal   P3-3  P10-03  P11-3</li>
+
+<li> Ground        P3-4  P10-05  P11-7&amp;8 (in fact P10 4 to 8 and 10 to 11)</li>
+
+<li> CSYNC/HSYNC   P3-5  P10-13  P11-4&amp;5</li>
+
+<li> VSYNC               P10-14  P11-6 </li>
+    </ul>
+    <p>Therefore contrary to what the data-sheet says  the P3, P10, and P11 connectors are equivalent (same input voltage and same frequency range) and using anyone of them will give  exactly the same result. However note that connector P3 does not have a Vsync input. </p>
+    <p>Setup procedure (I have been using the 5 pins P3 connector but you can use another)</p>
+    <ul>
+      <li>Connect the P13 (or P4) VGA output of the GBS-8220 Converter to your VGA  monitor</li>
+      <li>Connect the  video signals from the Atari (DIN13) to the P3 (or equivalent) video input connector of the GBS-8220 converter:         
+        <ul>
+<li> Red Video   (Atari Pin 07) to GBS-8220 P3-1</li>
+
+<li> Green Video (Atari Pin 06) to GBS-8220 P3-2</li>
+
+<li> Blue Video  (Atari Pin 10) to GBS-8220 P3-3</li>
+
+<li> CSync       (Atari Pin 02) to GBS-8220 P3-5 using pass through resitor</li>
+
+<li> Ground      (Atari Pin 13) to GBS-8220 P3-4</li>
+
+        </ul>
+      </li>
+      <li>Connect the GBS-8220  to a +5VDC Power supply. You can use the P9 2-pin connector or the P7 2-pin round connector. The power requirement for the GBS-8220 is +5VDC +/- .5VDC @ 2A. If the power supply cannot put out 2AMP then it may cause problems with the on-board  CPU. </li>
+      <li>First time you start the board the menu will be in Chinese. Press the Menu botton the board display a menu in Chinese use the up or down button to move the cursor in front of the entry 4. Press the Menu button the language menu is shown. Select entry 1 and validate with the Menu button you should now have the menus in English. </li>
+      <li>You can now power the Atari. If nothing is displayed try pressing the AUTO (Down) button on the converter. This should self-adjust and lock-in the picture on your VGA output monitor. You also try to press the SW button to select another operating mode.    </li>
+    </ul>
+    <p>With the above connection using a 560 Ohm pass through resistor on C Sync I have been able to get a stable image using the RGBHV mode. I also need to enter the Display menu and adjust to 1024 * 768. Problem is that even playing on the RGB VR input I cannot get correct color. The white is pink! Overall quality of the image is not superb but acceptable.</p>
+    <p>I also made a second series of tests using the 15 pins P11 connector. Here I have been using HSync (Atari pin 9 to GBS pin 13) + VSync (Atari pin 12 to GBS pin 14) but unfortunately without success. I have tried with and without 560 Ohm resistors.</p>
+    <p>I have also tried with both of the above connections (CSync or HSync+VSync) to input Atari monochrome signal to the GBS board but without success (the image is frozen).    </p><a href="#Top" class="btt"> Back to the top</a>
+    <h1><a name="create-composite" id="create-composite"></a>Creating Composite Sync signal on an Atari STFM</h1>
+    <p><img src="/atari/hardware/_video/lm1881.gif" width="600" height="209" class="imageRightFloat" />This may be useful if you have an Atari ST equipped with an RF modulator that produces a composite <strong>video</strong> signal on pin 2 (see video schematic).</p>
+    <p>One <a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=17153&amp;hilit=8220#p149930">solution</a> (proposed by <strong>Anemos</strong>) is to use an <a href="http://www.datasheetcatalog.org/datasheet/nationalsemiconductor/DS009150.PDF">LM1881</a> signal separator, to convert the composite video input signal from the Atari to a composite sync signal. I do not know if any experiment has been done.</p>
+    <p><img src="/atari/hardware/_video/gbs-8220-to-Atari-st.png" width="600" height="450" class="imageRightFloat" />Another <a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=17153&amp;hilit=8220&amp;start=25#p152387">solution</a> still proposed by Anemos is depicted in the  schematic on the right. A small <a href="http://www.youtube.com/watch?v=X6v89LahLc8">video</a> showing the Atari operating with this solution is available on YouTube. However this solution is criticize because the Hsync and Vsync signals are &quot;<strong>shorten</strong>&quot; together by the 1µF capacitor and this is obviously not good for the life of the glue (or MCU) chip.</p>
+    <p>&nbsp;</p>
+    <p>Yet another <a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=17153&amp;hilit=8220&amp;start=25#p162616">solution</a> from Simbo is to build an external board  with circuitry similar to the one used in the ST without RF modulator. The original Atari schematic uses 2N3905 and 1N4004 that simbo replaces respectively by BC182 and 1N914. Complete project can be found <a href="/atari/hardware/_video/mixed sync 1vpp buffer.zip">here</a>.</p>
+    <p>&nbsp;</p>
+    <p>If you are using an Atari STE you can see on the schematic, presented <a href="#schematic">above</a>, that a composite signal CSYNC is produced on pin 6 of the LS04 U211. This signal is  sent to  pin2 of the <a href="/atari/hardware/_video/mc13077datasheet.pdf">MC1377</a>. It seems that this signal is generated even if no RF modulator is installed. However the signal is not inteded to be used outside and  therefore it is not amplified and it is not available on the video connector.</p>
+  <a href="#Top" class="btt"> Back to the top</a>
+    <h1><a name="create_s-video" id="create_s-video"></a>Creating S-video Signals on an Atari STFM</h1>
+    <p>Using s-video signals provides a better video quality than composite video signals but unfortunately the Atari does not generate these signals. However <strong>ppera</strong> has published on this <a href="http://petari.000space.com/atari/stvid.php">page</a> a description on how  to modify an Atari ST, equipped with RF modulator,   to produce s-video signals.      The other alternative is to use an <a href="#generate_composite">external box</a></p><a href="#Top" class="btt"> Back to the top</a>
+    <h1><a name="video_composite_description" id="video_composite_description"></a>Atari STFM Composite Video Signal Description</h1>
+    <p>The following section is taken directly from what <a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=17488&amp;start=150#p162966">1024Mak </a>has published on the Atari-Forum.</p>
+    <p>Here are some oscilloscope images showing the video outputs from an Atari STFM   (<strong>with</strong> <strong>modulator</strong>). This is a UK model so operates to the PAL TV standard.<br />
+      They   show that the output on pin 2 of the Atari video connector <strong>is indeed composite   video</strong>.<br />
+      Also regarding the query about S-Video, well looking at these   waveforms I don't think anyone is actually getting S-Video. What your equipment   is probably doing is just using the information in the composite video feed   (from pin 2) and ignoring the input from the &quot;red / Chrominance&quot;   connection.  Why do I say this, well the waveforms for the red &quot;RGB&quot; video   output from the Atari do not show the type of signal needed to correctly operate   the circuitry for a chrominance input.<br />
+      <br />
+      In all these images the blue trace   is channel A of the oscilloscope which is connected to the Atari composite video   (pin 2).<br />
+      The red trace is channel B of the oscilloscope which is connected to   the Atari red video output (pin 7).<br />
+      For some of the traces I triggered the   oscilloscope from the vertical sync output (pin 12).<br />
+      Various images were used   but I only provide those that show the important features most clearly. All were   taken with the Atari set to low resolution video mode.<br />
+      <br />
+      <em><a href="/atari/hardware/_video/Composite_des/A=comp-B=red-with-no-red-in-the-pic.png"><img src="/atari/hardware/_video/Composite_des/A=comp-B=red-with-no-red-in-the-pic-neg.png" width="700" height="471" class="imageRightFloat" /></a></em>On figure 1 you can see that   in this image there is not much of the red trace. This is the red video output   from the Atari, but the picture the Atari is showing has no red in it, so   therefore there is no &quot;red&quot; picture information transmitted by the red video   signal. The composite (blue trace) carries lots of picture information.</p>
+    <p>&nbsp;</p>
+    <p><em>Figure 1 - A low resolution video frame with no red in the picture with a white   border</em></p>
+    <br class="clearfloat" />
+    <p><a href="/atari/hardware/_video/Composite_des/A=comp-B=red-with-some-red-in-the-pic.png"><img src="/atari/hardware/_video/Composite_des/A=comp-B=red-with-some-red-in-the-pic-neg.png" width="700" height="471" class="imageRightFloat" /></a>In figure 2 you can see that there is a lot of picture information in both the blue and red traces. <br />
+      This is with a complex coloured picture being shown.</p>
+    <p>&nbsp;</p>
+    <p><em>Figure 2 - A low res video frame with some red in the picture with a white border</em></p>
+    <br class="clearfloat" />
+    <p><a href="/atari/hardware/_video/Composite_des/A=comp-B=red-low-res-desktop.png"><img src="/atari/hardware/_video/Composite_des/A=comp-B=red-low-res-desktop-neg.png" width="700" height="471" class="imageRightFloat" /></a>In figure 3 the red level (red trace) is fairly uniform for the middle section, but the   composite (blue trace) varies much more as the different parts and colours of   the image are displayed. You can clearly see the field sync pulses at the start   of the trace.</p>
+    <p><br />
+      <em>Figure 3 - A low res video frame with a normal green desktop with a white   border</em></p>
+    <br class="clearfloat" />
+    <p><a href="/atari/hardware/_video/Composite_des/test-card-01.png"><img src="/atari/hardware/_video/Composite_des/test-card-01-neg.png" width="700" height="471" class="imageRightFloat" /></a>The set of traces in figure 4 shows one and a bit &quot;TV&quot; lines, the bottom parts of the blue   trace are the sync pulses, then the first &quot;spiky&quot; bit is the colour burst   signal, then you get the picture information (with some gray bars). The level   then drops down to &quot;ground&quot; (0V) and then there is another sync pulse for the   next line.</p>
+    <p>&nbsp;</p>
+    <p><em>Figure 4 - Low res video lines with the Atari displaying a &quot;test card&quot; image</em></p>
+    <br class="clearfloat" />
+    <p><a href="/atari/hardware/_video/Composite_des/6-bars-white-to-dark-gray.png"><img src="/atari/hardware/_video/Composite_des/6-bars-white-to-dark-gray-neg.png" width="700" height="471" class="imageRightFloat" /></a>In figure 5  the Atari displays 6 vertical bars from white through various   shades of gray to a very dark gray. The border is black. In this image (nearly   one &quot;TV&quot; line) notice how similar the blue and red traces are. You can see a   little bit of colour carrier information on the composite signal (blue trace)   but not much as there is very little colour in the picture. Compare this to the   image with six coloured vertical bars.</p>
+    <p>&nbsp;</p>
+    <p><em>Figure 5 - A low res video line with the Atari displaying 6 bars, white to dark gray with a black border </em></p>
+    <br class="clearfloat" />
+    <p><a href="/atari/hardware/_video/Composite_des/6-colour-bar-picture.png"><img src="/atari/hardware/_video/Composite_des/6-colour-bar-picture-neg.png" width="700" height="471" class="imageRightFloat" /></a>Figure 6  (nearly one &quot;TV&quot; line) clearly shows the type of signal you get for a   composite colour signal (blue trace) when six coloured vertical bars are   displayed. Note that above the ground (0V) level there are six steps   corresponding to the six colours, each step is modulated with the colour carrier   information. Compare this to the red video (red trace) which goes high only when   there are red elements being displayed (for the yellow, magenta and red bars).   Note that there is no modulated colour carrier information on this trace (but   there is some noise and crosstalk from the composite colour signal).</p>
+    <p><em>Figure 6 - A low res video line with the Atari displaying 6 colour bars, yellow, cyan,   green, magenta, red and blue with a black border</em></p>
+    <br class="clearfloat" />
+    <p>Figure 7 shows the test circuit used to record the oscilloscope images.</p>
+    <p><a href="/atari/hardware/_video/Composite_des/Atari-Video-Test-Circuit.png"><img src="/atari/hardware/_video/Composite_des/Atari-Video-Test-Circuit-neg.png" width="689" height="597" class="imageCenter" /></a></p><a href="#Top" class="btt"> Back to the top</a>
+    <h1><a name="basic_video_info" id="basic_video_info">Basic Video Information</a></h1>
+    <p>Here is some basic information on video.  Video standards are ordered by decreasing Video quality: From best to worst.</p>
+    <h2>RGB Video System</h2>
+    <p>RGB the term referring to a type of  component video signal used in the video. It consists of three analog signals—red,  green, and blue—carried on three separate cables/pins. Extra cables are  sometimes needed to carry synchronizing signals. This type of video is the best  quality signal that can be carried on the standard SCART connector. Almost all  computer monitors use RGB.</p><a href="#Top" class="btt"> Back to the top</a>
+    <h2> Component  Video YUV</h2>
+    <p> <a href="/atari/hardware/_video/yuv_rca_plugs.jpg"><img src="/atari/hardware/_video/yuv_rca_plugs.png" width="222" height="140" class="imageLeftFloat" /></a><a href="/atari/hardware/_video/yuv_video_jack.jpg"><img src="/atari/hardware/_video/yuv_video_jack.png" width="250" height="140" class="imageRightFloat" /></a>Component video is an analog video signal  transmitted as three separate components video with sync on luma signals. Several  variants exist but the most widely used is the YPbPr. <br />
+      The component video signals are typically  connected using RCA connectors Red (Pr), Green (Y) and Blue (Pb) or SCART  connector.</p>
+    <br class="clearfloat" />
+    <h2><a name="s-video" id="s-video"></a>S-Video</h2>
+    <p>Separate Video, more commonly known as  S-Video, also called Y/C is an analog video signal that carries video data as  two separate signals: luma (luminance) and chroma (color). The color  chrominance has to be encoded in NTSC, PAL, or SECAM. The luma signals also carry  the Sync and blanking signals. Uses <a href="/atari/hardware/interfaces.php#s-video_connector">S-Video  connector</a>.</p><a href="#Top" class="btt"> Back to the top</a>
+    <h2><a name="video_composite" id="video_composite"></a>Composite Video (CVBS)</h2>
+    <p> <img src="/atari/hardware/_video/RCA_Connector.jpg" width="180" height="135" class="imageLeftFloat" /><img src="/atari/hardware/_video/composite-jack.jpg" width="323" height="215" class="imageRightFloat" />Composite video is often designated by the CVBS  acronym, meaning &quot;Color, Video, Blank and Sync&quot;. It is usually in  standard formats such as NTSC, PAL, and SECAM. It is a composite of three  source signals called Y, U and V (together referred to as YUV) with sync  pulses. Y represents the brightness or luminance of the picture and includes  synchronizing pulses, so that by itself it could be displayed as a monochrome  picture. U and V represent hue and saturation or chrominance; between them they  carry the color information. The composite video signal is typically connected  using an RCA jack (called a <strong>phono</strong> plug in the UK), normally yellow (with red and white for right and left audio  channels respectively). <br />
+    </p><a href="#Top" class="btt"> Back to the top</a>
+    <h1><a name="references" id="references"></a>References</h1>
+    <h2>Datasheets</h2>
+    <ul>
+      <li><a href="http://www.datasheetarchive.com/pdf-datasheets/Datasheets-25/DSA-481104.html">MC1377 Datasheet</a></li>
+      <li><a href="http://www.analog.com/static/imported-files/data_sheets/AD725.pdf">AD725 Datasheet</a></li>
+      <li><a href="http://www.eecg.toronto.edu/~tm3/ad722.pdf">AD722 Datasheet</a> (note that this chip is listed as obsolete)</li>
+      <li>        Application note <a href="http://www.analog.com/static/imported-files/application_notes/218151931AN-412.pdf">Video-Standard Selection Circuit for the AD722 Using Low Cost Crystals</a></li>
+      <li><a href="http://pdf1.alldatasheet.com/datasheet-pdf/view/167382/MOTOROLA/MC13077.html">MC13077 Datasheet</a></li>
+      <li><a href="http://www.nxp.com/acrobat_download2/datasheets/TDA8501_CNV_2.pdf">TDA8501 Datasheet</a></li>
+      <li><a href="http://www.nteinc.com/specs/800to899/pdf/nte879.pdf">NTE879 Datasheet</a> </li>
+      <li><a href="http://www.alldatasheet.com/datasheet-pdf/pdf/170284/ETC/TEA2000.html">TEA2000 Datasheet</a></li>
+    </ul>
+    <h2>Information on video Circuits</h2>
+    <ul>
+      <li><a href="http://www.preromanbritain.com/gwem/martbean/ataridiy/conv.htm">Atari RGB to Composite Video Converter</a></li>
+      <li><a href="http://www.next.gr/inside-circuits/PAL-Colour-Encoder-TEA2000-V1-l5859.html">Example circuit</a> PAL Colour Encoder,      </li>
+      <li><a href="http://www.epanorama.net/circuits/vga2tv/vga2palntsc.html">Example circuit, </a></li>
+      <li><a href="http://www.epanorama.net/circuits/vga2tv/vga2palntsc.html">VGA to PAL and NTSC converter</a>,      </li>
+      <li><a href="http://www.epanorama.net/links/videochips.html">More info on video circuits and chips</a></li>
+    </ul>
+    <h2>Forums</h2>
+    <ul>
+      <li><a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=18707">Atari Connectors and Cables</a> </li>
+      <li><a href="http://www.atari-forum.com/viewtopic.php?f=74&amp;t=15728">S-Video mod for STE, ST   ...</a></li>
+      <li><a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=17488">ST to VGA Success</a></li>
+      <li><a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=17153&amp;start=0">Another failed ST -&gt;   vga experiement for me :)</a></li>
+      <li><a href="http://www.ultimateamiga.co.uk/index.php?PHPSESSID=a18599b64a3a17333f34573c773c4a21&amp;topic=4383.msg38686#msg38686">Atari   ST to Composite, S-video, &amp; VGA (color)</a></li>
+      <li><a href="http://www.atari-forum.com/viewtopic.php?f=15&amp;t=22668">GBS-8220 to Atari ST (2012)</a></li>
+    </ul>
+    <a href="#Top" class="btt"> Back to the top</a>
+  </div>
+  <!-- endof #mainContent --> 
+  
+  <br class="clearfloat" />
+  <div id="footer">
+    <h1>Copyright and Fair Use Notice </h1>
+    <p>This site contains copyrighted material the use of which has not 
+      always been specifically authorized by the copyright owner. We are making such 
+      material available in our efforts to help in the understanding of&nbsp;the Atari 
+      Computers. We believe this constitutes a 'fair use' of any such copyrighted 
+      material. The material on this site is accessible without profit and is 
+      presented here with the only goal to disseminate knowledge about Atari 
+      computers. Consistent with this notice you are welcome to make 'fair use' of 
+      anything you find on this web site. However, all persons reproducing, 
+      redistributing, or making commercial use of this information are expected to 
+      adhere to the terms and conditions asserted by the copyright holder. 
+      Transmission or reproduction of protected items beyond that allowed by fair use 
+      notice as defined in the copyright laws requires the permission of the copyright 
+      owners. </p>
+    <p>&copy; Info-Coach - DrCoolZic (Jean Louis-Guérin)</p>
+  </div>
+  <!-- end #footer --> 
+  
+</div>
+</body>
+</html>
