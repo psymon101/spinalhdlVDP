@@ -1,7 +1,10 @@
 # Inaccessible Reference Sources — Commodore 64
 
 ## Successfully Downloaded
-- None (all attempts failed)
+- `c64_vicII_preliminary.pdf` — Commodore 6567 VIC-II Preliminary Data Sheet
+  - Source: https://www.zimmers.net/anonftp/pub/cbm/documents/chipdata/6567_vicII_preliminary.pdf
+  - Size: 5,181,555 bytes (19 pages, verified genuine PDF)
+  - Note: Preliminary Commodore documentation for the 6567 VIC-II chip
 
 ## Inaccessible
 - **MOS 6567/6569 VIC-II Technical Reference (Christian Ludscheidt)**

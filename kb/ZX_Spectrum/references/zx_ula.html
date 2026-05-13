@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en-US">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name='viewport' content='width=device-width,initial-scale=1.0' />
+
+    <link rel="profile" href="//gmpg.org/xfn/11"/>
+    <link rel="pingback" href=""/>
+
+    <!-- Self-host Google Fonts -->
+<link href='http://www.breakintoprogram.co.uk/wp-content/themes/weaver-xtreme/assets/css/fonts/google/google-fonts.min.css?ver=6.7' rel='stylesheet' type='text/css'>
+<meta name='robots' content='index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1' />
+
+	<!-- This site is optimized with the Yoast SEO plugin v27.4 - https://yoast.com/product/yoast-seo-wordpress/ -->
+	<title>L Break Into Program - ZX Spectrum ULA</title>
+	<link rel="canonical" href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/hardware/ula" />
+	<meta property="og:locale" content="en_US" />
+	<meta property="og:type" content="article" />
+	<meta property="og:title" content="L Break Into Program - ZX Spectrum ULA" />
+	<meta property="og:description" content="The Spectrum ULA was a custom gate array chip that handled the screen, beeper and paging in alternate ROM chips, such as the Interface 1. ULA Pin Assignments ULA Operation The ULA takes the 14MHz master clock feed on pin 39 (Q) from the crystal oscillator and divides that by 2 to provide a more stable 7MHz clock for the video pixel clock, then again to provide a 3.5MHz clock for the CPU and peripherals. &hellip;" />
+	<meta property="og:url" content="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/hardware/ula" />
+	<meta property="og:site_name" content="L Break Into Program, 0:1" />
+	<meta property="article:modified_time" content="2024-10-13T21:06:08+00:00" />
+	<meta property="og:image" content="http://www.breakintoprogram.co.uk/wp-content/uploads/2012/06/pinouts_ULA.png" />
+	<meta property="og:image:width" content="364" />
+	<meta property="og:image:height" content="401" />
+	<meta property="og:image:type" content="image/png" />
+	<meta name="twitter:card" content="summary_large_image" />
+	<meta name="twitter:site" content="@deanbelfield" />
+	<meta name="twitter:label1" content="Est. reading time" />
+	<meta name="twitter:data1" content="2 minutes" />
+	<script type="application/ld+json" class="yoast-schema-graph">{"@context":"https:\/\/schema.org","@graph":[{"@type":"WebPage","@id":"http:\/\/www.breakintoprogram.co.uk\/hardware\/computers\/zx-spectrum\/hardware\/ula","url":"http:\/\/www.breakintoprogram.co.uk\/hardware\/computers\/zx-spectrum\/hardware\/ula","name":"L Break Into Program - ZX Spectrum ULA","isPartOf":{"@id":"http:\/\/www.breakintoprogram.co.uk\/#website"},"primaryImageOfPage":{"@id":"http:\/\/www.breakintoprogram.co.uk\/hardware\/computers\/zx-spectrum\/hardware\/ula#primaryimage"},"image":{"@id":"http:\/\/www.breakintoprogram.co.uk\/hardware\/computers\/zx-spectrum\/hardware\/ula#primaryimage"},"thumbnailUrl":"http:\/\/www.breakintoprogram.co.uk\/wp-content\/uploads\/2012\/06\/pinouts_ULA.png","datePublished":"2012-02-28T13:56:09+00:00","dateModified":"2024-10-13T21:06:08+00:00","breadcrumb":{"@id":"http:\/\/www.breakintoprogram.co.uk\/hardware\/computers\/zx-spectrum\/hardware\/ula#breadcrumb"},"inLanguage":"en-US","potentialAction":[{"@type":"ReadAction","target":["http:\/\/www.breakintoprogram.co.uk\/hardware\/computers\/zx-spectrum\/hardware\/ula"]}]},{"@type":"ImageObject","inLanguage":"en-US","@id":"http:\/\/www.breakintoprogram.co.uk\/hardware\/computers\/zx-spectrum\/hardware\/ula#primaryimage","url":"http:\/\/www.breakintoprogram.co.uk\/wp-content\/uploads\/2012\/06\/pinouts_ULA.png","contentUrl":"http:\/\/www.breakintoprogram.co.uk\/wp-content\/uploads\/2012\/06\/pinouts_ULA.png","width":364,"height":401},{"@type":"BreadcrumbList","@id":"http:\/\/www.breakintoprogram.co.uk\/hardware\/computers\/zx-spectrum\/hardware\/ula#breadcrumb","itemListElement":[{"@type":"ListItem","position":1,"name":"Hardware","item":"http:\/\/www.breakintoprogram.co.uk\/hardware"},{"@type":"ListItem","position":2,"name":"Computers","item":"http:\/\/www.breakintoprogram.co.uk\/hardware\/computers"},{"@type":"ListItem","position":3,"name":"ZX Spectrum","item":"http:\/\/www.breakintoprogram.co.uk\/hardware\/computers\/zx-spectrum"},{"@type":"ListItem","position":4,"name":"Motherboard","item":"http:\/\/www.breakintoprogram.co.uk\/hardware\/computers\/zx-spectrum\/hardware"},{"@type":"ListItem","position":5,"name":"ULA"}]},{"@type":"WebSite","@id":"http:\/\/www.breakintoprogram.co.uk\/#website","url":"http:\/\/www.breakintoprogram.co.uk\/","name":"L Break Into Program, 0:1","description":"Retro Computer Preservation","publisher":{"@id":"http:\/\/www.breakintoprogram.co.uk\/#\/schema\/person\/3f1c2807a730c12762ca4ea40c52d248"},"potentialAction":[{"@type":"SearchAction","target":{"@type":"EntryPoint","urlTemplate":"http:\/\/www.breakintoprogram.co.uk\/?s={search_term_string}"},"query-input":{"@type":"PropertyValueSpecification","valueRequired":true,"valueName":"search_term_string"}}],"inLanguage":"en-US"},{"@type":["Person","Organization"],"@id":"http:\/\/www.breakintoprogram.co.uk\/#\/schema\/person\/3f1c2807a730c12762ca4ea40c52d248","name":"Break Into Program","image":{"@type":"ImageObject","inLanguage":"en-US","@id":"https:\/\/secure.gravatar.com\/avatar\/0fea03e414d6cfac25db573a50b137fb35b5f13207ab4e19fac385a8c38b0cd8?s=96&d=wp_user_avatar&r=g","url":"https:\/\/secure.gravatar.com\/avatar\/0fea03e414d6cfac25db573a50b137fb35b5f13207ab4e19fac385a8c38b0cd8?s=96&d=wp_user_avatar&r=g","contentUrl":"https:\/\/secure.gravatar.com\/avatar\/0fea03e414d6cfac25db573a50b137fb35b5f13207ab4e19fac385a8c38b0cd8?s=96&d=wp_user_avatar&r=g","caption":"Break Into Program"},"logo":{"@id":"https:\/\/secure.gravatar.com\/avatar\/0fea03e414d6cfac25db573a50b137fb35b5f13207ab4e19fac385a8c38b0cd8?s=96&d=wp_user_avatar&r=g"},"description":"Retro Computer Developer &amp; Archivist Programming and Restoring Retro Computers from Acorn to ZX81","sameAs":["http:\/\/www.breakintoprogram.co.uk","https:\/\/www.instagram.com\/breakintoprogram\/","https:\/\/www.youtube.com\/BreakIntoProgram"]}]}</script>
+	<!-- / Yoast SEO plugin. -->
+
+
+<link rel="alternate" type="application/rss+xml" title="L Break Into Program, 0:1 &raquo; Feed" href="http://www.breakintoprogram.co.uk/feed" />
+<link rel="alternate" type="application/rss+xml" title="L Break Into Program, 0:1 &raquo; Comments Feed" href="http://www.breakintoprogram.co.uk/comments/feed" />
+<link rel="alternate" title="oEmbed (JSON)" type="application/json+oembed" href="http://www.breakintoprogram.co.uk/wp-json/oembed/1.0/embed?url=http%3A%2F%2Fwww.breakintoprogram.co.uk%2Fhardware%2Fcomputers%2Fzx-spectrum%2Fhardware%2Fula" />
+<link rel="alternate" title="oEmbed (XML)" type="text/xml+oembed" href="http://www.breakintoprogram.co.uk/wp-json/oembed/1.0/embed?url=http%3A%2F%2Fwww.breakintoprogram.co.uk%2Fhardware%2Fcomputers%2Fzx-spectrum%2Fhardware%2Fula&#038;format=xml" />
+<style id='wp-img-auto-sizes-contain-inline-css' type='text/css'>
+img:is([sizes=auto i],[sizes^="auto," i]){contain-intrinsic-size:3000px 1500px}
+/*# sourceURL=wp-img-auto-sizes-contain-inline-css */
+</style>
+<style id='wp-emoji-styles-inline-css' type='text/css'>
+
+	img.wp-smiley, img.emoji {
+		display: inline !important;
+		border: none !important;
+		box-shadow: none !important;
+		height: 1em !important;
+		width: 1em !important;
+		margin: 0 0.07em !important;
+		vertical-align: -0.1em !important;
+		background: none !important;
+		padding: 0 !important;
+	}
+/*# sourceURL=wp-emoji-styles-inline-css */
+</style>
+<link rel='stylesheet' id='wp-block-library-css' href='http://www.breakintoprogram.co.uk/wp-includes/css/dist/block-library/style.min.css?ver=cf7a1ca05824d22cde726bc2239d0702' type='text/css' media='all' />
+
+<style id='wp-block-list-inline-css' type='text/css'>
+ol,ul{box-sizing:border-box}:root :where(.wp-block-list.has-background){padding:1.25em 2.375em}
+/*# sourceURL=http://www.breakintoprogram.co.uk/wp-includes/blocks/list/style.min.css */
+</style>
+<style id='wp-block-media-text-inline-css' type='text/css'>
+.wp-block-media-text{box-sizing:border-box;
+  /*!rtl:begin:ignore*/direction:ltr;
+  /*!rtl:end:ignore*/display:grid;grid-template-columns:50% 1fr;grid-template-rows:auto}.wp-block-media-text.has-media-on-the-right{grid-template-columns:1fr 50%}.wp-block-media-text.is-vertically-aligned-top>.wp-block-media-text__content,.wp-block-media-text.is-vertically-aligned-top>.wp-block-media-text__media{align-self:start}.wp-block-media-text.is-vertically-aligned-center>.wp-block-media-text__content,.wp-block-media-text.is-vertically-aligned-center>.wp-block-media-text__media,.wp-block-media-text>.wp-block-media-text__content,.wp-block-media-text>.wp-block-media-text__media{align-self:center}.wp-block-media-text.is-vertically-aligned-bottom>.wp-block-media-text__content,.wp-block-media-text.is-vertically-aligned-bottom>.wp-block-media-text__media{align-self:end}.wp-block-media-text>.wp-block-media-text__media{
+  /*!rtl:begin:ignore*/grid-column:1;grid-row:1;
+  /*!rtl:end:ignore*/margin:0}.wp-block-media-text>.wp-block-media-text__content{direction:ltr;
+  /*!rtl:begin:ignore*/grid-column:2;grid-row:1;
+  /*!rtl:end:ignore*/padding:0 8%;word-break:break-word}.wp-block-media-text.has-media-on-the-right>.wp-block-media-text__media{
+  /*!rtl:begin:ignore*/grid-column:2;grid-row:1
+  /*!rtl:end:ignore*/}.wp-block-media-text.has-media-on-the-right>.wp-block-media-text__content{
+  /*!rtl:begin:ignore*/grid-column:1;grid-row:1
+  /*!rtl:end:ignore*/}.wp-block-media-text__media a{display:block}.wp-block-media-text__media img,.wp-block-media-text__media video{height:auto;max-width:unset;vertical-align:middle;width:100%}.wp-block-media-text.is-image-fill>.wp-block-media-text__media{background-size:cover;height:100%;min-height:250px}.wp-block-media-text.is-image-fill>.wp-block-media-text__media>a{display:block;height:100%}.wp-block-media-text.is-image-fill>.wp-block-media-text__media img{height:1px;margin:-1px;overflow:hidden;padding:0;position:absolute;width:1px;clip:rect(0,0,0,0);border:0}.wp-block-media-text.is-image-fill-element>.wp-block-media-text__media{height:100%;min-height:250px;position:relative}.wp-block-media-text.is-image-fill-element>.wp-block-media-text__media>a{display:block;height:100%}.wp-block-media-text.is-image-fill-element>.wp-block-media-text__media img{height:100%;object-fit:cover;position:absolute;width:100%}@media (max-width:600px){.wp-block-media-text.is-stacked-on-mobile{grid-template-columns:100%!important}.wp-block-media-text.is-stacked-on-mobile>.wp-block-media-text__media{grid-column:1;grid-row:1}.wp-block-media-text.is-stacked-on-mobile>.wp-block-media-text__content{grid-column:1;grid-row:2}}
+/*# sourceURL=http://www.breakintoprogram.co.uk/wp-includes/blocks/media-text/style.min.css */
+</style>
+
+<style id='classic-theme-styles-inline-css' type='text/css'>
+/*! This file is auto-generated */
+.wp-block-button__link{color:#fff;background-color:#32373c;border-radius:9999px;box-shadow:none;text-decoration:none;padding:calc(.667em + 2px) calc(1.333em + 2px);font-size:1.125em}.wp-block-file__button{background:#32373c;color:#fff;text-decoration:none}
+/*# sourceURL=/wp-includes/css/classic-themes.min.css */
+</style>
+<style id='global-styles-inline-css' type='text/css'>
+:root{--wp--preset--aspect-ratio--square: 1;--wp--preset--aspect-ratio--4-3: 4/3;--wp--preset--aspect-ratio--3-4: 3/4;--wp--preset--aspect-ratio--3-2: 3/2;--wp--preset--aspect-ratio--2-3: 2/3;--wp--preset--aspect-ratio--16-9: 16/9;--wp--preset--aspect-ratio--9-16: 9/16;--wp--preset--color--black: #000000;--wp--preset--color--cyan-bluish-gray: #abb8c3;--wp--preset--color--white: #ffffff;--wp--preset--color--pale-pink: #f78da7;--wp--preset--color--vivid-red: #cf2e2e;--wp--preset--color--luminous-vivid-orange: #ff6900;--wp--preset--color--luminous-vivid-amber: #fcb900;--wp--preset--color--light-green-cyan: #7bdcb5;--wp--preset--color--vivid-green-cyan: #00d084;--wp--preset--color--pale-cyan-blue: #8ed1fc;--wp--preset--color--vivid-cyan-blue: #0693e3;--wp--preset--color--vivid-purple: #9b51e0;--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple: linear-gradient(135deg,rgb(6,147,227) 0%,rgb(155,81,224) 100%);--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan: linear-gradient(135deg,rgb(122,220,180) 0%,rgb(0,208,130) 100%);--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange: linear-gradient(135deg,rgb(252,185,0) 0%,rgb(255,105,0) 100%);--wp--preset--gradient--luminous-vivid-orange-to-vivid-red: linear-gradient(135deg,rgb(255,105,0) 0%,rgb(207,46,46) 100%);--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray: linear-gradient(135deg,rgb(238,238,238) 0%,rgb(169,184,195) 100%);--wp--preset--gradient--cool-to-warm-spectrum: linear-gradient(135deg,rgb(74,234,220) 0%,rgb(151,120,209) 20%,rgb(207,42,186) 40%,rgb(238,44,130) 60%,rgb(251,105,98) 80%,rgb(254,248,76) 100%);--wp--preset--gradient--blush-light-purple: linear-gradient(135deg,rgb(255,206,236) 0%,rgb(152,150,240) 100%);--wp--preset--gradient--blush-bordeaux: linear-gradient(135deg,rgb(254,205,165) 0%,rgb(254,45,45) 50%,rgb(107,0,62) 100%);--wp--preset--gradient--luminous-dusk: linear-gradient(135deg,rgb(255,203,112) 0%,rgb(199,81,192) 50%,rgb(65,88,208) 100%);--wp--preset--gradient--pale-ocean: linear-gradient(135deg,rgb(255,245,203) 0%,rgb(182,227,212) 50%,rgb(51,167,181) 100%);--wp--preset--gradient--electric-grass: linear-gradient(135deg,rgb(202,248,128) 0%,rgb(113,206,126) 100%);--wp--preset--gradient--midnight: linear-gradient(135deg,rgb(2,3,129) 0%,rgb(40,116,252) 100%);--wp--preset--font-size--small: 13px;--wp--preset--font-size--medium: 20px;--wp--preset--font-size--large: 36px;--wp--preset--font-size--x-large: 42px;--wp--preset--spacing--20: 0.44rem;--wp--preset--spacing--30: 0.67rem;--wp--preset--spacing--40: 1rem;--wp--preset--spacing--50: 1.5rem;--wp--preset--spacing--60: 2.25rem;--wp--preset--spacing--70: 3.38rem;--wp--preset--spacing--80: 5.06rem;--wp--preset--shadow--natural: 6px 6px 9px rgba(0, 0, 0, 0.2);--wp--preset--shadow--deep: 12px 12px 50px rgba(0, 0, 0, 0.4);--wp--preset--shadow--sharp: 6px 6px 0px rgba(0, 0, 0, 0.2);--wp--preset--shadow--outlined: 6px 6px 0px -3px rgb(255, 255, 255), 6px 6px rgb(0, 0, 0);--wp--preset--shadow--crisp: 6px 6px 0px rgb(0, 0, 0);}:where(.is-layout-flex){gap: 0.5em;}:where(.is-layout-grid){gap: 0.5em;}body .is-layout-flex{display: flex;}.is-layout-flex{flex-wrap: wrap;align-items: center;}.is-layout-flex > :is(*, div){margin: 0;}body .is-layout-grid{display: grid;}.is-layout-grid > :is(*, div){margin: 0;}:where(.wp-block-columns.is-layout-flex){gap: 2em;}:where(.wp-block-columns.is-layout-grid){gap: 2em;}:where(.wp-block-post-template.is-layout-flex){gap: 1.25em;}:where(.wp-block-post-template.is-layout-grid){gap: 1.25em;}.has-black-color{color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-color{color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-color{color: var(--wp--preset--color--white) !important;}.has-pale-pink-color{color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-color{color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-color{color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-color{color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-color{color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-color{color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-color{color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-color{color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-color{color: var(--wp--preset--color--vivid-purple) !important;}.has-black-background-color{background-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-background-color{background-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-background-color{background-color: var(--wp--preset--color--white) !important;}.has-pale-pink-background-color{background-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-background-color{background-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-background-color{background-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-background-color{background-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-background-color{background-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-background-color{background-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-background-color{background-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-background-color{background-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-background-color{background-color: var(--wp--preset--color--vivid-purple) !important;}.has-black-border-color{border-color: var(--wp--preset--color--black) !important;}.has-cyan-bluish-gray-border-color{border-color: var(--wp--preset--color--cyan-bluish-gray) !important;}.has-white-border-color{border-color: var(--wp--preset--color--white) !important;}.has-pale-pink-border-color{border-color: var(--wp--preset--color--pale-pink) !important;}.has-vivid-red-border-color{border-color: var(--wp--preset--color--vivid-red) !important;}.has-luminous-vivid-orange-border-color{border-color: var(--wp--preset--color--luminous-vivid-orange) !important;}.has-luminous-vivid-amber-border-color{border-color: var(--wp--preset--color--luminous-vivid-amber) !important;}.has-light-green-cyan-border-color{border-color: var(--wp--preset--color--light-green-cyan) !important;}.has-vivid-green-cyan-border-color{border-color: var(--wp--preset--color--vivid-green-cyan) !important;}.has-pale-cyan-blue-border-color{border-color: var(--wp--preset--color--pale-cyan-blue) !important;}.has-vivid-cyan-blue-border-color{border-color: var(--wp--preset--color--vivid-cyan-blue) !important;}.has-vivid-purple-border-color{border-color: var(--wp--preset--color--vivid-purple) !important;}.has-vivid-cyan-blue-to-vivid-purple-gradient-background{background: var(--wp--preset--gradient--vivid-cyan-blue-to-vivid-purple) !important;}.has-light-green-cyan-to-vivid-green-cyan-gradient-background{background: var(--wp--preset--gradient--light-green-cyan-to-vivid-green-cyan) !important;}.has-luminous-vivid-amber-to-luminous-vivid-orange-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-amber-to-luminous-vivid-orange) !important;}.has-luminous-vivid-orange-to-vivid-red-gradient-background{background: var(--wp--preset--gradient--luminous-vivid-orange-to-vivid-red) !important;}.has-very-light-gray-to-cyan-bluish-gray-gradient-background{background: var(--wp--preset--gradient--very-light-gray-to-cyan-bluish-gray) !important;}.has-cool-to-warm-spectrum-gradient-background{background: var(--wp--preset--gradient--cool-to-warm-spectrum) !important;}.has-blush-light-purple-gradient-background{background: var(--wp--preset--gradient--blush-light-purple) !important;}.has-blush-bordeaux-gradient-background{background: var(--wp--preset--gradient--blush-bordeaux) !important;}.has-luminous-dusk-gradient-background{background: var(--wp--preset--gradient--luminous-dusk) !important;}.has-pale-ocean-gradient-background{background: var(--wp--preset--gradient--pale-ocean) !important;}.has-electric-grass-gradient-background{background: var(--wp--preset--gradient--electric-grass) !important;}.has-midnight-gradient-background{background: var(--wp--preset--gradient--midnight) !important;}.has-small-font-size{font-size: var(--wp--preset--font-size--small) !important;}.has-medium-font-size{font-size: var(--wp--preset--font-size--medium) !important;}.has-large-font-size{font-size: var(--wp--preset--font-size--large) !important;}.has-x-large-font-size{font-size: var(--wp--preset--font-size--x-large) !important;}
+/*# sourceURL=global-styles-inline-css */
+</style>
+
+<link rel='stylesheet' id='weaverx-font-sheet-css' href='http://www.breakintoprogram.co.uk/wp-content/themes/weaver-xtreme/assets/css/fonts.min.css?ver=6.7' type='text/css' media='all' />
+<link rel='stylesheet' id='weaverx-style-sheet-css' href='http://www.breakintoprogram.co.uk/wp-content/themes/weaver-xtreme/assets/css/style-weaverx.min.css?ver=6.7' type='text/css' media='all' />
+<style id='weaverx-style-sheet-inline-css' type='text/css'>
+#wrapper{max-width:1440px}@media (min-width:1188px){.weaverx-sb-one-column .alignwide,#header .alignwide,#header.alignwide,#colophon.alignwide,#colophon .alignwide,#container .alignwide,#container.alignwide,#wrapper .alignwide,#wrapper.alignwide,#infobar .alignwide,.alignwide{margin-left:inherit;margin-right:inherit;max-width:none;width:100%}}@media (max-width:1187px){.alignwide{margin-left:inherit;margin-right:inherit;max-width:none;width:100%}}@media (min-width:1555px){.weaverx-sb-one-column .alignwide,#header .alignwide,#header.alignwide,#colophon.alignwide,#colophon .alignwide,#container .alignwide,#container.alignwide,#wrapper .alignwide,#wrapper.alignwide,#infobar .alignwide,.alignwide{margin-left:calc(50% - 46vw);margin-right:calc(50% - 46vw);max-width:10000px;width:92vw}}@media (max-width:1554px){.alignwide{margin-left:0 !important;margin-right:0 !important;max-width:100% !important;width:100% !important}}#site-title,.site-title{max-width:75.00000%}#site-tagline,.site-title{max-width:70.00000%}#site-title,.site-title{margin-left:4.00000% !important;margin-top:2.50000% !important}#site-tagline{margin-left:4.00000% !important;margin-top:.00000% !important}#branding #header-image img{float:left}/* float-left*/#content ul{list-style-type:circle}.entry-summary,.entry-content{padding-top:.20000em}#content ul,#content ol,#content p{margin-bottom:.50000em}#content *[class^="wp-block-"]{margin-top:1.20000em}.single #nav-above{display:none;margin:0}.single #nav-below{display:none;margin:0}.single-author .entry-meta .by-author{display:none}body{font-size:1.00000em}@media( min-width:768px){.menu-primary .wvrx-menu a{padding-top:1.00000em;padding-bottom:1.00000em}.menu-primary .menu-arrows .toggle-submenu:after{top:1.75000em}.menu-primary .wvrx-menu-container li a{padding-right:.75em}.menu-primary .menu-hover.menu-arrows .has-submenu >a{padding-right:1.5em}.menu-primary .menu-arrows.menu-hover .toggle-submenu{margin-right:0}.menu-primary .wvrx-menu-container{margin-top:0}.menu-primary .wvrx-menu-container{margin-bottom:0}.menu-primary .wvrx-menu,.menu-primary .wvrx-menu-container{text-align:left}}@media( min-width:768px){.menu-secondary .wvrx-menu a{padding-top:.50000em;padding-bottom:.50000em}.menu-secondary .menu-arrows .toggle-submenu:after{top:1.00000em}.menu-secondary .wvrx-menu-container li a{padding-right:.75em}.menu-secondary .menu-hover.menu-arrows .has-submenu >a{padding-right:1.5em}.menu-secondary .menu-arrows.menu-hover .toggle-submenu{margin-right:0}.menu-secondary .wvrx-menu,.menu-secondary .wvrx-menu-container{text-align:right}}@media( min-width:768px){.menu-extra .wvrx-menu,.menu-extra .wvrx-menu-container{text-align:left}}@media screen and ( min-width:768px){.l-content-rsb{width:72.00000%}.l-content-rsb-m{width:71.00000%;margin-right:1.00000%}.l-sb-right{width:28.00000%}.l-sb-right-lm{width:27.00000%;margin-left:1.00000%}.l-sb-right-rm{width:27.00000%;margin-right:1.00000%}}#header{width:auto}#header-html{width:auto}#infobar{width:auto}#primary-widget-area{background-color:#FFFFFF}#primary-widget-area{padding-left:8px}#primary-widget-area{padding-right:8px}#primary-widget-area{padding-top:0}#primary-widget-area{padding-bottom:4px}#primary-widget-area{margin-top:8px}.widget-area-primary{background-color:#FFFFFF}.widget-area-primary{padding-left:8px}.widget-area-primary{padding-right:8px}.widget-area-primary{padding-top:0}.widget-area-primary{padding-bottom:4px}.widget-area-primary{margin-top:8px}#secondary-widget-area{padding-left:8px}#secondary-widget-area{padding-right:8px}#secondary-widget-area{padding-top:4px}#secondary-widget-area{padding-bottom:4px}#secondary-widget-area{margin-top:4px}.widget-area-secondary{padding-left:8px}.widget-area-secondary{padding-right:8px}.widget-area-secondary{padding-top:4px}.widget-area-secondary{padding-bottom:4px}.widget-area-secondary{margin-top:4px}#header{padding-top:0}#header{padding-bottom:0}#header{margin-top:0}#header-html{padding-top:0}#header-widget-area{padding-top:0}#header-widget-area{padding-bottom:0}#header-widget-area{margin-top:0}.widget-area-header{padding-top:0}.widget-area-header{padding-bottom:0}.widget-area-header{margin-top:0}#colophon{background-color:#CCCCCC}#colophon{color:#000000}#content{padding-left:1.00000%}#content{padding-right:2.00000%}#content{padding-top:0}#content{padding-bottom:8px}#content{margin-top:0}#container{background-color:#FFFFFF}#container{padding-left:8px}#container{padding-right:8px}#container{padding-top:0}#container{padding-bottom:8px}#infobar{padding-top:0}#infobar{padding-bottom:0}#wrapper{padding-left:0}#wrapper{padding-top:0}#wrapper{margin-top:0}#wrapper{margin-bottom:16px}.post-area{padding-left:.00000%}.post-area{padding-top:4px}.post-area{margin-bottom:4px}.widget{padding-bottom:0}.widget{margin-top:0}.widget{margin-bottom:16px}#nav-header-mini{margin-top:-5.75000em}#colophon .search-form .search-submit{color:#000000}.post-title{margin-bottom:.2em}#inject_fixedtop,#inject_fixedbottom,.wvrx-fixedtop,.wvrx-fixonscroll{max-width:1440px}@media ( max-width:1440px){.wvrx-fixedtop,.wvrx-fixonscroll,#inject_fixedtop,#inject_fixedbottom{left:0;margin-left:0 !important;margin-right:0 !important}}@media ( min-width:1440px){#inject_fixedtop{margin-left:-0px;margin-right:-0px}.wvrx-fixedtop,.wvrx-fixonscroll{margin-left:0;margin-right:0}}@media ( min-width:1440px){#inject_fixedbottom{margin-left:-0px;margin-right:-0px}}.menu-primary .wvrx-menu-container,.menu-primary .site-title-on-menu,.menu-primary .site-title-on-menu a{font-family:zxspectr,tahoma;font-size:14px}#primary-widget-area{font-family:Verdana;font-size:15px;font-weight:normal}.widget-area-primary{font-family:Verdana;font-size:15px;font-weight:normal}#colophon{font-family:zxspectr,tahoma}#content{font-family:Verdana;font-size:12pt}.post-area .entry-date:before{content:none}.widget .search-form{font-size:12pt}.wrapper #site-title a,.wrapper .site-title a{font-family:zxspectr,tahoma;font-size:2vw;color:#808080}#site-tagline >span,.site-tagline >span{font-family:zxspectr,tahoma;font-size:1.3vw;color:#404040}.page-title{font-family:zxspectr,tahoma;font-size:16px;font-weight:bold;margin-bottom:1em;color:blue}.wrapper .post-title a,.wrapper .post-title a:visited{font-family:zxspectr,tahoma;font-size:14px;font-weight:bold;color:blue}.entry-content h1,.entry-content h2,.entry-content h3,.entry-content h4,.entry-content h5,.entry-content h6{font-family:zxspectr,tahoma;margin-bottom:1em}.entry-meta{font-family:zxspectr,tahoma;font-size:13px}.entry-utility{font-family:zxspectr,tahoma;font-size:13px}.wp-block-table{margin:2em}img.fi-alignleft-pb{margin-top:24px}.widget-title{font-size:16px;margin-top:15px;padding-bottom:10px;font-weight:bold}.is-style-table-small{font-family:zxspectr,tahoma;font-size:9pt;font-weight:normal}body pre{font-size:16px !important;font-family:zxspectr,monospace;border-style:none}body .syntaxhighlighter a,body .syntaxhighlighter div,body .syntaxhighlighter code,body .syntaxhighlighter table,body .syntaxhighlighter table td,body .syntaxhighlighter table tr,body .syntaxhighlighter table tbody,body .syntaxhighlighter table thead,body .syntaxhighlighter table caption,body .syntaxhighlighter textarea,body .syntaxhighlighter .gutter{font-size:12px !important;font-family:zxspectr,monospace !important;line-height:14px !important}body h2{font-size:16px;color:#0000ff}body h3{font-size:14px;color:#0000ff}body h4{font-size:12px;color:#ff0000}
+/*# sourceURL=weaverx-style-sheet-inline-css */
+</style>
+<link rel='stylesheet' id='wp-block-paragraph-css' href='http://www.breakintoprogram.co.uk/wp-includes/blocks/paragraph/style.min.css?ver=cf7a1ca05824d22cde726bc2239d0702' type='text/css' media='all' />
+<link rel='stylesheet' id='wp-block-heading-css' href='http://www.breakintoprogram.co.uk/wp-includes/blocks/heading/style.min.css?ver=cf7a1ca05824d22cde726bc2239d0702' type='text/css' media='all' />
+<script type="text/javascript" src="http://www.breakintoprogram.co.uk/wp-includes/js/jquery/jquery.min.js?ver=3.7.1" id="jquery-core-js"></script>
+<script type="text/javascript" src="http://www.breakintoprogram.co.uk/wp-includes/js/jquery/jquery-migrate.min.js?ver=3.4.1" id="jquery-migrate-js"></script>
+<script type="text/javascript" id="weaver-xtreme-JSLib-js-extra">
+/* <![CDATA[ */
+var wvrxOpts = {"useSmartMenus":"0","menuAltswitch":"767","mobileAltLabel":"","primaryScroll":"none","primaryMove":"0","secondaryScroll":"none","secondaryMove":"0","headerVideoClass":"has-header-video-none"};
+//# sourceURL=weaver-xtreme-JSLib-js-extra
+/* ]]> */
+</script>
+<script type="text/javascript" src="http://www.breakintoprogram.co.uk/wp-content/themes/weaver-xtreme/assets/js/weaverxjslib.min.js?ver=6.7" id="weaver-xtreme-JSLib-js"></script>
+<link rel="https://api.w.org/" href="http://www.breakintoprogram.co.uk/wp-json/" /><link rel="alternate" title="JSON" type="application/json" href="http://www.breakintoprogram.co.uk/wp-json/wp/v2/pages/194" /><link rel="EditURI" type="application/rsd+xml" title="RSD" href="http://www.breakintoprogram.co.uk/xmlrpc.php?rsd" />
+
+<link rel='shortlink' href='http://www.breakintoprogram.co.uk/?p=194' />
+<!-- Weaver Xtreme 6.7 ( 147 ) Animatez-V-8 --> <link rel="stylesheet" type="text/css" href="/fonts/zxspectr.css" />
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-3687091-3', 'auto');
+  ga('send', 'pageview');
+</script>
+<!-- End of Weaver Xtreme options -->
+<style type="text/css" id="custom-background-css">
+body.custom-background { background-image: url("http://www.breakintoprogram.co.uk/wp-content/uploads/2014/06/loading_stripes1.png"); background-position: center center; background-size: auto; background-repeat: repeat; background-attachment: scroll; }
+</style>
+	<link rel="icon" href="http://www.breakintoprogram.co.uk/wp-content/uploads/2020/05/site_logo-150x150.jpg" sizes="32x32" />
+<link rel="icon" href="http://www.breakintoprogram.co.uk/wp-content/uploads/2020/05/site_logo.jpg" sizes="192x192" />
+<link rel="apple-touch-icon" href="http://www.breakintoprogram.co.uk/wp-content/uploads/2020/05/site_logo.jpg" />
+<meta name="msapplication-TileImage" content="http://www.breakintoprogram.co.uk/wp-content/uploads/2020/05/site_logo.jpg" />
+</head>
+<!-- **** body **** -->
+<body class="wp-singular page-template-default page page-id-194 page-child parent-pageid-188 custom-background wp-embed-responsive wp-theme-weaver-xtreme single-author singular not-logged-in weaverx-theme-body wvrx-not-safari is-menu-desktop is-menu-default weaverx-page-page weaverx-sb-right weaverx-has-sb" itemtype="https://schema.org/WebPage" itemscope>
+
+<a href="#page-bottom"
+   id="page-top">&darr;</a> <!-- add custom CSS to use this page-bottom link -->
+<div id="wvrx-page-width">&nbsp;</div>
+<!--googleoff: all-->
+<noscript><p
+            style="border:1px solid red;font-size:14px;background-color:pink;padding:5px;margin-left:auto;margin-right:auto;max-width:640px;text-align:center;">
+        JAVASCRIPT IS DISABLED. Please enable JavaScript on your browser to best view this site.</p>
+</noscript>
+<!--googleon: all--><!-- displayed only if JavaScript disabled -->
+
+<div id="wrapper" class="wrapper align-center">
+<div class="clear-preheader clear-both"></div>
+<div id="header" class="header  header-as-img">
+<div id="header-inside" class="block-inside"><header id="branding" itemtype="https://schema.org/WPHeader" itemscope>
+<div id="title-over-image">
+    <div id='title-tagline' class='clearfix  '>
+    <h1 id="site-title"
+        class=""><a
+                href="http://www.breakintoprogram.co.uk/" title="L Break Into Program, 0:1"
+                rel="home">
+            L Break Into Program, 0:1</a></h1>
+
+    <h2 id="site-tagline" class="hide-none"><span >Retro Computer Preservation</span></h2>
+
+<div id="nav-header-mini" class="menu-horizontal m-hide s-hide" itemtype="https://schema.org/SiteNavigationElement" itemscope>
+<div class="menu-social_media-container"><ul id="menu-social_media" class="wvrx-header-mini-menu"><li id="menu-item-1427" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-1427"><a target="_blank" href="https://bsky.app/profile/breakintoprogram.co.uk"><img src="http://www.breakintoprogram.co.uk/wp-content/uploads/2024/02/icon_bluesky.png" width=48 height=48></a></li>
+<li id="menu-item-1344" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-1344"><a target="_blank" href="https://oldbytes.space/@breakintoprogram"><img src="http://www.breakintoprogram.co.uk/wp-content/uploads/2022/11/icon_mastodon.png" width=48 height=48></a></li>
+<li id="menu-item-822" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-822"><a target="_blank" href="https://www.youtube.com/BreakIntoProgram"><img src="http://www.breakintoprogram.co.uk/wp-content/uploads/2020/03/icon_youtube.png" width=48 height=48></a></li>
+<li id="menu-item-840" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-840"><a target="_blank" href="https://github.com/breakintoprogram"><img src="http://www.breakintoprogram.co.uk/wp-content/uploads/2020/03/icon_github.png" width=48 height=48></a></li>
+<li id="menu-item-842" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-842"><a target="_blank" href="https://ko-fi.com/breakintoprogram"><img src="http://www.breakintoprogram.co.uk/wp-content/uploads/2020/03/icon_kofi.png" width=48 height=48></a></li>
+</ul></div><div class="clear-header-mini clear-both"></div>
+</div><!-- /#nav-header-mini -->
+<div class="clear-nav-header-mini clear-both"></div>    </div><!-- /.title-tagline -->
+<div id="header-image" class="header-image header-image-type-std"><img src="http://www.breakintoprogram.co.uk/wp-content/uploads/2021/06/header_image_no_text.png" width="1170" height="175" alt="" srcset="http://www.breakintoprogram.co.uk/wp-content/uploads/2021/06/header_image_no_text.png 1170w, http://www.breakintoprogram.co.uk/wp-content/uploads/2021/06/header_image_no_text-300x45.png 300w, http://www.breakintoprogram.co.uk/wp-content/uploads/2021/06/header_image_no_text-1024x153.png 1024w, http://www.breakintoprogram.co.uk/wp-content/uploads/2021/06/header_image_no_text-768x115.png 768w" sizes="(max-width: 1170px) 100vw, 1170px" decoding="async" fetchpriority="high" />
+</div><!-- #header-image -->
+</div><!--/#title-over-image -->
+<div class="clear-branding clear-both"></div>        </header><!-- #branding -->
+        <div class="clear-menu-primary clear-both"></div>
+
+<div id="nav-primary" class="menu-primary menu-primary-standard menu-type-standard" itemtype="https://schema.org/SiteNavigationElement" itemscope>
+<div class="wvrx-menu-container "><div class="wvrx-menu-clear"></div><ul id="menu-menu_main" class="weaverx-theme-menu wvrx-menu menu-hover menu-alignleft"><li id="menu-item-45" class="menu-item menu-item-type-custom menu-item-object-custom menu-item-home menu-item-45"><a href="http://www.breakintoprogram.co.uk/">Home</a></li>
+<li id="menu-item-41" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-41"><a href="http://www.breakintoprogram.co.uk/programming">Programming</a>
+<ul class="sub-menu sub-menu-depth-0">
+	<li id="menu-item-242" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-242"><a href="http://www.breakintoprogram.co.uk/programming/basic">BASIC</a>
+	<ul class="sub-menu sub-menu-depth-1">
+		<li id="menu-item-43" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-43"><a href="http://www.breakintoprogram.co.uk/programming/basic/part-1">Part 1: Hello!</a></li>
+		<li id="menu-item-48" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-48"><a href="http://www.breakintoprogram.co.uk/programming/basic/part-2">Part 2: Variables</a></li>
+		<li id="menu-item-52" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-52"><a href="http://www.breakintoprogram.co.uk/programming/basic/part-3">Part 3: IF…</a></li>
+		<li id="menu-item-104" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-104"><a href="http://www.breakintoprogram.co.uk/programming/basic/part-4">Part 4: Loops</a></li>
+		<li id="menu-item-270" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-270"><a href="http://www.breakintoprogram.co.uk/programming/basic/part-5">Part 5: Subroutines</a></li>
+	</ul>
+</li>
+	<li id="menu-item-56" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-56"><a href="http://www.breakintoprogram.co.uk/programming/assembly-language">Assembly Language</a>
+	<ul class="sub-menu sub-menu-depth-1">
+		<li id="menu-item-63" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-63"><a href="http://www.breakintoprogram.co.uk/programming/assembly-language/primer">Primer</a>
+		<ul class="sub-menu sub-menu-depth-2">
+			<li id="menu-item-62" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-62"><a href="http://www.breakintoprogram.co.uk/programming/assembly-language/primer/part-1">Part 1: Numbers</a></li>
+			<li id="menu-item-76" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-76"><a href="http://www.breakintoprogram.co.uk/programming/assembly-language/primer/part-2-maths">Part 2: Maths</a></li>
+			<li id="menu-item-463" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-463"><a href="http://www.breakintoprogram.co.uk/programming/assembly-language/primer/part-3">Part 3: Branching and Loops</a></li>
+		</ul>
+</li>
+		<li id="menu-item-139" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-139"><a href="http://www.breakintoprogram.co.uk/programming/assembly-language/z80">Z80</a>
+		<ul class="sub-menu sub-menu-depth-2">
+			<li id="menu-item-156" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-156"><a href="http://www.breakintoprogram.co.uk/programming/assembly-language/z80/z80-opcodes">Z80 Opcodes</a></li>
+		</ul>
+</li>
+	</ul>
+</li>
+</ul>
+</li>
+<li id="menu-item-1283" class="menu-item menu-item-type-post_type menu-item-object-page current-page-ancestor menu-item-has-children menu-item-1283"><a href="http://www.breakintoprogram.co.uk/hardware">Hardware</a>
+<ul class="sub-menu sub-menu-depth-0">
+	<li id="menu-item-91" class="menu-item menu-item-type-post_type menu-item-object-page current-page-ancestor menu-item-has-children menu-item-91"><a href="http://www.breakintoprogram.co.uk/hardware/computers">Computers</a>
+	<ul class="sub-menu sub-menu-depth-1">
+		<li id="menu-item-1321" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-1321"><a href="http://www.breakintoprogram.co.uk/hardware/computers/agon">Agon</a></li>
+		<li id="menu-item-584" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-584"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx81">ZX81</a>
+		<ul class="sub-menu sub-menu-depth-2">
+			<li id="menu-item-586" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-586"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx81/hardware">Motherboard</a></li>
+		</ul>
+</li>
+		<li id="menu-item-90" class="menu-item menu-item-type-post_type menu-item-object-page current-page-ancestor menu-item-has-children menu-item-90"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum">ZX Spectrum</a>
+		<ul class="sub-menu sub-menu-depth-2">
+			<li id="menu-item-190" class="menu-item menu-item-type-post_type menu-item-object-page current-page-ancestor menu-item-190"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/hardware">Motherboard</a></li>
+			<li id="menu-item-89" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-89"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/memory-map">Memory Map</a></li>
+			<li id="menu-item-88" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-88"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/keyboard">Keyboard</a></li>
+			<li id="menu-item-95" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-95"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/screen-memory-layout">Screen Memory Layout</a></li>
+			<li id="menu-item-106" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-106"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/interrupts">Interrupts</a></li>
+			<li id="menu-item-109" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-109"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/sound">Sound</a></li>
+			<li id="menu-item-761" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-761"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/zx-spectrum-character-set">Character Set</a></li>
+			<li id="menu-item-968" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-968"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/assembly-language">Assembly Language</a>
+			<ul class="sub-menu sub-menu-depth-3">
+				<li id="menu-item-847" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-847"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/assembly-language/z80-development-toolchain">Z80 Development Toolchain</a></li>
+				<li id="menu-item-766" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-766"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/assembly-language/z80-tutorials">Z80 Tutorials</a></li>
+				<li id="menu-item-209" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-209"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/assembly-language/z80-library-routines">Z80 Library Routines</a></li>
+				<li id="menu-item-222" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-222"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/assembly-language/z80-demos">Z80 Demos</a></li>
+			</ul>
+</li>
+		</ul>
+</li>
+		<li id="menu-item-970" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-970"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum-next">ZX Spectrum Next</a>
+		<ul class="sub-menu sub-menu-depth-2">
+			<li id="menu-item-973" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-973"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum-next/assembly-language">Assembly Language</a>
+			<ul class="sub-menu sub-menu-depth-3">
+				<li id="menu-item-981" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-981"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum-next/assembly-language/z80-development-toolchain">Z80 Development Toolchain</a></li>
+				<li id="menu-item-975" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-975"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum-next/assembly-language/z80-library-routines">Z80 Library Routines</a></li>
+				<li id="menu-item-977" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-977"><a href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum-next/assembly-language/z80-demos">Z80 Demos</a></li>
+			</ul>
+</li>
+		</ul>
+</li>
+	</ul>
+</li>
+	<li id="menu-item-1285" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-has-children menu-item-1285"><a href="http://www.breakintoprogram.co.uk/hardware/components">Components</a>
+	<ul class="sub-menu sub-menu-depth-1">
+		<li id="menu-item-1287" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-1287"><a href="http://www.breakintoprogram.co.uk/hardware/components/z80">Z80</a></li>
+		<li id="menu-item-1298" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-1298"><a href="http://www.breakintoprogram.co.uk/hardware/components/8250-uarts">8250 UART</a></li>
+	</ul>
+</li>
+</ul>
+</li>
+<li id="menu-item-44" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-44"><a href="http://www.breakintoprogram.co.uk/links">Links</a></li>
+<li id="menu-item-1449" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-1449"><a href="http://www.breakintoprogram.co.uk/my-collection">My Collection</a></li>
+<li id="menu-item-42" class="menu-item menu-item-type-post_type menu-item-object-page menu-item-42"><a href="http://www.breakintoprogram.co.uk/about-me">About Me</a></li>
+</ul><div style="clear:both;"></div></div></div><div class='clear-menu-primary-end' style='clear:both;'></div><!-- /.menu-primary -->
+
+
+</div></div><div class='clear-header-end clear-both'></div><!-- #header-inside,#header -->
+
+<div id="container" class="container container-page relative "><div id="container-inside" class="block-inside">
+
+    <div id="infobar" class="">
+          <span id="breadcrumbs"></span>        <span class='infobar_right'>
+	</span></div>
+    <div class="clear-info-bar-end" style="clear:both;">
+    </div><!-- #infobar -->
+
+    <div id="content" role="main" class="content l-content-rsb m-full s-full" itemtype="https://schema.org/WebPageElement" itemscope itemprop="mainContentOfPage"> <!-- page -->
+<article id="post-194" class="content-page post-194 page type-page status-publish hentry">
+    			<header class="page-header">
+								<h1 class="page-title entry-title" itemprop="headline name">ULA</h1>
+			</header><!-- .page-header -->
+			    <div class="entry-content clearfix">
+
+        <link itemprop="mainEntityOfPage" href="http://www.breakintoprogram.co.uk/hardware/computers/zx-spectrum/hardware/ula" />
+<p>The Spectrum ULA was a custom gate array chip that handled the screen, beeper and paging in alternate ROM chips, such as the Interface 1.</p>
+
+
+
+<h2 class="wp-block-heading">ULA Pin Assignments</h2>
+
+
+
+<div class="wp-block-media-text is-stacked-on-mobile is-vertically-aligned-top"><figure class="wp-block-media-text__media"><img decoding="async" width="364" height="401" src="http://www.breakintoprogram.co.uk/wp-content/uploads/2012/06/pinouts_ULA.png" alt="" class="wp-image-257 size-full" srcset="http://www.breakintoprogram.co.uk/wp-content/uploads/2012/06/pinouts_ULA.png 364w, http://www.breakintoprogram.co.uk/wp-content/uploads/2012/06/pinouts_ULA-272x300.png 272w" sizes="(max-width: 364px) 100vw, 364px" /></figure><div class="wp-block-media-text__content">
+<ul class="wp-block-list">
+<li>A0-A6, A14-A15: Address lines</li>
+
+
+
+<li>D0-D7: Data lines</li>
+
+
+
+<li>U, V, Y: Video signals</li>
+
+
+
+<li>T0-T4: Keyboard data lines</li>
+
+
+
+<li>SOUND: I/O for the beeper</li>
+
+
+
+<li>Q: 14Mhz clock from the crystal</li>
+
+
+
+<li>CLK: Clock source to the Z80 (3.5Mhz)</li>
+
+
+
+<li>WR: Write</li>
+
+
+
+<li>RD: Read</li>
+
+
+
+<li>INT: Interrupt</li>
+
+
+
+<li>ROMCS: Rom chip select</li>
+
+
+
+<li>CAS: Column address strobe</li>
+
+
+
+<li>RAS: Row address strobe</li>
+
+
+
+<li>IOULA: ULA address select for IO port &amp;FE</li>
+
+
+
+<li>GND/+5V: Power</li>
+</ul>
+</div></div>
+
+
+
+<h2 class="wp-block-heading">ULA Operation</h2>
+
+
+
+<p>The ULA takes the 14MHz master clock feed on pin 39 (Q) from the crystal oscillator and divides that by 2 to provide a more stable 7MHz clock for the video pixel clock, then again to provide a 3.5MHz clock for the CPU and peripherals. The 3.5MHz clock signal is output on pin 32 of the ULA (CLK).</p>
+
+
+
+<p>The CLK line is buffered by the transistor TR3 before being fed to the Z80 CLK pin and edge connector.</p>
+
+
+
+<p>The ULA will hold the CLK line high when it needs to access the video memory at the same time the Z80 does, so if you put an oscilloscope on the CLK line of the Z80 it is quite normal to see this. This behaviour also explains why any memory access in the block of memory from &amp;4000 to &amp;7FFF is slower. Experienced games programmers always place time critical code in the block of higher memory from &amp;8000 upwards.</p>
+    </div><!-- .entry-content -->
+
+</article><!-- #post-194 -->
+
+<div class="clear-sb-postcontent-page clear-both"></div><div class="clear-sitewide-bottom-widget-area clear-both"></div>
+</div><!-- /#content -->
+
+            <div id="secondary-widget-area" class="widget-area m-full s-full l-sb-right-lm m-full s-full sb-float-right "
+                 role="complementary" itemtype="https://schema.org/WPSideBar" itemscope>
+                <aside id="search-2" class="widget widget_search widget-1 widget-first widget-first-vert widget-odd"><h3 class="widget-title">Search</h3><form role="search"       method="get" class="search-form" action="http://www.breakintoprogram.co.uk/">
+    <label for="search-form-1">
+        <span class="screen-reader-text">Search for:</span>
+        <input type="search" id="search-form-1" class="search-field"
+               placeholder="Search for:" value=""
+               name="s"/>
+    </label>
+    <button type="submit" class="search-submit"><span class="genericon genericon-search"></span>
+    </button>
+
+</form>
+
+</aside>
+		<aside id="recent-posts-2" class="widget widget_recent_entries widget-2 widget-even">
+		<h3 class="widget-title">Recent Posts</h3>
+		<ul>
+											<li>
+					<a href="http://www.breakintoprogram.co.uk/consoles/sega-megadrive/sega-megadrive-music-driver-the-z80-co-processor">Sega Megadrive Music Driver: The Z80 Co-Processor</a>
+									</li>
+											<li>
+					<a href="http://www.breakintoprogram.co.uk/consoles/sega-megadrive/sega-megadrive-music-driver-introduction">Sega Megadrive Music Driver: Introduction</a>
+									</li>
+											<li>
+					<a href="http://www.breakintoprogram.co.uk/events/retro-computer-festival-2025">Retro Computer Festival 2025</a>
+									</li>
+											<li>
+					<a href="http://www.breakintoprogram.co.uk/calculators/sinclair-oxford-300/repairs-sinclair-oxford-300/repairing-a-sinclair-oxford-300-scientific-calculator">Repairing a Sinclair Oxford 300 Scientific Calculator</a>
+									</li>
+											<li>
+					<a href="http://www.breakintoprogram.co.uk/calculators/sinclair-cambridge/repairs-sinclair-cambridge/repairing-a-sinclair-cambridge-calculator">Repairing a Sinclair Cambridge Calculator</a>
+									</li>
+											<li>
+					<a href="http://www.breakintoprogram.co.uk/computers/installing-a-gotek-in-a-tatung-einstein-tc-01">Installing a Gotek in a Tatung Einstein TC-01</a>
+									</li>
+											<li>
+					<a href="http://www.breakintoprogram.co.uk/computers/tatung-einstein/a-guide-to-eintrans">A guide to EinTrans</a>
+									</li>
+											<li>
+					<a href="http://www.breakintoprogram.co.uk/computers/installing-a-wch-ch352-pci-serial-card-on-a-linux-pc">Installing a WCH CH352 PCI serial card on a Linux PC</a>
+									</li>
+											<li>
+					<a href="http://www.breakintoprogram.co.uk/events/retro-computer-festival-2024">Retro Computer Festival 2024</a>
+									</li>
+											<li>
+					<a href="http://www.breakintoprogram.co.uk/twop-twips/dont-trust-a-multimeter-with-a-low-battery">Don&#8217;t trust a multimeter with a low battery</a>
+									</li>
+					</ul>
+
+		</aside><aside id="categories-2" class="widget widget_categories widget-3 widget-odd"><h3 class="widget-title">Categories</h3>
+			<ul>
+					<li class="cat-item cat-item-131"><a href="http://www.breakintoprogram.co.uk/category/calculators">Calculators</a> (2)
+<ul class='children'>
+	<li class="cat-item cat-item-132"><a href="http://www.breakintoprogram.co.uk/category/calculators/sinclair-cambridge">Sinclair Cambridge</a> (1)
+	<ul class='children'>
+	<li class="cat-item cat-item-134"><a href="http://www.breakintoprogram.co.uk/category/calculators/sinclair-cambridge/repairs-sinclair-cambridge">Repairs</a> (1)
+</li>
+	</ul>
+</li>
+	<li class="cat-item cat-item-133"><a href="http://www.breakintoprogram.co.uk/category/calculators/sinclair-oxford-300">Sinclair Oxford 300</a> (1)
+	<ul class='children'>
+	<li class="cat-item cat-item-135"><a href="http://www.breakintoprogram.co.uk/category/calculators/sinclair-oxford-300/repairs-sinclair-oxford-300">Repairs</a> (1)
+</li>
+	</ul>
+</li>
+</ul>
+</li>
+	<li class="cat-item cat-item-13"><a href="http://www.breakintoprogram.co.uk/category/computers">Computers</a> (56)
+<ul class='children'>
+	<li class="cat-item cat-item-74"><a href="http://www.breakintoprogram.co.uk/category/computers/acorn-bbc-micro-hardware">Acorn BBC Micro</a> (3)
+	<ul class='children'>
+	<li class="cat-item cat-item-75"><a href="http://www.breakintoprogram.co.uk/category/computers/acorn-bbc-micro-hardware/repairs-acorn-bbc-micro-hardware">Repairs</a> (3)
+</li>
+	</ul>
+</li>
+	<li class="cat-item cat-item-91"><a href="http://www.breakintoprogram.co.uk/category/computers/commodore-64">Commodore 64</a> (4)
+	<ul class='children'>
+	<li class="cat-item cat-item-92"><a href="http://www.breakintoprogram.co.uk/category/computers/commodore-64/repairs">Repairs</a> (4)
+</li>
+	</ul>
+</li>
+	<li class="cat-item cat-item-84"><a href="http://www.breakintoprogram.co.uk/category/computers/spectrum-next">Spectrum Next</a> (1)
+</li>
+	<li class="cat-item cat-item-118"><a href="http://www.breakintoprogram.co.uk/category/computers/tatung-einstein">Tatung Einstein</a> (8)
+</li>
+	<li class="cat-item cat-item-31"><a href="http://www.breakintoprogram.co.uk/category/computers/spectrum-hardware">ZX Spectrum</a> (25)
+	<ul class='children'>
+	<li class="cat-item cat-item-26"><a href="http://www.breakintoprogram.co.uk/category/computers/spectrum-hardware/repairs-spectrum-hardware">Repairs</a> (13)
+</li>
+	</ul>
+</li>
+	<li class="cat-item cat-item-55"><a href="http://www.breakintoprogram.co.uk/category/computers/zx81-hardware">ZX81</a> (2)
+	<ul class='children'>
+	<li class="cat-item cat-item-56"><a href="http://www.breakintoprogram.co.uk/category/computers/zx81-hardware/repairs-zx81-hardware">Repairs</a> (1)
+</li>
+	</ul>
+</li>
+</ul>
+</li>
+	<li class="cat-item cat-item-138"><a href="http://www.breakintoprogram.co.uk/category/consoles">Consoles</a> (2)
+<ul class='children'>
+	<li class="cat-item cat-item-139"><a href="http://www.breakintoprogram.co.uk/category/consoles/sega-megadrive">Sega MegaDrive</a> (2)
+</li>
+</ul>
+</li>
+	<li class="cat-item cat-item-122"><a href="http://www.breakintoprogram.co.uk/category/events">Events</a> (7)
+</li>
+	<li class="cat-item cat-item-22"><a href="http://www.breakintoprogram.co.uk/category/musings">Musings</a> (20)
+</li>
+	<li class="cat-item cat-item-39"><a href="http://www.breakintoprogram.co.uk/category/projects">Projects</a> (19)
+<ul class='children'>
+	<li class="cat-item cat-item-105"><a href="http://www.breakintoprogram.co.uk/category/projects/cerberus-2080">Cerberus 2080</a> (2)
+	<ul class='children'>
+	<li class="cat-item cat-item-106"><a href="http://www.breakintoprogram.co.uk/category/projects/cerberus-2080/bbc-basic-cerberus-2080">BBC Basic</a> (2)
+</li>
+	</ul>
+</li>
+	<li class="cat-item cat-item-60"><a href="http://www.breakintoprogram.co.uk/category/projects/harlequin">Harlequin</a> (1)
+</li>
+	<li class="cat-item cat-item-40"><a href="http://www.breakintoprogram.co.uk/category/projects/high-altitude-balloon">High Altitude Balloon</a> (1)
+</li>
+	<li class="cat-item cat-item-66"><a href="http://www.breakintoprogram.co.uk/category/projects/homebrew-z80">Homebrew Z80</a> (8)
+</li>
+	<li class="cat-item cat-item-96"><a href="http://www.breakintoprogram.co.uk/category/projects/pico">Pico</a> (5)
+</li>
+	<li class="cat-item cat-item-101"><a href="http://www.breakintoprogram.co.uk/category/projects/spectrum-next-projects">Spectrum Next</a> (2)
+	<ul class='children'>
+	<li class="cat-item cat-item-102"><a href="http://www.breakintoprogram.co.uk/category/projects/spectrum-next-projects/bbc-basic">BBC Basic</a> (2)
+</li>
+	</ul>
+</li>
+</ul>
+</li>
+	<li class="cat-item cat-item-42"><a href="http://www.breakintoprogram.co.uk/category/reviews">Reviews</a> (3)
+</li>
+	<li class="cat-item cat-item-3"><a href="http://www.breakintoprogram.co.uk/category/software_development">Software Development</a> (28)
+<ul class='children'>
+	<li class="cat-item cat-item-23"><a href="http://www.breakintoprogram.co.uk/category/software_development/code">Code</a> (13)
+</li>
+</ul>
+</li>
+	<li class="cat-item cat-item-123"><a href="http://www.breakintoprogram.co.uk/category/twop-twips">Twop Twips</a> (1)
+</li>
+	<li class="cat-item cat-item-1"><a href="http://www.breakintoprogram.co.uk/category/uncategorized">Uncategorized</a> (1)
+</li>
+			</ul>
+
+			</aside><aside id="tag_cloud-2" class="widget widget_tag_cloud widget-4 widget-last widget-last-vert widget-even"><h3 class="widget-title">Tags</h3><div class="tagcloud"><a href="http://www.breakintoprogram.co.uk/tag/6502" class="tag-cloud-link tag-link-82 tag-link-position-1" style="font-size: 9.448275862069pt;" aria-label="6502 (3 items)">6502</a>
+<a href="http://www.breakintoprogram.co.uk/tag/assembly" class="tag-cloud-link tag-link-8 tag-link-position-2" style="font-size: 15.603448275862pt;" aria-label="Assembly (12 items)">Assembly</a>
+<a href="http://www.breakintoprogram.co.uk/tag/ay-3-8912" class="tag-cloud-link tag-link-19 tag-link-position-3" style="font-size: 10.655172413793pt;" aria-label="AY-3-8912 (4 items)">AY-3-8912</a>
+<a href="http://www.breakintoprogram.co.uk/tag/basic" class="tag-cloud-link tag-link-6 tag-link-position-4" style="font-size: 9.448275862069pt;" aria-label="BASIC (3 items)">BASIC</a>
+<a href="http://www.breakintoprogram.co.uk/tag/bbc-basic" class="tag-cloud-link tag-link-103 tag-link-position-5" style="font-size: 11.620689655172pt;" aria-label="BBC Basic (5 items)">BBC Basic</a>
+<a href="http://www.breakintoprogram.co.uk/tag/bbc-micro" class="tag-cloud-link tag-link-76 tag-link-position-6" style="font-size: 9.448275862069pt;" aria-label="BBC Micro (3 items)">BBC Micro</a>
+<a href="http://www.breakintoprogram.co.uk/tag/c" class="tag-cloud-link tag-link-36 tag-link-position-7" style="font-size: 8pt;" aria-label="C++ (2 items)">C++</a>
+<a href="http://www.breakintoprogram.co.uk/tag/chip-tunes" class="tag-cloud-link tag-link-146 tag-link-position-8" style="font-size: 8pt;" aria-label="Chip Tunes (2 items)">Chip Tunes</a>
+<a href="http://www.breakintoprogram.co.uk/tag/clock" class="tag-cloud-link tag-link-86 tag-link-position-9" style="font-size: 9.448275862069pt;" aria-label="Clock (3 items)">Clock</a>
+<a href="http://www.breakintoprogram.co.uk/tag/commodore-64" class="tag-cloud-link tag-link-93 tag-link-position-10" style="font-size: 10.655172413793pt;" aria-label="Commodore 64 (4 items)">Commodore 64</a>
+<a href="http://www.breakintoprogram.co.uk/tag/composite-video" class="tag-cloud-link tag-link-98 tag-link-position-11" style="font-size: 10.655172413793pt;" aria-label="Composite Video (4 items)">Composite Video</a>
+<a href="http://www.breakintoprogram.co.uk/tag/debugging" class="tag-cloud-link tag-link-10 tag-link-position-12" style="font-size: 8pt;" aria-label="Debugging (2 items)">Debugging</a>
+<a href="http://www.breakintoprogram.co.uk/tag/dma" class="tag-cloud-link tag-link-100 tag-link-position-13" style="font-size: 9.448275862069pt;" aria-label="DMA (3 items)">DMA</a>
+<a href="http://www.breakintoprogram.co.uk/tag/electronics" class="tag-cloud-link tag-link-90 tag-link-position-14" style="font-size: 8pt;" aria-label="Electronics (2 items)">Electronics</a>
+<a href="http://www.breakintoprogram.co.uk/tag/emulator" class="tag-cloud-link tag-link-12 tag-link-position-15" style="font-size: 11.620689655172pt;" aria-label="Emulator (5 items)">Emulator</a>
+<a href="http://www.breakintoprogram.co.uk/tag/game" class="tag-cloud-link tag-link-44 tag-link-position-16" style="font-size: 8pt;" aria-label="Game (2 items)">Game</a>
+<a href="http://www.breakintoprogram.co.uk/tag/github" class="tag-cloud-link tag-link-63 tag-link-position-17" style="font-size: 8pt;" aria-label="GitHub (2 items)">GitHub</a>
+<a href="http://www.breakintoprogram.co.uk/tag/hardware" class="tag-cloud-link tag-link-38 tag-link-position-18" style="font-size: 22pt;" aria-label="Hardware (43 items)">Hardware</a>
+<a href="http://www.breakintoprogram.co.uk/tag/homebrew" class="tag-cloud-link tag-link-67 tag-link-position-19" style="font-size: 14.275862068966pt;" aria-label="Homebrew (9 items)">Homebrew</a>
+<a href="http://www.breakintoprogram.co.uk/tag/interrupts" class="tag-cloud-link tag-link-17 tag-link-position-20" style="font-size: 8pt;" aria-label="Interrupts (2 items)">Interrupts</a>
+<a href="http://www.breakintoprogram.co.uk/tag/maths" class="tag-cloud-link tag-link-15 tag-link-position-21" style="font-size: 9.448275862069pt;" aria-label="Maths (3 items)">Maths</a>
+<a href="http://www.breakintoprogram.co.uk/tag/pcb" class="tag-cloud-link tag-link-112 tag-link-position-22" style="font-size: 8pt;" aria-label="PCB (2 items)">PCB</a>
+<a href="http://www.breakintoprogram.co.uk/tag/pico" class="tag-cloud-link tag-link-97 tag-link-position-23" style="font-size: 11.620689655172pt;" aria-label="Pico (5 items)">Pico</a>
+<a href="http://www.breakintoprogram.co.uk/tag/pio" class="tag-cloud-link tag-link-99 tag-link-position-24" style="font-size: 9.448275862069pt;" aria-label="PIO (3 items)">PIO</a>
+<a href="http://www.breakintoprogram.co.uk/tag/power-supply" class="tag-cloud-link tag-link-77 tag-link-position-25" style="font-size: 8pt;" aria-label="Power Supply (2 items)">Power Supply</a>
+<a href="http://www.breakintoprogram.co.uk/tag/programming" class="tag-cloud-link tag-link-5 tag-link-position-26" style="font-size: 19.465517241379pt;" aria-label="Programming (26 items)">Programming</a>
+<a href="http://www.breakintoprogram.co.uk/tag/python" class="tag-cloud-link tag-link-46 tag-link-position-27" style="font-size: 8pt;" aria-label="Python (2 items)">Python</a>
+<a href="http://www.breakintoprogram.co.uk/tag/ram" class="tag-cloud-link tag-link-71 tag-link-position-28" style="font-size: 8pt;" aria-label="RAM (2 items)">RAM</a>
+<a href="http://www.breakintoprogram.co.uk/tag/raspberry-pi" class="tag-cloud-link tag-link-25 tag-link-position-29" style="font-size: 16.448275862069pt;" aria-label="Raspberry PI (14 items)">Raspberry PI</a>
+<a href="http://www.breakintoprogram.co.uk/tag/recap" class="tag-cloud-link tag-link-72 tag-link-position-30" style="font-size: 8pt;" aria-label="Recap (2 items)">Recap</a>
+<a href="http://www.breakintoprogram.co.uk/tag/repair" class="tag-cloud-link tag-link-79 tag-link-position-31" style="font-size: 14.275862068966pt;" aria-label="Repair (9 items)">Repair</a>
+<a href="http://www.breakintoprogram.co.uk/tag/retro-festival" class="tag-cloud-link tag-link-111 tag-link-position-32" style="font-size: 12.465517241379pt;" aria-label="Retro Festival (6 items)">Retro Festival</a>
+<a href="http://www.breakintoprogram.co.uk/tag/scouts" class="tag-cloud-link tag-link-41 tag-link-position-33" style="font-size: 8pt;" aria-label="Scouts (2 items)">Scouts</a>
+<a href="http://www.breakintoprogram.co.uk/tag/screen" class="tag-cloud-link tag-link-16 tag-link-position-34" style="font-size: 13.068965517241pt;" aria-label="Screen (7 items)">Screen</a>
+<a href="http://www.breakintoprogram.co.uk/tag/scrolling" class="tag-cloud-link tag-link-57 tag-link-position-35" style="font-size: 8pt;" aria-label="Scrolling (2 items)">Scrolling</a>
+<a href="http://www.breakintoprogram.co.uk/tag/sd-card" class="tag-cloud-link tag-link-49 tag-link-position-36" style="font-size: 8pt;" aria-label="SD Card (2 items)">SD Card</a>
+<a href="http://www.breakintoprogram.co.uk/tag/sound" class="tag-cloud-link tag-link-18 tag-link-position-37" style="font-size: 9.448275862069pt;" aria-label="Sound (3 items)">Sound</a>
+<a href="http://www.breakintoprogram.co.uk/tag/spectrum" class="tag-cloud-link tag-link-9 tag-link-position-38" style="font-size: 20.793103448276pt;" aria-label="Spectrum (34 items)">Spectrum</a>
+<a href="http://www.breakintoprogram.co.uk/tag/spectrum-next" class="tag-cloud-link tag-link-83 tag-link-position-39" style="font-size: 9.448275862069pt;" aria-label="Spectrum Next (3 items)">Spectrum Next</a>
+<a href="http://www.breakintoprogram.co.uk/tag/sprites" class="tag-cloud-link tag-link-21 tag-link-position-40" style="font-size: 12.465517241379pt;" aria-label="Sprites (6 items)">Sprites</a>
+<a href="http://www.breakintoprogram.co.uk/tag/tatung-einstein" class="tag-cloud-link tag-link-119 tag-link-position-41" style="font-size: 13.068965517241pt;" aria-label="Tatung Einstein (7 items)">Tatung Einstein</a>
+<a href="http://www.breakintoprogram.co.uk/tag/tim-follin" class="tag-cloud-link tag-link-20 tag-link-position-42" style="font-size: 8pt;" aria-label="Tim Follin (2 items)">Tim Follin</a>
+<a href="http://www.breakintoprogram.co.uk/tag/youtube" class="tag-cloud-link tag-link-64 tag-link-position-43" style="font-size: 8pt;" aria-label="YouTube (2 items)">YouTube</a>
+<a href="http://www.breakintoprogram.co.uk/tag/z80" class="tag-cloud-link tag-link-7 tag-link-position-44" style="font-size: 20.793103448276pt;" aria-label="Z80 (34 items)">Z80</a>
+<a href="http://www.breakintoprogram.co.uk/tag/zx81" class="tag-cloud-link tag-link-53 tag-link-position-45" style="font-size: 8pt;" aria-label="ZX81 (2 items)">ZX81</a></div>
+</aside><div class="clear-secondary-widget-area clear-both"></div>            </div><!-- secondary-widget-area -->
+            <div class="clear-secondary-widget-area clear-both"></div>
+<div class='clear-container-end clear-both'></div></div></div><!-- /#container-inside, #container -->
+<footer id="colophon" class="colophon " itemtype="https://schema.org/WPFooter" itemscope>
+    <div id="colophon-inside" class="block-inside">
+    <div id="site-ig-wrap"><span id="site-info">
+&copy;2026 - <a href="http://www.breakintoprogram.co.uk/" title="L Break Into Program, 0:1" rel="home">L Break Into Program, 0:1</a>        </span> <!-- #site-info -->
+        <span id="site-generator"></span><div class="clear-site-generator clear-both"></div>        </div><!-- #site-ig-wrap -->
+        <div class="clear-site-ig-wrap clear-both"></div>        </div></footer><!-- #colophon-inside, #colophon -->
+        <div class="clear-colophon clear-both"></div></div><!-- /#wrapper --><div class='clear-wrapper-end' style='clear:both;'></div>
+
+<a href="#page-top" id="page-bottom">&uarr;</a>
+<script type="speculationrules">
+{"prefetch":[{"source":"document","where":{"and":[{"href_matches":"/*"},{"not":{"href_matches":["/wp-*.php","/wp-admin/*","/wp-content/uploads/*","/wp-content/*","/wp-content/plugins/*","/wp-content/themes/weaver-xtreme/*","/*\\?(.+)"]}},{"not":{"selector_matches":"a[rel~=\"nofollow\"]"}},{"not":{"selector_matches":".no-prefetch, .no-prefetch a"}}]},"eagerness":"conservative"}]}
+</script>
+<script type="text/javascript" id="weaver-xtreme-JSLibEnd-js-extra">
+/* <![CDATA[ */
+var wvrxEndOpts = {"hideTip":"0","hFontFamily":"0","hFontMult":"1","sbLayout":"right","flowColor":"0","full_browser_height":"1","primary":"0","secondary":"0","top":"0","bottom":"0","header_sb":"0","footer_sb":"0"};
+//# sourceURL=weaver-xtreme-JSLibEnd-js-extra
+/* ]]> */
+</script>
+<script type="text/javascript" src="http://www.breakintoprogram.co.uk/wp-content/themes/weaver-xtreme/assets/js/weaverxjslib-end.min.js?ver=6.7" id="weaver-xtreme-JSLibEnd-js"></script>
+<script id="wp-emoji-settings" type="application/json">
+{"baseUrl":"https://s.w.org/images/core/emoji/17.0.2/72x72/","ext":".png","svgUrl":"https://s.w.org/images/core/emoji/17.0.2/svg/","svgExt":".svg","source":{"concatemoji":"http://www.breakintoprogram.co.uk/wp-includes/js/wp-emoji-release.min.js?ver=cf7a1ca05824d22cde726bc2239d0702"}}
+</script>
+<script type="module">
+/* <![CDATA[ */
+/*! This file is auto-generated */
+const a=JSON.parse(document.getElementById("wp-emoji-settings").textContent),o=(window._wpemojiSettings=a,"wpEmojiSettingsSupports"),s=["flag","emoji"];function i(e){try{var t={supportTests:e,timestamp:(new Date).valueOf()};sessionStorage.setItem(o,JSON.stringify(t))}catch(e){}}function c(e,t,n){e.clearRect(0,0,e.canvas.width,e.canvas.height),e.fillText(t,0,0);t=new Uint32Array(e.getImageData(0,0,e.canvas.width,e.canvas.height).data);e.clearRect(0,0,e.canvas.width,e.canvas.height),e.fillText(n,0,0);const a=new Uint32Array(e.getImageData(0,0,e.canvas.width,e.canvas.height).data);return t.every((e,t)=>e===a[t])}function p(e,t){e.clearRect(0,0,e.canvas.width,e.canvas.height),e.fillText(t,0,0);var n=e.getImageData(16,16,1,1);for(let e=0;e<n.data.length;e++)if(0!==n.data[e])return!1;return!0}function u(e,t,n,a){switch(t){case"flag":return n(e,"\ud83c\udff3\ufe0f\u200d\u26a7\ufe0f","\ud83c\udff3\ufe0f\u200b\u26a7\ufe0f")?!1:!n(e,"\ud83c\udde8\ud83c\uddf6","\ud83c\udde8\u200b\ud83c\uddf6")&&!n(e,"\ud83c\udff4\udb40\udc67\udb40\udc62\udb40\udc65\udb40\udc6e\udb40\udc67\udb40\udc7f","\ud83c\udff4\u200b\udb40\udc67\u200b\udb40\udc62\u200b\udb40\udc65\u200b\udb40\udc6e\u200b\udb40\udc67\u200b\udb40\udc7f");case"emoji":return!a(e,"\ud83e\u1fac8")}return!1}function f(e,t,n,a){let r;const o=(r="undefined"!=typeof WorkerGlobalScope&&self instanceof WorkerGlobalScope?new OffscreenCanvas(300,150):document.createElement("canvas")).getContext("2d",{willReadFrequently:!0}),s=(o.textBaseline="top",o.font="600 32px Arial",{});return e.forEach(e=>{s[e]=t(o,e,n,a)}),s}function r(e){var t=document.createElement("script");t.src=e,t.defer=!0,document.head.appendChild(t)}a.supports={everything:!0,everythingExceptFlag:!0},new Promise(t=>{let n=function(){try{var e=JSON.parse(sessionStorage.getItem(o));if("object"==typeof e&&"number"==typeof e.timestamp&&(new Date).valueOf()<e.timestamp+604800&&"object"==typeof e.supportTests)return e.supportTests}catch(e){}return null}();if(!n){if("undefined"!=typeof Worker&&"undefined"!=typeof OffscreenCanvas&&"undefined"!=typeof URL&&URL.createObjectURL&&"undefined"!=typeof Blob)try{var e="postMessage("+f.toString()+"("+[JSON.stringify(s),u.toString(),c.toString(),p.toString()].join(",")+"));",a=new Blob([e],{type:"text/javascript"});const r=new Worker(URL.createObjectURL(a),{name:"wpTestEmojiSupports"});return void(r.onmessage=e=>{i(n=e.data),r.terminate(),t(n)})}catch(e){}i(n=f(s,u,c,p))}t(n)}).then(e=>{for(const n in e)a.supports[n]=e[n],a.supports.everything=a.supports.everything&&a.supports[n],"flag"!==n&&(a.supports.everythingExceptFlag=a.supports.everythingExceptFlag&&a.supports[n]);var t;a.supports.everythingExceptFlag=a.supports.everythingExceptFlag&&!a.supports.flag,a.supports.everything||((t=a.source||{}).concatemoji?r(t.concatemoji):t.wpemoji&&t.twemoji&&(r(t.twemoji),r(t.wpemoji)))});
+//# sourceURL=http://www.breakintoprogram.co.uk/wp-includes/js/wp-emoji-loader.min.js
+/* ]]> */
+</script>
+</body>
+</html>
