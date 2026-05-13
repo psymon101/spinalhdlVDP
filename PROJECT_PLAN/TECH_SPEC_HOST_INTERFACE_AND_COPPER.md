@@ -113,58 +113,27 @@ This guarantees that no host write can change linestate mid-line. The boundary w
 
 ### 4.2 Instruction Set
 
-Copper instructions are 16 bits. Four opcodes:
+Copper instructions are 16 bits.
 
-| Opcode | Name | Description |
-|--------|------|-------------|
-| `00` | `WAIT` | Wait until `(x, y)` raster position matches target |
-| `01` | `WRITE` | Write `data` to VDP register `reg` |
-| `10` | `WRITE_SEQ` | Write a sequence of `N+1` 16-bit words starting at `reg` |
-| `11` | `JUMP` | Unconditional jump to `addr` |
+| Op | Enc | Description | Bit Layout | Cycles | Typical Use |
+|----|-----|-------------|------------|--------|-------------|
+| `WAIT` | `00` | Block until raster matches target | `00 WT Y TGT[9:0]` | 1 | Beam-sync trigger |
+| `WRITE` | `01` | Write 8-bit data to VDP register | `01 -- reg[5:0] data[7:0]` | 1 | Single register poke |
+| `WRITE_SEQ` | `10` | Write `N+1` words from program RAM | `10 ITY BAS N reg[5:0]` | N+1 | Palette/bar updates |
+| `JUMP` | `11` | Unconditional jump | `11 -- addr[10:0]` | 1 | Loop restart |
 
-#### WAIT (`00`)
-```
-15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0
- 0  0  WT  Y  |---------- TGT ----------|
-```
-- `WT`: wait bit (1 = block until match; 0 = just set target, continue)
-- `Y`: coordinate select (0 = target X, 1 = target Y)
-- `TGT`: 10-bit target value
+**Field definitions:**
+- `WT`: 1 = block until match; 0 = set target, continue
+- `Y`: 0 = target X, 1 = target Y
+- `TGT`: 10-bit raster coordinate
+- `reg`: 6-bit VDP register address
+- `data`: 8-bit immediate
+- `BAS`: increment mode (00 = same, 01 = +1, 10 = +2, 11 = +4)
+- `N`: batch count minus one
+- `ITY`: interlaced Y mode (auto-increment Y and WAIT between batches)
+- `addr`: 11-bit program RAM address
 
-To wait for a specific `(x, y)`:
-```
-WAIT Y=1, TGT=line, WT=1   ; sets target Y and blocks
-WAIT Y=0, TGT=x,    WT=1   ; sets target X and blocks
-```
-
-#### WRITE (`01`)
-```
-15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0
- 0  1  -  -  |--- reg ---| |--- data ---|
-```
-- `reg`: 6-bit target VDP register
-- `data`: 8-bit immediate data
-
-For 16-bit writes, use `WRITE_SEQ` with N=0.
-
-#### WRITE_SEQ (`10`)
-```
-15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0
- 1  0  ITY | BAS | N |--- reg ---|
-```
-- `reg`: base register
-- `BAS`: increment mode (00 = repeat same reg, 01 = +1, 10 = +2, 11 = +4)
-- `N`: number of batches minus one
-- `ITY`: interlaced target-Y mode (auto-increment Y and WAIT between batches)
-
-The copper fetches the next `N+1` words from its program RAM as the data payload.
-
-#### JUMP (`11`)
-```
-15 14 13 12 11 10 9 8 7 6 5 4 3 2 1 0
- 1  1  -  -  -  |---------- addr ----------|
-```
-- `addr`: 11-bit jump target in copper RAM
+**16-bit writes:** Use `WRITE_SEQ` with `N=0`.
 
 ### 4.3 Copper Program RAM
 

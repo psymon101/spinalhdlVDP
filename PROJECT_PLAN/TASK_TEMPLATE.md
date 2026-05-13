@@ -23,195 +23,25 @@ Do not paste this template directly into `TASKS.md`. Fill it first, then transla
 
 ## Task Planning Template
 
-### 1. Task Name
-
-Short, specific primitive name.
-
-Example:
-
-- `Raster Trigger Unit`
-- `2-Pass Sprite Evaluator`
-- `Scroll Table Primitive`
-
-### 2. Purpose
-
-State what gap this task closes and why it matters to `Mode0`.
-
-Questions to answer:
-
-- what primitive is being added
-- which platform pressures make it necessary
-- why this task is the right next step now
-
-### 3. Primitive Boundary
-
-Define exactly what is in scope and out of scope.
-
-Use both:
-
-- **in scope**
-- **explicitly out of scope**
-
-This is the most important section for preventing scope creep.
-
-### 4. Dependencies
-
-List the prerequisites that must already be proven.
-
-Types of dependency to call out:
-
-- prior Mode0 primitive dependencies
-- architectural prerequisites
-- required refactors
-- required documentation or register-contract prerequisites
-
-### 5. Interfaces
-
-List the new or changed interfaces introduced by the task.
-
-Include as needed:
-
-- top-level signals
-- internal interfaces
-- registers
-- status bits
-- interrupt/event outputs
-- control inputs
-- metadata bits carried between stages
-
-### 6. Data Model
-
-Describe the state this primitive owns.
-
-Examples:
-
-- counters
-- comparators
-- memories
-- buffers
-- flags
-- tables
-- descriptor records
-
-Questions:
-
-- what is persistent vs per-line vs per-frame
-- what is programmable vs internal-only
-- what needs GT-022 power-of-two handling
-
-### 7. Timing Model
-
-Describe when the primitive runs and when its outputs become valid.
-
-Examples:
-
-- per-pixel
-- per-tile
-- per-line
-- beam-triggered
-- blanking-only
-- scheduled fetch-slot
-
-Questions:
-
-- what clock domain(s) are involved
-- what event edge defines correctness
-- what can and cannot happen mid-line
-
-### 8. Memory / Bandwidth Impact
-
-Describe how this task changes memory use or arbitration pressure.
-
-Include:
-
-- SDRAM use
-- on-chip RAM use
-- line-buffer pressure
-- table-memory additions
-- arbitration changes
-- whether prefetch/cache/shadowing is required
-
-### 9. Platform Reuse
-
-List which platforms benefit and how.
-
-Keep it compact:
-
-- primary beneficiaries
-- secondary beneficiaries
-- whether this is foundational or optional for each
-
-### 10. Failure Modes / Risks
-
-List the most likely things to go wrong.
-
-Examples:
-
-- CDC / pulse-crossing issues
-- off-by-one raster timing
-- priority/compositor mistakes
-- GT-022 inferred-memory failures
-- bandwidth underrun
-- synthesis optimization hazards
-- refactor regressions
-
-### 11. Validation Plan
-
-Define the sim-side proof before hardware.
-
-Questions:
-
-- what dedicated sim/testbench is required
-- what assertions must exist
-- what matrix of cases must pass
-- what old proofs must be rerun after the change
-
-### 12. Hardware Proof
-
-Define the hardware-visible proof required to call the task done.
-
-Examples:
-
-- one visible scene
-- one diagnostic pattern
-- one IRQ/status observation
-- one capture-device confirmation
-- one soak window
-
-This should be specific enough that audit can reject ambiguous proof.
-
-### 13. Audit Questions
-
-List the exact questions CyanPeak should answer.
-
-Examples:
-
-- does the implementation match the bounded scope
-- are the new interfaces coherent
-- does the proof match the current code
-- did the task accidentally imply a larger architectural commitment
-
-### 14. Constraints / Gotcha Check
-
-Call out the known project constraints this task touches.
-
-Examples:
-
-- GT-022 power-of-two `Mem` rule
-- SDRAM-latency awareness
-- interface-stability rule
-- no mid-line linestate application
-- no hardware before sim
-
-### 15. Exit Condition
-
-One sentence only.
-
-Format:
-
-- “This task is done when …”
-
-If you cannot write this in one sentence, the task is probably too broad.
+Fill every section below. If a section cannot be answered briefly, the task is too broad.
+
+| # | Section | Purpose | Max Lines |
+|---|---------|---------|-----------|
+| 1 | Task Name | Short primitive name | 3 |
+| 2 | Purpose | Gap closed + why now | 5 |
+| 3 | Primitive Boundary | In scope / out of scope | 10 |
+| 4 | Dependencies | Prerequisites | 5 |
+| 5 | Interfaces | New/changed signals, registers, buses | 8 |
+| 6 | Data Model | State owned by this primitive | 8 |
+| 7 | Timing Model | When it runs, when outputs valid | 6 |
+| 8 | Memory / Bandwidth | SDRAM, RAM, buffer, arbiter changes | 6 |
+| 9 | Platform Reuse | Beneficiaries | 5 |
+| 10 | Failure Modes / Risks | Likely things to go wrong | 6 |
+| 11 | Validation Plan | Sim proof required | 6 |
+| 12 | Hardware Proof | Hardware-visible proof required | 6 |
+| 13 | Audit Questions | Exact questions for CyanPeak | 5 |
+| 14 | Constraints / Gotchas | Project constraints touched | 5 |
+| 15 | Exit Condition | One-sentence done criterion | 2 |
 
 ---
 

@@ -18,6 +18,7 @@ platforms over a full 6-wire quad QSPI transport.
   - `vdp_status.{h,c}` — status polling + vblank wait helpers
   - `vdp_upload.{h,c}` — vblank-paced asset upload
   - `vdp_platform.h` — platform-specific pin maps
+  - canonical API reference: [`kb/libvdp/README.md`](../kb/libvdp/README.md)
 - `esp32_*/`, `esp8266_*/` — per-scenario Arduino sketches (thin wrappers)
 - `test_qspi_smoke/` — Pico-native smoke test exercising the full libvdp surface.
 - `test_mode0_bad_apple/` — Pico demo uploading a monochrome Bad Apple frame.

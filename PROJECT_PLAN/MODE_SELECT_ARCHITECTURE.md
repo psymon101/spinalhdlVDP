@@ -64,26 +64,12 @@ Relevant allocations from `MODE0_REGISTER_BUS_SPEC.md`:
 
 ## 3. Architectural Options Considered
 
-### Option A — Compile-time only (status quo)
-Each adapter gets its own scenario ID and bitstream. No runtime switching.
-
-- **Verdict:** Rejected. User explicitly requested runtime mode selection.
-
-### Option B — Runtime mode select with shared bitstream (RECOMMENDED)
-A single `MODE_SELECT` register controls which adapter is active. All adapters are instantiated in the same bitstream. Inactive adapters are quiescent (gated outputs). Host writes adapter registers through a router that directs them to the active adapter.
-
-- **Pros:** One bitstream, runtime flexibility, leverages existing adapter pattern.
-- **Cons:** All adapter LUT/FF costs are present simultaneously (though inactive adapters are small). Requires careful output gating.
-
-### Option C — Multi-adapter concurrent
-Multiple adapters active simultaneously, each driving a different layer (e.g., C64 sprites on top of ZX Spectrum bitmap).
-
-- **Verdict:** Rejected for baseline. Hugely increases bus-contention complexity and breaks the "one adapter = one platform" mental model. Can be revisited later as an advanced feature.
-
-### Option D — Build-time subset with runtime switch
-`MODE_SELECT` exists, but the set of adapters compiled into a given bitstream is a build parameter (e.g., `includedAdapters: Set[Int]`). This lets us create a "C64+Spectrum" build, a "NES+SMS" build, etc., without paying for every adapter.
-
-- **Verdict:** Accepted as **fallback / tiered-build strategy** when Option B exceeds resource headroom. Not the default.
+| Option | Model | Switch | Cost | Verdict |
+|--------|-------|--------|------|---------|
+| A | Compile-time only | Rebuild | Zero runtime flexibility | Rejected — user requested runtime selection |
+| B | Runtime shared bitstream | Warm reboot | One extra arbiter master; all adapters present | **Recommended** |
+| C | Multi-adapter concurrent | Instant | Complex bus contention; breaks 1-adapter-1-platform model | Rejected for baseline |
+| D | Build-time subset + runtime switch | Warm reboot | Build-parameter complexity | Fallback if Option B exceeds resources |
 
 ---
 
