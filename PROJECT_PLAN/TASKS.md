@@ -200,20 +200,19 @@ Parallel work completed outside the FPGA critical path.
 
 ## Agent Rules for This File
 
-- Do not begin a task if any entry in its \`depends_on\` list is not \`DONE\`.
-- Do not implement anything described in a task's \`scope_boundary\` as excluded.
-- A task is only \`DONE\` when its \`validation\` criteria are met on hardware (or simulation, for tasks not yet at hardware stage).
-- When marking a task \`IN-PROGRESS\` or \`DONE\`, update the status field in this file.
-- Do not modify \`depends_on\` or \`scope_boundary\` fields without explicit instruction.
+| Rule | Requirement |
+|------|-------------|
+| Dependency gate | Do not begin if any \`depends_on\` is not \`DONE\` |
+| Scope boundary | Do not implement anything in \`scope_boundary\` as excluded |
+| DONE definition | \`DONE\` only when \`validation\` criteria met on hardware (or sim) |
+| Status sync | Update status field when marking \`IN-PROGRESS\` or \`DONE\` |
+| Scope immutability | Do not modify \`depends_on\` or \`scope_boundary\` without instruction |
 
 ### Deduplication Rule
-Before opening a new implementation lane, landing code, or sending a proof packet, verify the task ID does not already appear in:
-- \`TASKS.md\` Live Lane State, or
-- project mail from the last 48 hours.
-If the task is already in flight, halt and request a BronzeGate ruling.
+Before opening a new lane, landing code, or sending a proof packet, verify the task ID does not already appear in \`TASKS.md\` Live Lane State or project mail from the last 48 hours. If already in flight, halt and request a BronzeGate ruling.
 
 ### Audit HOLD Iteration Limit
-If CyanPeak issues \`HOLD\` on a checkpoint, BrightForge may correct and resubmit once. A second \`HOLD\` on the same checkpoint scope must escalate to BronzeGate for re-scoping or closure. No third HOLD cycle without PM intervention.
+If CyanPeak issues \`HOLD\`, BrightForge may correct and resubmit once. A second \`HOLD\` on the same scope must escalate to BronzeGate. No third HOLD cycle without PM intervention.
 
 ---
 
