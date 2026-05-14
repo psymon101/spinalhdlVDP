@@ -23,13 +23,13 @@ This section tracks the single active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | **Host Platform Fidelity Requirements** — ESP8266 / ESP32 / Pico 2 |
-| **Status** | **IN-PROGRESS** — opened #9801 (BronzeGate), owner FoggyWolf, audit CyanPeak |
-| **Phase** | implement (doc-only) |
-| **Latest Commit** | — |
-| **Commits in lane** | — |
-| **Latest Auth Mail** | #9801 (BronzeGate lane open) |
-| **Artifact** | — |
-| **Next Deliverable** | FoggyWolf planning/proof packet for documentation updates |
+| **Status** | **IN-PROGRESS** — reassigned #9883 (BronzeGate), owner CoralReef, audit CyanPeak |
+| **Phase** | doc-complete, awaiting audit |
+| **Latest Commit** | `8afc432` |
+| **Commits in lane** | `8afc432` |
+| **Latest Auth Mail** | #9883 (BronzeGate PM ruling) |
+| **Artifact** | `firmware/GOTCHAS.md` §Host Platform Fidelity, `firmware/README.md` §Host Platform Fidelity |
+| **Next Deliverable** | CyanPeak audit ruling on doc packet |
 
 **Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** DONE #9768 (\`755fd10\`). **ZX Spectrum Firmware Host Flow (v1)** DONE #9797 (\`13989c1\`). **Atari ST Adapter Lane** opened #9776, Checkpoint A accepted #9782, then **PAUSED #9783** per user priority shift. **Host Platform Fidelity Requirements** opened #9801: doc-only lane for per-platform fidelity notes, preferred authoritative proof host, transport limits, status/debug expectations.
 
@@ -43,7 +43,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **IN-PROGRESS** — opened #9801; owner FoggyWolf, audit CyanPeak |
+| **Status** | **IN-PROGRESS** — reassigned #9883; owner CoralReef, audit CyanPeak |
 | **Gap** | No canonical documentation of host-platform constraints affecting visual fidelity and proof trustworthiness. |
 | **Platforms helped** | All (firmware/host-transport) |
 | **Impact** | **High** — establishes which host platform to trust for visual proof and why |
