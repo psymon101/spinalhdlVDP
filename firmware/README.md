@@ -81,9 +81,23 @@ arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 --library libvdp esp8266_sc
 | IO2    | D2      | 4    | 51       |
 | IO3    | D0      | 16   | 54       |
 
+## Host Platform Fidelity
+
+Before claiming any visual output as proof, read `firmware/GOTCHAS.md`
+§Host Platform Fidelity. Key requirements:
+
+- **Authoritative host:** Pico 2 (RP2350 PIO at 2 MHz). ESP32/ESP8266 are
+  functional but not authoritative for audit-signoff proofs.
+- **QSPI_ERROR == 0:** Poll `last_error` (sel=4) after every write burst;
+  only trust visual output when `last_error == 0` and sticky `QSPI_ERROR`
+  (bit 3) is clear.
+- **Artifact stewardship:** Record commit hashes of both bitstream and
+  firmware in every proof packet. Rebuild/reflash if freshness cannot be
+  proven.
+
 ## Pitfalls
 
-See `firmware/GOTCHAS.md` for the four proven firmware pitfalls (PIO
+See `firmware/GOTCHAS.md` for the proven firmware pitfalls (PIO
 pin restore after bit-bang read, SpinalHDL literal-cache bug, CS hold
-time, OSR drain margin). Read it before hand-rolling a custom PIO
-transaction.
+time, OSR drain margin, UF2 family-ID mismatch, authoritative-host
+distinction). Read it before hand-rolling a custom PIO transaction.
