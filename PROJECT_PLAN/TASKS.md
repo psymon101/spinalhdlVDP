@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-13 (Host Platform Fidelity opened #9801; Reference Localization DONE #9827; Standards Compression DONE #9828; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
+**Updated:** 2026-05-14 (Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
 **Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
 
 Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
@@ -158,8 +158,8 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 
 | Task | Status | Closeout Mail | Archive Artifact |
 |---|---|---|---|
-| Reference Localization — platform technical references | **DONE** | #9827 | Commit \`304bac0\` |
-| Standards Compression — facts-first doc templates | **DONE** | #9828 | Commit \`cc099a8\` |
+| Reference Localization — platform technical references | **DONE** | #9827 / audit PASS #9839 | Commit \`304bac0\` |
+| Standards Compression — facts-first doc templates | **DONE** | #9828 / audit PASS #9839 | Commits \`cc099a8\`, \`805d5eb\` |
 | ZX Spectrum Firmware Host Flow (v1) | **DONE** | #9797 | Commit \`13989c1\`, \`zx_final_proof_v4.png\` |
 | 320-pixel planar clipping mask | **DONE** | #9768 | Commit \`77bedae\` |
 | Task 56 — Multi-Layer SDRAM Fetch | **DONE** | #9709 | Commits \`93773d7\`, \`ee5820c\`, \`834c71e\` |
