@@ -9,6 +9,8 @@ project identity, mail registration, and cross-agent coordination context,
 but firmware-specific conventions, build rules, and QSPI contract rules
 live here.
 
+Examples and command snippets: `AGENTS_EXAMPLES.md`
+
 ---
 
 ## Registration
@@ -38,19 +40,7 @@ Do not introduce new platforms without BronzeGate authorization.
 
 ## Directory Layout Rule
 
-```
-firmware/
-├── libvdp/              — shared host driver library (C, platform-agnostic core)
-│   ├── vdp_qspi.{c,h}   — QSPI transport framing
-│   ├── vdp_upload.{c,h} — SDRAM asset upload helpers
-│   ├── vdp_status.{c,h} — register/status read helpers
-│   └── vdp_platform.h   — platform-specific pin maps & types
-├── esp8266_<scenario>/  — per-scenario Arduino sketches (NodeMCU 1.0)
-├── esp32_<scenario>/    — per-scenario Arduino sketches (ESP32 dev1)
-├── test_qspi_wire/      — low-level QSPI validation harness (Pico)
-├── test_qspi_smoke/     — transport smoke test (Pico)
-└── AGENTS.md            — this file
-```
+Reference layout: `AGENTS_EXAMPLES.md`
 
 **Naming:**
 - Arduino sketches: `esp<platform>_<scenario>/<name>.ino`
@@ -106,13 +96,7 @@ Every scenario sketch must contain, in order:
 3. `setup()` — GPIO init, transport settle delay (≥200 ms), upload sequence, register writes
 4. `loop()` — idle or polling (no busy-wait printf spam)
 
-**Build command:**
-```sh
-arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 <sketch_dir>
-arduino-cli upload   --fqbn esp8266:esp8266:nodemcuv2 -p /dev/ttyUSB0 <sketch_dir>
-```
-
-Replace `nodemcuv2` with `esp32:esp32:esp32` for ESP32 targets.
+Build / flash examples: `AGENTS_EXAMPLES.md`
 
 ---
 
@@ -142,31 +126,7 @@ A scenario is **not firmware-done** until all checked platforms are proven or th
 
 ## Platform Pin Maps (Authoritative)
 
-### ESP8266 NodeMCU 1.0
-
-| QSPI | NodeMCU | GPIO |
-|------|---------|------|
-| SCK  | D5      | 14   |
-| CS_N | D6      | 12   |
-| IO0  | D7      | 13   |
-| IO1  | D1      | 5    |
-| IO2  | D2      | 4    |
-| IO3  | D0      | 16   |
-
-### ESP32 dev1
-
-| QSPI | GPIO |
-|------|------|
-| SCK  | 18   |
-| CS_N | 19   |
-| IO0  | 23   |
-| IO1  | 22   |
-| IO2  | 25   |
-| IO3  | 27   |
-
-### Pico (RP2350)
-
-Defined in `libvdp/vdp_platform.h` and `qspi_quad.pio`.
+See `AGENTS_EXAMPLES.md`.
 
 Do not change pin maps without FPGA-side verification that the new GPIOs are non-strap / non-JTAG / non-flash safe.
 
@@ -180,6 +140,18 @@ Before starting a firmware lane:
 2. Confirm register contract / scenario definition with **BrightForge**
 3. Confirm lane authorization with **BronzeGate**
 4. Open firmware work as a **background lane** — it must not block the FPGA critical path
+
+## Artifact Match Rule
+
+Bench testing must use artifacts verified to match the intended source state.
+
+- do not assume a flashed sketch or bitstream is current just because upload or
+  programming succeeded
+- before hardware proof, verify the flashed firmware matches the intended
+  sketch/build
+- when firmware depends on FPGA behavior, also verify the flashed FPGA
+  bitstream matches the intended source/build
+- if the match cannot be proven, rebuild and reflash before testing
 
 ---
 

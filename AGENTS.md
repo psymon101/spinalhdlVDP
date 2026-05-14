@@ -5,6 +5,8 @@ Repo-specific rules for `/home/itadmin/github/spinalhdlVDP`.
 The workspace file at `/home/itadmin/github/AGENTS.md` remains authoritative
 for canonical identity, roster, and cross-project coordination rules.
 
+Examples and command snippets: `AGENTS_EXAMPLES.md`
+
 ---
 
 ## Identity
@@ -84,6 +86,18 @@ For FPGA-affecting changes:
 - regenerate outputs from the current source tree before downstream Gowin use
 - follow `PROJECT_PLAN/TEST_PATTERN_POLICY.md` for task proof scenes
 
+### Artifact Match Rule
+
+Hardware proof must use artifacts verified to match the intended source state.
+
+- do not assume a flashed sketch or bitstream is current just because upload or
+  programming succeeded
+- before bench testing, verify the flashed firmware matches the intended
+  sketch/build and the flashed FPGA bitstream matches the intended source/build
+- if the match cannot be proven, rebuild and reflash before testing
+- for Tang Nano 20K, do not flash `fpga/tang20k/impl/pnr/project.fs` as
+  "current" when it is older than `hw/gen/top_tang20k.v`
+
 ### 100% Verification Rule (Mandatory)
 
 **Every task must be proven 100% before closeout. No exceptions.**
@@ -115,6 +129,7 @@ After running simulation:
 - Ledger sync is part of closeout, not cleanup.
 
 Detailed templates, checklists, and escalation policy: `PROJECT_PLAN/archive/AGENTS_WORKFLOW_RULES.md`.
+Examples and command snippets: `AGENTS_EXAMPLES.md`.
 
 ## FoggyWolf Scope and Rules
 
