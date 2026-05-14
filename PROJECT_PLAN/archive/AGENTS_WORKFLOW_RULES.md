@@ -30,6 +30,28 @@ Use this order every time:
 2. `PROJECT_PLAN/TASKS.md` live-lane block
 3. current repo state / commit under discussion
 
+### Deliverable verification
+
+A claimed lane deliverable is not received until it is mailbox-visible and
+matches the required owner and packet type.
+
+- required packet types:
+  - `planning`
+  - `completion`
+  - `audit`
+  - `blocker`
+  - `ETA`
+- if an agent claims "I sent it", they must provide:
+  - exact message id
+  - exact subject
+  - exact project key
+  - exact recipient list
+- a visible message from the wrong owner or with the wrong packet type does
+  not satisfy the missing deliverable
+- if the message cannot be verified in the mailbox, require resend
+- after repeated non-response, `BronzeGate` may reassign the lane or authorize
+  a bounded fallback
+
 Do not restate older lane history in routine messages unless the current
 decision depends on it.
 
@@ -594,4 +616,3 @@ Bench-gate split rule:
 - do not reopen implementation work or keep the coding lane artificially open
   just because the bench step has not run yet
 - treat the bench run as a final proof substep with its own audit and closeout
-

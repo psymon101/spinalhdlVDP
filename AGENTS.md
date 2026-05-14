@@ -128,6 +128,21 @@ After running simulation:
 - Fast-flow: shortest trustworthy cycle, smallest proof-sized batches, earlier discriminators.
 - Ledger sync is part of closeout, not cleanup.
 
+### Deliverable Verification Rule
+
+A lane deliverable counts only when the mailbox-visible message matches the
+required owner and packet type.
+
+- if an agent claims "I sent it", they must provide the exact message id
+- the visible message must match the required lane owner and packet type
+  (`planning`, `completion`, `audit`, `blocker`, or `ETA`)
+- a different agent's message or a different packet type does not satisfy the
+  missing deliverable unless `BronzeGate` explicitly reassigns the lane
+- if the claimed message cannot be verified in the mailbox, treat it as not
+  received and require resend
+- after repeated non-response, `BronzeGate` may reassign the lane without
+  waiting further
+
 Detailed templates, checklists, and escalation policy: `PROJECT_PLAN/archive/AGENTS_WORKFLOW_RULES.md`.
 Examples and command snippets: `AGENTS_EXAMPLES.md`.
 
