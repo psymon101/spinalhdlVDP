@@ -22,14 +22,14 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Host Platform Fidelity Requirements** — ESP8266 / ESP32 / Pico 2 |
-| **Status** | **IN-PROGRESS** — reassigned #9883 (BronzeGate), owner CoralReef, audit CyanPeak |
-| **Phase** | doc-complete, awaiting audit |
-| **Latest Commit** | `8afc432` |
-| **Commits in lane** | `8afc432` |
-| **Latest Auth Mail** | #9883 (BronzeGate PM ruling) |
-| **Artifact** | `firmware/GOTCHAS.md` §Host Platform Fidelity, `firmware/README.md` §Host Platform Fidelity |
-| **Next Deliverable** | CyanPeak audit ruling on doc packet |
+| **Task** | **None** — all lanes closed |
+| **Status** | — |
+| **Phase** | — |
+| **Latest Commit** | — |
+| **Commits in lane** | — |
+| **Latest Auth Mail** | — |
+| **Artifact** | — |
+| **Next Deliverable** | PM authorization for next lane |
 
 **Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** DONE #9768 (\`755fd10\`). **ZX Spectrum Firmware Host Flow (v1)** DONE #9797 (\`13989c1\`). **Atari ST Adapter Lane** opened #9776, Checkpoint A accepted #9782, then **PAUSED #9783** per user priority shift. **Host Platform Fidelity Requirements** opened #9801: doc-only lane for per-platform fidelity notes, preferred authoritative proof host, transport limits, status/debug expectations.
 
@@ -43,7 +43,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **IN-PROGRESS** — reassigned #9883; owner CoralReef, audit CyanPeak |
+| **Status** | **DONE** — CyanPeak audit PASS #9891 |
 | **Gap** | No canonical documentation of host-platform constraints affecting visual fidelity and proof trustworthiness. |
 | **Platforms helped** | All (firmware/host-transport) |
 | **Impact** | **High** — establishes which host platform to trust for visual proof and why |
@@ -52,7 +52,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 | **Source assessment** | `firmware/README.md`, `firmware/GOTCHAS.md`, `kb/<Adapter>/README.md` |
 | **Depends on** | ZX Spectrum Firmware Host Flow DONE (#9797) |
 | **Scope Boundary** | ESP8266, ESP32, Pico 2 host-side constraints only. No new RTL. No new firmware features. No reopening closed ZX work. |
-| **Checkpoints** | A: planning/proof packet; B: documentation updates; C: CyanPeak audit ruling |
+| **Checkpoints** | A: planning/proof packet ✅; B: documentation updates ✅ (`8afc432`); C: CyanPeak audit ruling ✅ PASS #9891 |
 | **Coding authorized** | YES — #9801 |
 
 ---
@@ -158,6 +158,7 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 
 | Task | Status | Closeout Mail | Archive Artifact |
 |---|---|---|---|
+| Host Platform Fidelity Requirements — authoritative vs functional host, QSPI_ERROR trust, artifact stewardship | **DONE** | #9883 / audit PASS #9891 | Commits \`8afc432\`, \`4814dc2\` |
 | ESP8266 QSPI Transport Fix — pinMode restore + HALF_PERIOD_US | **DONE** | #9876 / audit PASS #9875 | Commit \`878e862\` |
 | Reference Localization — platform technical references | **DONE** | #9827 / audit PASS #9839 | Commit \`304bac0\` |
 | Standards Compression — facts-first doc templates | **DONE** | #9828 / audit PASS #9839 | Commits \`cc099a8\`, \`805d5eb\` |
