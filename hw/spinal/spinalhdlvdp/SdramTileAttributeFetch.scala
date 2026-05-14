@@ -323,8 +323,9 @@ case class SdramTileAttributeFetch(
     val attrByteReg    = Reg(Bits(8 bits)) init 0
     val bankReg        = Reg(UInt(3 bits)) init 0
     val priorityReg    = Reg(Bool()) init False
-    val debugAttrTLReg = Reg(UInt(3 bits)) init 7   // init to "7" so a stuck
-    val debugAttrBRReg = Reg(UInt(3 bits)) init 7   // engine is distinguishable
+    // R4 stage-1c bring-up probe latches removed (#6767/#6768/#6769 era).
+    // Outputs already pruned (no external consumer); the probe-condition
+    // comparators (tileIdx==2 && tileYCoord==2 etc.) were pure cost.
     val rowWord0Reg   = Reg(Bits(32 bits)) init 0
 
     // Y wrap with 2×mapH double-wrap to match BasicPatternSource.
@@ -650,15 +651,7 @@ case class SdramTileAttributeFetch(
             bankReg     := io.sdramDout(2 downto 0).asUInt
             priorityReg := io.sdramDout(3)
           }
-          // Telemetry: latch attr[2:0] at the two probe tile positions so
-          // the LEDs report bank-values on real SDRAM. These regs are
-          // sticky — last-sampled value holds between frames.
-          when(tileIdx === U(2, 6 bits) && tileYCoord === U(2, 5 bits)) {
-            debugAttrTLReg := io.sdramDout(2 downto 0).asUInt
-          }
-          when(tileIdx === U(30, 6 bits) && tileYCoord === U(25, 5 bits)) {
-            debugAttrBRReg := io.sdramDout(2 downto 0).asUInt
-          }
+          // Telemetry probe latches removed — see debugAttrTL/BR comment above.
           goto(sFetchRowRq0)
         }
       }
@@ -743,13 +736,13 @@ case class SdramTileAttributeFetch(
   io.memtestPass := BufferCC(sdramArea.memtestPassR, init = False)
   io.memtestFail := BufferCC(sdramArea.memtestFailR, init = False)
 
-  val flipBlinkCounter = Reg(UInt(16 bits)) init 0
-  when(fetchStartRise) { flipBlinkCounter := flipBlinkCounter + 1 }
-  io.debugWriteBuf := flipBlinkCounter(15)
-
-  // CDC telemetry registers to pixel domain for LED display.
-  io.debugAttrTL := BufferCC(sdramArea.debugAttrTLReg, init = U(7, 3 bits))
-  io.debugAttrBR := BufferCC(sdramArea.debugAttrBRReg, init = U(7, 3 bits))
+  // flipBlinkCounter (16-bit free-running, drove debugWriteBuf LED) and
+  // debugAttrTL/BR BufferCCs removed — their outputs have no external
+  // consumer, the producing logic was pure bring-up overhead. Tie outputs
+  // to their stuck-sentinel contract values.
+  io.debugWriteBuf := False
+  io.debugAttrTL   := U(7, 3 bits)
+  io.debugAttrBR   := U(7, 3 bits)
 }
 
 object SdramTileAttributeFetchVerilog extends App {

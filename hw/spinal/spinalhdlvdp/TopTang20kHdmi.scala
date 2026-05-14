@@ -1454,7 +1454,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
     video.io.bitmapSdramByte     := bitmapRowFetch.io.bitmapByte
     video.io.bitmapSdramAttrByte := bitmapRowFetch.io.attrByte
 
-    val fetch = SdramTileAttributeFetch(sdramClockDomain, skipSdramInit = useHostInit)
+    // Bring-up memtest disabled in production fit; proven on real silicon
+    // long ago, the FSM costs LUT/FF budget for no runtime value.
+    val fetch = SdramTileAttributeFetch(sdramClockDomain, skipSdramInit = useHostInit, runMemtest = false)
     fetch.io.fetchGrant       := video.io.layer0FetchGrant
     fetch.io.fetchSlotValid   := video.io.layer0FetchSlotValid
     fetch.io.fetchPreAnnounce := video.io.layer0FetchPreAnnounce
@@ -1767,8 +1769,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
     O_led(1) := !sdramPll.lock
     O_led(2) := !fetch.io.bootDone
     O_led(3) := !video.io.irq            // Task 35 — lit while any enabled status bit is set
-    O_led(4) := fetch.io.memtestFail
-    O_led(5) := fetch.io.underrun
+    // memtestFail / underrun were bring-up telemetry — no production
+    // consumer. Tie LEDs to constants so the producers DCE-prune.
+    O_led(4) := False
+    O_led(5) := False
 
     // Task 44b #8097/#8098 Sc45-only pixel-domain register-activity probe.
     // Free-running 24-bit counter in pixelClockDomain; MSB drives LED3 at

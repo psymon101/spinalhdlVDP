@@ -35,10 +35,12 @@ case class QspiDecoder() extends Component {
     val regBus = out (Mode0RegBus())
 
     // Diagnostics / status echo.
-    val last_addr  = out UInt (16 bits)
-    val last_data  = out Bits (16 bits)
+    // Diagnostic-only outputs (sel=1/2/3 in READ_STATUS surface) removed
+    // for fit budget — only `test_mode0_bad_apple` reads them, and the
+    // production sketches (one_dot / starfield / zx_smoke) use sel=0/4/5/6/7
+    // exclusively. `last_error` stays — it's the only diagnostic with a
+    // live consumer (statusEvQspiError sticky bit).
     val last_error = out Bits (8 bits)
-    val rx_cmd_cnt = out UInt (8 bits)
     // Task 35 — host-readable status sticky bits routed from VdpTop.
     val status_sticky = in Bits (16 bits)
     // Task 1 (#9154) — LIVE_MODE: committed MODE_SELECT value, observable
@@ -85,11 +87,11 @@ case class QspiDecoder() extends Component {
   sdramHeaderValidReg := False
   sdramByteValidReg   := False
 
-  // Latched diagnostics.
-  val last_addr  = Reg(UInt(16 bits)) init 0
-  val last_data  = Reg(Bits(16 bits)) init 0
+  // Last bus-error diagnostic — read by `statusEvQspiError` for the
+  // QSPI_ERROR sticky bit (Task 35). Other diagnostic Regs removed for
+  // fit budget; their READ_STATUS sels return zero (handled by the
+  // switch's `default` case after their `is` arms are stripped).
   val last_error = Reg(Bits(8 bits))  init 0
-  val rx_cmd_cnt = Reg(UInt(8 bits))  init 0
 
   // On a new header, latch opcode/len and reset the word-assembly state.
   when(io.cmd_valid) {
@@ -98,7 +100,6 @@ case class QspiDecoder() extends Component {
     wordsLeft := io.cmd_len
     writeAddr := io.cmd_addr(14 downto 0)
     haveLo    := False
-    rx_cmd_cnt := rx_cmd_cnt + 1
     activeWrite := io.cmd_opcode === Op.REG_WRITE
     // Task 34 — SDRAM_WRITE dispatch.
     activeSdramWrite := io.cmd_opcode === Op.SDRAM_WRITE
@@ -119,8 +120,6 @@ case class QspiDecoder() extends Component {
         val word = io.payload_byte ## dataLo
         writeData  := word
         writePulse := True
-        last_addr  := writeAddr.resize(16)
-        last_data  := word
         haveLo     := False
         when(wordsLeft > U(0, 16 bits)) {
           wordsLeft := wordsLeft - 1
@@ -146,10 +145,7 @@ case class QspiDecoder() extends Component {
   io.regBus.data   := writeData
   io.regBus.enable := writePulse
 
-  io.last_addr  := last_addr
-  io.last_data  := last_data
   io.last_error := last_error
-  io.rx_cmd_cnt := rx_cmd_cnt
 
   // -------------------------------------------------------------------
   // READ_STATUS response FSM (Task 38b — expanded status surface).
@@ -187,9 +183,9 @@ case class QspiDecoder() extends Component {
     val sel = io.cmd_addr(7 downto 0)
     switch(sel) {
       is(U(0, 8 bits)) { rxWord := B"32'h51560002" }
-      is(U(1, 8 bits)) { rxWord := B(0, 24 bits) ## rx_cmd_cnt.asBits }
-      is(U(2, 8 bits)) { rxWord := B(0, 16 bits) ## last_addr.asBits }
-      is(U(3, 8 bits)) { rxWord := B(0, 16 bits) ## last_data }
+      // sels 1/2/3 (rx_cmd_cnt / last_addr / last_data) removed; default
+      // returns 0. Production sketches don't read them; only the retired
+      // `test_mode0_bad_apple` Pico-era diagnostic did.
       is(U(4, 8 bits)) { rxWord := B(0, 24 bits) ## last_error }
       is(U(5, 8 bits)) { rxWord := B(0, 16 bits) ## io.status_sticky }   // Task 35
       is(U(6, 8 bits)) {                                                  // Task 34
