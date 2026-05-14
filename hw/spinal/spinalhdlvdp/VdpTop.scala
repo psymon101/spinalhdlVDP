@@ -4,7 +4,7 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib.BufferCC
 
-case class VdpTop(sdramCd: ClockDomain = null) extends Component {
+case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true) extends Component {
   // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM is migrated
   // into the SDRAM clock domain. When `sdramCd` is null (sim-default),
   // use the current pixel ClockDomain so single-clock sims keep working;
@@ -1027,22 +1027,33 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // [0, 399] and move L1 start slot to h=400 per artifact #9678 §1
   // "Resolution" plan. CP-B only proves the integration plumbing.
   val layer1FetchEnable = io.layer1UseSdram
-  // Task 56 Checkpoint C (#9678 §1 Resolution): L1 start slot moved from
-  // hTotal-1 (collided with L0 slot 0) to h=400 so it now lands inside the
-  // freed L0 [400, hTotal-1] window. Slot 4 burst window unchanged.
-  scheduler.io.schedule(3).enabled  := layer1FetchEnable
-  scheduler.io.schedule(3).clientId := U(3, 2 bits)
-  scheduler.io.schedule(3).startH   := U(400, 10 bits)
-  scheduler.io.schedule(3).endH     := U(400, 10 bits)
-  scheduler.io.schedule(4).enabled  := layer1FetchEnable
-  scheduler.io.schedule(4).clientId := U(3, 2 bits)
-  scheduler.io.schedule(4).startH   := U(400,        10 bits)
-  scheduler.io.schedule(4).endH     := U(hTotal - 1, 10 bits)
-  for (i <- 5 until 8) {
-    scheduler.io.schedule(i).enabled  := False
-    scheduler.io.schedule(i).clientId := U(0, 2 bits)
-    scheduler.io.schedule(i).startH   := U(0, 10 bits)
-    scheduler.io.schedule(i).endH     := U(0, 10 bits)
+  // PM #9907 Step 2: compile-time gate on L1 scaffolding. When
+  // enableL1Fetch=false, the scheduler slot 3/4 entries collapse to disabled
+  // tie-offs and the L1 fetch IO/registers below are likewise gated to
+  // constant ties. This is a fit-stabilization probe — the L1 architectural
+  // path stays available; only the surviving scaffolding is exercised.
+  if (enableL1Fetch) {
+    scheduler.io.schedule(3).enabled  := layer1FetchEnable
+    scheduler.io.schedule(3).clientId := U(3, 2 bits)
+    scheduler.io.schedule(3).startH   := U(400, 10 bits)
+    scheduler.io.schedule(3).endH     := U(400, 10 bits)
+    scheduler.io.schedule(4).enabled  := layer1FetchEnable
+    scheduler.io.schedule(4).clientId := U(3, 2 bits)
+    scheduler.io.schedule(4).startH   := U(400,        10 bits)
+    scheduler.io.schedule(4).endH     := U(hTotal - 1, 10 bits)
+    for (i <- 5 until 8) {
+      scheduler.io.schedule(i).enabled  := False
+      scheduler.io.schedule(i).clientId := U(0, 2 bits)
+      scheduler.io.schedule(i).startH   := U(0, 10 bits)
+      scheduler.io.schedule(i).endH     := U(0, 10 bits)
+    }
+  } else {
+    for (i <- 3 until 8) {
+      scheduler.io.schedule(i).enabled  := False
+      scheduler.io.schedule(i).clientId := U(0, 2 bits)
+      scheduler.io.schedule(i).startH   := U(0, 10 bits)
+      scheduler.io.schedule(i).endH     := U(0, 10 bits)
+    }
   }
 
   val fetchStartStrobe = scheduler.io.grant
@@ -1107,38 +1118,42 @@ case class VdpTop(sdramCd: ClockDomain = null) extends Component {
   // `grantClientId === 3` so only L1's slot entries propagate to the L1
   // fetch engine; slotValid/preAnnounce are similarly client-id filtered
   // so the L1 FSM never sees an L0/Planar window as its own.
-  val layer1FetchLineReg    = RegNextWhen((vCounter + 3).resize(10),
-                                          earlyLatchStrobe) init 0
-  // L1 has no linestate scroll contribution (linestate only carries
-  // layer0ScrollX); match the existing on-chip L1 scroll formula used by
-  // the BasicPatternSource path below: `io.layer1ScrollX + scrollTable1Offset`.
-  val layer1FetchScrollXReg = RegNextWhen(
-    (io.layer1ScrollX + scrollTable1Offset).resize(10),
-    earlyLatchStrobe) init 0
-  val layer1FetchScrollYReg = RegNextWhen(io.layer1ScrollY, earlyLatchStrobe) init 0
+  if (enableL1Fetch) {
+    val layer1FetchLineReg    = RegNextWhen((vCounter + 3).resize(10),
+                                            earlyLatchStrobe) init 0
+    val layer1FetchScrollXReg = RegNextWhen(
+      (io.layer1ScrollX + scrollTable1Offset).resize(10),
+      earlyLatchStrobe) init 0
+    val layer1FetchScrollYReg = RegNextWhen(io.layer1ScrollY, earlyLatchStrobe) init 0
 
-  val layer1GrantRaw  = scheduler.io.grant &&
-                        (scheduler.io.grantClientId === U(3, 2 bits))
-  val layer1GrantHold = Reg(UInt(3 bits)) init 0
-  when(layer1GrantRaw) {
-    layer1GrantHold := 4
-  }.elsewhen(layer1GrantHold =/= 0) {
-    layer1GrantHold := layer1GrantHold - 1
+    val layer1GrantRaw  = scheduler.io.grant &&
+                          (scheduler.io.grantClientId === U(3, 2 bits))
+    val layer1GrantHold = Reg(UInt(3 bits)) init 0
+    when(layer1GrantRaw) {
+      layer1GrantHold := 4
+    }.elsewhen(layer1GrantHold =/= 0) {
+      layer1GrantHold := layer1GrantHold - 1
+    }
+    io.layer1FetchGrant         := layer1GrantHold =/= 0
+    io.layer1FetchSlotValid     := scheduler.io.slotValid &&
+                                   (scheduler.io.grantClientId === U(3, 2 bits))
+    io.layer1FetchPreAnnounce   := scheduler.io.preAnnounce &&
+                                   (scheduler.io.grantClientId === U(3, 2 bits))
+    io.layer1FetchGrantClientId := scheduler.io.grantClientId
+    io.layer1FetchLine          := layer1FetchLineReg
+    io.layer1FetchScrollX       := layer1FetchScrollXReg
+    io.layer1FetchScrollY       := layer1FetchScrollYReg
+    io.layer1FetchPixelAddr     := hCounter.resize(10)
+  } else {
+    io.layer1FetchGrant         := False
+    io.layer1FetchSlotValid     := False
+    io.layer1FetchPreAnnounce   := False
+    io.layer1FetchGrantClientId := U(0, 2 bits)
+    io.layer1FetchLine          := U(0, 10 bits)
+    io.layer1FetchScrollX       := U(0, 10 bits)
+    io.layer1FetchScrollY       := U(0, 10 bits)
+    io.layer1FetchPixelAddr     := U(0, 10 bits)
   }
-  // `grantClientId` is held until the next grant (per FetchSlotScheduler
-  // #9350 fix), so slotValid/preAnnounce filtered by `grantClientId===3`
-  // give the L1 engine a continuous in-window gate for the duration of
-  // its own slot, and stays low while L0/Planar own the bus.
-  io.layer1FetchGrant         := layer1GrantHold =/= 0
-  io.layer1FetchSlotValid     := scheduler.io.slotValid &&
-                                 (scheduler.io.grantClientId === U(3, 2 bits))
-  io.layer1FetchPreAnnounce   := scheduler.io.preAnnounce &&
-                                 (scheduler.io.grantClientId === U(3, 2 bits))
-  io.layer1FetchGrantClientId := scheduler.io.grantClientId
-  io.layer1FetchLine          := layer1FetchLineReg
-  io.layer1FetchScrollX       := layer1FetchScrollXReg
-  io.layer1FetchScrollY       := layer1FetchScrollYReg
-  io.layer1FetchPixelAddr     := hCounter.resize(10)
 
   // Layer 1 (higher priority background).
   val layer1 = BasicPatternSource()

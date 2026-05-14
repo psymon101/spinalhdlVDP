@@ -33,7 +33,7 @@ import spinal.lib.BufferCC   // Task 34 CDC — toggle-based crossing for upload
   *       4 sprites bouncing 4 px/frame + copper 3 triggers/frame.
   *       No new primitives. See `SCENARIO_17.md`.
   */
-case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) extends Component {
+case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, enableL1Fetch: Boolean = true) extends Component {
   setDefinitionName("top_tang20k")
   noIoPrefix()
 
@@ -151,7 +151,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
   // Pixel-domain logic (VdpTop + SDRAM fetch instance)
   // --------------------------------------------------------------------------
   val pixelArea = new ClockingArea(pixelClockDomain) {
-    val video = VdpTop(sdramCd = sdramClockDomain)
+    val video = VdpTop(sdramCd = sdramClockDomain, enableL1Fetch = enableL1Fetch)
 
     // Frame counter drives scroll offsets for visible motion proof.
     val vsyncPrev = RegNext(video.io.vsync) init True
@@ -1900,7 +1900,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false) ext
 }
 
 object TopTang20kHdmiVerilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi())
+  // PM #9907 Step 2: build the default Tang20k bitstream with L1 scaffolding
+  // gated off so the synthesis/PnR resource delta can be measured against
+  // Step 1 baseline (commit 6737bc0, 20943 logic).
+  Config.spinal.generateVerilog(TopTang20kHdmi(enableL1Fetch = false))
 }
 
 // Wave 1 scenario top-level objects. Each generates its own top_tang20k_scN.v.
