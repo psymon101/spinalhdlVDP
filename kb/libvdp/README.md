@@ -18,6 +18,7 @@ Canonical API reference for `firmware/libvdp/`.
 | Transport | `vdp_qspi.h`, `vdp_qspi.c` | QSPI register/status/SDRAM transactions |
 | Status | `vdp_status.h`, `vdp_status.c` | sticky-bit polling and vblank waits |
 | Upload | `vdp_upload.h`, `vdp_upload.c` | vblank-paced SDRAM asset upload |
+| Mode0 | `vdp_mode0.h`, `vdp_mode0.c` | generic Mode0 helper layer |
 | Platform | `vdp_platform.h` | board pin maps and transport constants |
 
 ## Initialization
@@ -46,6 +47,7 @@ Canonical API reference for `firmware/libvdp/`.
 | `4` | `last_error` |
 | `5` | sticky status bits |
 | `6` | upload status |
+| `7` | committed live mode |
 
 ## SDRAM Upload
 
@@ -84,6 +86,22 @@ Canonical API reference for `firmware/libvdp/`.
 | `VDP_STICKY_QSPI_ERROR` | `0x0008` | QSPI error |
 | `VDP_STICKY_SPRITE_0_HIT` | `0x0010` | slot-0 hit |
 | `VDP_STICKY_SPRITE_BG_HIT` | `0x0020` | sprite/background hit |
+
+## Mode0 Helpers
+
+| Area | Helpers |
+|---|---|
+| globals | `vdp_mode0_set_layer_enable`, `vdp_mode0_set_vdp_ctrl`, `vdp_mode0_set_tile_mode`, `vdp_mode0_set_attr_mode`, `vdp_mode0_set_mode_select`, `vdp_mode0_read_live_mode` |
+| status | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status`, `vdp_mode0_clear_sprite_coll_mask` |
+| windows / border | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window` |
+| affine | `vdp_mode0_set_affine` |
+| bitmap | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg` |
+| raster | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` |
+| palette | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_data`, `vdp_mode0_palette_write_rgb888` |
+| copper / hdma | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write` |
+| tables | `vdp_mode0_write_linestate`, `vdp_mode0_write_vscroll_entry` |
+| dma | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_write_staging`, `vdp_mode0_dma_config` |
+| blitter | `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_write_src`, `vdp_mode0_blit_config` |
 
 ## Platform Constants
 

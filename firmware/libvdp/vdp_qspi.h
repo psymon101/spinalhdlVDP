@@ -40,7 +40,7 @@ void vdp_reg_write(uint32_t addr, uint16_t data);
  * little-endian response word for the requested selector.
  * @param sel   0 = magic 0x51560002, 1 = rx_cmd_cnt, 2 = last_addr,
  *              3 = last_data, 4 = last_error, 5 = status sticky,
- *              6 = upload status (busy/done bits)
+ *              6 = upload status (busy/done bits), 7 = live mode
  * @return 32-bit response assembled from 4 bit-banged bytes (byte 0 = LSB)
  */
 uint32_t vdp_read_status(uint8_t sel);
