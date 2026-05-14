@@ -149,12 +149,11 @@ uint32_t vdp_read_status(uint8_t sel)
 // ---- ESP32 / ESP8266 Arduino Bit-bang Implementation -------------------------
 #elif defined(ARDUINO)
 
-#define HALF_PERIOD_US 1
-
 static inline void vdp_cs_assert(void)   { digitalWrite(VDP_PIN_QSPI_CS_N, LOW); }
 static inline void vdp_cs_deassert(void) { digitalWrite(VDP_PIN_QSPI_CS_N, HIGH); }
 
 #if defined(ESP32)
+#define HALF_PERIOD_US 1
 #define MASK_SCK    (1u << VDP_PIN_QSPI_SCK)
 #define MASK_IO0    (1u << VDP_PIN_QSPI_IO0)
 #define MASK_IO1    (1u << VDP_PIN_QSPI_IO1)
@@ -190,6 +189,9 @@ static inline uint8_t vdp_read_nibble(void)
 }
 
 #elif defined(ESP8266)
+/* ESP8266 uses GPIO16 for IO3, which is driven/read through the slower
+ * RTC pad path. Give the nibble more settle margin before clock edges. */
+#define HALF_PERIOD_US 4
 #define MASK_SCK    (1u << VDP_PIN_QSPI_SCK)
 #define MASK_IO0    (1u << VDP_PIN_QSPI_IO0)
 #define MASK_IO1    (1u << VDP_PIN_QSPI_IO1)
@@ -294,6 +296,18 @@ uint32_t vdp_read_status(uint8_t sel)
 
     vdp_set_sck(false);
     vdp_cs_deassert();
+    /* Restore IO[3:0] to OUTPUT — the 2-edge turnaround left them as INPUT
+     * for the response read, and the next vdp_drive_nibble must drive the
+     * bus. Without this, GPOS/GPOC writes hit only the output-VALUE
+     * register; the pins float (per ESP8266 Arduino-core `pinMode(INPUT)`
+     * which clears the output-enable bit via GPEC / GP16E). The FPGA's
+     * QspiSlave then samples nibble=0x2 consistently and assembles every
+     * post-Magic write byte as 0x22 (PM #9863 / BrightForge #9869
+     * empirical localization). */
+    pinMode(VDP_PIN_QSPI_IO0, OUTPUT);
+    pinMode(VDP_PIN_QSPI_IO1, OUTPUT);
+    pinMode(VDP_PIN_QSPI_IO2, OUTPUT);
+    pinMode(VDP_PIN_QSPI_IO3, OUTPUT);
     delayMicroseconds(10);
 
     return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) |
