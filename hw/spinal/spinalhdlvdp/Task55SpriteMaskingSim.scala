@@ -137,7 +137,11 @@ object Task55SpriteMaskingSim extends App {
     // Slot 0 = bus slot 10 (k=0), slot 2 = bus slot 12 (k=2 = mask).
     // activeMask is only architecturally defined for valid slots
     // (s < activeCount); higher entries are stale memory contents.
-    val maskBitsA = (0 until activeCountA).map(s => dut.io.activeMask(s).toBoolean)
+    val maskBitsA = (0 until activeCountA).map { s =>
+      dut.io.activeReadAddr #= s
+      dut.clockDomain.waitSampling(1)
+      ((dut.io.activeReadData.toBigInt >> 130) & 1) != 0
+    }
     assert(maskBitsA(2),  s"Case A: slot 2 must carry mask=1; got ${maskBitsA(2)}")
     for (s <- Seq(0, 1, 3, 4, 5)) {
       assert(!maskBitsA(s),
@@ -169,7 +173,11 @@ object Task55SpriteMaskingSim extends App {
     assert(firstMaskSlotB == V,
       s"Case B: firstMaskSlot expected $V (no mask), got $firstMaskSlotB")
     // Only valid-range slots are architecturally defined.
-    val maskBitsB = (0 until activeCountB).map(s => dut.io.activeMask(s).toBoolean)
+    val maskBitsB = (0 until activeCountB).map { s =>
+      dut.io.activeReadAddr #= s
+      dut.clockDomain.waitSampling(1)
+      ((dut.io.activeReadData.toBigInt >> 130) & 1) != 0
+    }
     assert(maskBitsB.forall(b => !b),
       s"Case B: no valid slot should carry mask=1; got $maskBitsB")
     println(s"[sim]   firstMaskSlot = $V (no masking sprite) — OK")
@@ -192,7 +200,11 @@ object Task55SpriteMaskingSim extends App {
     val firstMaskSlotC = dut.io.firstMaskSlot.toInt
     assert(activeCountC == 5,
       s"Case C: expected activeCount=5, got $activeCountC")
-    val maskBitsC = (0 until activeCountC).map(s => dut.io.activeMask(s).toBoolean)
+    val maskBitsC = (0 until activeCountC).map { s =>
+      dut.io.activeReadAddr #= s
+      dut.clockDomain.waitSampling(1)
+      ((dut.io.activeReadData.toBigInt >> 130) & 1) != 0
+    }
     assert(firstMaskSlotC == 1,
       s"Case C: firstMaskSlot expected 1 (lowest of {1,3}), got $firstMaskSlotC")
     assert(maskBitsC(1) && maskBitsC(3),

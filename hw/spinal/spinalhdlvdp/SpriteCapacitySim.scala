@@ -70,11 +70,21 @@ object SpriteCapacitySim extends App {
       dut.clockDomain.waitSampling(D + 4)
     }
 
+    def readSlot(s: Int): BigInt = {
+      dut.io.activeReadAddr #= s
+      dut.clockDomain.waitSampling(1)
+      dut.io.activeReadData.toBigInt
+    }
+    def slotValid(s: Int): Boolean = s < dut.io.activeCountOut.toInt
+    def slotX(w: BigInt): Int = ((w >> 24) & 0x3FF).toInt
+    def slotRow(w: BigInt): Int = ((w >> 18) & 0x3F).toInt
+
     def activeSet(): Seq[(Boolean, Int, Int)] =
       (0 until V).map { s =>
-        (dut.io.activeValid(s).toBoolean,
-         dut.io.activeX(s).toInt,
-         dut.io.activeRow(s).toInt)
+        val w = readSlot(s)
+        (slotValid(s),
+         slotX(w),
+         slotRow(w))
       }
 
     // Defaults — all descriptors parked off-screen and disabled.

@@ -68,12 +68,29 @@ object SpriteEvaluatorSim extends App {
       dut.clockDomain.waitSampling(D + 4)
     }
 
+    def readSlot(s: Int): BigInt = {
+      dut.io.activeReadAddr #= s
+      dut.clockDomain.waitSampling(1)
+      dut.io.activeReadData.toBigInt
+    }
+    def slotValid(s: Int): Boolean = s < dut.io.activeCountOut.toInt
+    def slotX(w: BigInt): Int = ((w >> 24) & 0x3FF).toInt
+    def slotRow(w: BigInt): Int = ((w >> 18) & 0x3F).toInt
+    def slotPatIdx(w: BigInt): Int = ((w >> 12) & 0x3F).toInt
+    def slotFlipH(w: BigInt): Boolean = ((w >> 1) & 1) != 0
+    def slotFlipV(w: BigInt): Boolean = (w & 1) != 0
+    def slotPaletteBank(w: BigInt): Int = ((w >> 9) & 0x7).toInt
+    def slotPriority(w: BigInt): Int = ((w >> 7) & 0x3).toInt
+    def slotBppSel(w: BigInt): Int = ((w >> 3) & 0x3).toInt
+    def slotSizeSel(w: BigInt): Int = ((w >> 5) & 0x3).toInt
+
     def activeSet(): Seq[(Boolean, Int, Int, Int, Int)] =
       (0 until V).map { s =>
-        (dut.io.activeValid(s).toBoolean,
-         dut.io.activeX(s).toInt,
-         dut.io.activeRow(s).toInt,
-         dut.io.activePatternIdx(s).toInt,
+        val w = readSlot(s)
+        (slotValid(s),
+         slotX(w),
+         slotRow(w),
+         slotPatIdx(w),
          s)
       }
 
@@ -145,15 +162,17 @@ object SpriteEvaluatorSim extends App {
     for (s <- L until D) setBusDesc(s, 0, 1023, enabled = false)
     setLegacy(0, 77, 50, enabled = true, patIdx = 0)
     pulseEval(50)
-    assert(dut.io.activeValid(0).toBoolean && dut.io.activeRow(0).toInt == 0,
+    val w50 = readSlot(0)
+    assert(slotValid(0) && slotRow(w50) == 0,
            "Case 6 Y=50 row=0")
     pulseEval(65)
-    assert(dut.io.activeValid(0).toBoolean && dut.io.activeRow(0).toInt == 15,
+    val w65 = readSlot(0)
+    assert(slotValid(0) && slotRow(w65) == 15,
            "Case 6 Y=65 row=15")
     pulseEval(66)
-    assert(!dut.io.activeValid(0).toBoolean, "Case 6 Y=66 off-line")
+    assert(!slotValid(0), "Case 6 Y=66 off-line")
     pulseEval(49)
-    assert(!dut.io.activeValid(0).toBoolean, "Case 6 Y=49 off-line")
+    assert(!slotValid(0), "Case 6 Y=49 off-line")
     println("[sim] Case 6 Y-boundary [Y..Y+16) — OK")
 
     // --- Case 7: bus programming of slot 10 with legacy disabled ---
@@ -196,25 +215,26 @@ object SpriteEvaluatorSim extends App {
     pulseBus(12, 8, packWord8(sizeSel = 2, paletteBank = 5,
                               priority = true, flipH = true, flipV = false))
     pulseEval(210)
-    assert(dut.io.activeValid(0).toBoolean,                  "Case 8: slot 0 valid")
-    assert(dut.io.activeFlipH(0).toBoolean,                  "Case 8: flipH = true")
-    assert(!dut.io.activeFlipV(0).toBoolean,                 "Case 8: flipV = false")
-    assert(dut.io.activePaletteBank(0).toInt == 5,           "Case 8: paletteBank = 5")
-    assert(dut.io.activePriority(0).toInt == 1,              "Case 8: priority bit 0 set (legacy boolean true → priority=1)")
-    assert(dut.io.activeBppSel(0).toInt == 0,                "Case 8: bppSel default 4bpp (00)")
-    assert(dut.io.activeSizeSel(0).toInt == 2,               "Case 8: sizeSel = 2 (32×32)")
+    val w8 = readSlot(0)
+    assert(slotValid(0),                                     "Case 8: slot 0 valid")
+    assert(slotFlipH(w8),                                    "Case 8: flipH = true")
+    assert(!slotFlipV(w8),                                   "Case 8: flipV = false")
+    assert(slotPaletteBank(w8) == 5,                         "Case 8: paletteBank = 5")
+    assert(slotPriority(w8) == 1,                            "Case 8: priority bit 0 set (legacy boolean true → priority=1)")
+    assert(slotBppSel(w8) == 0,                              "Case 8: bppSel default 4bpp (00)")
+    assert(slotSizeSel(w8) == 2,                             "Case 8: sizeSel = 2 (32×32)")
     println("[sim] Case 8 word-8 field propagation — OK")
 
     // --- Case 9: sizeSel-aware Y-range, sizeSel=10 → 32 px tall ---
     // Sprite at y=200, sizeSel=10 covers lines [200..232).
     pulseEval(231)
-    assert(dut.io.activeValid(0).toBoolean,
+    assert(slotValid(0),
            "Case 9: line 231 must be in 32-px sprite Y-range [200..232)")
     pulseEval(232)
-    assert(!dut.io.activeValid(0).toBoolean,
+    assert(!slotValid(0),
            "Case 9: line 232 must be off-line (Y-range half-open)")
     pulseEval(199)
-    assert(!dut.io.activeValid(0).toBoolean,
+    assert(!slotValid(0),
            "Case 9: line 199 must be off-line")
     println("[sim] Case 9 sizeSel=2 → Y-range 32 px — OK")
 
@@ -225,11 +245,12 @@ object SpriteEvaluatorSim extends App {
     // Disable slot 12 so this is the only active sprite.
     pulseBus(12, 0, ((1 << 15) | (7 << 11) | 1023))   // enabled=1 stays, but y=1023 off-line
     pulseEval(163)
-    val c10row = dut.io.activeRow(0).toInt
-    assert(dut.io.activeValid(0).toBoolean,        "Case 10: line 163 in [100..164)")
+    val w10 = readSlot(0)
+    val c10row = slotRow(w10)
+    assert(slotValid(0),                           "Case 10: line 163 in [100..164)")
     assert(c10row == 63,                           s"Case 10: 6-bit row should be 63, got $c10row")
     pulseEval(164)
-    assert(!dut.io.activeValid(0).toBoolean,       "Case 10: line 164 off-line for 64-px sprite")
+    assert(!slotValid(0),                          "Case 10: line 164 off-line for 64-px sprite")
     println(s"[sim] Case 10 sizeSel=3 → 64-px sprite, activeRow span 0..63 — OK")
 
     // --- Case 11: sizeSel=00 (8×8) — Y-range half as tall as 16-px default ---
@@ -238,9 +259,9 @@ object SpriteEvaluatorSim extends App {
     pulseBus(14, 8, packWord8(sizeSel = 0, paletteBank = 0,
                               priority = false, flipH = false, flipV = false))
     pulseEval(57)
-    assert(dut.io.activeValid(0).toBoolean,        "Case 11: 8-px sprite covers lines 50..57")
+    assert(slotValid(0),                           "Case 11: 8-px sprite covers lines 50..57")
     pulseEval(58)
-    assert(!dut.io.activeValid(0).toBoolean,       "Case 11: line 58 off-line for 8-px sprite")
+    assert(!slotValid(0),                          "Case 11: line 58 off-line for 8-px sprite")
     println("[sim] Case 11 sizeSel=0 → 8-px sprite — OK")
 
     // --- Case 12: legacy (IO) slot retains back-compat 16-px Y-range
@@ -248,13 +269,14 @@ object SpriteEvaluatorSim extends App {
     for (s <- L until D) setBusDesc(s, 0, 1023, enabled = false)
     setLegacy(0, 50, 300, enabled = true, patIdx = 0)
     pulseEval(315)
-    assert(dut.io.activeValid(0).toBoolean,        "Case 12: legacy sprite Y in [300..316)")
-    assert(dut.io.activeSizeSel(0).toInt == 1,     "Case 12: legacy sprite reports sizeSel=1 (16×16)")
-    assert(dut.io.activePaletteBank(0).toInt == 0, "Case 12: legacy sprite reports paletteBank=0")
-    assert(dut.io.activePriority(0).toInt == 0,    "Case 12: legacy sprite reports priority=0 (2-bit)")
-    assert(dut.io.activeBppSel(0).toInt == 0,      "Case 12: legacy sprite reports bppSel=0 (4bpp)")
+    val w12 = readSlot(0)
+    assert(slotValid(0),                           "Case 12: legacy sprite Y in [300..316)")
+    assert(slotSizeSel(w12) == 1,                  "Case 12: legacy sprite reports sizeSel=1 (16×16)")
+    assert(slotPaletteBank(w12) == 0,              "Case 12: legacy sprite reports paletteBank=0")
+    assert(slotPriority(w12) == 0,                 "Case 12: legacy sprite reports priority=0 (2-bit)")
+    assert(slotBppSel(w12) == 0,                   "Case 12: legacy sprite reports bppSel=0 (4bpp)")
     pulseEval(316)
-    assert(!dut.io.activeValid(0).toBoolean,       "Case 12: legacy sprite off-line at Y+16")
+    assert(!slotValid(0),                          "Case 12: legacy sprite off-line at Y+16")
     println("[sim] Case 12 legacy back-compat (sizeSel=1, paletteBank=0, priority=0) — OK")
 
     // ====================================================================
@@ -275,7 +297,7 @@ object SpriteEvaluatorSim extends App {
                                     priority = false, flipH = false, flipV = false))
     }
     pulseEval(210)
-    val activeAtP24 = (0 until V).count(s => dut.io.activeValid(s).toBoolean)
+    val activeAtP24 = (0 until V).count(s => slotValid(s))
     // 8 sprites set up: 1 large (sizeSel=2) + 7 medium (sizeSel=1). All 8 fit
     // within capacity V (=32 post-Task-2b); the overflow flag fires from the
     // tile-budget rule alone, not the count rule.
@@ -294,9 +316,10 @@ object SpriteEvaluatorSim extends App {
     pulseBus(20, 8, packWord8Full(sizeSel = 1, paletteBank = 0, priority = 3,
                                    flipH = false, flipV = false, bppSel = 2))
     pulseEval(105)
-    assert(dut.io.activeValid(0).toBoolean,                    "Case 14: slot 0 active")
-    assert(dut.io.activePriority(0).toInt == 3,                "Case 14: priority = 3 (full 2-bit)")
-    assert(dut.io.activeBppSel(0).toInt == 2,                  "Case 14: bppSel = 2 (1bpp)")
+    val w14 = readSlot(0)
+    assert(slotValid(0),                                       "Case 14: slot 0 active")
+    assert(slotPriority(w14) == 3,                             "Case 14: priority = 3 (full 2-bit)")
+    assert(slotBppSel(w14) == 2,                               "Case 14: bppSel = 2 (1bpp)")
     println("[sim] Case 14 P2-2/P2-3b — priority=3 + bppSel=2 (1bpp) round-trip — OK")
 
     println("[sim] SpriteEvaluatorSim: PASS")

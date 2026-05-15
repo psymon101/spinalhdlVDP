@@ -115,10 +115,13 @@ object SpriteFlipSim extends App {
 
         for (i <- batch.indices) {
           val (fh, fv, bpp) = batch(i)
-          val gotFh   = dut.io.activeFlipH(i).toBoolean
-          val gotFv   = dut.io.activeFlipV(i).toBoolean
-          val gotBpp  = dut.io.activeBppSel(i).toInt
-          val gotVld  = dut.io.activeValid(i).toBoolean
+          dut.io.activeReadAddr #= i
+          dut.clockDomain.waitSampling(1)
+          val w = dut.io.activeReadData.toBigInt
+          val gotFh   = ((w >> 1) & 1) != 0
+          val gotFv   = (w & 1) != 0
+          val gotBpp  = ((w >> 3) & 0x3).toInt
+          val gotVld  = i < dut.io.activeCountOut.toInt
           val ok = gotVld && gotFh == fh && gotFv == fv && gotBpp == bpp
           println(f"  batch=$batchIdx idx=$i fh=$fh%-5s fv=$fv%-5s bpp=$bpp" +
                   f"  got valid=$gotVld fh=$gotFh fv=$gotFv bpp=$gotBpp" +

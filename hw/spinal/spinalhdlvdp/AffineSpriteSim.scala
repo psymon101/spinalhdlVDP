@@ -112,22 +112,25 @@ object AffineSpriteSim extends App {
       dut.clockDomain.waitSampling(20)
 
       println("-- phase 2: active-slot propagation (slot 0 expected) --")
+      dut.io.activeReadAddr #= 0
+      dut.clockDomain.waitSampling(1)
+      val w = dut.io.activeReadData.toBigInt
       def checkActive(label: String, got: Int, exp: Int): Unit = {
         val ok = (got & 0xFFFF) == (exp & 0xFFFF)
         println(f"  active.$label%-12s got=0x$got%04X exp=0x$exp%04X ${if (ok) "PASS" else "FAIL"}")
         assert(ok, s"active mismatch on $label")
       }
-      assert(dut.io.activeValid(0).toBoolean,
+      assert(0 < dut.io.activeCountOut.toInt,
              "Pass-1 did not mark slot 0 valid for affine sprite")
-      assert(dut.io.activeAffineEnable(0).toBoolean,
+      assert(((w >> 2) & 1) != 0,
              "Pass-1 did not propagate affineEnable=True")
-      checkActive("x",        dut.io.activeX(0).toInt, sX)
-      checkActive("matrixA",  dut.io.activeMatrixA(0).toInt, A)
-      checkActive("matrixB",  dut.io.activeMatrixB(0).toInt, B)
-      checkActive("matrixC",  dut.io.activeMatrixC(0).toInt, C)
-      checkActive("matrixD",  dut.io.activeMatrixD(0).toInt, D)
-      checkActive("transX",   dut.io.activeTransX(0).toInt, TX)
-      checkActive("transY",   dut.io.activeTransY(0).toInt, TY)
+      checkActive("x",        ((w >> 24) & 0x3FF).toInt, sX)
+      checkActive("matrixA",  ((w >> 114) & 0xFFFF).toInt, A)
+      checkActive("matrixB",  ((w >> 98) & 0xFFFF).toInt, B)
+      checkActive("matrixC",  ((w >> 82) & 0xFFFF).toInt, C)
+      checkActive("matrixD",  ((w >> 66) & 0xFFFF).toInt, D)
+      checkActive("transX",   ((w >> 50) & 0xFFFF).toInt, TX)
+      checkActive("transY",   ((w >> 34) & 0xFFFF).toInt, TY)
 
       println("AffineSpriteSim: PASS")
     }
