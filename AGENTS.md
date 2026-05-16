@@ -123,8 +123,8 @@ After running simulation:
 | Role | Responsibility |
 |------|----------------|
 | `BrightForge` | FPGA implementation, validation, proof |
-| `CyanPeak` | Audit, sign-off, memory curation |
-| `CoralReef` | Coordination, ledger/doc sync, preflight research |
+| `CoralReef` | Coordination, ledger/doc sync, preflight research, audit, sign-off, memory curation |
+| `CyanPeak` | Advisory review / optional secondary audit support when explicitly requested |
 | `BronzeGate` | Sequencing, scope control, stall intervention |
 | `FoggyWolf` | MCU firmware, host transport, platform parity, scenario bootstrap |
 
@@ -133,6 +133,10 @@ After running simulation:
 - Source of truth order: (1) authoritative mail → (2) `TASKS.md` live-lane → (3) repo state.
 - Fast-flow: shortest trustworthy cycle, smallest proof-sized batches, earlier discriminators.
 - Ledger sync is part of closeout, not cleanup.
+
+**User override (2026-05-16):**
+- `CoralReef` is the authoritative audit / sign-off / memory-curation owner for this repo.
+- `CyanPeak` is non-authoritative advisory support unless `BronzeGate` explicitly assigns otherwise.
 
 ### Deliverable Verification Rule
 
@@ -267,7 +271,7 @@ The `memory` MCP is a **queryable cache**, not the authoritative log. Backing st
 | Owner | Responsibility |
 |-------|----------------|
 | `CoralReef` | Initial curated memory pass |
-| `CyanPeak` | Ongoing updates: audits, bug fixes, hardware findings, Tang/Gowin constraints; also keep memory current for new mail, commits, and state deltas |
+| `CoralReef` | Ongoing updates: audits, bug fixes, hardware findings, Tang/Gowin constraints; also keep memory current for new mail, commits, and state deltas |
 
 **Workflow:** check `memory` first → use mail/docs as authority → add back only short, reusable findings.
 
@@ -341,7 +345,7 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 | # | Rule | One-line Requirement |
 |---|------|----------------------|
 | 1 | Role Transfer | No self-declared role absorption. Requires BronzeGate authorization + transition mail + `AGENTS.md` update |
-| 2 | Audit Singleton | Only CyanPeak issues PASS/HOLD/FAIL. Outgoing owner must confirm retirement before transfer |
+| 2 | Audit Singleton | Only CoralReef issues PASS/HOLD/FAIL. Outgoing owner must confirm retirement before transfer |
 | 3 | Commit-Within-Cycle | Audit PASS work must be committed before next PM review. Audit owner may withhold PASS until commit hash is in packet |
 | 4 | Contract Deviation | >25% deviation from locked hardware contract must be documented in `GOTCHAS.md` with quantitative analysis |
 | 5 | Signoff Consistency | One canonical signoff per agent. No mixed aliases mid-thread |
