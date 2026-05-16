@@ -21,6 +21,11 @@ When joining this project, register in the mail system with:
 - **program:** your client name (e.g. `codex-cli`, `claude-code`)
 - **model:** your actual model name
 
+Use the same repo-root mail project for all firmware work. FoggyWolf must send
+lane packets, replies, acknowledgements, and coordination mail through
+`/home/itadmin/github/spinalhdlVDP`, not through a `firmware/` mailbox, a
+subdirectory mailbox, or any external workspace mailbox.
+
 The mail system will auto-generate an adjective+noun name (e.g., `FoggyWolf`).
 **Accept it.** Your mail handle is your server-assigned name; your operational
 identity is FoggyWolf. Sign messages as "FoggyWolf" so the team knows who

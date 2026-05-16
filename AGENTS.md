@@ -29,11 +29,17 @@ Project mailbox: `/home/itadmin/github/spinalhdlVDP`
 
 Register with the same canonical name used in other project mailboxes.
 
+All in-repo agents must use this single repo-root mail project for lane
+packets, replies, acknowledgements, and coordination. Do not create or use a
+subdirectory-specific mailbox, a firmware-only mailbox, or an external
+workspace mailbox for `spinalhdlVDP` work.
+
 | Do | Do Not |
 |----|--------|
 | Use canonical name from Identity table | Omit the `name` field |
 | `ensure_project` + `register_agent` with `human_key=/home/itadmin/github/spinalhdlVDP` | Create a fresh alias |
 | | Use a different display name |
+| Use the repo-root mailbox for all replies and ACKs | Route firmware mail through a separate mailbox |
 
 If the canonical name is unavailable, stop and resolve the mismatch. Do not create a replacement identity.
 
