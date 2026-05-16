@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-16 (Mode0-T20 Barebones Rebuild formalized as active lane after Stage 4 proof; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
+**Updated:** 2026-05-16 (Barebones Stage 2-4 landing DONE audit PASS #10063; Mode2optimized Compile-Time Feature Strip opened; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
 **Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
 
 Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Mode0-T20 Barebones Rebuild (Stages 2-4 landing)** |
+| **Task** | **Mode2optimized Compile-Time Feature Strip** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | Checkpoint D landed; audit sync pending |
-| **Latest Commit** | \`ceed3e4\` |
-| **Commits in lane** | \`1e316a4\` barebones Stage 2/3/4 landing; \`ceed3e4\` mailbox-policy clarification |
-| **Latest Auth Mail** | BronzeGate #10058; BrightForge #10059; CoralReef #10060 |
-| **Artifact** | Branch \`mode0t20-barebones-rebuild\`; Tang barebones QSPI + 2-layer host-driven proof |
-| **Next Deliverable** | CyanPeak audit packet on landed scope |
+| **Phase** | Checkpoint A authorized; implementation pending |
+| **Latest Commit** | \`b981c9b\` (mode2optimized baseline for this lane) |
+| **Commits in lane** | — |
+| **Latest Auth Mail** | CoralReef #10070; BronzeGate lane-open packet pending mailbox sync |
+| **Artifact** | Branch \`mode2optimized\`; compile-time rich-top feature strip to fit GW2AR-LV18 |
+| **Next Deliverable** | BrightForge Checkpoint A implementation plan / first gated slice |
 
-**Context:** The authoritative mailbox shows Stage 2 minimal QSPI + regs proven in #10037, Stage 3 end-to-end host motion proven in #10048 / #10050, Stage 4 two-layer independent host motion proven in BrightForge #10052 plus FoggyWolf #10054, and the focused landing committed at \`1e316a4\` with closeout reconciliation in #10058 / #10059 / #10060. Audit is still pending on the landed scope.
+**Context:** Barebones Stage 2-4 landing is CLOSED audit PASS per CyanPeak #10063 on commit \`1e316a4\`. The critical path now returns to the rich-top fit blocker. CoralReef preflight #10070 recommends the compile-time feature-strip lane as the fastest path to recover the full product branch under the 20736 logic limit.
 
 ---
 
@@ -39,21 +39,37 @@ This section tracks the single active lane.
 
 The following tasks are **OPEN** and await PM authorization to become active lanes.
 
+### Mode2optimized Compile-Time Feature Strip
+
+| Field | Value |
+|---|---|
+| **Status** | **IN-PROGRESS** — opened 2026-05-16 from CoralReef preflight #10070 |
+| **Gap** | `mode2optimized` rich top still exceeds the GW2AR-LV18 logic limit and cannot produce the intended full-featured Tang build. |
+| **Platforms helped** | Tang Nano 20K rich-top default build; all downstream adapters that depend on the full product branch |
+| **Impact** | **High** — directly unblocks the main implementation lane |
+| **Risk/Complexity** | Medium. Work is structural compile-time gating on an existing design, but Gowin resource behavior remains sensitive. |
+| **Proof shape** | Per-gate Spinal compile + resource delta; final default-build PnR success at Logic ≤ 20736 with `project.fs`; regression build with all gates ON still elaborates/places |
+| **Source assessment** | CoralReef #10070; `PROJECT_PLAN/MODE0_T20_STRIP_ANALYSIS_CORALREEF.md`; `MODE0_PLANNING.md` |
+| **Depends on** | Barebones Stage 2-4 landing DONE audit PASS #10063 |
+| **Scope Boundary** | Add compile-time gates for L2/L3, extra raster triggers, second window, affine, and parameterized `planeCount`. No runtime register-map expansion. No adapter rewrites. No hardware proof in this lane. |
+| **Checkpoints** | A: lane-open implementation plan / gate order; B: gated default-build compile + synth deltas; C: final default-build PnR PASS under logic limit; D: regression build with all gates ON elaborates/places; E: audit + ledger sync |
+| **Coding authorized** | YES — BronzeGate 2026-05-16 following CoralReef #10070 |
+
 ### Mode0-T20 Barebones Rebuild (Stages 2-4 landing)
 
 | Field | Value |
 |---|---|
-| **Status** | **IN-PROGRESS** — formalized from mailbox state on 2026-05-16 |
-| **Gap** | Barebones Stage 2/3/4 is landed and proven, but the lane still lacks CyanPeak audit closure and final closeout sync. |
+| **Status** | **DONE** — CyanPeak audit PASS #10063 on commit \`1e316a4\` |
+| **Gap** | Minimal QSPI-controlled Tang barebones substrate needed proof-sized landing and closeout. |
 | **Platforms helped** | Tang Nano 20K barebones substrate; ESP8266 and ESP32 host proof path |
-| **Impact** | **High** — establishes a minimal proven hardware control/rendering substrate separate from the rich-top fit pressure |
-| **Risk/Complexity** | Low-Medium. Hardware proof already exists; remaining risk is scope control, focused landing, and audit synchronization. |
-| **Proof shape** | FPGA: PnR success for stage-4 barebones top; Host: independent L0/L1 motion on hardware; Sim: `QspiBarebonesSim` PASS and `TopTang20kBarebonesSim` PASS for the stage-2 receive path |
-| **Source assessment** | BrightForge #10037, #10044, #10052; FoggyWolf #10048, #10050, #10054 |
-| **Depends on** | Task 57 DONE; Host Platform Fidelity DONE (#9891) for proof-host guidance |
-| **Scope Boundary** | Land only the on-disk barebones Stage 2/3/4 artifacts plus ledger sync. No unrelated `PROJECT_PLAN/` research reshuffle. No mode2optimized feature-strip implementation. No Pico parity lane in this packet. |
-| **Checkpoints** | A: minimal QSPI + 2 scroll regs ✅ #10037; B: host-driven L0 motion ✅ #10048 / #10050; C: L1 + dual-layer independent host motion ✅ #10052 / #10054; D: focused landing commit ✅ \`1e316a4\`; E: audit packet (pending) |
-| **Coding authorized** | YES — Stage 2 #10034, Stage 4 #10051; commit landing authorized by BronzeGate 2026-05-16 |
+| **Impact** | **High** — established a minimal proven hardware control/rendering substrate separate from the rich-top fit pressure |
+| **Risk/Complexity** | Closed |
+| **Proof shape** | FPGA: PnR success for stage-4 barebones top; Host: independent L0/L1 motion on hardware; Sim: `QspiBarebonesSim` PASS and `TopTang20kBarebonesSim` PASS |
+| **Source assessment** | BrightForge #10037, #10044, #10052, #10059; FoggyWolf #10048, #10050, #10054; CyanPeak #10063 |
+| **Depends on** | Task 57 DONE; Host Platform Fidelity DONE (#9891) |
+| **Scope Boundary** | Landed at \`1e316a4\`; closeout ledger synced at \`1f87820\` |
+| **Checkpoints** | A: minimal QSPI + 2 scroll regs ✅ #10037; B: host-driven L0 motion ✅ #10048 / #10050; C: L1 + dual-layer independent host motion ✅ #10052 / #10054; D: focused landing commit ✅ \`1e316a4\`; E: audit PASS ✅ #10063 |
+| **Coding authorized** | YES — closed |
 
 ### Host Platform Fidelity Requirements (ESP8266 / ESP32 / Pico 2)
 
