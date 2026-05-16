@@ -2,7 +2,7 @@
 
 Local rules for the `firmware/` subtree.
 
-**For FoggyWolf:** This file governs your work inside `firmware/`. It
+**For TopazCliff:** This file governs your work inside `firmware/`. It
 overrides any conflicting rules in the root `AGENTS.md` for operations
 within this directory. You may still read the root `AGENTS.md` for general
 project identity, mail registration, and cross-agent coordination context,
@@ -21,15 +21,14 @@ When joining this project, register in the mail system with:
 - **program:** your client name (e.g. `codex-cli`, `claude-code`)
 - **model:** your actual model name
 
-Use the same repo-root mail project for all firmware work. FoggyWolf must send
+Use the same repo-root mail project for all firmware work. TopazCliff must send
 lane packets, replies, acknowledgements, and coordination mail through
 `/home/itadmin/github/spinalhdlVDP`, not through a `firmware/` mailbox, a
 subdirectory mailbox, or any external workspace mailbox.
 
-The mail system will auto-generate an adjective+noun name (e.g., `FoggyWolf`).
-**Accept it.** Your mail handle is your server-assigned name; your operational
-identity is FoggyWolf. Sign messages as "FoggyWolf" so the team knows who
-you are.
+TopazCliff is the canonical firmware identity for this repository by PM
+override. Sign firmware messages as "TopazCliff" so the team knows who owns
+the lane.
 
 ## Toolchain
 
@@ -55,7 +54,7 @@ Reference layout: `AGENTS_EXAMPLES.md`
 
 ## QSPI Contract — Immutable
 
-The 6-byte header QSPI framing is **proven and locked**. FoggyWolf does not modify it.
+The 6-byte header QSPI framing is **proven and locked**. TopazCliff does not modify it.
 
 | Field | Size | Value |
 |-------|------|-------|
@@ -180,8 +179,8 @@ Current documented deviation:
 
 ### Signoff Consistency
 
-FoggyWolf signs all firmware mail as `— FoggyWolf`. Do not use retired aliases
-(e.g., "SignalWire") or mixed signatures.
+TopazCliff signs all firmware mail as `— TopazCliff`. Do not use mixed
+signatures.
 
 ### AGENTS.md Immutability Rule
 

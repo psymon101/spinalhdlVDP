@@ -17,11 +17,11 @@ Examples and command snippets: `AGENTS_EXAMPLES.md`
 | `BrightForge` | FPGA implementation | Claude |
 | `CoralReef` | Coordination / ledger | Kimi |
 | `CyanPeak` | Audit / sign-off | Gemini |
-| `FoggyWolf` | MCU / host-transport | (server-assigned) |
+| `TopazCliff` | MCU / host-transport | external advisory / firmware execution |
 
-**External-review exception:** `TopazCliff` — outside review / advisory only. Not part of the execution roster. Does not replace `CoralReef` for any in-repo ownership.
-
-**FoggyWolf is NOT an external-review exception.** Must register, commit, and operate inside this repository.
+**User override (2026-05-16):**
+- `TopazCliff` now owns MCU / host-transport responsibilities for `spinalhdlVDP`
+- `FoggyWolf` is no longer the canonical firmware owner for this repository
 
 ## Mail Registration
 
@@ -126,7 +126,7 @@ After running simulation:
 | `CoralReef` | Coordination, ledger/doc sync, preflight research, audit, sign-off, memory curation |
 | `CyanPeak` | Advisory review / optional secondary audit support when explicitly requested |
 | `BronzeGate` | Sequencing, scope control, stall intervention |
-| `FoggyWolf` | MCU firmware, host transport, platform parity, scenario bootstrap |
+| `TopazCliff` | MCU firmware, host transport, platform parity, scenario bootstrap |
 
 **Rules:**
 - One active engineering lane at a time on the critical path.
@@ -167,13 +167,13 @@ Mailbox reliability rule:
 Detailed templates, checklists, and escalation policy: `PROJECT_PLAN/archive/AGENTS_WORKFLOW_RULES.md`.
 Examples and command snippets: `AGENTS_EXAMPLES.md`.
 
-## FoggyWolf Scope and Rules
+## TopazCliff Scope and Rules
 
-`FoggyWolf` — MCU / host-transport agent.
+`TopazCliff` — MCU / host-transport agent.
 
 | Attribute | Value |
 |-----------|-------|
-| Registration | Server-assigned adjective+noun; accept it, do not force custom names |
+| Registration | Canonical firmware identity for this repo by PM override |
 | Workspace | `/home/itadmin/github/spinalhdlVDP/` (repo root or `firmware/`) |
 | AGENTS.md hierarchy | `firmware/AGENTS.md` overrides root `AGENTS.md` inside `firmware/` |
 
@@ -200,7 +200,7 @@ Examples and command snippets: `AGENTS_EXAMPLES.md`.
 | 6 | Coordination handoff | Check `TASKS.md` Live Lane State → confirm contract with `BrightForge` → confirm authorization with `BronzeGate` |
 | 7 | Platform identity | Part of canonical roster; same mail project, git repo, and task ledger as FPGA agents |
 
-### MCP Servers Relevant to FoggyWolf
+### MCP Servers Relevant to TopazCliff
 
 | Server | Purpose |
 |--------|---------|
@@ -356,7 +356,7 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 **Canonical QSPI contract:** 2 MHz SCK, 10 µs CS hold, 20 µs OSR drain.
 
 **Signoff strings:**
-- `— FoggyWolf`
+- `— TopazCliff`
 - `— CyanPeak`
 - `— CoralReef`
 - `— BrightForge`

@@ -75,6 +75,8 @@ decision depends on it.
   preflight research for upcoming lanes, authoritative audit outcomes,
   explicit sign-off, and ongoing shared-memory updates for authoritative
   mail/file/state changes worth durable recall
+- `TopazCliff`: MCU firmware, host transport, platform parity, and bench-side
+  firmware execution
 - `CyanPeak`: advisory review and optional secondary audit support when
   explicitly requested
 - `BronzeGate`: sequencing, stall intervention, scope control
