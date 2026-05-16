@@ -22,22 +22,38 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **None** — all lanes closed |
-| **Status** | — |
-| **Phase** | — |
-| **Latest Commit** | — |
+| **Task** | **Barebones Simple Sprite over Background** |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | Checkpoint A authorization pending implementation plan |
+| **Latest Commit** | \`1e316a4\` (barebones Stage 2-4 landing baseline) |
 | **Commits in lane** | — |
-| **Latest Auth Mail** | — |
-| **Artifact** | — |
-| **Next Deliverable** | PM authorization for next lane |
+| **Latest Auth Mail** | BronzeGate pivot packet pending mailbox sync; feature-strip lane blocked at BrightForge #10076 |
+| **Artifact** | Branch \`mode0t20-barebones-rebuild\`; one proof-sized sprite slice on top of working L0/L1 scroll path |
+| **Next Deliverable** | BrightForge Checkpoint A implementation plan for simplest sprite slice |
 
-**Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** DONE #9768 (\`755fd10\`). **ZX Spectrum Firmware Host Flow (v1)** DONE #9797 (\`13989c1\`). **Atari ST Adapter Lane** opened #9776, Checkpoint A accepted #9782, then **PAUSED #9783** per user priority shift. **Host Platform Fidelity Requirements** opened #9801: doc-only lane for per-platform fidelity notes, preferred authoritative proof host, transport limits, status/debug expectations.
+**Context:** The compile-time feature-strip lane on `mode2optimized` is blocked by Gowin Mem fragility per BrightForge #10076 (+5485 DFF regression from Gate #1). Critical path is pivoting back to the proven barebones branch, which already has host-controlled scrolling background and hardware proof. Next step is the smallest sprite slice that proves sprite composition on this stable substrate.
 
 ---
 
 ## Next Up / Open Queue
 
 The following tasks are **OPEN** and await PM authorization to become active lanes.
+
+### Barebones Simple Sprite over Background
+
+| Field | Value |
+|---|---|
+| **Status** | **IN-PROGRESS** — PM pivot 2026-05-16 after feature-strip blocker |
+| **Gap** | Barebones substrate has proven host-controlled background scroll, but no proof-sized sprite primitive on that stable path. |
+| **Platforms helped** | Tang Nano 20K barebones branch; firmware host proof path |
+| **Impact** | **High** — extends the proven barebones branch with the next obvious visual primitive instead of fighting rich-top fit instability |
+| **Risk/Complexity** | Medium. Requires new visible primitive, but bounded against the already-working 2-layer background path. |
+| **Proof shape** | Sim: sprite-over-background composition / position update proof; HW: one simple sprite visible over scrolling background with unambiguous motion or position change; host proof on authoritative platform |
+| **Source assessment** | Barebones landing `1e316a4`; BrightForge #10052 / #10059; FoggyWolf #10054 |
+| **Depends on** | Barebones Stage 2-4 landing DONE audit PASS #10063 |
+| **Scope Boundary** | One simple sprite slice only. No sprite engine expansion, no SDRAM sprite path, no rich-top recovery work, no multi-sprite batching. |
+| **Checkpoints** | A: implementation plan / sprite contract; B: barebones sprite implementation + sim; C: hardware proof on proven host path; D: audit + ledger sync |
+| **Coding authorized** | YES — PM pivot 2026-05-16 |
 
 ### Host Platform Fidelity Requirements (ESP8266 / ESP32 / Pico 2)
 
