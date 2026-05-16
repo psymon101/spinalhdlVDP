@@ -298,4 +298,40 @@
 | Documented host-side queue crossing model | QSPI-side queue / FIFO into pixel-domain parser | `TECH_SPEC_HOST_INTERFACE_AND_COPPER.md` |
 | Example explicit CDC primitive in fetch path | `BufferCC` used on planar base-address sampling | `BitplaneRowFetch.scala` |
 
+### 10.10 Default-Build Reduction Plan
+
+| Parameter | Current Value | Source |
+|---|---|---|
+| First-pass cut `1` | `enableTestPattern = false` | `#10011`, `#10016`, `#10017` |
+| First-pass cut `2` | `planeCount = 4` | `#10011`, `#10016`, `#10017`, `#10018`, `#10019` |
+| First-pass cut `3` | `enableAffine = false` | `#10016`, `#10018`, `#10019` |
+| First-pass cut `4` | `enableExtraRasterTriggers = false` | `#10016`, `#10018`, `#10019` |
+| Keep in first pass | `L0 + L1` | `#10011`, `#10017`, `#10018` |
+| Defer in first pass | `L2/L3` gating | `#10011`, `#10017`, `#10018`, `#10019` |
+| Defer in first pass | `DMA engine` gating | `#10011`, `#10017`, `#10019` |
+| Defer in first pass | `HDMA table / extra automation` gating | `#10011`, `#10017`, `#10019` |
+| Synthesis rule | `run synthesis after each cut` | `#10011`, `#10016`, `#10017`, `#10018`, `#10019` |
+| Stop rule | `revert immediately on LUT/DFF regression` | `#10011`, `#10016`, `#10017`, `#10018`, `#10019` |
+
+### 10.11 Current Default-Build Excess vs Spec
+
+| Parameter | Current Value | Source |
+|---|---|---|
+| Live background layers in default build | `4` | `#10011`, `#10016`, `#10017` |
+| Guaranteed strong live background layers in spec | `2` | `MODE0_PLANNING.md` §3, `#10011`, `#10017` |
+| Current planar depth in default build | `5` | `#10011`, `#10016`, `#10017`, `#10018`, `#10019` |
+| Guaranteed planar depth in spec | `4` | `MODE0_PLANNING.md` §3 |
+| Current raster trigger units in default build | `4` | `#10018`, `#10019` |
+| Guaranteed raster compare units in spec | `1` | `MODE0_PLANNING.md` §3 |
+| Affine unit in default build | `1` | `#10011`, `#10016`, `#10017`, `#10018`, `#10019` |
+| Affine unit in spec default build | `build-gated` | `MODE0_PLANNING.md` §4 |
+
+### 10.12 Default-Build Regression Constraint
+
+| Parameter | Current Value | Source |
+|---|---|---|
+| Proven risk class for Mem/topology cuts | `high` | `#10011`, `#10017`, `#10018`, `#10019` |
+| Documented prior failure pattern | `Mem -> FF promotion / non-local LUT increase` | `#9923`, `#9929`, `#9967`, `#9976`, `#9981` |
+| Current allowed high-risk cuts in first pass | `0` | converged recommendation from `#10011`, `#10016`, `#10017`, `#10018`, `#10019` |
+
 ---

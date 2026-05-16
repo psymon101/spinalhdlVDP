@@ -44,6 +44,12 @@ case class TopTang20kBarebones() extends Component {
   val O_tmds_data_p  = out Bits(3 bits)
   val O_tmds_data_n  = out Bits(3 bits)
 
+  // PM #10034 stage-2 minimal QSPI receive (1-bit SPI). 3 input pins
+  // only — no IO2/IO3, no MISO tristate (host writes only in this slice).
+  val I_qspi_cs   = in Bool()
+  val I_qspi_sck  = in Bool()
+  val I_qspi_mosi = in Bool()
+
   // ----------------------------------------------------------------------
   // Pixel-clock PLL chain: same defaults as TopTang20kHdmi's pixel PLL.
   // Produces 125.875 MHz on pll.CLKOUT and 25.175 MHz on clkdiv.CLKOUT
@@ -120,16 +126,57 @@ case class TopTang20kBarebones() extends Component {
     val hsyncN = !(hCounter >= hSyncStart && hCounter < hSyncEnd)
     val vsyncN = !(vCounter >= vSyncStart && vCounter < vSyncEnd)
 
-    // Single BG layer. Scroll inputs tied to 0 (no host-programmable scroll).
+    // PM #10034 stage-2 + PM #10051 stage-4: QSPI receive + 4-register file.
+    //   0x0000 SCROLL_X0 (low 10 bits) — L0 horizontal scroll
+    //   0x0001 SCROLL_Y0 (low 10 bits) — L0 vertical scroll
+    //   0x0002 SCROLL_X1 (low 10 bits) — L1 horizontal scroll  [PM #10051]
+    //   0x0003 SCROLL_Y1 (low 10 bits) — L1 vertical scroll    [PM #10051]
+    // 1-bit SPI, MSB first, 40-bit frame [CMD:8][ADDR:16][DATA:16].
+    // CMD must be 0x01 (REG_WRITE). All other commands ignored.
+    val qspi = QspiBarebones()
+    qspi.io.cs_n := I_qspi_cs
+    qspi.io.sck  := I_qspi_sck
+    qspi.io.mosi := I_qspi_mosi
+
+    val scrollXReg  = Reg(UInt(10 bits)) init 0
+    val scrollYReg  = Reg(UInt(10 bits)) init 0
+    val scrollX1Reg = Reg(UInt(10 bits)) init 0
+    val scrollY1Reg = Reg(UInt(10 bits)) init 0
+    when(qspi.io.regWr) {
+      switch(qspi.io.regAddr) {
+        is(U(0x0000, 16 bits)) { scrollXReg  := qspi.io.regData(9 downto 0).asUInt }
+        is(U(0x0001, 16 bits)) { scrollYReg  := qspi.io.regData(9 downto 0).asUInt }
+        is(U(0x0002, 16 bits)) { scrollX1Reg := qspi.io.regData(9 downto 0).asUInt }
+        is(U(0x0003, 16 bits)) { scrollY1Reg := qspi.io.regData(9 downto 0).asUInt }
+        default {} // unknown address — silently ignored
+      }
+    }
+
+    // L0 — BasicPatternSource, scroll-driven from QSPI regs 0x0000/0x0001.
     val layer0 = BasicPatternSource()
     layer0.io.x       := hCounter.resize(10)
     layer0.io.y       := vCounter.resize(10)
-    layer0.io.scrollX := U(0, 10 bits)
-    layer0.io.scrollY := U(0, 10 bits)
+    layer0.io.scrollX := scrollXReg
+    layer0.io.scrollY := scrollYReg
 
-    // 8-entry minimal palette (matches BasicPatternSource's 3-bit index range).
+    // L1 — second BasicPatternSource, scroll-driven from QSPI regs 0x0002/0x0003.
+    // Same tile-ROM content as L0 (no separate asset to keep this slice minimal
+    // per PM #10051 "minimum extra pattern/palette support"). L1 is made
+    // visually distinct from L0 by using a separate 8-entry palette with a
+    // shifted hue rotation (see paletteL1Rom below). Independent scroll plus
+    // the distinct palette gives an unambiguous L1 vs L0 read on the capture.
+    val layer1 = BasicPatternSource()
+    layer1.io.x       := hCounter.resize(10)
+    layer1.io.y       := vCounter.resize(10)
+    layer1.io.scrollX := scrollX1Reg
+    layer1.io.scrollY := scrollY1Reg
+
+    // 8-entry palettes — L0 keeps the stage-1/2 set; L1 uses an inverted
+    // hue rotation so the two layers are visibly distinct even when they
+    // happen to render the same tile content. Both palettes treat index 0
+    // as TRANSPARENT for the compositor below.
     val paletteRom = Vec(
-      B("24'h000000"),   // 0 black
+      B("24'h000000"),   // 0 black (transparent for compositor)
       B("24'hFFFFFF"),   // 1 white
       B("24'hFF0000"),   // 2 red
       B("24'h00FF00"),   // 3 green
@@ -138,7 +185,28 @@ case class TopTang20kBarebones() extends Component {
       B("24'h00FFFF"),   // 6 cyan
       B("24'hFF00FF")    // 7 magenta
     )
-    val rgb = paletteRom(layer0.io.pixelIndex.asUInt)
+    val paletteL1Rom = Vec(
+      B("24'h000000"),   // 0 black (transparent for compositor)
+      B("24'h804000"),   // 1 brown (L1-distinct vs L0 white)
+      B("24'h00FFFF"),   // 2 cyan  (L1: complement of L0 red)
+      B("24'hFF00FF"),   // 3 magenta (L1: complement of L0 green)
+      B("24'hFFFF00"),   // 4 yellow (L1: complement of L0 blue)
+      B("24'h0000FF"),   // 5 blue  (L1: complement of L0 yellow)
+      B("24'hFF0000"),   // 6 red   (L1: complement of L0 cyan)
+      B("24'h00FF00")    // 7 green (L1: complement of L0 magenta)
+    )
+    val layer0Idx = layer0.io.pixelIndex.asUInt
+    val layer1Idx = layer1.io.pixelIndex.asUInt
+    val layer0Rgb = paletteRom  (layer0Idx)
+    val layer1Rgb = paletteL1Rom(layer1Idx)
+
+    // Compositing rule: simple "L1 over L0, transparent on idx 0".
+    // L1 wins when its pixel index is non-zero; else L0 shows. Border
+    // (index 0 on both layers) renders black. Deterministic, no priority
+    // tweaks, no per-pixel alpha. Matches the spirit of MODE0_PLANNING
+    // §6 "highest-index opaque layer wins" reduced to a 2-layer case.
+    val l1Opaque = layer1Idx =/= U(0, 3 bits)
+    val rgb = Mux(l1Opaque, layer1Rgb, layer0Rgb)
     val redRaw   = Mux(de, rgb(23 downto 16), B(0, 8 bits))
     val greenRaw = Mux(de, rgb(15 downto  8), B(0, 8 bits))
     val blueRaw  = Mux(de, rgb( 7 downto  0), B(0, 8 bits))

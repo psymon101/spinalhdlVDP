@@ -152,9 +152,6 @@ not strap pins and do not conflict with JTAG or flash access.
 
 **Verification:** Checked against Espressif GPIO matrix and dev1 schematic.
 
-**Caution:** Other ESP32 boards may map these differently. Always verify
-against the specific board schematic before changing pin assignments.
-
 ---
 
 ### GOTCHA-7: ESP8266 GPIO 16 (D0) has no internal pull-up
@@ -165,3 +162,19 @@ internal pull-up. If the VDP ever tri-states IO3, the ESP8266 side may float.
 **Current status:** The VDP QSPI implementation always drives IO3 during
 transactions, so this is not a live issue. Documented for future reference if
 the VDP side ever adds high-Z states.
+
+---
+
+### GOTCHA-8: Barebones 40-bit QSPI protocol (Stage 2+)
+
+**Deviation:** The "barebones" rebuild branch (`mode0t20-barebones-rebuild`) uses a simplified 1-bit SPI protocol instead of the full 6-byte header QSPI contract.
+
+**Protocol:**
+- **Width:** 1-bit (SCK, CS_N, MOSI only; no MISO/IO2/IO3)
+- **Frame:** 40 bits = `[CMD:8] [ADDR:16] [DATA:16]`
+- **Command:** Only `0x01` (REG_WRITE) is supported.
+- **Timing:** Same 2 MHz SCK and 10 µs CS hold invariants as the main contract.
+
+**Why it exists:** To provide a truly-minimal bring-up path on Tang Nano 20K that fits in low LUT counts and doesn't require the full SDRAM/QSPI infrastructure.
+
+**Fix status:** Documented. Host sketches `esp8266_barebones_scroll`, `esp32_barebones_scroll`, and `test_barebones_scroll` implement this protocol. Main `libvdp` DOES NOT support this protocol; it remains locked to the 6-byte header QSPI contract.

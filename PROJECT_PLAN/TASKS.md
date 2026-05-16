@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-14 (ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
+**Updated:** 2026-05-16 (Mode0-T20 Barebones Rebuild formalized as active lane after Stage 4 proof; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
 **Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
 
 Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
@@ -22,22 +22,38 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **None** — all lanes closed |
-| **Status** | — |
-| **Phase** | — |
-| **Latest Commit** | — |
-| **Commits in lane** | — |
-| **Latest Auth Mail** | — |
-| **Artifact** | — |
-| **Next Deliverable** | PM authorization for next lane |
+| **Task** | **Mode0-T20 Barebones Rebuild (Stages 2-4 landing)** |
+| **Status** | **IN-PROGRESS** |
+| **Phase** | Checkpoint D landing; audit sync pending |
+| **Latest Commit** | \`390bfab\` |
+| **Commits in lane** | \`390bfab\` baseline; current focused landing commit (pending) |
+| **Latest Auth Mail** | BrightForge #10052; FoggyWolf #10054 |
+| **Artifact** | Branch \`mode0t20-barebones-rebuild\`; Tang barebones QSPI + 2-layer host-driven proof |
+| **Next Deliverable** | CyanPeak audit packet on landed scope |
 
-**Context:** Task 54 CLOSED per CyanPeak #9672. Task 56 DONE per CyanPeak #9709. **320-pixel planar clipping mask** DONE #9768 (\`755fd10\`). **ZX Spectrum Firmware Host Flow (v1)** DONE #9797 (\`13989c1\`). **Atari ST Adapter Lane** opened #9776, Checkpoint A accepted #9782, then **PAUSED #9783** per user priority shift. **Host Platform Fidelity Requirements** opened #9801: doc-only lane for per-platform fidelity notes, preferred authoritative proof host, transport limits, status/debug expectations.
+**Context:** The repo docs fell behind live execution after the barebones reboot-recovery cycle. The authoritative mailbox shows Stage 2 minimal QSPI + regs proven in #10037, Stage 3 end-to-end host motion proven in #10048 / #10050, and Stage 4 two-layer independent host motion proven in BrightForge #10052 plus FoggyWolf #10054. This lane is now formalized so commit and audit can proceed against the proven branch state without reopening unrelated tasks.
 
 ---
 
 ## Next Up / Open Queue
 
 The following tasks are **OPEN** and await PM authorization to become active lanes.
+
+### Mode0-T20 Barebones Rebuild (Stages 2-4 landing)
+
+| Field | Value |
+|---|---|
+| **Status** | **IN-PROGRESS** — formalized from mailbox state on 2026-05-16 |
+| **Gap** | Proven barebones Tang path exists on branch, but repo ledger and git history lag the mailbox-visible Stage 2/3/4 proof state. |
+| **Platforms helped** | Tang Nano 20K barebones substrate; ESP8266 and ESP32 host proof path |
+| **Impact** | **High** — establishes a minimal proven hardware control/rendering substrate separate from the rich-top fit pressure |
+| **Risk/Complexity** | Low-Medium. Hardware proof already exists; remaining risk is scope control, focused landing, and audit synchronization. |
+| **Proof shape** | FPGA: PnR success for stage-4 barebones top; Host: independent L0/L1 motion on hardware; Sim: `QspiBarebonesSim` PASS and `TopTang20kBarebonesSim` PASS for the stage-2 receive path |
+| **Source assessment** | BrightForge #10037, #10044, #10052; FoggyWolf #10048, #10050, #10054 |
+| **Depends on** | Task 57 DONE; Host Platform Fidelity DONE (#9891) for proof-host guidance |
+| **Scope Boundary** | Land only the on-disk barebones Stage 2/3/4 artifacts plus ledger sync. No unrelated `PROJECT_PLAN/` research reshuffle. No mode2optimized feature-strip implementation. No Pico parity lane in this packet. |
+| **Checkpoints** | A: minimal QSPI + 2 scroll regs ✅ #10037; B: host-driven L0 motion ✅ #10048 / #10050; C: L1 + dual-layer independent host motion ✅ #10052 / #10054; D: focused landing commit (this commit); E: audit packet (pending) |
+| **Coding authorized** | YES — Stage 2 #10034, Stage 4 #10051; commit landing authorized by BronzeGate 2026-05-16 |
 
 ### Host Platform Fidelity Requirements (ESP8266 / ESP32 / Pico 2)
 
