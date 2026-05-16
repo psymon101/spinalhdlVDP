@@ -24,14 +24,14 @@ This section tracks the single active lane.
 |-------|-------|
 | **Task** | **Mode0-T20 Barebones Rebuild (Stages 2-4 landing)** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | Checkpoint D landing; audit sync pending |
-| **Latest Commit** | \`390bfab\` |
-| **Commits in lane** | \`390bfab\` baseline; current focused landing commit (pending) |
-| **Latest Auth Mail** | BrightForge #10052; FoggyWolf #10054 |
+| **Phase** | Checkpoint D landed; audit sync pending |
+| **Latest Commit** | \`ceed3e4\` |
+| **Commits in lane** | \`1e316a4\` barebones Stage 2/3/4 landing; \`ceed3e4\` mailbox-policy clarification |
+| **Latest Auth Mail** | BronzeGate #10058; BrightForge #10059; CoralReef #10060 |
 | **Artifact** | Branch \`mode0t20-barebones-rebuild\`; Tang barebones QSPI + 2-layer host-driven proof |
 | **Next Deliverable** | CyanPeak audit packet on landed scope |
 
-**Context:** The repo docs fell behind live execution after the barebones reboot-recovery cycle. The authoritative mailbox shows Stage 2 minimal QSPI + regs proven in #10037, Stage 3 end-to-end host motion proven in #10048 / #10050, and Stage 4 two-layer independent host motion proven in BrightForge #10052 plus FoggyWolf #10054. This lane is now formalized so commit and audit can proceed against the proven branch state without reopening unrelated tasks.
+**Context:** The authoritative mailbox shows Stage 2 minimal QSPI + regs proven in #10037, Stage 3 end-to-end host motion proven in #10048 / #10050, Stage 4 two-layer independent host motion proven in BrightForge #10052 plus FoggyWolf #10054, and the focused landing committed at \`1e316a4\` with closeout reconciliation in #10058 / #10059 / #10060. Audit is still pending on the landed scope.
 
 ---
 
@@ -44,7 +44,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 | Field | Value |
 |---|---|
 | **Status** | **IN-PROGRESS** — formalized from mailbox state on 2026-05-16 |
-| **Gap** | Proven barebones Tang path exists on branch, but repo ledger and git history lag the mailbox-visible Stage 2/3/4 proof state. |
+| **Gap** | Barebones Stage 2/3/4 is landed and proven, but the lane still lacks CyanPeak audit closure and final closeout sync. |
 | **Platforms helped** | Tang Nano 20K barebones substrate; ESP8266 and ESP32 host proof path |
 | **Impact** | **High** — establishes a minimal proven hardware control/rendering substrate separate from the rich-top fit pressure |
 | **Risk/Complexity** | Low-Medium. Hardware proof already exists; remaining risk is scope control, focused landing, and audit synchronization. |
@@ -52,7 +52,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 | **Source assessment** | BrightForge #10037, #10044, #10052; FoggyWolf #10048, #10050, #10054 |
 | **Depends on** | Task 57 DONE; Host Platform Fidelity DONE (#9891) for proof-host guidance |
 | **Scope Boundary** | Land only the on-disk barebones Stage 2/3/4 artifacts plus ledger sync. No unrelated `PROJECT_PLAN/` research reshuffle. No mode2optimized feature-strip implementation. No Pico parity lane in this packet. |
-| **Checkpoints** | A: minimal QSPI + 2 scroll regs ✅ #10037; B: host-driven L0 motion ✅ #10048 / #10050; C: L1 + dual-layer independent host motion ✅ #10052 / #10054; D: focused landing commit (this commit); E: audit packet (pending) |
+| **Checkpoints** | A: minimal QSPI + 2 scroll regs ✅ #10037; B: host-driven L0 motion ✅ #10048 / #10050; C: L1 + dual-layer independent host motion ✅ #10052 / #10054; D: focused landing commit ✅ \`1e316a4\`; E: audit packet (pending) |
 | **Coding authorized** | YES — Stage 2 #10034, Stage 4 #10051; commit landing authorized by BronzeGate 2026-05-16 |
 
 ### Host Platform Fidelity Requirements (ESP8266 / ESP32 / Pico 2)
