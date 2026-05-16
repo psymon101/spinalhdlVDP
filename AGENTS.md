@@ -144,10 +144,21 @@ required owner and packet type.
   (`planning`, `completion`, `audit`, `blocker`, or `ETA`)
 - a different agent's message or a different packet type does not satisfy the
   missing deliverable unless `BronzeGate` explicitly reassigns the lane
-- if the claimed message cannot be verified in the mailbox, treat it as not
-  received and require resend
+- mailbox verification must not rely on a single inbox poll alone; if a
+  claimed message is not visible there, verify via the same repo-root project
+  mailbox using the message thread and topic before treating it as missing
+- if the claimed message still cannot be verified anywhere in the project
+  mailbox, treat it as not received and require resend
 - after repeated non-response, `BronzeGate` may reassign the lane without
   waiting further
+
+Mailbox reliability rule:
+
+- all coordination decisions must be based on the shared repo-root mailbox, not
+  one tool view of it
+- if `fetch_inbox` and thread/topic views disagree, use the newest
+  mailbox-visible project record, update the ledger, and continue the lane
+  instead of stalling on the view mismatch
 
 Detailed templates, checklists, and escalation policy: `PROJECT_PLAN/archive/AGENTS_WORKFLOW_RULES.md`.
 Examples and command snippets: `AGENTS_EXAMPLES.md`.

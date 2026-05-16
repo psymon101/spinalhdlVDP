@@ -48,9 +48,22 @@ matches the required owner and packet type.
   - exact recipient list
 - a visible message from the wrong owner or with the wrong packet type does
   not satisfy the missing deliverable
-- if the message cannot be verified in the mailbox, require resend
+- do not rely on a single inbox poll as the only visibility check
+- if a claimed message is missing from one view, verify it in the same
+  repo-root mailbox by thread and topic before calling it absent
+- if the message still cannot be verified anywhere in the mailbox, require
+  resend
 - after repeated non-response, `BronzeGate` may reassign the lane or authorize
   a bounded fallback
+
+Mailbox reliability fallback:
+
+- prefer the shared repo-root mailbox over any individual tool surface
+- if inbox view, thread view, and topic view disagree, use the newest
+  mailbox-visible project record as the authoritative fact
+- once the message is verified anywhere in the repo-root mailbox, update the
+  live-lane ledger and continue the workflow instead of reopening a settled
+  handoff
 
 Do not restate older lane history in routine messages unless the current
 decision depends on it.
