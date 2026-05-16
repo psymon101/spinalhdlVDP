@@ -4,7 +4,7 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib.BufferCC
 
-case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true) extends Component {
+case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false) extends Component {
   // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM is migrated
   // into the SDRAM clock domain. When `sdramCd` is null (sim-default),
   // use the current pixel ClockDomain so single-clock sims keep working;
@@ -1757,79 +1757,102 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true) ex
   rasterTrigger.io.clear          := io.rasterTriggerClear
   io.rasterTriggerPulse           := rasterTrigger.io.triggerPulse
 
-  // BH-5: per-trigger control register banks for TR1..TR3. Direct
-  // (non-shadow) commits — the trigger compare is purely combinational
-  // on the registers, so a host write that lands mid-frame just changes
-  // the next-match condition without corrupting prior state.
-  val tr1LineReg     = Reg(UInt(10 bits)) init 0
-  val tr1PixelReg    = Reg(UInt(10 bits)) init 0
-  val tr1CtrlReg     = Reg(Bits(3 bits))  init 0
-  val tr2LineReg     = Reg(UInt(10 bits)) init 0
-  val tr2PixelReg    = Reg(UInt(10 bits)) init 0
-  val tr2CtrlReg     = Reg(Bits(3 bits))  init 0
-  val tr3LineReg     = Reg(UInt(10 bits)) init 0
-  val tr3PixelReg    = Reg(UInt(10 bits)) init 0
-  val tr3CtrlReg     = Reg(Bits(3 bits))  init 0
-  // Clear bits are pulse-style: they assert for one cycle when the host
-  // writes a `1` to bit[2]. The Reg holds the rest of CTRL persistently;
-  // the clear bit auto-deasserts the next cycle.
-  val tr1Clear       = Bool()
-  val tr2Clear       = Bool()
-  val tr3Clear       = Bool()
-  tr1Clear := False
-  tr2Clear := False
-  tr3Clear := False
-  when(effWrite && effAddr === U(0x0360, 15 bits)) { tr1LineReg  := effData(9 downto 0).asUInt }
-  when(effWrite && effAddr === U(0x0361, 15 bits)) { tr1PixelReg := effData(9 downto 0).asUInt }
-  when(effWrite && effAddr === U(0x0362, 15 bits)) {
-    tr1CtrlReg := effData(2 downto 0)
-    tr1Clear   := effData(2)
-  }
-  when(effWrite && effAddr === U(0x0364, 15 bits)) { tr2LineReg  := effData(9 downto 0).asUInt }
-  when(effWrite && effAddr === U(0x0365, 15 bits)) { tr2PixelReg := effData(9 downto 0).asUInt }
-  when(effWrite && effAddr === U(0x0366, 15 bits)) {
-    tr2CtrlReg := effData(2 downto 0)
-    tr2Clear   := effData(2)
-  }
-  when(effWrite && effAddr === U(0x0368, 15 bits)) { tr3LineReg  := effData(9 downto 0).asUInt }
-  when(effWrite && effAddr === U(0x0369, 15 bits)) { tr3PixelReg := effData(9 downto 0).asUInt }
-  when(effWrite && effAddr === U(0x036A, 15 bits)) {
-    tr3CtrlReg := effData(2 downto 0)
-    tr3Clear   := effData(2)
-  }
+  // BH-5 extras (TR1..TR3) live behind `withExtraRasterTriggers`. Default
+  // build (`false`) drops the per-trigger Regs, address-decode block, and
+  // three additional RasterTriggerUnit instances. TR0 is unaffected.
+  // The downstream-visible signals keep their shape so the IO contract
+  // (`io.rasterTriggerPending`) and the `rasterPendingMask` simPublic tap
+  // stay bit-stable for sims that don't toggle the extras.
+  val extraTrigPending = Vec.fill(3)(Bool())
+  val extraTrigPulse   = Vec.fill(3)(Bool())
 
-  val rasterTrigger1 = RasterTriggerUnit()
-  rasterTrigger1.io.vCounter       := vCounter.resize(10)
-  rasterTrigger1.io.hCounter       := hCounter.resize(10)
-  rasterTrigger1.io.triggerLine    := tr1LineReg
-  rasterTrigger1.io.triggerPixel   := tr1PixelReg
-  rasterTrigger1.io.pixelCmpEnable := tr1CtrlReg(1)
-  rasterTrigger1.io.enable         := tr1CtrlReg(0)
-  rasterTrigger1.io.clear          := tr1Clear
+  if (withExtraRasterTriggers) {
+    // Per-trigger control register banks for TR1..TR3. Direct (non-shadow)
+    // commits — the trigger compare is purely combinational on the
+    // registers, so a host write that lands mid-frame just changes the
+    // next-match condition without corrupting prior state.
+    val tr1LineReg     = Reg(UInt(10 bits)) init 0
+    val tr1PixelReg    = Reg(UInt(10 bits)) init 0
+    val tr1CtrlReg     = Reg(Bits(3 bits))  init 0
+    val tr2LineReg     = Reg(UInt(10 bits)) init 0
+    val tr2PixelReg    = Reg(UInt(10 bits)) init 0
+    val tr2CtrlReg     = Reg(Bits(3 bits))  init 0
+    val tr3LineReg     = Reg(UInt(10 bits)) init 0
+    val tr3PixelReg    = Reg(UInt(10 bits)) init 0
+    val tr3CtrlReg     = Reg(Bits(3 bits))  init 0
+    // Clear bits are pulse-style: they assert for one cycle when the host
+    // writes a `1` to bit[2]. The Reg holds the rest of CTRL persistently;
+    // the clear bit auto-deasserts the next cycle.
+    val tr1Clear       = Bool()
+    val tr2Clear       = Bool()
+    val tr3Clear       = Bool()
+    tr1Clear := False
+    tr2Clear := False
+    tr3Clear := False
+    when(effWrite && effAddr === U(0x0360, 15 bits)) { tr1LineReg  := effData(9 downto 0).asUInt }
+    when(effWrite && effAddr === U(0x0361, 15 bits)) { tr1PixelReg := effData(9 downto 0).asUInt }
+    when(effWrite && effAddr === U(0x0362, 15 bits)) {
+      tr1CtrlReg := effData(2 downto 0)
+      tr1Clear   := effData(2)
+    }
+    when(effWrite && effAddr === U(0x0364, 15 bits)) { tr2LineReg  := effData(9 downto 0).asUInt }
+    when(effWrite && effAddr === U(0x0365, 15 bits)) { tr2PixelReg := effData(9 downto 0).asUInt }
+    when(effWrite && effAddr === U(0x0366, 15 bits)) {
+      tr2CtrlReg := effData(2 downto 0)
+      tr2Clear   := effData(2)
+    }
+    when(effWrite && effAddr === U(0x0368, 15 bits)) { tr3LineReg  := effData(9 downto 0).asUInt }
+    when(effWrite && effAddr === U(0x0369, 15 bits)) { tr3PixelReg := effData(9 downto 0).asUInt }
+    when(effWrite && effAddr === U(0x036A, 15 bits)) {
+      tr3CtrlReg := effData(2 downto 0)
+      tr3Clear   := effData(2)
+    }
 
-  val rasterTrigger2 = RasterTriggerUnit()
-  rasterTrigger2.io.vCounter       := vCounter.resize(10)
-  rasterTrigger2.io.hCounter       := hCounter.resize(10)
-  rasterTrigger2.io.triggerLine    := tr2LineReg
-  rasterTrigger2.io.triggerPixel   := tr2PixelReg
-  rasterTrigger2.io.pixelCmpEnable := tr2CtrlReg(1)
-  rasterTrigger2.io.enable         := tr2CtrlReg(0)
-  rasterTrigger2.io.clear          := tr2Clear
+    val rasterTrigger1 = RasterTriggerUnit()
+    rasterTrigger1.io.vCounter       := vCounter.resize(10)
+    rasterTrigger1.io.hCounter       := hCounter.resize(10)
+    rasterTrigger1.io.triggerLine    := tr1LineReg
+    rasterTrigger1.io.triggerPixel   := tr1PixelReg
+    rasterTrigger1.io.pixelCmpEnable := tr1CtrlReg(1)
+    rasterTrigger1.io.enable         := tr1CtrlReg(0)
+    rasterTrigger1.io.clear          := tr1Clear
 
-  val rasterTrigger3 = RasterTriggerUnit()
-  rasterTrigger3.io.vCounter       := vCounter.resize(10)
-  rasterTrigger3.io.hCounter       := hCounter.resize(10)
-  rasterTrigger3.io.triggerLine    := tr3LineReg
-  rasterTrigger3.io.triggerPixel   := tr3PixelReg
-  rasterTrigger3.io.pixelCmpEnable := tr3CtrlReg(1)
-  rasterTrigger3.io.enable         := tr3CtrlReg(0)
-  rasterTrigger3.io.clear          := tr3Clear
+    val rasterTrigger2 = RasterTriggerUnit()
+    rasterTrigger2.io.vCounter       := vCounter.resize(10)
+    rasterTrigger2.io.hCounter       := hCounter.resize(10)
+    rasterTrigger2.io.triggerLine    := tr2LineReg
+    rasterTrigger2.io.triggerPixel   := tr2PixelReg
+    rasterTrigger2.io.pixelCmpEnable := tr2CtrlReg(1)
+    rasterTrigger2.io.enable         := tr2CtrlReg(0)
+    rasterTrigger2.io.clear          := tr2Clear
+
+    val rasterTrigger3 = RasterTriggerUnit()
+    rasterTrigger3.io.vCounter       := vCounter.resize(10)
+    rasterTrigger3.io.hCounter       := hCounter.resize(10)
+    rasterTrigger3.io.triggerLine    := tr3LineReg
+    rasterTrigger3.io.triggerPixel   := tr3PixelReg
+    rasterTrigger3.io.pixelCmpEnable := tr3CtrlReg(1)
+    rasterTrigger3.io.enable         := tr3CtrlReg(0)
+    rasterTrigger3.io.clear          := tr3Clear
+
+    extraTrigPending(0) := rasterTrigger1.io.pending
+    extraTrigPending(1) := rasterTrigger2.io.pending
+    extraTrigPending(2) := rasterTrigger3.io.pending
+    extraTrigPulse(0)   := rasterTrigger1.io.triggerPulse
+    extraTrigPulse(1)   := rasterTrigger2.io.triggerPulse
+    extraTrigPulse(2)   := rasterTrigger3.io.triggerPulse
+  } else {
+    extraTrigPending.foreach(_ := False)
+    extraTrigPulse.foreach(_ := False)
+  }
 
   // Aggregate pending across all four — top-level pending output is OR
-  // of the four for backward compat with the existing IO surface.
-  val rasterPendingMask = (rasterTrigger3.io.pending ##
-                           rasterTrigger2.io.pending ##
-                           rasterTrigger1.io.pending ##
+  // of the four for backward compat with the existing IO surface. When
+  // the gate is off, bits[3..1] are tied False so the 4-bit shape and
+  // simPublic tap stay stable for downstream consumers.
+  val rasterPendingMask = (extraTrigPending(2) ##
+                           extraTrigPending(1) ##
+                           extraTrigPending(0) ##
                            rasterTrigger.io.pending).asBits
   rasterPendingMask.simPublic()
   io.rasterTriggerPending := rasterPendingMask.orR
@@ -1870,10 +1893,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true) ex
 
   // Event sources (low byte).
   // BH-5: any of the four triggers firing sets the sticky RASTER_MATCH bit.
-  val evRasterMatch    = rasterTrigger.io.triggerPulse  ||
-                         rasterTrigger1.io.triggerPulse ||
-                         rasterTrigger2.io.triggerPulse ||
-                         rasterTrigger3.io.triggerPulse
+  // When `withExtraRasterTriggers=false`, `extraTrigPulse` is tied False so
+  // this collapses to TR0-only.
+  val evRasterMatch    = rasterTrigger.io.triggerPulse ||
+                         extraTrigPulse(0) ||
+                         extraTrigPulse(1) ||
+                         extraTrigPulse(2)
   val evSpriteOverflow = spriteEval.io.overflowFlag
   val evQspiReady      = io.statusEvQspiReady
   val evQspiError      = io.statusEvQspiError

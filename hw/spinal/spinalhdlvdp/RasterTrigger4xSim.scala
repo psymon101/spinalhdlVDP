@@ -22,7 +22,7 @@ import spinal.core.sim._
   *   4. `enable=0` suppresses pending entirely for that trigger.
   */
 object RasterTrigger4xSim extends App {
-  Config.sim.compile(VdpTop()).doSim { dut =>
+  Config.sim.compile(VdpTop(withExtraRasterTriggers = true)).doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)
 
     // Quiescent init mirroring SpritePatternRamSim / PaletteRamSim.
