@@ -33,7 +33,7 @@ import spinal.lib.BufferCC   // Task 34 CDC — toggle-based crossing for upload
   *       4 sprites bouncing 4 px/frame + copper 3 triggers/frame.
   *       No new primitives. See `SCENARIO_17.md`.
   */
-case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false) extends Component {
+case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false, enableL2L3: Boolean = false) extends Component {
   setDefinitionName("top_tang20k")
   noIoPrefix()
 
@@ -151,7 +151,7 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
   // Pixel-domain logic (VdpTop + SDRAM fetch instance)
   // --------------------------------------------------------------------------
   val pixelArea = new ClockingArea(pixelClockDomain) {
-    val video = VdpTop(sdramCd = sdramClockDomain, enableL1Fetch = enableL1Fetch, withExtraRasterTriggers = withExtraRasterTriggers)
+    val video = VdpTop(sdramCd = sdramClockDomain, enableL1Fetch = enableL1Fetch, withExtraRasterTriggers = withExtraRasterTriggers, enableL2L3 = enableL2L3)
 
     // Frame counter drives scroll offsets for visible motion proof.
     val vsyncPrev = RegNext(video.io.vsync) init True

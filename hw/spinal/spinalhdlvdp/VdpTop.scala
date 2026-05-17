@@ -4,7 +4,7 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib.BufferCC
 
-case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false) extends Component {
+case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false, enableL2L3: Boolean = false) extends Component {
   // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM is migrated
   // into the SDRAM clock domain. When `sdramCd` is null (sim-default),
   // use the current pixel ClockDomain so single-clock sims keep working;
@@ -1167,17 +1167,31 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // those remain deferred). Compositor priority: L3 > L2 > L1 > L0 when
   // no L0 forcedPriority override is active; sprite slots still win via
   // the existing back-to-front iteration.
-  val layer2 = BasicPatternSource()
-  layer2.io.x := hCounter.resize(10)
-  layer2.io.y := fillLine
-  layer2.io.scrollX := io.layer2ScrollX
-  layer2.io.scrollY := io.layer2ScrollY
+  //
+  // Gate #2 (`enableL2L3`, default false): drop the L2/L3 BasicPatternSource
+  // instances entirely from the default build. The `layer2/3ScrollX/Y` IO
+  // ports remain declared on the bundle (zero hardware cost; they get
+  // pruned at elaboration when nothing reads them) so TopTang20kHdmi can
+  // wire them unconditionally. Downstream pixel/opaque signals are tied
+  // off below to keep the compositor chain bit-identical to pre-Task-48
+  // 2-layer behavior when the gate is off.
+  val (layer2PixelRaw, layer3PixelRaw) = if (enableL2L3) {
+    val layer2 = BasicPatternSource()
+    layer2.io.x := hCounter.resize(10)
+    layer2.io.y := fillLine
+    layer2.io.scrollX := io.layer2ScrollX
+    layer2.io.scrollY := io.layer2ScrollY
 
-  val layer3 = BasicPatternSource()
-  layer3.io.x := hCounter.resize(10)
-  layer3.io.y := fillLine
-  layer3.io.scrollX := io.layer3ScrollX
-  layer3.io.scrollY := io.layer3ScrollY
+    val layer3 = BasicPatternSource()
+    layer3.io.x := hCounter.resize(10)
+    layer3.io.y := fillLine
+    layer3.io.scrollX := io.layer3ScrollX
+    layer3.io.scrollY := io.layer3ScrollY
+
+    (layer2.io.pixelIndex, layer3.io.pixelIndex)
+  } else {
+    (B(0, 3 bits), B(0, 3 bits))
+  }
 
   // Task 19 Checkpoint B: affine coordinate generator + texture BRAM. The
   // stepper runs combinationally against the current (hCounter, fillLine) so
@@ -1315,8 +1329,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val layer1Prio  = Mux(io.layer1UseSdram, io.layer1SdramPriority, False)
 
   val layer1Pixel = Mux(effectiveL1Enable, layer1Index, B(0, 4 bits))
-  val layer2Pixel = Mux(effectiveL2Enable, layer2.io.pixelIndex.resize(4), B(0, 4 bits))
-  val layer3Pixel = Mux(effectiveL3Enable, layer3.io.pixelIndex.resize(4), B(0, 4 bits))
+  // Gate #2: when `enableL2L3=false`, `layer2PixelRaw`/`layer3PixelRaw`
+  // are constant B(0,3 bits) (see L2/L3 instantiation block above) so
+  // these Muxes degenerate to constant 0 → both opaque flags below stay
+  // False → compositor reverts to the pre-Task-48 2-layer behavior.
+  val layer2Pixel = Mux(effectiveL2Enable, layer2PixelRaw.resize(4), B(0, 4 bits))
+  val layer3Pixel = Mux(effectiveL3Enable, layer3PixelRaw.resize(4), B(0, 4 bits))
 
   // Four-layer priority-aware composition. L0 forcedPriority override wins
   // over ALL layers (preserved from the 2-layer era). Otherwise, the
