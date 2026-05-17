@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-16 (Barebones Stage 2-4 landing DONE audit PASS #10063; Mode2optimized Compile-Time Feature Strip opened; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
+**Updated:** 2026-05-17 (Task 10026 Barebones Simple Sprite DONE audit PASS #10117; Mode2optimized Compile-Time Feature Strip halted at Gate #1 #10076; libvdp doc update `abae575`; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
 **Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
 
 Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
@@ -22,16 +22,16 @@ This section tracks the single active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Mode2optimized Compile-Time Feature Strip** |
-| **Status** | **IN-PROGRESS** |
-| **Phase** | Checkpoint A authorized; implementation pending |
-| **Latest Commit** | \`b981c9b\` (mode2optimized baseline for this lane) |
+| **Task** | **No active critical-path lane** |
+| **Status** | **HALTED / AWAITING PM AUTHORIZATION** |
+| **Phase** | Mode2optimized Compile-Time Feature Strip blocked at Gate #1 (+5485 DFFs Mem→FF promotion) per BrightForge #10076. Task 10026 Barebones Simple Sprite closed audit PASS #10117 on commits \`eda89d7\`, \`6119360\`, \`40f1424\`. |
+| **Latest Commit** | \`abae575\` (libvdp doc update, CyanPeak) |
 | **Commits in lane** | — |
-| **Latest Auth Mail** | CoralReef #10070; BronzeGate lane-open packet pending mailbox sync |
-| **Artifact** | Branch \`mode2optimized\`; compile-time rich-top feature strip to fit GW2AR-LV18 |
-| **Next Deliverable** | BrightForge Checkpoint A implementation plan / first gated slice |
+| **Latest Auth Mail** | BronzeGate #10118 (doc update direction); CyanPeak #10117 (Task 10026 audit PASS) |
+| **Artifact** | Branch \`mode0t20-barebones-rebuild\` holds closed Task 10026 + doc update. Branch \`mode2optimized\` holds halted feature-strip baseline \`b981c9b\`. |
+| **Next Deliverable** | BronzeGate ruling on Mode2optimized lane recovery or next lane authorization |
 
-**Context:** Barebones Stage 2-4 landing is CLOSED audit PASS per CyanPeak #10063 on commit \`1e316a4\`. The critical path now returns to the rich-top fit blocker. CoralReef preflight #10070 recommends the compile-time feature-strip lane as the fastest path to recover the full product branch under the 20736 logic limit.
+**Context:** The barebones simple-sprite lane is complete. The rich-top fit recovery lane (Mode2optimized feature strip) hit a Mem-fragility blocker at Gate #1 and is halted pending PM direction. CyanPeak is updating \`libvdp\` documentation per BronzeGate #10118.
 
 ---
 
@@ -43,7 +43,7 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **IN-PROGRESS** — opened 2026-05-16 from CoralReef preflight #10070 |
+| **Status** | **HALTED** — Gate #1 blocked per BrightForge #10076 (+5485 DFFs Mem→FF promotion). Awaiting PM ruling on lane recovery or pivot. |
 | **Gap** | `mode2optimized` rich top still exceeds the GW2AR-LV18 logic limit and cannot produce the intended full-featured Tang build. |
 | **Platforms helped** | Tang Nano 20K rich-top default build; all downstream adapters that depend on the full product branch |
 | **Impact** | **High** — directly unblocks the main implementation lane |
