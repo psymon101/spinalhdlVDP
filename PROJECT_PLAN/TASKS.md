@@ -190,7 +190,8 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 
 | Task | Status | Closeout Mail | Archive Artifact |
 |---|---|---|---|
-| Host Platform Fidelity Requirements — authoritative vs functional host, QSPI_ERROR trust, artifact stewardship | **DONE** | #9883 / audit PASS #9891 | Commits \`8afc432\`, \`4814dc2\` |
+| Task 10026 — Barebones Simple Sprite over Background (sprite > L1 > L0) | **DONE** | #10108 / audit PASS | Commit `eda89d7`, `6119360`, `40f1424` |
+| Host Platform Fidelity Requirements — authoritative vs functional host, QSPI_ERROR trust, artifact stewardship | **DONE** | #9883 / audit PASS #9891 | Commits `8afc432`, `4814dc2` |
 | ESP8266 QSPI Transport Fix — pinMode restore + HALF_PERIOD_US | **DONE** | #9876 / audit PASS #9875 | Commit \`878e862\` |
 | Reference Localization — platform technical references | **DONE** | #9827 / audit PASS #9839 | Commit \`304bac0\` |
 | Standards Compression — facts-first doc templates | **DONE** | #9828 / audit PASS #9839 | Commits \`cc099a8\`, \`805d5eb\` |

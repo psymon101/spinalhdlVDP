@@ -109,6 +109,48 @@ Canonical API reference for `firmware/libvdp/`.
 |---|---|---|
 | `VDP_QSPI_SCK_HZ` | `2000000u` | proven transport clock |
 
+## API Classification
+
+| Category | Description | Target Build | Status |
+|---|---|---|---|
+| **Transport** | QSPI framing (`vdp_reg_write`, `vdp_read_status`) | All | Authoritative |
+| **System** | Status, vblank sync, asset upload | All | Authoritative |
+| **Generic Mode0** | Rich-top register surface (`vdp_mode0_*`) | mode2optimized | Partial Coverage |
+| **Barebones Proof**| Barebones-top registers (`vdp_barebones_*`) | barebones-rebuild| Planned |
+
+## Mode0 Helper Coverage
+
+| Area | Helpers | Coverage Notes |
+|---|---|---|
+| **Background** | `vdp_mode0_set_layer_enable`, `vdp_mode0_write_vscroll_entry` | Covers global enable and 1D scroll table. |
+| **Window / Border**| `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window`, `vdp_mode0_border_ctrl` | Comprehensive 2-window + border control. |
+| **Affine** | `vdp_mode0_set_affine` | Covers regs A-D, X, Y, and ctrl. |
+| **Bitmap** | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg` | Base addresses, stride, and BPP. |
+| **Palette** | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_data`, `vdp_mode0_palette_write_rgb888` | High-level RGB888 and low-level word access. |
+| **DMA / Blitter** | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_config`, `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_config` | Staging RAM and FSM control. |
+| **Raster** | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` | Covers all 3 bus-controlled triggers. |
+| **Copper / HDMA** | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write` | RAM and HDMA config registers. |
+| **Status** | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status` | Interrupt/sticky mask control. |
+
+## Sprite API Surface
+
+| Sub-area | Helpers / Constants | Status | Notes |
+|---|---|---|---|
+| **Status (Sticky)** | `VDP_STICKY_SPRITE_OVERFLOW` | **DONE** | Set when line-buffer limit reached. |
+| **Status (Sticky)** | `VDP_STICKY_SPRITE_0_HIT` | **DONE** | Slot-0 opaque-on-opaque hit. |
+| **Status (Sticky)** | `VDP_STICKY_SPRITE_BG_HIT` | **DONE** | Any-sprite opaque-on-opaque hit. |
+| **Control** | `vdp_mode0_clear_sprite_coll_mask` | **DONE** | Clears sticky collision bits in `0x0322`. |
+| **Programming** | **NONE** | **GAP** | **Missing:** High-level API for sprite attribute table (SDRAM) or barebones position. |
+
+## Migration & Naming Plan
+
+1. **Barebones Separation:** Registers `0x0000..0x0005` in `TopTang20kBarebones` are build-specific proof registers. They conflict with the standard Mode0 `LINESTATE` map and must not be used with `vdp_mode0_*` helpers.
+2. **Naming Convention:**
+   - Helpers targeting barebones-only registers must use the `vdp_barebones_*` prefix.
+   - Helpers targeting the stable, rich-top control plane must use the `vdp_mode0_*` prefix.
+3. **Refactoring:** No renaming of existing `vdp_mode0_*` symbols or introduction of new `vdp_barebones_*` symbols is permitted until this document is audited.
+4. **Transition Path:** When a barebones feature (e.g., procedural sprite) is adopted into the rich-top baseline, its `vdp_barebones_*` wrapper will be retired in favor of the equivalent `vdp_mode0_*` helper.
+
 ## Minimal Usage Order
 
 | Step | Call |

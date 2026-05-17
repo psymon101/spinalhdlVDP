@@ -178,3 +178,16 @@ the VDP side ever adds high-Z states.
 **Why it exists:** To provide a truly-minimal bring-up path on Tang Nano 20K that fits in low LUT counts and doesn't require the full SDRAM/QSPI infrastructure.
 
 **Fix status:** Documented. Host sketches `esp8266_barebones_scroll`, `esp32_barebones_scroll`, and `test_barebones_scroll` implement this protocol. Main `libvdp` DOES NOT support this protocol; it remains locked to the 6-byte header QSPI contract.
+
+---
+
+### GOTCHA-9: API Naming and Register Map Conflict (Mode0 vs Barebones)
+
+**Fact:** The `TopTang20kBarebones` build uses a custom register map (`0x0000..0x0005`) that conflicts with the standard `VDP_MODE0_REG_LINESTATE_BASE` (also `0x0000`).
+
+**Implication:**
+- `vdp_mode0_*` helpers must NOT be used with barebones builds.
+- Use `vdp_barebones_*` for any future helpers targeting the barebones registers.
+- The `libvdp` documentation in `kb/libvdp/README.md` is the source of truth for these classifications.
+
+**Transition:** As features migrate from barebones to rich-top, the barebones-specific wrappers will be replaced by standard Mode0 equivalents. No renaming of existing code is authorized until the documentation update is complete and reviewed.
