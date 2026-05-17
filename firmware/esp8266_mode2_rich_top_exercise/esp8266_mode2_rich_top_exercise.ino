@@ -30,6 +30,18 @@ static void log_write(const char *name, uint32_t addr, uint16_t data)
     delayMicroseconds(50);
 }
 
+static void log_burst(const char *block_name, uint32_t base_addr,
+                      const char *const *names, const uint16_t *words, uint16_t count)
+{
+    Serial.printf("BURST %-22s  base=0x%04X  count=%u\n", block_name, (unsigned)base_addr, count);
+    for (uint16_t i = 0; i < count; ++i) {
+        Serial.printf("  %-22s  addr=0x%04X  data=0x%04X\n",
+                      names[i], (unsigned)(base_addr + i), words[i]);
+    }
+    vdp_reg_write_burst(base_addr, words, count);
+    delayMicroseconds(100);
+}
+
 static void log_status(const char *name, uint8_t sel)
 {
     uint32_t val = vdp_read_status(sel);
@@ -48,55 +60,73 @@ void setup(void)
 
     /* --- Global control block --- */
     log_write("LAYER_ENABLE",    VDP_MODE0_REG_LAYER_ENABLE,      0x0007u);
-    log_write("VDP_CTRL",        VDP_MODE0_REG_VDP_CTRL,          0x0001u);
-    log_write("TILE_MODE",       VDP_MODE0_REG_VDP_TILE_MODE,     0x0001u);
-    log_write("ATTR_MODE",       VDP_MODE0_REG_VDP_ATTR_MODE,     0x0001u);
-    log_write("MODE_SELECT",     VDP_MODE0_REG_MODE_SELECT,       0x0000u);
+    {
+        const char *names[] = { "VDP_CTRL", "TILE_MODE", "ATTR_MODE", "MODE_SELECT" };
+        const uint16_t words[] = { 0x0001u, 0x0001u, 0x0001u, 0x0000u };
+        log_burst("VDP_CTRL block", VDP_MODE0_REG_VDP_CTRL, names, words, 4);
+    }
 
     /* --- Window / color-math block --- */
-    log_write("WIN1_X0",         VDP_MODE0_REG_WIN1_X0,           0x0050u);
-    log_write("WIN1_X1",         VDP_MODE0_REG_WIN1_X1,           0x01E0u);
-    log_write("WIN1_Y0",         VDP_MODE0_REG_WIN1_Y0,           0x0030u);
-    log_write("WIN1_Y1",         VDP_MODE0_REG_WIN1_Y1,           0x0168u);
-    log_write("COLOR_MATH_CTRL", VDP_MODE0_REG_COLOR_MATH_CTRL,   0x0001u);
+    {
+        const char *names[] = {
+            "WIN1_X0", "WIN1_X1", "WIN1_Y0", "WIN1_Y1", "COLOR_MATH_CTRL"
+        };
+        const uint16_t words[] = { 0x0050u, 0x01E0u, 0x0030u, 0x0168u, 0x0001u };
+        log_burst("WIN1 block", VDP_MODE0_REG_WIN1_X0, names, words, 5);
+    }
     log_write("WIN2_X0",         VDP_MODE0_REG_WIN2_X0,           0x00A0u);
     log_write("WIN2_CTRL",       VDP_MODE0_REG_WIN2_CTRL,         0x0001u);
     log_write("WIN_COMBINE",     VDP_MODE0_REG_WIN_COMBINE,       0x0000u);
     log_write("LAYER_MASK",      VDP_MODE0_REG_LAYER_MASK,        0x00FFu);
-    log_write("BORDER_X0",       VDP_MODE0_REG_BORDER_X0,         0x0010u);
-    log_write("BORDER_X1",       VDP_MODE0_REG_BORDER_X1,         0x0270u);
-    log_write("BORDER_Y0",       VDP_MODE0_REG_BORDER_Y0,         0x0010u);
-    log_write("BORDER_Y1",       VDP_MODE0_REG_BORDER_Y1,         0x01D0u);
+    {
+        const char *names[] = {
+            "BORDER_X0", "BORDER_X1", "BORDER_Y0", "BORDER_Y1"
+        };
+        const uint16_t words[] = { 0x0010u, 0x0270u, 0x0010u, 0x01D0u };
+        log_burst("BORDER block", VDP_MODE0_REG_BORDER_X0, names, words, 4);
+    }
     log_write("BORDER_CTRL",     VDP_MODE0_REG_BORDER_CTRL,       0x0001u);
 
     /* --- Affine background block --- */
-    log_write("AFFINE_A",        VDP_MODE0_REG_AFFINE_A,          0x0100u);
-    log_write("AFFINE_B",        VDP_MODE0_REG_AFFINE_B,          0x0000u);
-    log_write("AFFINE_C",        VDP_MODE0_REG_AFFINE_C,          0x0000u);
-    log_write("AFFINE_D",        VDP_MODE0_REG_AFFINE_D,          0x0100u);
-    log_write("AFFINE_X",        VDP_MODE0_REG_AFFINE_X,          0x0080u);
-    log_write("AFFINE_Y",        VDP_MODE0_REG_AFFINE_Y,          0x0060u);
-    log_write("AFFINE_CTRL",     VDP_MODE0_REG_AFFINE_CTRL,       0x0001u);
+    {
+        const char *names[] = {
+            "AFFINE_A", "AFFINE_B", "AFFINE_C", "AFFINE_D",
+            "AFFINE_X", "AFFINE_Y", "AFFINE_CTRL"
+        };
+        const uint16_t words[] = {
+            0x0100u, 0x0000u, 0x0000u, 0x0100u, 0x0080u, 0x0060u, 0x0001u
+        };
+        log_burst("AFFINE block", VDP_MODE0_REG_AFFINE_A, names, words, 7);
+    }
 
     /* --- Bitmap fetch block --- */
-    log_write("BITMAP_CTRL",     VDP_MODE0_REG_BITMAP_CTRL,       0x0001u);
-    log_write("BITMAP_BASE_LO",  VDP_MODE0_REG_BITMAP_BASE_LO,    0x0000u);
-    log_write("BITMAP_BASE_HI",  VDP_MODE0_REG_BITMAP_BASE_HI,    0x0000u);
-    log_write("ATTR_BASE_LO",    VDP_MODE0_REG_ATTR_BASE_LO,      0x0000u);
-    log_write("ATTR_BASE_HI",    VDP_MODE0_REG_ATTR_BASE_HI,      0x0000u);
-    log_write("BITMAP_STRIDE",   VDP_MODE0_REG_BITMAP_STRIDE,     0x0140u);
-    log_write("ATTR_STRIDE",     VDP_MODE0_REG_ATTR_STRIDE,       0x000Au);
+    {
+        const char *names[] = {
+            "BITMAP_CTRL", "BITMAP_BASE_LO", "BITMAP_BASE_HI",
+            "ATTR_BASE_LO", "ATTR_BASE_HI", "BITMAP_STRIDE", "ATTR_STRIDE"
+        };
+        const uint16_t words[] = {
+            0x0001u, 0x0000u, 0x0000u, 0x0000u, 0x0000u, 0x0140u, 0x000Au
+        };
+        log_burst("BITMAP block", VDP_MODE0_REG_BITMAP_CTRL, names, words, 7);
+    }
 
     /* --- Raster trigger block --- */
-    log_write("TRIGGER1_LINE",   VDP_MODE0_REG_TRIGGER1_LINE,     0x0064u);
-    log_write("TRIGGER1_PIXEL",  VDP_MODE0_REG_TRIGGER1_PIXEL,    0x00C8u);
-    log_write("TRIGGER1_CTRL",   VDP_MODE0_REG_TRIGGER1_CTRL,     0x0001u);
-    log_write("TRIGGER2_LINE",   VDP_MODE0_REG_TRIGGER2_LINE,     0x00C8u);
-    log_write("TRIGGER2_PIXEL",  VDP_MODE0_REG_TRIGGER2_PIXEL,    0x0190u);
-    log_write("TRIGGER2_CTRL",   VDP_MODE0_REG_TRIGGER2_CTRL,     0x0001u);
-    log_write("TRIGGER3_LINE",   VDP_MODE0_REG_TRIGGER3_LINE,     0x012Cu);
-    log_write("TRIGGER3_PIXEL",  VDP_MODE0_REG_TRIGGER3_PIXEL,    0x0258u);
-    log_write("TRIGGER3_CTRL",   VDP_MODE0_REG_TRIGGER3_CTRL,     0x0001u);
+    {
+        const char *names1[] = { "TRIGGER1_LINE", "TRIGGER1_PIXEL", "TRIGGER1_CTRL" };
+        const uint16_t words1[] = { 0x0064u, 0x00C8u, 0x0001u };
+        log_burst("TRIGGER1", VDP_MODE0_REG_TRIGGER1_LINE, names1, words1, 3);
+    }
+    {
+        const char *names2[] = { "TRIGGER2_LINE", "TRIGGER2_PIXEL", "TRIGGER2_CTRL" };
+        const uint16_t words2[] = { 0x00C8u, 0x0190u, 0x0001u };
+        log_burst("TRIGGER2", VDP_MODE0_REG_TRIGGER2_LINE, names2, words2, 3);
+    }
+    {
+        const char *names3[] = { "TRIGGER3_LINE", "TRIGGER3_PIXEL", "TRIGGER3_CTRL" };
+        const uint16_t words3[] = { 0x012Cu, 0x0258u, 0x0001u };
+        log_burst("TRIGGER3", VDP_MODE0_REG_TRIGGER3_LINE, names3, words3, 3);
+    }
 
     /* --- HDMA / table base --- */
     log_write("HDMA_BASE",       VDP_MODE0_REG_HDMA_BASE,         0x0380u);
@@ -113,17 +143,17 @@ void setup(void)
     log_status("Upload Status",   6);
     log_status("Live Mode",       7);
 
-    /* --- Quick sanity: read last_addr should be HDMA_BASE --- */
+    /* --- Quick sanity: read last_addr should be VSCROLL_BASE --- */
     uint32_t last_addr = vdp_read_status(2);
     uint32_t last_data = vdp_read_status(3);
     Serial.printf("\nSanity: last_addr=0x%04X last_data=0x%04X\n",
                   (unsigned)(last_addr & 0xFFFFu),
                   (unsigned)(last_data & 0xFFFFu));
 
-    if ((last_addr & 0xFFFFu) == 0x0380u) {
-        Serial.println("PASS: last_addr matches expected HDMA_BASE");
+    if ((last_addr & 0xFFFFu) == 0x0A00u) {
+        Serial.println("PASS: last_addr matches expected VSCROLL_BASE");
     } else {
-        Serial.printf("WARN: last_addr expected 0x0380, got 0x%04X\n",
+        Serial.printf("WARN: last_addr expected 0x0A00, got 0x%04X\n",
                       (unsigned)(last_addr & 0xFFFFu));
     }
 

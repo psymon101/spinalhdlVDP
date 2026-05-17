@@ -34,6 +34,7 @@ Canonical API reference for `firmware/libvdp/`.
 | Function | Signature | Purpose | Inputs | Output |
 |---|---|---|---|---|
 | `vdp_reg_write` | `void vdp_reg_write(uint32_t addr, uint16_t data)` | write one 16-bit VDP register word | 15-bit register address, 16-bit payload | none |
+| `vdp_reg_write_burst` | `void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)` | write a contiguous block of register words | start address, little-endian word array, word count | none |
 | `vdp_read_status` | `uint32_t vdp_read_status(uint8_t sel)` | read one 32-bit status selector | selector `0..6` | 32-bit little-endian response |
 
 ### `vdp_read_status` selectors
@@ -66,7 +67,7 @@ Canonical API reference for `firmware/libvdp/`.
 
 | Constant | Value | Meaning |
 |---|---|---|
-| `VDP_UPLOAD_WORDS_PER_VBLANK` | `8` | default chunk size per vblank burst |
+| `VDP_UPLOAD_WORDS_PER_VBLANK` | `16` | default chunk size per vblank burst |
 
 ## Sticky Status Helpers
 
@@ -113,7 +114,7 @@ Canonical API reference for `firmware/libvdp/`.
 
 | Category | Description | Target Build | Status |
 |---|---|---|---|
-| **Transport** | QSPI framing (`vdp_reg_write`, `vdp_read_status`) | All | Authoritative |
+| **Transport** | QSPI framing (`vdp_reg_write`, `vdp_reg_write_burst`, `vdp_read_status`) | All | Authoritative |
 | **System** | Status, vblank sync, asset upload | All | Authoritative |
 | **Generic Mode0** | Rich-top register surface (`vdp_mode0_*`) | mode2optimized | Partial Coverage |
 | **Barebones Proof**| Barebones-top registers (scroll + sprite) | barebones-rebuild| Functional — inline bit-bang sketches; not yet wrapped in `libvdp` |
@@ -124,11 +125,11 @@ Canonical API reference for `firmware/libvdp/`.
 |---|---|---|
 | **Background** | `vdp_mode0_set_layer_enable`, `vdp_mode0_write_vscroll_entry` | Covers global enable and 1D scroll table. |
 | **Window / Border**| `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window`, `vdp_mode0_border_ctrl` | Comprehensive 2-window + border control. |
-| **Affine** | `vdp_mode0_set_affine` | Covers regs A-D, X, Y, and ctrl. |
-| **Bitmap** | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg` | Base addresses, stride, and BPP. |
+| **Affine** | `vdp_mode0_set_affine` | Covers regs A-D, X, Y, and ctrl with one contiguous burst. |
+| **Bitmap** | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg` | Base addresses, stride, and BPP with one contiguous burst. |
 | **Palette** | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_data`, `vdp_mode0_palette_write_rgb888` | High-level RGB888 and low-level word access. |
-| **DMA / Blitter** | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_config`, `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_config` | Staging RAM and FSM control. |
-| **Raster** | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` | Covers all 3 bus-controlled triggers. |
+| **DMA / Blitter** | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_config`, `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_config` | Staging RAM and FSM control with batched contiguous register writes. |
+| **Raster** | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` | Covers all 3 bus-controlled triggers in one burst per trigger. |
 | **Copper / HDMA** | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write` | RAM and HDMA config registers. |
 | **Status** | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status` | Interrupt/sticky mask control. |
 
@@ -158,7 +159,7 @@ Canonical API reference for `firmware/libvdp/`.
 | 1 | `vdp_qspi_init()` |
 | 2 | `vdp_reg_write(...)` and/or `vdp_read_status(...)` |
 | 3 | `vdp_wait_vblank(...)` for paced visible updates |
-| 4 | `vdp_upload_asset(...)` for bulk SDRAM upload |
+| 4 | `vdp_reg_write_burst(...)` for contiguous register blocks, `vdp_upload_asset(...)` for bulk SDRAM upload |
 | 5 | `vdp_wait_sticky(...)` / `vdp_clear_sticky(...)` for proof/status checks |
 
 ## Proof Notes

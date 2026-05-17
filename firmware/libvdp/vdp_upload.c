@@ -2,10 +2,10 @@
  * vdp_upload.c — vblank-paced SDRAM upload.
  *
  * Strategy proven by Task 34 Checkpoint C (#7704 / commit 222c1c0):
- * each burst is ~1 word of QSPI traffic (~32 µs), so 8 bursts fit
- * comfortably inside one vblank window. Between bursts we re-sync to
- * the next vblank via vdp_wait_vblank() to avoid the active-video
- * single-byte-latch race inside QspiSdramBridge.
+ * each burst is one SDRAM_WRITE transaction paced to vblank, so we can
+ * amortize the header cost across a small contiguous chunk. Between
+ * bursts we re-sync to the next vblank via vdp_wait_vblank() to avoid
+ * the active-video single-byte-latch race inside QspiSdramBridge.
  */
 #include "vdp_upload.h"
 #include "vdp_qspi.h"
@@ -23,13 +23,10 @@ bool vdp_upload_asset(uint32_t sdram_addr, const uint16_t *words,
         uint16_t chunk = VDP_UPLOAD_WORDS_PER_VBLANK;
         if ((uint32_t)sent + chunk > num_words) chunk = num_words - sent;
 
-        /* Fire chunk bursts as 1-word SDRAM_WRITEs so each transaction
-         * fits cleanly in the remaining vblank window. Each is ~32 µs on
-         * the wire at 2 MHz SCK. */
-        for (uint16_t i = 0; i < chunk; i++) {
-            uint32_t addr = sdram_addr + (uint32_t)(sent + i) * 2u;
-            vdp_sdram_write(addr, &words[sent + i], 1);
-        }
+        /* Send each vblank slice as one contiguous SDRAM_WRITE burst.
+         * This keeps the same pacing model while amortizing the command
+         * header and CS turn-around across more payload bytes. */
+        vdp_sdram_write(sdram_addr + (uint32_t)sent * 2u, &words[sent], chunk);
 
         sent += chunk;
         if (cb) cb(sent, num_words);

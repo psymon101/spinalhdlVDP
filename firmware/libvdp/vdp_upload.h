@@ -27,8 +27,9 @@ typedef void (*vdp_upload_cb)(uint16_t words_sent, uint16_t words_total);
  * Stream `num_words` 16-bit words into SDRAM starting at `sdram_addr`,
  * pacing the transfer to land each burst inside a vblank window.
  *
- *   default burst = VDP_UPLOAD_WORDS_PER_VBLANK (8, 256 µs at 2 MHz SCK,
- *   ~18 % of the 1.4 ms vblank budget — leaves margin for status polls).
+ *   default burst = VDP_UPLOAD_WORDS_PER_VBLANK (16, still comfortably
+ *   within the 1.4 ms vblank budget while halving header overhead vs. the
+ *   previous 8-word pacing).
  *
  * @param sdram_addr target SDRAM byte address (24-bit)
  * @param words      pointer to little-endian 16-bit words (host-owned,
@@ -42,7 +43,7 @@ typedef void (*vdp_upload_cb)(uint16_t words_sent, uint16_t words_total);
 bool vdp_upload_asset(uint32_t sdram_addr, const uint16_t *words,
                       uint16_t num_words, vdp_upload_cb cb);
 
-#define VDP_UPLOAD_WORDS_PER_VBLANK 8u
+#define VDP_UPLOAD_WORDS_PER_VBLANK 16u
 
 #ifdef __cplusplus
 }

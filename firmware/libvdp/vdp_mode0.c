@@ -2,10 +2,9 @@
 
 #include "vdp_qspi.h"
 
-static void vdp_mode0_write_u32_pair(uint16_t lo_addr, uint16_t hi_addr, uint32_t value)
+static void vdp_mode0_write_block(uint16_t base_addr, const uint16_t *words, uint16_t count)
 {
-    vdp_reg_write(lo_addr, (uint16_t)(value & 0xFFFFu));
-    vdp_reg_write(hi_addr, (uint16_t)((value >> 16) & 0xFFFFu));
+    vdp_reg_write_burst(base_addr, words, count);
 }
 
 uint16_t vdp_mode0_bitmap_ctrl(bool enable, uint8_t bpp, uint8_t cell_width_log2)
@@ -104,61 +103,58 @@ bool vdp_mode0_write_vscroll_entry(uint8_t layer, uint8_t entry_index, uint16_t 
 void vdp_mode0_set_window1(const vdp_mode0_rect_t *rect, uint16_t color_math_ctrl)
 {
     if (!rect) return;
-    vdp_reg_write(VDP_MODE0_REG_WIN1_X0, rect->x0);
-    vdp_reg_write(VDP_MODE0_REG_WIN1_X1, rect->x1);
-    vdp_reg_write(VDP_MODE0_REG_WIN1_Y0, rect->y0);
-    vdp_reg_write(VDP_MODE0_REG_WIN1_Y1, rect->y1);
-    vdp_reg_write(VDP_MODE0_REG_COLOR_MATH_CTRL, color_math_ctrl);
+    const uint16_t words[5] = {
+        rect->x0, rect->x1, rect->y0, rect->y1, color_math_ctrl
+    };
+    vdp_mode0_write_block(VDP_MODE0_REG_WIN1_X0, words, 5);
 }
 
 void vdp_mode0_set_window2(const vdp_mode0_rect_t *rect, uint16_t win2_ctrl)
 {
     if (!rect) return;
-    vdp_reg_write(VDP_MODE0_REG_WIN2_X0, rect->x0);
-    vdp_reg_write(VDP_MODE0_REG_WIN2_X1, rect->x1);
-    vdp_reg_write(VDP_MODE0_REG_WIN2_Y0, rect->y0);
-    vdp_reg_write(VDP_MODE0_REG_WIN2_Y1, rect->y1);
-    vdp_reg_write(VDP_MODE0_REG_WIN2_CTRL, win2_ctrl);
+    const uint16_t words[5] = {
+        rect->x0, rect->x1, rect->y0, rect->y1, win2_ctrl
+    };
+    vdp_mode0_write_block(VDP_MODE0_REG_WIN2_X0, words, 5);
 }
 
 void vdp_mode0_set_window_combine(uint16_t combine_ctrl, uint16_t layer_mask)
 {
-    vdp_reg_write(VDP_MODE0_REG_WIN_COMBINE, combine_ctrl);
-    vdp_reg_write(VDP_MODE0_REG_LAYER_MASK, layer_mask);
+    const uint16_t words[2] = { combine_ctrl, layer_mask };
+    vdp_mode0_write_block(VDP_MODE0_REG_WIN_COMBINE, words, 2);
 }
 
 void vdp_mode0_set_border_window(const vdp_mode0_rect_t *rect, uint16_t border_ctrl)
 {
     if (!rect) return;
-    vdp_reg_write(VDP_MODE0_REG_BORDER_X0, rect->x0);
-    vdp_reg_write(VDP_MODE0_REG_BORDER_X1, rect->x1);
-    vdp_reg_write(VDP_MODE0_REG_BORDER_Y0, rect->y0);
-    vdp_reg_write(VDP_MODE0_REG_BORDER_Y1, rect->y1);
-    vdp_reg_write(VDP_MODE0_REG_BORDER_CTRL, border_ctrl);
+    const uint16_t words[5] = {
+        rect->x0, rect->x1, rect->y0, rect->y1, border_ctrl
+    };
+    vdp_mode0_write_block(VDP_MODE0_REG_BORDER_X0, words, 5);
 }
 
 void vdp_mode0_set_affine(const vdp_mode0_affine_t *cfg)
 {
     if (!cfg) return;
-    vdp_reg_write(VDP_MODE0_REG_AFFINE_A, cfg->a);
-    vdp_reg_write(VDP_MODE0_REG_AFFINE_B, cfg->b);
-    vdp_reg_write(VDP_MODE0_REG_AFFINE_C, cfg->c);
-    vdp_reg_write(VDP_MODE0_REG_AFFINE_D, cfg->d);
-    vdp_reg_write(VDP_MODE0_REG_AFFINE_X, cfg->x);
-    vdp_reg_write(VDP_MODE0_REG_AFFINE_Y, cfg->y);
-    vdp_reg_write(VDP_MODE0_REG_AFFINE_CTRL, cfg->ctrl);
+    const uint16_t words[7] = {
+        cfg->a, cfg->b, cfg->c, cfg->d, cfg->x, cfg->y, cfg->ctrl
+    };
+    vdp_mode0_write_block(VDP_MODE0_REG_AFFINE_A, words, 7);
 }
 
 void vdp_mode0_set_bitmap_cfg(const vdp_mode0_bitmap_cfg_t *cfg)
 {
     if (!cfg) return;
-    vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL, cfg->ctrl);
-    vdp_mode0_write_u32_pair(VDP_MODE0_REG_BITMAP_BASE_LO, VDP_MODE0_REG_BITMAP_BASE_HI,
-                             cfg->bitmap_base);
-    vdp_mode0_write_u32_pair(VDP_MODE0_REG_ATTR_BASE_LO, VDP_MODE0_REG_ATTR_BASE_HI,
-                             cfg->attr_base);
-    vdp_reg_write(VDP_MODE0_REG_BITMAP_STRIDE, cfg->bitmap_stride);
-    vdp_reg_write(VDP_MODE0_REG_ATTR_STRIDE, cfg->attr_stride);
+    const uint16_t words[7] = {
+        cfg->ctrl,
+        (uint16_t)(cfg->bitmap_base & 0xFFFFu),
+        (uint16_t)((cfg->bitmap_base >> 16) & 0xFFFFu),
+        (uint16_t)(cfg->attr_base & 0xFFFFu),
+        (uint16_t)((cfg->attr_base >> 16) & 0xFFFFu),
+        cfg->bitmap_stride,
+        cfg->attr_stride
+    };
+    vdp_mode0_write_block(VDP_MODE0_REG_BITMAP_CTRL, words, 7);
 }
 
 bool vdp_mode0_set_raster_trigger(uint8_t trigger_index, const vdp_mode0_trigger_t *cfg)
@@ -167,9 +163,10 @@ bool vdp_mode0_set_raster_trigger(uint8_t trigger_index, const vdp_mode0_trigger
     if (!cfg) return false;
     if (trigger_index < 1u || trigger_index > 3u) return false;
     base = (uint16_t)(VDP_MODE0_REG_TRIGGER1_LINE + ((trigger_index - 1u) * 4u));
-    vdp_reg_write(base + 0u, cfg->line);
-    vdp_reg_write(base + 1u, cfg->pixel);
-    vdp_reg_write(base + 2u, cfg->ctrl);
+    {
+        const uint16_t words[3] = { cfg->line, cfg->pixel, cfg->ctrl };
+        vdp_mode0_write_block(base, words, 3);
+    }
     return true;
 }
 
@@ -211,11 +208,15 @@ void vdp_mode0_dma_write_staging(uint8_t slot, uint16_t data)
 void vdp_mode0_dma_config(const vdp_mode0_dma_cfg_t *cfg)
 {
     if (!cfg) return;
-    vdp_reg_write(VDP_MODE0_REG_DMA_DST, cfg->dst);
-    vdp_reg_write(VDP_MODE0_REG_DMA_LEN, cfg->len_m1);
-    vdp_reg_write(VDP_MODE0_REG_DMA_FILL, cfg->fill);
-    vdp_reg_write(VDP_MODE0_REG_DMA_CTRL,
-                  vdp_mode0_dma_ctrl(true, cfg->mode, false));
+    {
+        const uint16_t words[4] = {
+            cfg->dst,
+            cfg->len_m1,
+            cfg->fill,
+            vdp_mode0_dma_ctrl(true, cfg->mode, false)
+        };
+        vdp_mode0_write_block(VDP_MODE0_REG_DMA_DST, words, 4);
+    }
 }
 
 void vdp_mode0_blit_write_src(uint16_t word_index, uint16_t data)
@@ -227,12 +228,17 @@ void vdp_mode0_blit_write_src(uint16_t word_index, uint16_t data)
 void vdp_mode0_blit_config(const vdp_mode0_blit_cfg_t *cfg)
 {
     if (!cfg) return;
-    vdp_reg_write(VDP_MODE0_REG_BLIT_WIDTH, cfg->width_m1);
-    vdp_reg_write(VDP_MODE0_REG_BLIT_HEIGHT, cfg->height_m1);
-    vdp_reg_write(VDP_MODE0_REG_BLIT_DST_ADDR, cfg->dst_addr);
-    vdp_reg_write(VDP_MODE0_REG_BLIT_DST_STRIDE, cfg->dst_stride);
-    vdp_reg_write(VDP_MODE0_REG_BLIT_SRC_ADDR, cfg->src_addr);
-    vdp_reg_write(VDP_MODE0_REG_BLIT_SRC_STRIDE, cfg->src_stride);
-    vdp_reg_write(VDP_MODE0_REG_BLIT_FILL_VAL, cfg->fill_val);
-    vdp_reg_write(VDP_MODE0_REG_BLIT_CTRL, cfg->ctrl);
+    {
+        const uint16_t words[8] = {
+            cfg->width_m1,
+            cfg->height_m1,
+            cfg->dst_addr,
+            cfg->dst_stride,
+            cfg->src_addr,
+            cfg->src_stride,
+            cfg->fill_val,
+            cfg->ctrl
+        };
+        vdp_mode0_write_block(VDP_MODE0_REG_BLIT_WIDTH, words, 8);
+    }
 }

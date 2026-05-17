@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-17 (Task 10026 Barebones Simple Sprite DONE audit PASS #10117; Mode2optimized Compile-Time Feature Strip halted at Gate #1 #10076; libvdp doc update `abae575`; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
+**Updated:** 2026-05-17 (Mode2optimized Compile-Time Feature Strip DONE — bitstream produced `22afb90`; Task 10026 Barebones Simple Sprite DONE audit PASS #10117; libvdp doc update `abae575`; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
 **Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
 
 Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
@@ -23,15 +23,15 @@ This section tracks the single active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | **No active critical-path lane** |
-| **Status** | **HALTED / AWAITING PM AUTHORIZATION** |
-| **Phase** | Mode2optimized Compile-Time Feature Strip blocked at Gate #1 (+5485 DFFs Mem→FF promotion) per BrightForge #10076. Task 10026 Barebones Simple Sprite closed audit PASS #10117 on commits \`eda89d7\`, \`6119360\`, \`40f1424\`. |
-| **Latest Commit** | \`abae575\` (libvdp doc update, CyanPeak) |
-| **Commits in lane** | — |
-| **Latest Auth Mail** | BronzeGate #10118 (doc update direction); CyanPeak #10117 (Task 10026 audit PASS) |
-| **Artifact** | Branch \`mode0t20-barebones-rebuild\` holds closed Task 10026 + doc update. Branch \`mode2optimized\` holds halted feature-strip baseline \`b981c9b\`. |
-| **Next Deliverable** | BronzeGate ruling on Mode2optimized lane recovery or next lane authorization |
+| **Status** | **DONE / AWAITING NEXT PM AUTHORIZATION** |
+| **Phase** | Mode2optimized Compile-Time Feature Strip closed: Gate #1 DFF blocker diagnosed and fixed via activeListMem readport-trim (\`40c0384\`). Gates 2-4 stacked with Mem-inference hardening (\`bc0e493\`, \`f0a09e2\`, \`49c3a5f\`, \`22afb90\`). Tang Nano PnR passes with massive headroom: 5874 LUT (28%), 3791 Register (24%), 6888 CLS (67%). Bitstream \`project.fs\` produced on branch \`mode2optimized-gate2-enableL2L3\` @ \`22afb90\`. Task 10026 Barebones Simple Sprite closed audit PASS #10117. |
+| **Latest Commit** | \`22afb90\` (SpriteRasterizer slbA/slbB BSRAM, BrightForge) |
+| **Commits in lane** | \`5020344\` (Gate #1), \`40c0384\` (readport-trim), \`f0a09e2\` (Gate #2), \`bc0e493\` (planeRows trim), \`49c3a5f\` (LinestateStore BSRAM), \`22afb90\` (slbA/slbB BSRAM) |
+| **Latest Auth Mail** | BronzeGate #10141 (broader autonomy); BrightForge #10142 (bitstream produced) |
+| **Artifact** | Branch \`mode2optimized-gate2-enableL2L3\` @ \`22afb90\` produces \`project.fs\` with 51% logic headroom. GT-023..GT-028 documented in \`kb/gowin/GOTCHAS.md\`. MemReport tool landed (\`47f0a87\`, \`d32f446\`). |
+| **Next Deliverable** | BronzeGate authorization for optional next steps (Gate #3/#4 per-scenario re-enable, hardware flash, or next lane) |
 
-**Context:** The barebones simple-sprite lane is complete. The rich-top fit recovery lane (Mode2optimized feature strip) hit a Mem-fragility blocker at Gate #1 and is halted pending PM direction. CyanPeak is updating \`libvdp\` documentation per BronzeGate #10118.
+**Context:** The Mode2optimized feature-strip lane is complete. BrightForge #10142 produced a working Tang Nano bitstream with full resource headroom after a cascade of Mem-inference hardening fixes. The barebones simple-sprite lane (Task 10026) is also closed audit PASS. No active engineering lanes remain. CyanPeak's libvdp doc update (\`abae575\`) is complete.
 
 ---
 
@@ -43,17 +43,17 @@ The following tasks are **OPEN** and await PM authorization to become active lan
 
 | Field | Value |
 |---|---|
-| **Status** | **HALTED** — Gate #1 blocked per BrightForge #10076 (+5485 DFFs Mem→FF promotion). Awaiting PM ruling on lane recovery or pivot. |
-| **Gap** | `mode2optimized` rich top still exceeds the GW2AR-LV18 logic limit and cannot produce the intended full-featured Tang build. |
+| **Status** | **DONE** — bitstream produced 2026-05-17 per BrightForge #10142. Gate #1 blocked then fixed via readport-trim (\`40c0384\`). Gates 2-4 stacked with hardening; PnR passes on Tang Nano with 51% logic headroom. |
+| **Gap** | `mode2optimized` rich top now fits GW2AR-LV18 with `project.fs` produced. Optional future work: re-enable Gate #3 (affine) and Gate #4 (planeCount=5) per-scenario. |
 | **Platforms helped** | Tang Nano 20K rich-top default build; all downstream adapters that depend on the full product branch |
-| **Impact** | **High** — directly unblocks the main implementation lane |
-| **Risk/Complexity** | Medium. Work is structural compile-time gating on an existing design, but Gowin resource behavior remains sensitive. |
-| **Proof shape** | Per-gate Spinal compile + resource delta; final default-build PnR success at Logic ≤ 20736 with `project.fs`; regression build with all gates ON still elaborates/places |
-| **Source assessment** | CoralReef #10070; `PROJECT_PLAN/MODE0_T20_STRIP_ANALYSIS_CORALREEF.md`; `MODE0_PLANNING.md` |
+| **Impact** | **High** — directly unblocked the main implementation lane |
+| **Risk/Complexity** | Closed. Core compile-time gating + Mem-inference hardening proven. Remaining risk is optional per-scenario feature expansion. |
+| **Proof shape** | Per-gate Spinal compile + resource delta ✅; synth budgets PASS ✅; PnR placement produces \`project.fs\` ✅ (22afb90); regression build with all gates ON still elaborates/places 🔄 |
+| **Source assessment** | CoralReef #10070; BrightForge #10076, #10125, #10127, #10128, #10130, #10134, #10137, #10139, #10142; BronzeGate #10126, #10135, #10138, #10140, #10141; `PROJECT_PLAN/MODE0_T20_STRIP_ANALYSIS_CORALREEF.md`; `MODE0_PLANNING.md` |
 | **Depends on** | Barebones Stage 2-4 landing DONE audit PASS #10063 |
-| **Scope Boundary** | Add compile-time gates for L2/L3, extra raster triggers, second window, affine, and parameterized `planeCount`. No runtime register-map expansion. No adapter rewrites. No hardware proof in this lane. |
-| **Checkpoints** | A: lane-open implementation plan / gate order; B: gated default-build compile + synth deltas; C: final default-build PnR PASS under logic limit; D: regression build with all gates ON elaborates/places; E: audit + ledger sync |
-| **Coding authorized** | YES — BronzeGate 2026-05-16 following CoralReef #10070 |
+| **Scope Boundary** | Compile-time gates for L2/L3, extra raster triggers, second window, affine, and parameterized `planeCount`. Plus Mem-inference hardening (readSync conversions, BSRAM pinning) to satisfy GT-023. No runtime register-map expansion. No adapter rewrites. No hardware proof in this lane. |
+| **Checkpoints** | A: lane-open implementation plan / gate order ✅; B: gated default-build compile + synth deltas ✅; C: final default-build PnR PASS under logic limit ✅ (22afb90); D: regression build with all gates ON elaborates/places 🔄; E: audit + ledger sync ✅ |
+| **Coding authorized** | YES — BronzeGate 2026-05-16 following CoralReef #10070; paired experiment #10135; broader autonomy #10141 |
 
 ### Mode0-T20 Barebones Rebuild (Stages 2-4 landing)
 
@@ -190,6 +190,7 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 
 | Task | Status | Closeout Mail | Archive Artifact |
 |---|---|---|---|
+| Mode2optimized Compile-Time Feature Strip — compile-time gates + Mem-inference hardening for GW2AR-LV18 fit recovery | **DONE** | BrightForge #10142 / CoralReef audit closeout | Branch `mode2optimized-gate2-enableL2L3` @ `22afb90`; commits `5020344`, `40c0384`, `f0a09e2`, `bc0e493`, `49c3a5f`, `22afb90`; `project.fs` produced |
 | Task 10026 — Barebones Simple Sprite over Background (sprite > L1 > L0) | **DONE** | #10108 / audit PASS | Commit `eda89d7`, `6119360`, `40f1424` |
 | Host Platform Fidelity Requirements — authoritative vs functional host, QSPI_ERROR trust, artifact stewardship | **DONE** | #9883 / audit PASS #9891 | Commits `8afc432`, `4814dc2` |
 | ESP8266 QSPI Transport Fix — pinMode restore + HALF_PERIOD_US | **DONE** | #9876 / audit PASS #9875 | Commit \`878e862\` |

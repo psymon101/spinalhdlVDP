@@ -36,6 +36,16 @@ void vdp_qspi_init(void);
 void vdp_reg_write(uint32_t addr, uint16_t data);
 
 /**
+ * Issue a REG_WRITE burst (CMD=0x01) writing `num_words` consecutive
+ * 16-bit words starting at the specified register address.
+ *
+ * The FPGA decoder auto-increments the register address once per word.
+ * Use this for contiguous register blocks to amortize header and CS
+ * overhead. The payload is little-endian 16-bit words.
+ */
+void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words);
+
+/**
  * Issue a READ_STATUS (CMD=0x04) transaction and return the 32-bit
  * little-endian response word for the requested selector.
  * @param sel   0 = magic 0x51560002, 1 = rx_cmd_cnt, 2 = last_addr,

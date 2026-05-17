@@ -320,17 +320,33 @@ uint32_t vdp_read_status(uint8_t sel)
 
 void vdp_reg_write(uint32_t addr, uint16_t data)
 {
-    uint8_t frame[8];
+    vdp_reg_write_burst(addr, &data, 1);
+}
+
+void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)
+{
+    uint8_t frame[512];
+    size_t n;
+
+    if (num_words == 0 || num_words > 253u || words == NULL) {
+        s_last_error = 2;
+        return;
+    }
+
+    n = 6 + 2 * (size_t)num_words;
     frame[0] = 0x01;
     frame[1] = (uint8_t)( addr        & 0xFF);
     frame[2] = (uint8_t)((addr >>  8) & 0xFF);
     frame[3] = (uint8_t)((addr >> 16) & 0xFF);
-    frame[4] = 0x01;                     /* LEN = 1 word */
-    frame[5] = 0x00;
-    frame[6] = (uint8_t)( data       & 0xFF);
-    frame[7] = (uint8_t)((data >> 8) & 0xFF);
+    frame[4] = (uint8_t)( num_words       & 0xFF);
+    frame[5] = (uint8_t)((num_words >> 8) & 0xFF);
+    for (size_t i = 0; i < num_words; ++i) {
+        frame[6 + 2*i + 0] = (uint8_t)( words[i]       & 0xFF);
+        frame[6 + 2*i + 1] = (uint8_t)((words[i] >> 8) & 0xFF);
+    }
+    while (n & 3u) { frame[n++] = 0x00; }
     vdp_cs_assert();
-    vdp_tx_bytes(frame, sizeof frame);
+    vdp_tx_bytes(frame, n);
     vdp_cs_deassert();
 #if defined(PICO) || defined(ARDUINO_ARCH_RP2040)
     sleep_us(10);
