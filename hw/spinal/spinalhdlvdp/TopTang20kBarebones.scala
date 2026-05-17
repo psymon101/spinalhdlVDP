@@ -142,12 +142,21 @@ case class TopTang20kBarebones() extends Component {
     val scrollYReg  = Reg(UInt(10 bits)) init 0
     val scrollX1Reg = Reg(UInt(10 bits)) init 0
     val scrollY1Reg = Reg(UInt(10 bits)) init 0
+    // PM #10080 simple-sprite slice: two additive position regs, no enable
+    // bit, no Mem. Sprite is a procedural 16x16 white square; renders when
+    // (hCounter, vCounter) is inside [spriteX, spriteX+16) x [spriteY, spriteY+16)
+    // AND inside the active 640x480 region. Composition priority is
+    // sprite > L1 > L0. See compositor below.
+    val spriteXReg  = Reg(UInt(10 bits)) init 0
+    val spriteYReg  = Reg(UInt(10 bits)) init 0
     when(qspi.io.regWr) {
       switch(qspi.io.regAddr) {
         is(U(0x0000, 16 bits)) { scrollXReg  := qspi.io.regData(9 downto 0).asUInt }
         is(U(0x0001, 16 bits)) { scrollYReg  := qspi.io.regData(9 downto 0).asUInt }
         is(U(0x0002, 16 bits)) { scrollX1Reg := qspi.io.regData(9 downto 0).asUInt }
         is(U(0x0003, 16 bits)) { scrollY1Reg := qspi.io.regData(9 downto 0).asUInt }
+        is(U(0x0004, 16 bits)) { spriteXReg  := qspi.io.regData(9 downto 0).asUInt }
+        is(U(0x0005, 16 bits)) { spriteYReg  := qspi.io.regData(9 downto 0).asUInt }
         default {} // unknown address — silently ignored
       }
     }
@@ -206,7 +215,16 @@ case class TopTang20kBarebones() extends Component {
     // tweaks, no per-pixel alpha. Matches the spirit of MODE0_PLANNING
     // §6 "highest-index opaque layer wins" reduced to a 2-layer case.
     val l1Opaque = layer1Idx =/= U(0, 3 bits)
-    val rgb = Mux(l1Opaque, layer1Rgb, layer0Rgb)
+    val bgRgb = Mux(l1Opaque, layer1Rgb, layer0Rgb)
+    // PM #10080 sprite hit: procedural 16x16 box, sprite > L1 > L0 priority.
+    // Comparisons gate on `de` to ensure the box never asserts outside the
+    // active 640x480 region (preserves blank during front/back porch).
+    val sprHit = (hCounter >= spriteXReg) &&
+                 (hCounter < (spriteXReg + U(16, 11 bits)).resize(hCounter.getWidth)) &&
+                 (vCounter >= spriteYReg) &&
+                 (vCounter < (spriteYReg + U(16, 11 bits)).resize(vCounter.getWidth)) &&
+                 de
+    val rgb = Mux(sprHit, B"24'hFFFFFF", bgRgb)
     val redRaw   = Mux(de, rgb(23 downto 16), B(0, 8 bits))
     val greenRaw = Mux(de, rgb(15 downto  8), B(0, 8 bits))
     val blueRaw  = Mux(de, rgb( 7 downto  0), B(0, 8 bits))

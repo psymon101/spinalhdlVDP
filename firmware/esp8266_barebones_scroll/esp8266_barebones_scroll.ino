@@ -23,6 +23,8 @@ const uint16_t REG_SCROLL_X0 = 0x0000;
 const uint16_t REG_SCROLL_Y0 = 0x0001;
 const uint16_t REG_SCROLL_X1 = 0x0002;
 const uint16_t REG_SCROLL_Y1 = 0x0003;
+const uint16_t REG_SPRITE_X  = 0x0004;
+const uint16_t REG_SPRITE_Y  = 0x0005;
 
 void setup() {
   Serial.begin(115200);
@@ -66,6 +68,7 @@ void vdp_reg_write(uint16_t addr, uint16_t data) {
 
 float phase0 = 0.0f;
 float phase1 = 0.0f;
+float phaseS = 0.0f;
 
 void loop() {
   digitalWrite(PIN_LED, LOW);
@@ -82,16 +85,24 @@ void loop() {
   vdp_reg_write(REG_SCROLL_X1, x1);
   vdp_reg_write(REG_SCROLL_Y1, y1);
 
+  // Sprite: figure-8 path
+  uint16_t xs = (uint16_t)(320.0f + 200.0f * sinf(phaseS));
+  uint16_t ys = (uint16_t)(240.0f + 100.0f * sinf(2.0f * phaseS));
+  vdp_reg_write(REG_SPRITE_X, xs);
+  vdp_reg_write(REG_SPRITE_Y, ys);
+
   digitalWrite(PIN_LED, HIGH);
 
   phase0 += 0.05f;
   phase1 += 0.08f;
+  phaseS += 0.03f;
   
   if (phase0 >= 6.2831853f) phase0 -= 6.2831853f;
   if (phase1 >= 6.2831853f) phase1 -= 6.2831853f;
+  if (phaseS >= 6.2831853f) phaseS -= 6.2831853f;
 
   if (((int)(phase0 * 10.0f)) % 20 == 0) {
-    Serial.printf("Dual Scroll: L0=(%d,%d) L1=(%d,%d)\n", x0, y0, x1, y1);
+    Serial.printf("Dual Scroll: L0=(%d,%d) L1=(%d,%d) Spr=(%d,%d)\n", x0, y0, x1, y1, xs, ys);
   }
 
   delay(16); 

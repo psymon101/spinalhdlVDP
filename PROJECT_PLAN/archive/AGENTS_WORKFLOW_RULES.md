@@ -8,6 +8,17 @@ This repo runs under a compact, event-driven coordination policy. Preserve
 momentum, but do not spend tokens reconstructing state that is already
 available in mail and the live-lane ledger.
 
+### Date discipline
+
+- Use the current session date in absolute form (`YYYY-MM-DD`) in task docs,
+  replies, and status packets.
+- Avoid relative dates such as "today" or "yesterday" when the exact date can
+  be written.
+- If a date is needed and the document omits it, fill in the session date
+  explicitly rather than leaving it implicit.
+- Keep lane mail and repo docs synchronized to the same session date when the
+  state change happened in that session.
+
 Fast-flow objective:
 
 - optimize for shortest trustworthy cycle time, not maximum packet volume

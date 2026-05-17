@@ -45,12 +45,16 @@ object TopTang20kBarebonesSim extends App {
     val scrollYReg  = Reg(UInt(10 bits)) init 0
     val scrollX1Reg = Reg(UInt(10 bits)) init 0
     val scrollY1Reg = Reg(UInt(10 bits)) init 0
+    val spriteXReg  = Reg(UInt(10 bits)) init 0
+    val spriteYReg  = Reg(UInt(10 bits)) init 0
     when(qspi.io.regWr) {
       switch(qspi.io.regAddr) {
         is(U(0x0000, 16 bits)) { scrollXReg  := qspi.io.regData(9 downto 0).asUInt }
         is(U(0x0001, 16 bits)) { scrollYReg  := qspi.io.regData(9 downto 0).asUInt }
         is(U(0x0002, 16 bits)) { scrollX1Reg := qspi.io.regData(9 downto 0).asUInt }
         is(U(0x0003, 16 bits)) { scrollY1Reg := qspi.io.regData(9 downto 0).asUInt }
+        is(U(0x0004, 16 bits)) { spriteXReg  := qspi.io.regData(9 downto 0).asUInt }
+        is(U(0x0005, 16 bits)) { spriteYReg  := qspi.io.regData(9 downto 0).asUInt }
       }
     }
     
@@ -99,8 +103,14 @@ object TopTang20kBarebonesSim extends App {
     val layer1Rgb = paletteL1Rom(layer1Idx)
 
     val l1Opaque = layer1Idx =/= U(0, 3 bits)
-    val rgb = Mux(l1Opaque, layer1Rgb, layer0Rgb)
-    
+    val bgRgb = Mux(l1Opaque, layer1Rgb, layer0Rgb)
+    val sprHit = (hCounter >= spriteXReg) &&
+                 (hCounter < (spriteXReg + U(16, 11 bits)).resize(hCounter.getWidth)) &&
+                 (vCounter >= spriteYReg) &&
+                 (vCounter < (spriteYReg + U(16, 11 bits)).resize(vCounter.getWidth)) &&
+                 de
+    val rgb = Mux(sprHit, B"24'hFFFFFF", bgRgb)
+
     io.hsync := !(hCounter >= hSyncStart && hCounter < hSyncEnd)
     io.vsync := !(vCounter >= vSyncStart && vCounter < vSyncEnd)
     io.de    := de
@@ -162,6 +172,11 @@ object TopTang20kBarebonesSim extends App {
       }
     }
 
+    // Park the sprite off-screen so the existing scroll tests sample
+    // background colour unobscured by the white sprite (sprite defaults
+    // to (0,0) which would otherwise mask the (0,0) cyan check below).
+    vdpWrite(0x0004, 1000); vdpWrite(0x0005, 1000)
+
     // Step 1: Initial state check
     waitForPixel(0, 0)
     val p0 = getPixel()
@@ -191,7 +206,46 @@ object TopTang20kBarebonesSim extends App {
     println(s"Pixel at (0,0) with L1 scroll(4,0): $p2")
     assert(p2 == 2, s"Expected RED at (0,0) (L0 showing through L1 hole), got $p2")
 
-    println("TopTang20kBarebonesSim: ALL CASES PASS. QSPI write verified to move L0 and L1 independently.")
+    // PM #10080 sprite slice tests --------------------------------------
+    // Sample current (r, g, b) directly without index translation.
+    def sampleRgb(): (Int, Int, Int) = {
+      (dut.io.red.toInt, dut.io.green.toInt, dut.io.blue.toInt)
+    }
+
+    // Wait until (hCounter, vCounter) reaches (tx, ty), then sample RGB.
+    def rgbAt(tx: Int, ty: Int): (Int, Int, Int) = {
+      waitForPixel(tx, ty)
+      sampleRgb()
+    }
+
+    // The sprite render is registered downstream by one pixel-clock in the
+    // top, but the harness drives io.red/green/blue combinationally from rgb,
+    // so the sample lands on the exact (h,v) coordinate.
+    def isWhite(rgb: (Int, Int, Int)): Boolean = rgb == (255, 255, 255)
+
+    // Test 1: spriteAtTest — place sprite at (200, 100), confirm centre
+    // pixel is white and a pixel outside the bounding box is NOT white.
+    println("\n[sprite] Test 1: spriteAtTest")
+    vdpWrite(0x0000, 0); vdpWrite(0x0001, 0)   // park both scrolls
+    vdpWrite(0x0002, 0); vdpWrite(0x0003, 0)
+    vdpWrite(0x0004, 200); vdpWrite(0x0005, 100)
+    val sprIn  = rgbAt(208, 108)                 // inside 16x16 box
+    val sprOut = rgbAt(180, 108)                 // 20 px left of box -> background
+    println(s"[sprite] inside (208,108) = $sprIn  outside (180,108) = $sprOut")
+    assert(isWhite(sprIn),   s"Expected WHITE at sprite-inside (208,108), got $sprIn")
+    assert(!isWhite(sprOut), s"Expected non-WHITE at sprite-outside (180,108), got $sprOut")
+
+    // Test 2: spritePositionUpdateTest — move sprite to (300, 240) and
+    // confirm new position is white AND old position has reverted to bg.
+    println("\n[sprite] Test 2: spritePositionUpdateTest")
+    vdpWrite(0x0004, 300); vdpWrite(0x0005, 240)
+    val oldPos = rgbAt(208, 108)                 // previous sprite location
+    val newPos = rgbAt(308, 248)                 // new sprite location
+    println(s"[sprite] old (208,108) = $oldPos  new (308,248) = $newPos")
+    assert(!isWhite(oldPos), s"Expected non-WHITE at old sprite pos (208,108), got $oldPos")
+    assert(isWhite(newPos),  s"Expected WHITE at new sprite pos (308,248), got $newPos")
+
+    println("\nTopTang20kBarebonesSim: ALL CASES PASS (scroll + sprite slice).")
 
   }
 }
