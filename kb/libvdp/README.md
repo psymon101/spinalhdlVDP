@@ -116,7 +116,7 @@ Canonical API reference for `firmware/libvdp/`.
 | **Transport** | QSPI framing (`vdp_reg_write`, `vdp_read_status`) | All | Authoritative |
 | **System** | Status, vblank sync, asset upload | All | Authoritative |
 | **Generic Mode0** | Rich-top register surface (`vdp_mode0_*`) | mode2optimized | Partial Coverage |
-| **Barebones Proof**| Barebones-top registers (`vdp_barebones_*`) | barebones-rebuild| Planned |
+| **Barebones Proof**| Barebones-top registers (scroll + sprite) | barebones-rebuild| Functional — inline bit-bang sketches; not yet wrapped in `libvdp` |
 
 ## Mode0 Helper Coverage
 

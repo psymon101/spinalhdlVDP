@@ -21,6 +21,9 @@ platforms over a full 6-wire quad QSPI transport.
   - `vdp_platform.h` — platform-specific pin maps
   - canonical API reference: [`kb/libvdp/README.md`](../kb/libvdp/README.md)
 - `esp32_*/`, `esp8266_*/` — per-scenario Arduino sketches (thin wrappers)
+- `esp8266_barebones_scroll/`, `esp32_barebones_scroll/` — barebones stage-4 scroll proofs (inline bit-bang, 40-bit protocol)
+- `esp8266_barebones_sprite/`, `esp32_barebones_sprite/` — barebones Checkpoint C sprite-over-background proofs
+- `esp8266_mode2_rich_top_exercise/` — rich-top register-surface exercise via `libvdp`
 - `test_qspi_smoke/` — Pico-native smoke test exercising the full libvdp surface.
 - `test_mode0_bad_apple/` — Pico demo uploading a monochrome Bad Apple frame.
 
