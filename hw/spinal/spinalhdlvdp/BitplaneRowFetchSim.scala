@@ -36,10 +36,14 @@ object BitplaneRowFetchSim extends App {
     // Plane bases at 0x10000, 0x11000, 0x12000, 0x13000, 0x14000.
     val planeBases = (0 until planeCount).map(p => 0x10000 + p * 0x1000)
     for (p <- 0 until planeCount) dut.io.planeBaseAddr(p) #= planeBases(p)
-    // CyanPeak HOLD #9325 refactor introduces a new `slotIdx` input on
-    // BitplaneRowFetch (used by VdpTop's pixel-pipeline consumer). This
-    // sim doesn't exercise the slot read port — it probes the legacy
-    // wide `planeRows` output — so just hold slotIdx at 0.
+    // CyanPeak HOLD #9325 refactor introduces a `slotIdx` input on
+    // BitplaneRowFetch (used by VdpTop's pixel-pipeline consumer). The
+    // legacy `planeRows` wide-row output was removed (see commit that
+    // drops it; companion to SpriteEvaluator readport-trim 40c0384).
+    // This sim now steps `slotIdx` and probes `slotWord(p)` to verify
+    // each plane's per-slot 32-bit word — same coverage, one readAsync
+    // port per plane instead of `readsPerPlane`. Start at 0 before the
+    // SDRAM fill so the slot-read port is quiescent.
     dut.io.slotIdx #= 0
 
     // ---- Synthetic SDRAM model ----
@@ -99,19 +103,22 @@ object BitplaneRowFetchSim extends App {
     assert(!dut.io.rowReady.toBoolean, "rowReady must drop after 1 cycle")
     assert(!dut.io.busy.toBoolean,     "busy must return to False after Done")
 
-    // Verify each plane row's assembled bits.
-    for (p <- 0 until planeCount) {
-      val rowBig = dut.io.planeRows(p).toBigInt
-      for (r <- 0 until readsPerPlane) {
+    // Verify each plane's per-slot 32-bit word via the slot read port.
+    // Step slotIdx through 0..readsPerPlane-1; planeMems is readAsync,
+    // so each slotWord(p) reflects the new slotIdx after one settle
+    // cycle. Same coverage as the prior wide-row probe; one readAsync
+    // port per plane instead of `readsPerPlane`.
+    for (r <- 0 until readsPerPlane) {
+      dut.io.slotIdx #= r
+      dut.clockDomain.waitSampling()
+      for (p <- 0 until planeCount) {
         val expectedWord = memAt(BigInt(planeBases(p)) + r * 4)
-        val msb = planePixels - 1 - r * 32
-        val lsb = planePixels - (r + 1) * 32
-        val mask = (BigInt(1) << 32) - 1
-        val gotWord = (rowBig >> lsb) & mask
+        val gotWord      = dut.io.slotWord(p).toBigInt
         assert(gotWord == expectedWord,
-          f"plane $p slot $r (bits $msb..$lsb): expected 0x$expectedWord%X got 0x$gotWord%X")
+          f"plane $p slot $r: expected 0x$expectedWord%X got 0x$gotWord%X")
       }
     }
+    dut.io.slotIdx #= 0
     println(s"[sim] all $planeCount × $readsPerPlane = ${planeCount * readsPerPlane} dout32 slots correct")
 
     // Verify the FSM rests in Idle (no spurious re-fire).

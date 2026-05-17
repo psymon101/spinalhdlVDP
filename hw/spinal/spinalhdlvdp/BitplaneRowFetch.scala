@@ -51,12 +51,20 @@ case class BitplaneRowFetch(
     val sdramDataReady = in  Bool()
     val sdramDout32    = in  Bits(32 bits)
 
-    // Slot read port (pixel domain).
+    // Slot read port (pixel domain). The compositor drives `slotIdx`
+    // (0..readsPerPlane-1) and consumes the per-plane 32-bit word at
+    // that slot via `slotWord(p)` — a single `readAsync` per plane on
+    // `planeMems(p)`. Keeping this as the sole readAsync port on each
+    // planeMems is a synthesis-fragility invariant: per
+    // PROJECT_PLAN/MODE0_T20_STRIP_ANALYSIS_CORALREEF.md and the
+    // SpriteEvaluator/activeListMem fix (commit 40c0384), multiple
+    // readAsync ports on a small Gowin-inferred Mem can flip the
+    // inference from SSRAM/LUTRAM to distributed DFFs (Mem→FF
+    // promotion). For BitplaneRowFetchSim the wide-row probe at
+    // line 104 was migrated to step `slotIdx` and read `slotWord(p)`.
     val slotIdx        = in  UInt(readIdxBits bits)
     val slotWord       = out Vec(Bits(32 bits), planeCount)
 
-    // Legacy wide-row output (preserved for `BitplaneRowFetchSim`).
-    val planeRows      = out Vec(Bits(planePixels bits), planeCount)
     val rowReady       = out Bool()
     val busy           = out Bool()
   }
@@ -68,13 +76,6 @@ case class BitplaneRowFetch(
   val planeMems = Seq.fill(planeCount)(Mem(Bits(32 bits), readsPerPlane))
   for (p <- 0 until planeCount) {
     io.slotWord(p) := planeMems(p).readAsync(io.slotIdx)
-  }
-  for (p <- 0 until planeCount) {
-    for (r <- 0 until readsPerPlane) {
-      val msb = planePixels - 1 - r * 32
-      val lsb = planePixels - (r + 1) * 32
-      io.planeRows(p)(msb downto lsb) := planeMems(p).readAsync(U(r, readIdxBits bits))
-    }
   }
 
   // ---- Pixel→sdram start handoff (toggle + edge in sdram domain) ----
