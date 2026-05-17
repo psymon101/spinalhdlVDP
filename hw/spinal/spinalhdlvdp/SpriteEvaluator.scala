@@ -90,26 +90,15 @@ case class SpriteEvaluator(
     val evalLine  = in UInt(10 bits)
     val evalStart = in Bool()
 
-    // Pass 2 outputs (line-stable across next line).
-    val activeValid        = out Vec(Bool(), visiblePerLine)
-    val activeX            = out Vec(UInt(10 bits), visiblePerLine)
-    val activeY            = out Vec(UInt(10 bits), visiblePerLine)
-    val activeRow          = out Vec(UInt(6 bits), visiblePerLine)   // 6 bits to span 64×64 sizeSel=11
-    val activePatternIdx   = out Vec(UInt(patternSelBits bits), visiblePerLine)
-    // Task 37 affine outputs.
-    val activeAffineEnable = out Vec(Bool(), visiblePerLine)
-    val activeMatrixA      = out Vec(Bits(16 bits), visiblePerLine)
-    val activeMatrixB      = out Vec(Bits(16 bits), visiblePerLine)
-    val activeMatrixC      = out Vec(Bits(16 bits), visiblePerLine)
-    val activeMatrixD      = out Vec(Bits(16 bits), visiblePerLine)
-    val activeTransX       = out Vec(Bits(16 bits), visiblePerLine)
-    val activeTransY       = out Vec(Bits(16 bits), visiblePerLine)
-
-    // Sprite Envelope Hardening (CyanPeak #8577) + Phase 2 (#8614) outputs.
-    val activeFlipH        = out Vec(Bool(), visiblePerLine)
-    val activeFlipV        = out Vec(Bool(), visiblePerLine)
-    // Task 55 (#9440) — Genesis sprite-mask bit propagated to compositor.
-    val activeMask         = out Vec(Bool(), visiblePerLine)
+    // Pass 2 outputs (line-stable across next line). All per-slot fields
+    // are now consumed via the packed-word read port (`activeReadAddr` /
+    // `activeReadData` below); the legacy per-slot `Vec` outputs have
+    // been removed to drop activeListMem from 9 readAsync ports → 1 and
+    // avoid the Gowin Mem→FF promotion documented in
+    // PROJECT_PLAN/MODE0_T20_STRIP_ANALYSIS_CORALREEF.md ("RP0001
+    // Mem→FF promotion: CRITICAL"). The mask priority encoder uses a
+    // small shadow Reg vector written alongside `activeListMem.write`.
+    //
     // Task 55 — smallest slot index with `mask=1` in the current active
     // list, defaulting to `visiblePerLine` (= "no masking sprite this
     // line"). The compositor uses this to suppress all slots with index
@@ -118,32 +107,19 @@ case class SpriteEvaluator(
     // that scanline"; lower display priority == higher slot index in
     // the existing rasterizer slot order).
     val firstMaskSlot      = out UInt(log2Up(visiblePerLine + 1) bits)
-    val activePaletteBank  = out Vec(UInt(3 bits), visiblePerLine)
-    val activePriority     = out Vec(UInt(2 bits), visiblePerLine)   // P2-3b: 1→2 bits
-    val activeSizeSel      = out Vec(UInt(2 bits), visiblePerLine)
-    val activeBppSel       = out Vec(UInt(2 bits), visiblePerLine)   // P2-2: new field
 
     val overflowFlag = out Bool()
 
     // Task 2c — narrow active-list RAM read port for the SpriteRasterizer.
-    // Pass 1 packs each on-line descriptor into a single 128-bit slot word
-    // and writes it sequentially into `activeListMem` at indices 0..count-1.
-    // The rasterizer drives `activeReadAddr` and consumes `activeReadData`
-    // (combinational), bounded by `activeCount`. Removes ~4.3k FFs at V=32
-    // by collapsing the per-slot active*Reg Vecs into one shared Mem.
+    // Pass 1 packs each on-line descriptor into a single SlotPackedW-bit
+    // word and writes it sequentially into `activeListMem` at indices
+    // 0..count-1. The rasterizer drives `activeReadAddr` and consumes
+    // `activeReadData` (combinational), bounded by `activeCount`. This
+    // is the sole readAsync port on activeListMem; keeping it that way
+    // is a synthesis-fragility invariant (see file header note above).
     val activeReadAddr = in  UInt(log2Up(visiblePerLine) bits)
     val activeReadData = out Bits(SpriteEvaluator.SlotPackedW bits)
     val activeCountOut = out UInt(log2Up(visiblePerLine + 1) bits)
-
-    // Task 54 (Checkpoint A #9619, audit PASS #9620): per-active-slot
-    // descriptor index. Packed into the slot word at write time so the
-    // rasterizer can tag every pixel write with the descriptor that
-    // produced it; downstream sprite-sprite collision detector reads
-    // both the live write descIdx and the buffer's existing descIdx
-    // and OR-sets a per-descriptor mask. Width fixed at
-    // `DescIdxWidth=6` (covers any descCount ≤ 64); per-slot output
-    // is the low `descIdxBits` of the packed field.
-    val activeDescIdx      = out Vec(UInt(descIdxBits bits), visiblePerLine)
   }
 
   // ---------------------------------------------------------------------
@@ -626,35 +602,21 @@ case class SpriteEvaluator(
   io.activeReadData := activeListMem.readAsync(io.activeReadAddr)
   io.activeCountOut := activeCount
 
-  // Legacy IO Vec outputs — combinational per-slot reads of activeListMem.
-  // Preserves backward-compat for SpriteEvaluatorSim's per-slot probes
-  // (dut.io.activeX(s), etc.) without the FF-density cost of the prior
-  // active*Reg Vec storage.
-  for (s <- 0 until visiblePerLine) {
-    val w = activeListMem.readAsync(U(s, log2Up(visiblePerLine) bits))
-    io.activeValid(s)        := U(s, log2Up(visiblePerLine + 1) bits) < activeCount
-    io.activeX(s)            := SpriteEvaluator.slotX(w)
-    io.activeY(s)            := U(0, 10 bits)   // dead since Task 2a Step 2
-    io.activeRow(s)          := SpriteEvaluator.slotRow(w)
-    io.activePatternIdx(s)   := SpriteEvaluator.slotPatIdx(w).resize(patternSelBits)
-    io.activeAffineEnable(s) := SpriteEvaluator.slotAffineEnable(w)
-    io.activeMatrixA(s)      := SpriteEvaluator.slotMatrixA(w)
-    io.activeMatrixB(s)      := SpriteEvaluator.slotMatrixB(w)
-    io.activeMatrixC(s)      := SpriteEvaluator.slotMatrixC(w)
-    io.activeMatrixD(s)      := SpriteEvaluator.slotMatrixD(w)
-    io.activeTransX(s)       := SpriteEvaluator.slotTransX(w)
-    io.activeTransY(s)       := SpriteEvaluator.slotTransY(w)
-    io.activeFlipH(s)        := SpriteEvaluator.slotFlipH(w)
-    io.activeFlipV(s)        := SpriteEvaluator.slotFlipV(w)
-    io.activeMask(s)         := SpriteEvaluator.slotMask(w)
-    io.activePaletteBank(s)  := SpriteEvaluator.slotPaletteBank(w)
-    io.activePriority(s)     := SpriteEvaluator.slotPriority(w)
-    io.activeSizeSel(s)      := SpriteEvaluator.slotSizeSel(w)
-    io.activeBppSel(s)       := SpriteEvaluator.slotBppSel(w)
-    io.activeDescIdx(s)      := SpriteEvaluator.slotDescIdx(w).resize(descIdxBits)   // Task 54
+  // Task 55 — shadow Reg vector mirroring the per-slot mask bit. Written
+  // alongside `activeListMem.write` so the priority encoder can read all
+  // `visiblePerLine` mask bits combinationally without adding readAsync
+  // ports to activeListMem. Keeps activeListMem at a single readAsync
+  // port (the `activeReadData` path), which is the synthesis-fragility
+  // invariant called out in the file-header IO comment. Cost is one FF
+  // per slot (visiblePerLine total) — trivial vs the +5485 DFFs that
+  // per-slot readAsync replication of activeListMem would force on
+  // Gowin (see PROJECT_PLAN/MODE0_T20_STRIP_ANALYSIS_CORALREEF.md).
+  private val activeMaskShadow = Vec.fill(visiblePerLine)(Reg(Bool()) init False)
+  when(memWrite) {
+    activeMaskShadow(activeCount.resize(log2Up(visiblePerLine))) := curMask
   }
 
-  // Task 55 — combinational priority encoder over `activeMask` Vec
+  // Task 55 — combinational priority encoder over the mask shadow,
   // returning the lowest active slot index with mask=1, or
   // `visiblePerLine` if no active masking sprite. Reverse-then-overwrite
   // pattern relies on SpinalHDL's last-assignment-wins semantics so the
@@ -662,7 +624,7 @@ case class SpriteEvaluator(
   private val firstMaskSlotW = log2Up(visiblePerLine + 1)
   io.firstMaskSlot := U(visiblePerLine, firstMaskSlotW bits)
   for (s <- (visiblePerLine - 1) to 0 by -1) {
-    when(io.activeMask(s) &&
+    when(activeMaskShadow(s) &&
          (U(s, firstMaskSlotW bits) < activeCount.resize(firstMaskSlotW))) {
       io.firstMaskSlot := U(s, firstMaskSlotW bits)
     }
