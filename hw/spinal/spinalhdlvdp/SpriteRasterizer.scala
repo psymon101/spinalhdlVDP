@@ -287,8 +287,20 @@ case class SpriteRasterizer(
     activeFillBank := !activeFillBank
   }
 
+  // BSRAM-first conversion per fpga/qa.md A-001 and
+  // kb/gowin/GOTCHAS.md GT-023 / GT-025: convert slbA/slbB from mixed
+  // readAsync+readSync ports to readSync-only + `ram_style="block"`
+  // so Gowin maps the 640×SLB_W line buffers into BSRAM blocks. The
+  // existing readAsync ports for the same-cycle collision-check RMW
+  // are replaced by a lookahead pattern (see `readSyncAddr` below) —
+  // present the NEXT cycle's `wrAddr` to readSync this cycle, so the
+  // output is correctly slbA[wrAddr_t] at the cycle the write happens.
+  // SpriteRasterizer's sequential X-rasterization guarantees wrAddr
+  // increments by 1 in ST_RUN, so the lookahead is mechanically clean.
   val slbA = Mem(Bits(SLB_W bits), initialContent = Array.fill(hActive)(B(0, SLB_W bits)))
   val slbB = Mem(Bits(SLB_W bits), initialContent = Array.fill(hActive)(B(0, SLB_W bits)))
+  slbA.addAttribute("ram_style", "block")
+  slbB.addAttribute("ram_style", "block")
 
   // Latch the write-target bank at lineRenderStart and hold it for the
   // whole burst. The 798-cycle render burst spans across the next
@@ -311,16 +323,21 @@ case class SpriteRasterizer(
   val wrEnB  = pixelVisible &&  fillBankLatched
 
   // Task 54 — sprite-sprite collision detection (check buffer before write).
-  // Async-read the live fill bank at the same address the rasterizer is
-  // about to write this cycle. SpinalHDL Mem.readAsync returns the
-  // currently-stored value (write-takes-effect-at-next-edge), so we see
-  // the *prior* sprite's pixel + descIdx, if any, before this slot's
-  // pixel overwrites it. Collision = current write is non-transparent
-  // AND the existing entry is non-transparent (pixel != 0). Both the
-  // incoming sprite (`slotDescIdxR`) and the stored sprite (`existingDescIdx`)
-  // are reported; VdpTop OR-sets the per-descriptor mask register.
-  val existingFromA      = slbA.readAsync(wrAddr)
-  val existingFromB      = slbB.readAsync(wrAddr)
+  // BSRAM-first conversion: readSync with 1-cycle lookahead replaces the
+  // original readAsync(wrAddr) pattern. Present the address that will be
+  // wrAddr NEXT cycle to readSync THIS cycle, so the registered output
+  // is slbA[wrAddr_t] at cycle t (the value PRIOR to that cycle's write).
+  //
+  //   ST_FILL:  next-cycle wrAddr = slotXR (writeXR := slotXR is scheduled)
+  //   ST_RUN:   next-cycle wrAddr = current wrAddr + 1 (writeXR increments)
+  //   else:     anything (no writes happen so output is unused)
+  //
+  // Result: identical collision-check semantics, slbA/B can map to BSRAM.
+  val readSyncAddr = Mux(rState === ST_FILL,
+                         slotXR.resize(log2Up(hActive)),
+                         (wrAddr + 1).resize(log2Up(hActive)))
+  val existingFromA      = slbA.readSync(readSyncAddr)
+  val existingFromB      = slbB.readSync(readSyncAddr)
   val existingLive       = Mux(fillBankLatched, existingFromB, existingFromA)
   val existingPixel      = existingLive(3 downto 0)
   val existingDescIdx    = existingLive(9 + descIdxWidth downto 10).asUInt
