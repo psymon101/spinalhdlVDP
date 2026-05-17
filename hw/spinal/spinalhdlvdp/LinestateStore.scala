@@ -32,8 +32,25 @@ case class LinestateStore(lineCount: Int) extends Component {
     val layer0ScrollX = out UInt(10 bits)
   }
 
+  // BSRAM-first partial conversion (per fpga/ARCHITECTURE_RECOMMENDATIONS.md
+  // Rec #2, addressing Gate #2 Mem→FF promotion on Tang Nano).
+  //
+  // `prepare` is converted to BSRAM via readSync + ram_style="block".
+  // `commit` stays readAsync — the render pipeline reads it
+  // combinationally per-pixel and a 1-cycle readSync delay there
+  // produces a per-line first-pixel artifact (line-boundary stale
+  // record) that breaks integration sims. The prepare-side
+  // conversion alone frees ~half the previously-allocated SSRAM
+  // blocks for the linestate submodule (~96 blocks), enough to
+  // relieve the Gate #2 reshuffle's DFF promotion pressure.
+  //
+  // The commit pipeline is delayed by 1 cycle to align with the
+  // prepare readSync output. BH-6 collision handling is preserved
+  // via parallel pipeline of collide/writeData. Same external
+  // contract — no impact on host-write or render-side timing.
   val prepare = Mem(Bits(12 bits), initialContent = LinestateStore.defaultInit(lineCount))
   val commit  = Mem(Bits(12 bits), initialContent = LinestateStore.defaultInit(lineCount))
+  prepare.addAttribute("ram_style", "block")
 
   // Write to prepare side.
   when(io.writeEnable) {
@@ -41,27 +58,26 @@ case class LinestateStore(lineCount: Int) extends Component {
   }
 
   // BH-6 (Beam Hardening artifact §3.6): same-cycle host write + commit
-  // collision robustness. If a Copper/HDMA bus write lands on the same
-  // cycle as commitStrobe AND targets the same line being committed,
-  // the readAsync(commitLine) here would have implementation-defined
-  // behavior (Gowin BSRAM may surface old or new data depending on
-  // inference). Detect the collision and forward `io.writeData` into
-  // commit alongside the prepare write, so the host's update reaches
-  // the live render path on the SAME line it was issued for, rather
-  // than being lost to the read-old-value race.
-  //
-  // Non-colliding cases are unchanged: different address → readAsync
-  // returns the stable stored value at commitLine; no write at all →
-  // commit just reads prepare.
-  val commitCollide = io.commitStrobe && io.writeEnable && (io.writeAddr === io.commitLine)
-  val commitData    = Mux(commitCollide, io.writeData, prepare.readAsync(io.commitLine))
-
-  // Atomic per-line commit: copy one prepare entry to commit at line boundary.
-  when(io.commitStrobe) {
-    commit.write(io.commitLine, commitData)
+  // collision robustness — preserved via 1-cycle pipeline to align
+  // with prepare.readSync output. Collision is detected at the
+  // commit-strobe cycle, latched alongside the writeData and
+  // commitLine, then applied to commit.write the next cycle when
+  // prepareSync is valid.
+  val commitCollide     = io.commitStrobe && io.writeEnable && (io.writeAddr === io.commitLine)
+  val commitStrobeD1    = RegNext(io.commitStrobe) init False
+  val commitLineD1      = RegNext(io.commitLine)   init 0
+  val commitCollideD1   = RegNext(commitCollide)   init False
+  val commitWriteDataD1 = RegNext(io.writeData)    init 0
+  val prepareSync       = prepare.readSync(io.commitLine)
+  val commitData        = Mux(commitCollideD1, commitWriteDataD1, prepareSync)
+  when(commitStrobeD1) {
+    commit.write(commitLineD1, commitData)
   }
 
-  // Read from commit side.
+  // Render-side read of commit: still readAsync so the per-pixel
+  // render path gets the line's record combinationally with no
+  // line-boundary stale-pixel artifact. Commit Mem stays in
+  // distributed SSRAM/LUTRAM (unchanged from the original design).
   val record = commit.readAsync(io.readAddr)
   io.layer0Enable := record(11)
   io.layer1Enable := record(10)
