@@ -8,8 +8,9 @@ Status rule:
 - Do not delete entries. If an issue is later disproven for this repo, mark it as `Not observed in spinalhdlVDP` instead of removing it.
 
 Current focus:
-- Task 15 SDRAM-backed fetch path
-- Gowin synthesis behavior around wrappers, CDC, inferred RAM/FIFO, and clocking
+- Mode2optimized Compile-Time Feature Strip fit recovery (DONE — `project.fs` produced `22afb90`)
+- GT-023 GW2AR-18 FF/LUT ratio cap and Mem-inference hardening patterns
+- Gowin synthesis behavior around inferred RAM/SSRAM/BSRAM, cascading Mem→FF promotion, and clocking
 
 ## How To Use This File
 

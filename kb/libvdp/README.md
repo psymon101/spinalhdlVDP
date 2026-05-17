@@ -19,6 +19,7 @@ Canonical API reference for `firmware/libvdp/`.
 | Status | `vdp_status.h`, `vdp_status.c` | sticky-bit polling and vblank waits |
 | Upload | `vdp_upload.h`, `vdp_upload.c` | vblank-paced SDRAM asset upload |
 | Mode0 | `vdp_mode0.h`, `vdp_mode0.c` | generic Mode0 helper layer |
+| Copper | `vdp_copper.h`, `vdp_copper.c` | Copper opcode encoding + program upload |
 | Platform | `vdp_platform.h` | board pin maps and transport constants |
 
 ## Initialization
@@ -34,8 +35,8 @@ Canonical API reference for `firmware/libvdp/`.
 | Function | Signature | Purpose | Inputs | Output |
 |---|---|---|---|---|
 | `vdp_reg_write` | `void vdp_reg_write(uint32_t addr, uint16_t data)` | write one 16-bit VDP register word | 15-bit register address, 16-bit payload | none |
-| `vdp_reg_write_burst` | `void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)` | write a contiguous block of register words | start address, little-endian word array, word count | none |
-| `vdp_read_status` | `uint32_t vdp_read_status(uint8_t sel)` | read one 32-bit status selector | selector `0..6` | 32-bit little-endian response |
+| `vdp_reg_write_burst` | `void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)` | write a contiguous block of register words | start address, little-endian word array, word count (1..253) | none |
+| `vdp_read_status` | `uint32_t vdp_read_status(uint8_t sel)` | read one 32-bit status selector | selector `0..7` | 32-bit little-endian response |
 
 ### `vdp_read_status` selectors
 
@@ -88,13 +89,24 @@ Canonical API reference for `firmware/libvdp/`.
 | `VDP_STICKY_SPRITE_0_HIT` | `0x0010` | slot-0 hit |
 | `VDP_STICKY_SPRITE_BG_HIT` | `0x0020` | sprite/background hit |
 
+## Mode0 Struct Types
+
+| Type | Fields | Purpose |
+|---|---|---|
+| `vdp_mode0_rect_t` | `x0, x1, y0, y1` (all `uint16_t`) | Axis-aligned rectangle for windows / borders |
+| `vdp_mode0_affine_t` | `a, b, c, d, x, y, ctrl` (all `uint16_t`) | Affine transform matrix + control |
+| `vdp_mode0_bitmap_cfg_t` | `ctrl`, `bitmap_base`, `attr_base`, `bitmap_stride`, `attr_stride` | Bitmap+attribute fetch configuration |
+| `vdp_mode0_trigger_t` | `line`, `pixel`, `ctrl` (all `uint16_t`) | Raster trigger line/pixel + control |
+| `vdp_mode0_dma_cfg_t` | `dst`, `len_m1`, `fill`, `mode` | DMA engine configuration (FILL or COPY) |
+| `vdp_mode0_blit_cfg_t` | `ctrl`, `width_m1`, `height_m1`, `dst_addr`, `dst_stride`, `src_addr`, `src_stride`, `fill_val` | Blitter engine configuration |
+
 ## Mode0 Helpers
 
 | Area | Helpers |
 |---|---|
 | globals | `vdp_mode0_set_layer_enable`, `vdp_mode0_set_vdp_ctrl`, `vdp_mode0_set_tile_mode`, `vdp_mode0_set_attr_mode`, `vdp_mode0_set_mode_select`, `vdp_mode0_read_live_mode` |
 | status | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status`, `vdp_mode0_clear_sprite_coll_mask` |
-| windows / border | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window` |
+| windows / border | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window`, `vdp_mode0_border_ctrl` |
 | affine | `vdp_mode0_set_affine` |
 | bitmap | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg` |
 | raster | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` |
@@ -103,6 +115,17 @@ Canonical API reference for `firmware/libvdp/`.
 | tables | `vdp_mode0_write_linestate`, `vdp_mode0_write_vscroll_entry` |
 | dma | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_write_staging`, `vdp_mode0_dma_config` |
 | blitter | `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_write_src`, `vdp_mode0_blit_config` |
+
+## Copper Helpers
+
+| Function | Signature | Purpose |
+|---|---|---|
+| `vdp_copper_wait` | `uint16_t vdp_copper_wait(uint16_t y)` | Encode legacy `WAIT(Y)` opcode (1 word) |
+| `vdp_copper_wait_xy` | `uint16_t vdp_copper_wait_xy(uint16_t x)` | Encode pixel-precise `WAIT(X,Y)` header word (2-word sequence) |
+| `vdp_copper_write_seq_hdr` | `uint16_t vdp_copper_write_seq_hdr(uint16_t addr, uint8_t count_m1)` | Encode `WRITE_SEQ` header for N consecutive register writes |
+| `vdp_copper_jump` | `uint16_t vdp_copper_jump(uint16_t target_pc)` | Encode `JUMP` opcode (1 word) |
+| `vdp_copper_upload` | `void vdp_copper_upload(const uint16_t *prog, uint16_t nwords)` | Upload a copper program into FPGA copper RAM via burst writes |
+| `vdp_copper_enable` | `void vdp_copper_enable(bool en)` | Enable/disable copper via `VDP_CTRL` bit[0] |
 
 ## Platform Constants
 
@@ -118,6 +141,7 @@ Canonical API reference for `firmware/libvdp/`.
 | **System** | Status, vblank sync, asset upload | All | Authoritative |
 | **Generic Mode0** | Rich-top register surface (`vdp_mode0_*`) | mode2optimized | Partial Coverage |
 | **Barebones Proof**| Barebones-top registers (scroll + sprite) | barebones-rebuild| Functional — inline bit-bang sketches; not yet wrapped in `libvdp` |
+| **Copper** | Copper opcode helpers + program upload | mode2optimized | Authoritative |
 
 ## Mode0 Helper Coverage
 

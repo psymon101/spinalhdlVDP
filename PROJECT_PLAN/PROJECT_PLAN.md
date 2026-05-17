@@ -1,6 +1,6 @@
 # PROJECT_PLAN.md
 
-**Updated:** 2026-05-10 (Task 56 DONE per CyanPeak #9709. No active lane converged yet.)
+**Updated:** 2026-05-17 (Mode2optimized Compile-Time Feature Strip DONE per BrightForge #10142 / CoralReef audit closeout. Task 10026 Barebones Simple Sprite DONE audit PASS #10117. No active lanes.)
 **Purpose:** Entry point for the `PROJECT_PLAN/` documentation set.
 
 ## Reading Order
@@ -27,7 +27,17 @@ If these documents disagree:
 
 This is a **full Mode0 rendering substrate** past initial bring-up. The hardware-proven path includes SDRAM-backed tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control — 20+ hardware-proven scenarios on Tang Nano 20K.
 
-The project is currently at **Task 56 — Multi-Layer SDRAM Fetch** (Checkpoint B coding authorized per CyanPeak #9689). Task 54 is DONE per CyanPeak #9672. For the authoritative execution ledger, see `TASKS.md`.
+The project has no active critical-path lanes. Recently completed:
+
+- **Mode2optimized Compile-Time Feature Strip** — DONE (BrightForge #10142 / CoralReef audit closeout)
+  - Rich-top default build now fits Tang Nano 20K with `project.fs` produced
+  - Branch `mode2optimized-gate2-enableL2L3` @ `22afb90`
+- **Task 10026 — Barebones Simple Sprite over Background** — DONE (audit PASS #10117)
+  - Commits `eda89d7`, `6119360`, `40f1424`
+- **Task 56 — Multi-Layer SDRAM Fetch** — DONE (audit PASS #9709)
+- **Task 54 — Sprite-Sprite Collision Detector** — DONE (audit PASS #9672)
+
+For the authoritative execution ledger, see `TASKS.md`.
 
 ## Working Principles
 

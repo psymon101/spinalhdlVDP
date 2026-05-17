@@ -1,7 +1,8 @@
 # MODE0_REGISTER_BUS_SPEC.md
 
-**Status:** Stable contract — locked by Task 32a (commit landing this file)
+**Status:** Stable contract — locked by Task 32a (commit landing this file), extended to v1.1 by post-Task 32a register additions
 **Governing task:** Task 32a — Mode0 Register Bus: Spec & Naming Lock
+**Version:** v1.1 — adds WIN2/BORDER_CTRL/TRIGGER registers, blitter expansion, READ_STATUS sel 5..7, and barebones conflict note (2026-05-17)
 **Scope:** Write-path control surface for Mode0. The READ_STATUS response surface is defined by `QspiDecoder` sel mapping and is referenced here for completeness but is not part of the register bus itself.
 
 This document is the authoritative naming and semantic contract for the Mode0 write-path register bus. Tasks 33 (Copper-lite), 34 (QSPI asset upload), 35 (Host IRQ / Status Registers), and 37 (Affine Sprite Path) MUST target this contract without ad-hoc drift. Task 32b is the separate lane that will refactor the HDL so all masters reference a common bundle; 32a defines WHAT they target, 32b defines HOW.
@@ -77,12 +78,20 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0313` | `MODE_SELECT` — `[3:0]=adapter mode ID`, `[7:4]=reserved`, `[15:8]=MODE_FLAGS` | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.2 |
 | `0x0314..0x031F` | **Reserved** — global-control expansion | — | — |
 | `0x0320..0x032F` | **Task 35** — status registers, IRQ enables, sticky bits (see §3.1.1) | Task 35, 29 | `VdpTop.scala:878-921` |
-| `0x0330..0x0334` | **Task 20** — Color Math / Window registers (`WIN0_X`, `WIN1_X`, `WIN0_Y`, `WIN1_Y`, `COLOR_MATH_CTRL`) | Task 20 / R6 | `VdpTop.scala:249,255-263` |
-| `0x0335..0x033F` | **Reserved** — Task 20 expansion or future window registers | — | — |
+| `0x0330..0x0334` | **Task 20** — Window 1 + Color Math (`WIN1_X0`, `WIN1_X1`, `WIN1_Y0`, `WIN1_Y1`, `COLOR_MATH_CTRL`) | Task 20 / R6 | `VdpTop.scala:249,255-263` |
+| `0x0335..0x033B` | **Task 20** — Window 2 + combine (`WIN2_X0`, `WIN2_X1`, `WIN2_Y0`, `WIN2_Y1`, `WIN2_CTRL`, `WIN_COMBINE`, `LAYER_MASK`) | Task 20 / R6 | `VdpTop.scala` |
+| `0x033C..0x033F` | **Task 20** — Border window (`BORDER_X0`, `BORDER_X1`, `BORDER_Y0`, `BORDER_Y1`) | Task 20 / R6 | `VdpTop.scala` |
 | `0x0340..0x0346` | **Task 19** — Affine Background registers (`AFFINE_A`, `AFFINE_B`, `AFFINE_C`, `AFFINE_D`, `AFFINE_X`, `AFFINE_Y`, `AFFINE_CTRL`) | Task 19 | `VdpTop.scala:297-352` |
-| `0x0347..0x034F` | **Reserved** — Task 19 expansion | — | — |
+| `0x0347` | `BORDER_CTRL` — border enable + palette index | Task 20 / R6 | `VdpTop.scala` |
+| `0x0348..0x034F` | **Reserved** — Task 19 expansion | — | — |
 | `0x0350..0x0356` | **Task 44** — Raw Bitmap+Attribute Fetch (`BITMAP_CTRL`, `BITMAP_BASE_LO/HI`, `ATTR_BASE_LO/HI`, `BITMAP_STRIDE`, `ATTR_STRIDE`) | Task 44 | `VdpTop.scala` (bitmap-fetch block), `BitmapFetch.scala` |
-| `0x0357..0x037F` | **Reserved** — Task 44 expansion / future host-surface registers | — | — |
+| `0x0357..0x035F` | **Reserved** — Task 44 expansion / future host-surface registers | — | — |
+| `0x0360..0x0362` | **Raster** — Trigger 1 (`TRIGGER1_LINE`, `TRIGGER1_PIXEL`, `TRIGGER1_CTRL`) | Task 35 / R6 | `VdpTop.scala`, `RasterTriggerUnit.scala` |
+| `0x0363` | **Reserved** — trigger alignment | — | — |
+| `0x0364..0x0366` | **Raster** — Trigger 2 (`TRIGGER2_LINE`, `TRIGGER2_PIXEL`, `TRIGGER2_CTRL`) | Task 35 / R6 | `VdpTop.scala`, `RasterTriggerUnit.scala` |
+| `0x0367` | **Reserved** — trigger alignment | — | — |
+| `0x0368..0x036A` | **Raster** — Trigger 3 (`TRIGGER3_LINE`, `TRIGGER3_PIXEL`, `TRIGGER3_CTRL`) | Task 35 / R6 | `VdpTop.scala`, `RasterTriggerUnit.scala` |
+| `0x036B..0x037F` | **Reserved** — future raster / host-surface registers | — | — |
 | `0x0380..0x03DF` | **Reserved for Task 33** — Copper-lite / HDMA control and table RAM | Task 33 | — |
 | `0x03E0..0x03FF` | **Reserved** — future expansion | — | — |
 | `0x0400..0x05FF` | Copper program RAM (512 × 16-bit instructions) | Task R5 | `VdpTop.scala:45,182` |
@@ -176,7 +185,10 @@ The register bus is write-only. Read-back is provided by the QSPI READ_STATUS re
 | `2` | `last_addr[15:0]` |
 | `3` | `last_data[15:0]` |
 | `4` | `last_error[7:0]` |
-| `5..255` | Reserved — zero response |
+| `5` | sticky status bits (`STATUS_STICKY` bit layout, §3.1.1) |
+| `6` | upload status (`busy`/`done` bits) |
+| `7` | committed live mode (post-safe-boundary `MODE_SELECT` and layer state) |
+| `8..255` | Reserved — zero response |
 
 Task 35 status registers MUST be readable both by mapping into this sel table (extending to sel=5+) AND by appearing in the allocated `0x0320..0x032F` write-path block for clear-on-write semantics.
 
@@ -246,4 +258,10 @@ All pass as of commit `4cee22e` (Task 38c closeout). Task 32a does not introduce
 
 ---
 
-*End of Mode0 Register Bus Spec v1.0.*
+### 10. Barebones build register conflict note
+
+The `TopTang20kBarebones` build (scroll + simple-sprite proofs) uses a **separate, incompatible** register surface at `0x0000..0x0005` (`L0_SCROLL_X`, `L0_SCROLL_Y`, `L1_SCROLL_X`, `L1_SCROLL_Y`, `SPRITE_X`, `SPRITE_Y`). These addresses overlap the standard `LINESTATE_BASE` (`0x0000..0x01DF`) used by the rich-top `VdpTop`. Host code MUST use `vdp_barebones_*` helpers (inline bit-bang, 40-bit SPI protocol) with barebones bitstreams and MUST NOT use `vdp_mode0_*` helpers. See `firmware/GOTCHAS.md` §Host Platform Fidelity and `kb/libvdp/README.md` §Migration & Naming Plan.
+
+---
+
+*End of Mode0 Register Bus Spec v1.1.*

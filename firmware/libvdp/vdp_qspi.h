@@ -42,6 +42,8 @@ void vdp_reg_write(uint32_t addr, uint16_t data);
  * The FPGA decoder auto-increments the register address once per word.
  * Use this for contiguous register blocks to amortize header and CS
  * overhead. The payload is little-endian 16-bit words.
+ *
+ * @param num_words 1..253 (capped by the 253-word local frame buffer)
  */
 void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words);
 

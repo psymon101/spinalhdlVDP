@@ -1756,3 +1756,91 @@ Side lanes are tracked here when they reach the implementation phase. Planning-o
 
 ---
 
+
+### Mode2optimized Compile-Time Feature Strip
+
+**Status:** DONE — bitstream produced `22afb90` / BrightForge #10142 / CoralReef audit closeout
+**PM authority:** BronzeGate #10071 / #10075 / #10082 / #10126 / #10135 / #10138 / #10140 / #10141
+**Audit owner:** CoralReef
+
+**Goal:** Recover the `mode2optimized` rich-top default build fit on GW2AR-LV18 by adding compile-time feature gates and Mem-inference hardening.
+
+**Scope boundary:** Compile-time gates for L2/L3, extra raster triggers, second window, affine, and parameterized `planeCount`. Plus Mem-inference hardening as needed. No runtime register-map expansion. No adapter rewrites. No hardware proof in this lane.
+
+**Completed slices:**
+
+| Slice | Description | Commit | Result |
+|-------|-------------|--------|--------|
+| Gate #1 | `withExtraRasterTriggers` compile-time gate | `5020344` | Spinal clean; DFF blocker exposed (+5485) |
+| Diagnosis | Root-cause: `activeListMem` 9× readAsync ports | `10125` | Identified cascading Mem→FF promotion |
+| Fix #1 | `activeListMem` readport-trim to 1 port | `40c0384` | DFF blocker resolved; synth advances to logic check |
+| PlaneRows trim | `BitplaneRowFetch.planeRows` legacy removal | `bc0e493` | Preventive; zero immediate resource impact |
+| Gate #2 | `enableL2L3` compile-time gate | `f0a09e2` | Logic savings confirmed (-514 LUTs); DFF re-triggered |
+| LinestateStore BSRAM | `prepare` Mem readAsync→readSync+BSRAM | `49c3a5f` / `2f7c92d` | +5353 DFFs reclaimed; +128 remain |
+| slbA/slbB BSRAM | `SpriteRasterizer` lookahead readSync pattern per qa.md A-001 | `22afb90` | **Bitstream produced**; -11518 DFFs net via reverse cascade |
+
+**Final Tang Nano result (`22afb90`):**
+
+| Metric | Value | Limit | Headroom |
+|---|---|---|---|
+| Logic | 5874 | 20736 | 72% |
+| LUT | 5874 | — | — |
+| Register | 3791 | 15915 | 76% |
+| Logic Reg as FF | 3762 | 15552 | 76% |
+| CLS | 6888 | 10368 | 33% |
+| BSRAM | 25 | 46 | 46% |
+| DSP | 2 | 12 | 83% |
+
+**Key findings:**
+- GT-023: GW2AR-18 hardware FF/LUT ratio cap = 0.75 (UG288 §2.1.1). CLS3 REGs unsupported on this device.
+- GT-026 cascade fragility: Mem→FF promotion is global; fixing one large Mem can trigger reverse cascade saving thousands of DFFs.
+- MemReport tool (`47f0a87`, `d32f446`) provides elaboration-time inventory + GT-023 ratio analysis.
+
+**Blocked / deferred:**
+- Gate #3 (`enableAffine`) and Gate #4 (`planeCount=5`) re-enable per-scenario — deferred to future PM authorization
+- Hardware flash + visual proof — deferred to TopazCliff authorization
+
+**Sources:**
+- CoralReef #10070: preflight recommendation
+- BrightForge #10076, #10125, #10127, #10128, #10130, #10134, #10137, #10139, #10142
+- BronzeGate #10126, #10135, #10138, #10140, #10141
+- CyanPeak #10121 (advisory PASS on Gate #1 implementation)
+
+---
+
+### Task 10026 — Barebones Simple Sprite over Background
+
+**Status:** DONE — audit PASS #10117 (CyanPeak via HumanOverseer)
+**PM authority:** BronzeGate #10077 / #10080 / #10082
+**Audit owner:** CyanPeak
+**Implementation owner:** BrightForge
+**Firmware owner:** TopazCliff (landing); FoggyWolf (original sketch)
+
+**Goal:** Add the smallest proof-sized sprite primitive to the proven barebones substrate (working L0/L1 scroll path).
+
+**Scope boundary:** One procedural 16×16 white sprite only. No sprite engine expansion, no SDRAM sprite path, no rich-top recovery work, no multi-sprite batching.
+
+**Completed checkpoints:**
+
+| Checkpoint | Description | Evidence |
+|---|---|---|
+| A | Implementation plan / sprite contract / proof shape | BrightForge #10078 |
+| B | Implementation + sim proof | `TopTang20kBarebonesSim` PASS (6/6 cases) #10081 |
+| C | Hardware proof | ESP8266 + ESP32 sketches flashed; TopazCliff #10116 confirms motion/visibility |
+| D | Audit + ledger sync | CyanPeak #10117 PASS; CoralReef ledger sync `4ff4502` |
+
+**Exact files changed:**
+- `hw/spinal/spinalhdlvdp/TopTang20kBarebones.scala` — sprite regs 0x0004/0x0005 + procedural hit + compositor priority
+- `hw/spinal/spinalhdlvdp/TopTang20kBarebonesSim.scala` — sprite tests
+- `firmware/esp8266_barebones_sprite/esp8266_barebones_sprite.ino` — proof sketch
+- `firmware/esp32_barebones_sprite/esp32_barebones_sprite.ino` — parity sketch
+
+**Commits:** `eda89d7` (RTL), `6119360` (ESP32), `40f1424` (ESP8266)
+
+**Key design decisions:**
+- Procedural shape (no Mem) to sidestep `project_tang20k_mem_fragility`
+- Hardcoded color `0xFFFFFF` for unambiguous OpenCV detection
+- Priority: `sprite > L1 > L0`
+- No enable bit; host parks sprite off-screen to hide
+
+---

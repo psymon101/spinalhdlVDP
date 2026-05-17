@@ -18,6 +18,7 @@ platforms over a full 6-wire quad QSPI transport.
   - `vdp_status.{h,c}` — status polling + vblank wait helpers
   - `vdp_upload.{h,c}` — vblank-paced asset upload
   - `vdp_mode0.{h,c}` — generic Mode0 register helpers (non-adapter-specific)
+  - `vdp_copper.{h,c}` — Copper opcode encoding + program upload helpers
   - `vdp_platform.h` — platform-specific pin maps
   - canonical API reference: [`kb/libvdp/README.md`](../kb/libvdp/README.md)
 - `esp32_*/`, `esp8266_*/` — per-scenario Arduino sketches (thin wrappers)
