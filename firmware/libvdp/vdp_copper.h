@@ -16,7 +16,9 @@ extern "C" {
 
 /**
  * Encode a legacy WAIT(Y) opcode (1 word).
- * Stalls copper until vCounter >= Y.
+ * Stalls copper until vCounter == Y AND hCounter == 0 (single-cycle match
+ * window per frame, per Copper.scala sWaitStall). If the FSM misses the
+ * match cycle, the WAIT waits a full frame.
  */
 static inline uint16_t vdp_copper_wait(uint16_t y)
 {
