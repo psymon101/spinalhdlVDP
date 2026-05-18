@@ -74,9 +74,27 @@ vdp_reg_write(0x0310, 0x0003);              // request swap; copper stays enable
 
 ## Resource budget
 
-- BSRAM: still 1 block (1024×16 = 16Kbit fits one Gowin BSRAM block). Verify via MemReport before commit.
-- LUT: ~20 (swap FSM + muxes)
+**MemReport-verified, post-CP-C** (`VdpTop` standalone, 2026-05-18):
+
+| Component | Pre-CP-C estimate (wrong) | Pre-CP-C actual (`readAsync`) | Post-CP-C actual (`readSync` + `ram_style="block"`) |
+|---|---|---|---|
+| `prog` Mem inference | distributed | **distributed** | **BSRAM block** |
+| BSRAM blocks | 1 (claimed) | 0 | **1** |
+| SSRAM cells | ~0 (claimed) | **256** | **0** |
+
+The original "BSRAM: still 1 block" estimate ignored a critical detail: Gowin BSRAM does not support async read. **A `Mem` with any `readAsync` port falls back to distributed/LUTRAM inference regardless of size or the `ram_style` attribute.** This is the same trap that `hdmaDataArray`, `palette`, `blitterEngine/srcRam`, and several other `readAsync`-port Mems in this codebase fall into — see MemReport output for the full list.
+
+To actually land the `prog` Mem in BSRAM, two changes are required together:
+
+1. `prog.readAsync(addr)` → `prog.readSync(addr)` (gets the registered-output read port)
+2. `prog.addAttribute("ram_style", "block")` (Gowin hint — mirrors `LinestateStore.prepare`'s pattern from `49c3a5f`)
+
+`readSync` adds 1 cycle of read latency. To preserve the pre-CP-C zero-latency FSM dispatch semantics — so `fetchWord` still matches the *current* `pc` rather than lagging by one cycle — the FSM uses a **predictive `pcNext` / `activeBankNext` pattern**: `pc` and `activeBank` are split into Reg + combinational `Next` wires, and the read port is addressed with the next-cycle values. This makes the conversion semantically transparent — observable FSM behavior (including CopperSim case 6's `hCounter≈3` dispatch latency) is identical pre- and post-CP-C.
+
+- BSRAM: 1 block (1024×16 fits one Gowin BSRAM block, **only with readSync + ram_style="block"**)
+- LUT: ~20 (swap FSM + muxes) + ~5 (pcNext / activeBankNext default-and-override wires)
 - DFF: ~3 (`activeBank`, `swapPending`, swap-edge latch)
+- **Net SSRAM vs HEAD: −128 cells** (HEAD's 512-word readAsync used ~128 cells; CP-C's 1024-word readSync uses 0)
 - Well within current Tang Nano headroom per `TASKS.md`: 5874 LUT (28%), 3791 Reg (24%), 6888 CLS (67%) on `mode2optimized-gate2-enableL2L3 @ 22afb90`.
 
 ## Open design questions (decide at lane-open time, not now)
@@ -89,6 +107,8 @@ vdp_reg_write(0x0310, 0x0003);              // request swap; copper stays enable
 ## Anti-pattern to avoid
 
 **Don't** just delete the `!io.enabled` gate in `Copper.scala:81` as a shortcut (this was 3a in the discussion). The Mem `readAsync` race semantics are not well-defined for mid-instruction multi-word reads (WAIT_PX, WRITE, WRITE_SEQ are 2+ words each), and the resulting "fetch a half-old / half-new opcode" failure mode is impossible to reason about. Double-buffering eliminates the race entirely; do that or nothing.
+
+**Don't** double the `prog` Mem without converting to `readSync` + `ram_style="block"` at the same time. The first attempt during CP-C doubled to 1024 words while keeping `readAsync` — Gowin inferred the Mem as distributed RAM and added **+128 SSRAM cells of pressure** rather than landing in a BSRAM block. The readSync conversion is what makes the doubling effectively free.
 
 ## Cross-references
 

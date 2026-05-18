@@ -92,8 +92,42 @@ object CopperBorderIntegrationSim extends App {
 
     val br = dut.borderCtrlReg.toInt
     assert(br == 0x1801,
-      s"Integration: copper WRITE(0x347, 0x1801) should have committed borderCtrlReg=0x1801, " +
+      s"Case 1: copper WRITE(0x347, 0x1801) should have committed borderCtrlReg=0x1801, " +
       s"got 0x${br.toHexString}")
-    println(f"[sim] CopperBorderIntegrationSim: PASS — Copper regWr → copperFifo → effWrite → borderCtrlReg=0x$br%04X")
+    println(f"[sim] Case 1 (single-program): borderCtrlReg=0x$br%04X — OK")
+
+    // ===========================================================================
+    // R5.4 Case 2 — end-to-end live update via VDP_CTRL[1] = COPPER_SWAP_REQUEST
+    // ===========================================================================
+    // Without disabling copper, upload progB to bank 1 (writes route there
+    // because copper is enabled), then write VDP_CTRL = 0x0003 (enable +
+    // swap_request). The swap commits at vSyncStart (vCounter == vActive + vFront).
+    // After that, borderCtrlReg should reflect progB's WRITE.
+    //
+    // progB writes a different palette idx so the change is observable:
+    //   prog[0] = 0x0014  WAIT(20)
+    //   prog[1] = 0x4347  WRITE header, addr=0x0347
+    //   prog[2] = 0x0801  data: palette idx 8 (bits[12:8]) + enable (bit[0])
+    //   prog[3] = 0xC000  JUMP(0)
+    busPulse(0x0400, 0x0014)
+    busPulse(0x0401, 0x4347)
+    busPulse(0x0402, 0x0801)
+    busPulse(0x0403, 0xC000)
+
+    // Request swap (bit[1] = 1) while keeping copper enabled (bit[0] = 1)
+    busPulse(0x0310, 0x0003)
+
+    // Wait enough for: copperSwapPending set → next vSyncStart hCounter==0
+    // commit → activeBank flip + pc reset → next WAIT(20) match + WRITE +
+    // copperFifo drain + borderCtrlReg commit. Worst case ~1 full frame.
+    dut.clockDomain.waitSampling(hTotal * 525 + hTotal * 30)
+
+    val br2 = dut.borderCtrlReg.toInt
+    assert(br2 == 0x0801,
+      s"Case 2: after swap_request, borderCtrlReg should reflect progB's WRITE=0x0801, " +
+      s"got 0x${br2.toHexString} — live update via VDP_CTRL[1] failed")
+    println(f"[sim] Case 2 (live update via swap_request): borderCtrlReg=0x$br2%04X — OK")
+
+    println("[sim] CopperBorderIntegrationSim: PASS — single-program + live-update both verified")
   }
 }
