@@ -6,6 +6,13 @@
  * amortize the header cost across a small contiguous chunk. Between
  * bursts we re-sync to the next vblank via vdp_wait_vblank() to avoid
  * the active-video single-byte-latch race inside QspiSdramBridge.
+ *
+ * Practical tuning note:
+ * - Faster SCK shortens the wire-time of each chunk, but the safe chunk
+ *   size is still bounded by the vblank window and the bridge's small
+ *   buffering margin.
+ * - Keep `VDP_UPLOAD_WORDS_PER_VBLANK` conservative unless the active
+ *   host clock and capture target have both been revalidated together.
  */
 #include "vdp_upload.h"
 #include "vdp_qspi.h"
