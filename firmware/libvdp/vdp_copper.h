@@ -66,6 +66,14 @@ void vdp_copper_upload(const uint16_t *prog, uint16_t nwords);
  */
 void vdp_copper_enable(bool en);
 
+/**
+ * Request an atomic bank swap on the next vSyncStart.
+ * Copper must already be enabled. The swap promotes the inactive bank to
+ * active and resets pc to 0. HW auto-clears the request bit after commit.
+ * Writes 0x0003 to VDP_CTRL @ 0x0310 (keeps COPPER_ENABLE set).
+ */
+void vdp_copper_swap_request(void);
+
 #ifdef __cplusplus
 }
 #endif

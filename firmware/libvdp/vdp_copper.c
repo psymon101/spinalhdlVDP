@@ -48,3 +48,17 @@ void vdp_copper_enable(bool en)
     /* For a demo sketch we know the initial state; just write directly. */
     vdp_reg_write(0x0310u, en ? 0x0001u : 0x0000u);
 }
+
+void vdp_copper_swap_request(void)
+{
+    /* VDP_CTRL @ 0x0310: bit[0]=COPPER_ENABLE, bit[1]=COPPER_SWAP_REQUEST.
+     * Writing 0x0003 keeps copper enabled and requests the swap.
+     * HW commits at next vSyncStart and auto-clears bit[1].
+     *
+     * Sequencing rule: always upload the next frame's program to the
+     * inactive bank (burst to 0x0400 while copper is enabled) BEFORE
+     * calling this function. Requesting a swap without first uploading
+     * promotes uninitialized bank content — see CopperSim case 11.
+     */
+    vdp_reg_write(0x0310u, 0x0003u);
+}
