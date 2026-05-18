@@ -62,6 +62,7 @@ object CopperSim extends App {
     dut.io.progAddr #= 0
     dut.io.progData #= 0
     dut.io.progWr   #= false
+    dut.io.bankSwapNow #= false
     step(5)
 
     // -------- Case 1: WAIT + WRITE --------
@@ -137,8 +138,12 @@ object CopperSim extends App {
     assert(line300Writes.nonEmpty, "case3: expected line-300 write")
     println(s"[sim] case3 JUMP loops (line-100 fires ${line100Writes.size} times) — OK")
 
-    // -------- Case 4: progWr ignored when enabled --------
-    // Attempt to corrupt program RAM while running
+    // -------- Case 4: progWr while enabled routes to inactive bank --------
+    // R5.4 (double-buffer): writes to progAddr while copper is enabled no
+    // longer drop silently — they land in the *inactive* bank instead. The
+    // *active* bank (which the FSM reads from) is unaffected, so this test's
+    // visible behavior is preserved: the running program output is not
+    // disturbed. The new live-update path is exercised in cases 9+.
     captured.clear()
     dut.io.progAddr #= 5  // word 5 is data 0x0003 in current program
     dut.io.progData #= 0xDEAD
@@ -155,7 +160,7 @@ object CopperSim extends App {
       val d = line300After.head._2
       assert(d == 0x0003, s"case4: program RAM corrupted while enabled: got 0x${d.toHexString}")
     }
-    println("[sim] case4 progWr gated when enabled — OK")
+    println("[sim] case4 progWr while enabled routes to inactive bank; active bank unaffected — OK")
 
     // -------- Case 5 (BH-1): pixel-precise WAIT X,Y --------
     // Program: WAIT_PX (x=200, y=150); WRITE addr=0x0301 data=0xBE57; JUMP 0
@@ -290,6 +295,149 @@ object CopperSim extends App {
     assert(skLine100b.nonEmpty,
       s"case8b: line(100)>=tr0(50) should fall through, but got 0 writes")
     println(f"[sim] case8b SKIP cond=line<tr0 NOT TAKEN (line 100 ≥ 50, write fires) — OK")
+
+    // ===========================================================================
+    // R5.4 Copper double-buffered live update — new behaviors only available
+    // when host pulses io.bankSwapNow (in HW, gated by VdpTop at vSyncStart).
+    // ===========================================================================
+
+    // -------- Case 9: live upload to inactive bank doesn't disturb active --------
+    // progA runs from bank 0 (active by default). With copper enabled, writes
+    // to progAddr now route to bank 1 (inactive) instead of being dropped.
+    // The active program must continue producing its expected output.
+    val progA_c9 = Seq(WAIT(80), WRITE_OP(0x0610), 0xCAFE, JUMP(0))
+    dut.io.enabled #= false
+    step(5)
+    loadProgram(progA_c9)
+    dut.io.enabled #= true
+    step(5)
+    captured.clear()
+    runRaster(yFrom = 75, yTo = 90)
+    val c9pre = captured.filter(c => c._1 == 0x0610 && c._4 == 80).map(_._2)
+    assert(c9pre.contains(0xCAFE), s"case9 setup: progA should write 0xCAFE at line 80; got $c9pre")
+
+    // Live-write 0xDEAD to bank 1 word 0..3 while copper is still running.
+    // These land in bank 1 (inactive) because io.enabled=true.
+    for (i <- 0 until 4) {
+      dut.io.progAddr #= i
+      dut.io.progData #= 0xDEAD
+      dut.io.progWr   #= true
+      dut.clockDomain.waitSampling()
+    }
+    dut.io.progWr #= false
+    captured.clear()
+    runRaster(yFrom = 75, yTo = 90)
+    val c9post = captured.filter(c => c._1 == 0x0610 && c._4 == 80).map(_._2)
+    assert(c9post.contains(0xCAFE) && !c9post.contains(0xDEAD),
+      s"case9: active bank 0 progA must keep outputting 0xCAFE; got $c9post")
+    println("[sim] case9 live progWr while enabled routes to inactive bank; active unaffected — OK")
+
+    // -------- Case 10: bankSwapNow flips active bank AND resets pc to 0 --------
+    // progA on bank 0 stalls forever (WAIT(1023) > vTotal). Upload progB to
+    // bank 1 that fires an immediate WRITE (no WAIT) — proves the swap reset
+    // pc to 0 of the new bank and the FSM started dispatching from there.
+    val progA_stalls = Seq(WAIT(1023), JUMP(0))
+    val progB_immediate = Seq(WRITE_OP(0x0611), 0xB10B, JUMP(0))
+    dut.io.enabled #= false
+    step(5)
+    loadProgram(progA_stalls)              // → bank 0 (active)
+    dut.io.enabled #= true
+    step(20)                                 // FSM parks in sWaitStall
+    captured.clear()
+    runRaster(yFrom = 50, yTo = 60)
+    val c10pre = captured.filter(_._1 == 0x0611).toList
+    assert(c10pre.isEmpty, s"case10 setup: progA stalls; no writes expected, got ${c10pre.size}")
+
+    // Live-upload progB to bank 1 (writes route there because enabled)
+    for ((word, i) <- progB_immediate.zipWithIndex) {
+      dut.io.progAddr #= i
+      dut.io.progData #= word
+      dut.io.progWr   #= true
+      dut.clockDomain.waitSampling()
+    }
+    dut.io.progWr #= false
+    step(5)
+
+    // Pulse bankSwapNow — atomic swap, pc reset to 0 on bank 1
+    dut.io.bankSwapNow #= true
+    dut.clockDomain.waitSampling()
+    dut.io.bankSwapNow #= false
+
+    captured.clear()
+    step(30)                                 // let FSM dispatch progB's WRITE
+    val c10post = captured.filter(_._1 == 0x0611).map(_._2).toList
+    assert(c10post.contains(0xB10B),
+      s"case10: post-swap, progB on bank 1 must fire WRITE(0xB10B); got $c10post")
+    println("[sim] case10 bankSwapNow flips active bank + resets pc to 0, new program runs — OK")
+
+    // -------- Case 11: STALE BANK-1 HAZARD (BronzeGate guardrail) --------
+    // If host issues swap_request without first uploading to bank 1, the swap
+    // promotes uninitialized BSRAM content. In sim, prog Mem inits to 0, so
+    // bank 1 = all WAIT(0) instructions — the FSM walks them silently and
+    // never fires the original program's WRITE again.
+    //
+    // This case documents the failure mode so future readers/firmware authors
+    // see why the helper must always upload-before-swap.
+    val progA_writes = Seq(WAIT(40), WRITE_OP(0x0612), 0xBEEF, JUMP(0))
+    dut.io.enabled #= false
+    step(5)
+    // Reset prog by writing zeros to bank 1 explicitly (clean slate after case 10)
+    for (i <- 0 until 8) {
+      dut.io.progAddr #= i
+      dut.io.progData #= 0
+      dut.io.progWr   #= true
+      dut.clockDomain.waitSampling()
+    }
+    // (these writes went to bank 0 since enabled=false and activeBank toggled
+    //  to bank 1 after case 10's swap. Reload progA into the active bank now.)
+    loadProgram(progA_writes)
+    dut.io.enabled #= true
+    step(5)
+    captured.clear()
+    runRaster(yFrom = 35, yTo = 45)
+    assert(captured.exists(c => c._1 == 0x0612 && c._2 == 0xBEEF),
+      "case11 setup: active progA must write 0xBEEF at line 40 before the bad swap")
+
+    // The hazard: issue swap WITHOUT writing anything to the other bank.
+    // Other bank holds whatever stale content was there from earlier cases.
+    dut.io.bankSwapNow #= true
+    dut.clockDomain.waitSampling()
+    dut.io.bankSwapNow #= false
+
+    captured.clear()
+    runRaster(yFrom = 0, yTo = 100)
+    val c11writes = captured.filter(_._1 == 0x0612).toList
+    assert(c11writes.isEmpty,
+      s"case11: post-stale-swap, original progA's WRITE must NOT fire " +
+      s"(bank now holds stale content); got ${c11writes.size} writes — hazard not visible!")
+    println("[sim] case11 stale bank hazard — swap without upload silently disables active program — OK (failure mode visible)")
+
+    // -------- Case 12: bankSwapNow precedence suppresses mid-execution WRITE --------
+    // Set up progA that fires a WRITE at line 70. Hold bankSwapNow=1 across the
+    // WAIT match + FSM dispatch window. The defensive `when(io.bankSwapNow) goto(sFetch)`
+    // in sFetch/sWaitStall/sWriteData must prevent the WRITE from firing on
+    // either the stale-bank fetchWord OR the new bank's word 0 (which is junk
+    // from prior cases). Verify zero WRITEs to the target during the hold.
+    val progA_c12 = Seq(WAIT(70), WRITE_OP(0x0613), 0xF00D, JUMP(0))
+    dut.io.enabled #= false
+    step(5)
+    loadProgram(progA_c12)                   // active bank (whichever it is now)
+    dut.io.enabled #= true
+    step(5)
+
+    // Hold bankSwapNow across lines 69-72 (covers WAIT match + dispatch + drain)
+    captured.clear()
+    // First reach line 68 without bankSwapNow
+    runRaster(yFrom = 60, yTo = 68)
+    // Now assert bankSwapNow before line 70
+    dut.io.bankSwapNow #= true
+    runRaster(yFrom = 69, yTo = 72)
+    dut.io.bankSwapNow #= false
+    val c12writes = captured.filter(_._1 == 0x0613).toList
+    assert(c12writes.isEmpty,
+      s"case12: bankSwapNow precedence must suppress WRITE during the hold; " +
+      s"got ${c12writes.size} writes — defensive goto failed!")
+    println("[sim] case12 bankSwapNow precedence suppresses mid-execution WRITE — OK")
 
     println("[sim] CopperSim: PASS")
   }
