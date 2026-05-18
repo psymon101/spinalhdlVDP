@@ -11,7 +11,6 @@
 #endif
 
 #define COPPER_RAM_BASE 0x0400u
-#define UPLOAD_CHUNK    16u   /* HostInterface FIFO depth */
 
 static inline void vdp_copper_delay_us(uint32_t us)
 {
@@ -25,26 +24,22 @@ static inline void vdp_copper_delay_us(uint32_t us)
 void vdp_copper_upload(const uint16_t *prog, uint16_t nwords)
 {
     if (!prog || nwords == 0 || nwords > 512u) return;
+
     /* Program RAM is only writable while copper is disabled.
-     * Issue the disable first, then wait for the next safe boundary.
+     * Issue the disable first.
      */
     vdp_reg_write(0x0310u, 0x0000u);
-    /* copperCtrlReg commits at hCounter==0 (once per frame, ~16.7 ms).
-     * A 2 ms delay is insufficient if the write lands just after hCounter==0.
-     * Wait 20 ms to guarantee disable has landed. */
-    vdp_copper_delay_us(20000);
 
-    /* Chunked upload: HostInterface has a 16-entry FIFO.
-     * Bursts longer than 16 words silently drop writes.
-     * Upload in ≤16 word chunks with inter-chunk delay for drain. */
-    uint16_t offset = 0;
-    while (offset < nwords) {
-        uint16_t chunk = nwords - offset;
-        if (chunk > UPLOAD_CHUNK) chunk = UPLOAD_CHUNK;
-        vdp_reg_write_burst(COPPER_RAM_BASE + offset, prog + offset, chunk);
-        offset += chunk;
-        vdp_copper_delay_us(500);
-    }
+    /* copperCtrlReg commits at hCounter==0 (once per scanline, ~tens of us).
+     * Wait briefly to ensure the disable has latched.
+     */
+    vdp_copper_delay_us(2000);
+
+    /* Direct upload: HostInterface is absent in the current top, so the QSPI
+     * transport writes directly to the Copper Program RAM without buffering.
+     * Burst writes do not need chunking or inter-chunk delays.
+     */
+    vdp_reg_write_burst(COPPER_RAM_BASE, prog, nwords);
 }
 
 void vdp_copper_enable(bool en)

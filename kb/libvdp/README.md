@@ -176,6 +176,14 @@ Canonical API reference for `firmware/libvdp/`.
 3. **Refactoring:** No renaming of existing `vdp_mode0_*` symbols or introduction of new `vdp_barebones_*` symbols is permitted until this document is audited.
 4. **Transition Path:** When a barebones feature (e.g., procedural sprite) is adopted into the rich-top baseline, its `vdp_barebones_*` wrapper will be retired in favor of the equivalent `vdp_mode0_*` helper.
 
+## Critical Implementation Facts
+
+| Fact | Implication |
+|---|---|
+| **HostInterface is ABSENT** | `HostInterface.scala` is not instantiated in `TopTang20kHdmi` or `VdpTop`. The QSPI transport writes directly to the internal register bus. There is no host-side entry FIFO; bursts are not silently dropped by the transport itself. |
+| **Copper Upload is Unbuffered** | Writes to `0x0400..0x05FF` (Copper Program RAM) hit memory directly. Chunking and inter-chunk delays in `vdp_copper_upload` are unnecessary and have been removed. |
+| **Copper Drain Latency** | `copperFifo` (64 words) buffers writes *from* the Copper script. It drains at most once per scanline at `hCounter == 0`. This introduces a ~1-line vertical lag for effects committed via Copper. |
+
 ## Minimal Usage Order
 
 | Step | Call |

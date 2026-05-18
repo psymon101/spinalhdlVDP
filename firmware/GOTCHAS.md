@@ -191,23 +191,3 @@ the VDP side ever adds high-Z states.
 - The `libvdp` documentation in `kb/libvdp/README.md` is the source of truth for these classifications.
 
 **Transition:** As features migrate from barebones to rich-top, the barebones-specific wrappers will be replaced by standard Mode0 equivalents. No renaming of existing code is authorized until the documentation update is complete and reviewed.
-
----
-
-### GOTCHA-10: Copper program upload must be chunked to ≤16 words
-
-**Fact:** The HostInterface register-write path has a 16-entry FIFO. A `vdp_reg_write_burst()` longer than 16 words overflows the FIFO and silently drops the excess writes.
-
-**Implication:** Copper programs longer than 16 words (e.g., a 32-bar demo at 3 words per bar + JUMP = 97 words) must be uploaded in chunks of ≤16 words with inter-chunk delay for drain.
-
-**Fix status:** `vdp_copper_upload()` in `libvdp` now implements chunked upload automatically (`UPLOAD_CHUNK = 16`). Callers do not need to change.
-
----
-
-### GOTCHA-11: Copper disable commit requires one full frame (20 ms) wait
-
-**Fact:** The `copperCtrlReg` bit in `VDP_CTRL` (0x0310) only commits at `hCounter == 0`, which occurs once per frame (~16.7 ms at 60 Hz). If the disable write lands just after `hCounter == 0`, a 2 ms wait is insufficient; the copper may still be executing when the host starts writing to copper RAM.
-
-**Implication:** Always wait ≥20 ms after writing `0x0000` to `0x0310` before uploading a new copper program.
-
-**Fix status:** `vdp_copper_upload()` in `libvdp` now waits 20 ms before upload. Callers do not need to change.
