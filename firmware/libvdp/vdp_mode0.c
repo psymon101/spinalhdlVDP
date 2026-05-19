@@ -191,6 +191,44 @@ void vdp_mode0_set_color_math(uint16_t ctrl)
     vdp_reg_write(VDP_MODE0_REG_COLOR_MATH_CTRL, ctrl);
 }
 
+void vdp_mode0_set_sprite(uint8_t slot, const vdp_mode0_sprite_cfg_t *cfg)
+{
+    if (!cfg || slot >= 32u) return;
+
+    /* Word 0: {enabled[15], patIdx[3:0]@[14:11], affineEnable[10], y[9:0]} */
+    uint16_t w0 = (uint16_t)(cfg->y & 0x03FFu) |
+                  (uint16_t)(cfg->affine_en ? 0x0400u : 0u) |
+                  (uint16_t)(((uint16_t)cfg->pat_idx & 0x0Fu) << 11) |
+                  (uint16_t)(cfg->enabled ? 0x8000u : 0u);
+
+    /* Word 1: {_[15:10], x[9:0]} */
+    uint16_t w1 = (uint16_t)(cfg->x & 0x03FFu);
+
+    /* Words 0..7: Attr block */
+    {
+        uint16_t words[8] = {
+            w0, w1, cfg->matrix[0], cfg->matrix[1], cfg->matrix[2], cfg->matrix[3],
+            cfg->trans_x, cfg->trans_y
+        };
+        vdp_mode0_write_block((uint16_t)(VDP_MODE0_REG_SPRITE_ATTR_BASE + (slot * 8u)), words, 8);
+    }
+
+    /* Word 8: Hardening extension block
+     * {sizeSel[15:14], paletteBank[13:11], priority[10:9], flipH[8], flipV[7],
+     *  bppSel[6:5], mask[4], _[3:2], patIdx[5:4]@[1:0]}
+     */
+    uint16_t w8 = (uint16_t)(((uint16_t)cfg->pat_idx >> 4) & 0x3u) |
+                  (uint16_t)(cfg->mask ? 0x0010u : 0u) |
+                  (uint16_t)(((uint16_t)cfg->bpp_sel & 0x3u) << 5) |
+                  (uint16_t)(cfg->flip_v ? 0x0080u : 0u) |
+                  (uint16_t)(cfg->flip_h ? 0x0100u : 0u) |
+                  (uint16_t)(((uint16_t)cfg->prio & 0x3u) << 9) |
+                  (uint16_t)(((uint16_t)cfg->pal_bank & 0x7u) << 11) |
+                  (uint16_t)(((uint16_t)cfg->size_sel & 0x3u) << 14);
+
+    vdp_reg_write((uint16_t)(VDP_MODE0_REG_SPRITE_HARD_BASE + slot), w8);
+}
+
 void vdp_mode0_write_copper_word(uint16_t word_index, uint16_t data)
 {
     vdp_reg_write((uint16_t)(VDP_MODE0_REG_COPPER_RAM_BASE + word_index), data);
@@ -255,16 +293,18 @@ void vdp_mode0_blit_config(const vdp_mode0_blit_cfg_t *cfg)
 {
     if (!cfg) return;
     {
-        const uint16_t words[8] = {
+        /* Write parameters first (0x0C01..0x0C07) */
+        const uint16_t words[7] = {
             cfg->width_m1,
             cfg->height_m1,
             cfg->dst_addr,
             cfg->dst_stride,
             cfg->src_addr,
             cfg->src_stride,
-            cfg->fill_val,
-            cfg->ctrl
+            cfg->fill_val
         };
-        vdp_mode0_write_block(VDP_MODE0_REG_BLIT_WIDTH, words, 8);
+        vdp_mode0_write_block(VDP_MODE0_REG_BLIT_WIDTH, words, 7);
+        /* Trigger GO at 0x0C00 */
+        vdp_reg_write(VDP_MODE0_REG_BLIT_CTRL, cfg->ctrl);
     }
 }

@@ -71,6 +71,10 @@ extern "C" {
 #define VDP_MODE0_REG_TRIGGER3_PIXEL    0x0369u
 #define VDP_MODE0_REG_TRIGGER3_CTRL     0x036Au
 
+/* Sprite block: 32 slots x 8 words (attr) + 32 slots x 1 word (hard) */
+#define VDP_MODE0_REG_SPRITE_ATTR_BASE  0x0800u
+#define VDP_MODE0_REG_SPRITE_HARD_BASE  0x0D20u
+
 /* HDMA / Copper / palette / tables */
 #define VDP_MODE0_REG_HDMA_BASE         0x0380u
 #define VDP_MODE0_REG_COPPER_RAM_BASE   0x0400u
@@ -176,6 +180,24 @@ typedef struct {
     uint16_t fill_val;
 } vdp_mode0_blit_cfg_t;
 
+typedef struct {
+    uint16_t x;
+    uint16_t y;
+    uint16_t matrix[4]; // a, b, c, d
+    uint16_t trans_x;
+    uint16_t trans_y;
+    uint8_t  pat_idx;   // 6 bits (0..63)
+    bool     enabled;
+    bool     affine_en;
+    uint8_t  size_sel;  // 2 bits (0..3)
+    uint8_t  pal_bank;  // 3 bits (0..7)
+    uint8_t  prio;      // 2 bits (0..3)
+    bool     flip_h;
+    bool     flip_v;
+    uint8_t  bpp_sel;   // 2 bits (0..2)
+    bool     mask;
+} vdp_mode0_sprite_cfg_t;
+
 uint16_t vdp_mode0_bitmap_ctrl(bool enable, uint8_t bpp, uint8_t cell_width_log2);
 uint16_t vdp_mode0_border_ctrl(bool enable, uint8_t palette_index);
 uint16_t vdp_mode0_trigger_ctrl(bool enable, bool pixel_cmp_enable, bool clear_pulse);
@@ -209,6 +231,8 @@ void vdp_mode0_set_bitmap_ctrl(uint16_t ctrl);
 
 bool vdp_mode0_set_raster_trigger(uint8_t trigger_index, const vdp_mode0_trigger_t *cfg);
 void vdp_mode0_set_color_math(uint16_t ctrl);
+
+void vdp_mode0_set_sprite(uint8_t slot, const vdp_mode0_sprite_cfg_t *cfg);
 
 void vdp_mode0_write_copper_word(uint16_t word_index, uint16_t data);
 bool vdp_mode0_hdma_write(uint8_t offset, uint16_t data);
