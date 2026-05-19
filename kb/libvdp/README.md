@@ -102,6 +102,11 @@ Canonical API reference for `firmware/libvdp/`.
 
 ## Mode0 Helpers
 
+Implementation rule: when Mode0 gains a new register block or control path,
+the firmware surface should grow a matching `vdp_mode0_*` helper and this
+table should be updated in the same change unless BronzeGate approves a
+documented raw-only exception.
+
 | Area | Helpers |
 |---|---|
 | globals | `vdp_mode0_set_layer_enable`, `vdp_mode0_set_vdp_ctrl`, `vdp_mode0_set_tile_mode`, `vdp_mode0_set_attr_mode`, `vdp_mode0_set_mode_select`, `vdp_mode0_read_live_mode` |
@@ -143,7 +148,7 @@ Canonical API reference for `firmware/libvdp/`.
 |---|---|---|---|
 | **Transport** | QSPI framing (`vdp_reg_write`, `vdp_reg_write_burst`, `vdp_read_status`) | All | Authoritative |
 | **System** | Status, vblank sync, asset upload | All | Authoritative |
-| **Generic Mode0** | Rich-top register surface (`vdp_mode0_*`) | mode2optimized | Partial Coverage |
+| **Generic Mode0** | Rich-top register surface (`vdp_mode0_*`) | mode2optimized | Authoritative — all allocated write-path registers have direct helpers. Intentional gap: high-level sprite attribute table (Task 37). |
 | **Barebones Proof**| Barebones-top registers (scroll + sprite) | barebones-rebuild| Functional — inline bit-bang sketches; not yet wrapped in `libvdp` |
 | **Copper** | Copper opcode helpers + program upload | mode2optimized | Authoritative |
 
@@ -152,14 +157,14 @@ Canonical API reference for `firmware/libvdp/`.
 | Area | Helpers | Coverage Notes |
 |---|---|---|
 | **Background** | `vdp_mode0_set_layer_enable`, `vdp_mode0_write_vscroll_entry` | Covers global enable and 1D scroll table. |
-| **Window / Border**| `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window`, `vdp_mode0_border_ctrl` | Comprehensive 2-window + border control. |
+| **Window / Border / Color Math** | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window`, `vdp_mode0_border_ctrl`, `vdp_mode0_set_border_ctrl`, `vdp_mode0_set_color_math` | Comprehensive 2-window + border + color-math control. Standalone helpers for dynamic updates without rewriting full blocks. |
 | **Affine** | `vdp_mode0_set_affine` | Covers regs A-D, X, Y, and ctrl with one contiguous burst. |
-| **Bitmap** | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg` | Base addresses, stride, and BPP with one contiguous burst. |
+| **Bitmap** | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_ctrl` | Base addresses, stride, and BPP with one contiguous burst. Standalone bitmap ctrl helper for quick enable/disable. |
 | **Palette** | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_data`, `vdp_mode0_palette_write_rgb888` | High-level RGB888 and low-level word access. |
 | **DMA / Blitter** | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_config`, `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_config` | Staging RAM and FSM control with batched contiguous register writes. |
 | **Raster** | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` | Covers all 3 bus-controlled triggers in one burst per trigger. |
-| **Copper / HDMA** | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write` | RAM and HDMA config registers. |
-| **Status** | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status` | Interrupt/sticky mask control. |
+| **Copper / HDMA** | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write`, `vdp_mode0_set_hdma_base` | RAM and HDMA config registers. |
+| **Status** | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status`, `vdp_wait_sticky`, `vdp_wait_vblank`, `vdp_clear_sticky` | Interrupt/sticky mask control + polling helpers. Sticky constants cover RASTER_MATCH through MODE_SELECT_CHANGED. |
 
 ## Sprite API Surface
 
@@ -169,7 +174,7 @@ Canonical API reference for `firmware/libvdp/`.
 | **Status (Sticky)** | `VDP_STICKY_SPRITE_0_HIT` | **DONE** | Slot-0 opaque-on-opaque hit. |
 | **Status (Sticky)** | `VDP_STICKY_SPRITE_BG_HIT` | **DONE** | Any-sprite opaque-on-opaque hit. |
 | **Control** | `vdp_mode0_clear_sprite_coll_mask` | **DONE** | Clears sticky collision bits in `0x0322`. |
-| **Programming** | **NONE** | **GAP** | **Missing:** High-level API for sprite attribute table (SDRAM) or barebones position. |
+| **Programming** | **NONE** | **GAP** | **Missing:** High-level API for sprite attribute table (SDRAM) or barebones position. All landed rich-top control blocks in `vdp_mode0.h` otherwise have direct helpers. |
 
 ## Migration & Naming Plan
 
@@ -188,6 +193,7 @@ Canonical API reference for `firmware/libvdp/`.
 | **Copper Upload is Unbuffered** | Writes to `0x0400..0x05FF` (Copper Program RAM) hit memory directly. Chunking and inter-chunk delays in `vdp_copper_upload` are unnecessary and have been removed. |
 | **Copper Drain Latency** | `copperFifo` (64 words) buffers writes *from* the Copper script. It drains at most once per scanline at `hCounter == 0`. This introduces a ~1-line vertical lag for effects committed via Copper. |
 | **Copper Double-Buffer** | Two 512-word banks. Upload to `0x0400..0x05FF` while copper is **enabled** routes to the inactive bank. `vdp_copper_swap_request()` atomically swaps banks at the next `vSyncStart`. Sequencing rule: always upload to the inactive bank *before* requesting swap. |
+| **Mode0 Coverage** | The `vdp_mode0_*` surface mirrors the landed rich-top register map block-by-block. New Mode0 blocks should land with matching helpers and doc updates; the only intentional gap is high-level sprite programming. |
 
 ## Minimal Usage Order
 

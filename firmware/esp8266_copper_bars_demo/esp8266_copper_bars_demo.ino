@@ -65,8 +65,8 @@ void setup(void)
     upload_rainbow_palette();
 
     vdp_mode0_set_layer_enable(0x0000u);
-    vdp_reg_write(0x0350u, 0x0000u);
-    vdp_reg_write(0x0334u, 0x0000u);
+    vdp_mode0_set_bitmap_ctrl(0x0000u);
+    vdp_mode0_set_color_math(0x0000u);
 
     vdp_mode0_rect_t rect = { 0, 1280, 0, 0 };
     vdp_mode0_set_border_window(&rect, vdp_mode0_border_ctrl(true, 0));

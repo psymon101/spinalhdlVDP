@@ -65,6 +65,11 @@ void vdp_mode0_set_mode_select(uint16_t mode_select)
     vdp_reg_write(VDP_MODE0_REG_MODE_SELECT, mode_select);
 }
 
+void vdp_mode0_set_vdp_ctrl_word(uint16_t ctrl)
+{
+    vdp_reg_write(VDP_MODE0_REG_VDP_CTRL, ctrl);
+}
+
 uint8_t vdp_mode0_read_live_mode(void)
 {
     return (uint8_t)(vdp_read_status(7) & 0x0Fu);
@@ -127,10 +132,16 @@ void vdp_mode0_set_window_combine(uint16_t combine_ctrl, uint16_t layer_mask)
 void vdp_mode0_set_border_window(const vdp_mode0_rect_t *rect, uint16_t border_ctrl)
 {
     if (!rect) return;
-    const uint16_t words[5] = {
-        rect->x0, rect->x1, rect->y0, rect->y1, border_ctrl
+    const uint16_t words[4] = {
+        rect->x0, rect->x1, rect->y0, rect->y1
     };
-    vdp_mode0_write_block(VDP_MODE0_REG_BORDER_X0, words, 5);
+    vdp_mode0_write_block(VDP_MODE0_REG_BORDER_X0, words, 4);
+    vdp_reg_write(VDP_MODE0_REG_BORDER_CTRL, border_ctrl);
+}
+
+void vdp_mode0_set_border_ctrl(uint16_t border_ctrl)
+{
+    vdp_reg_write(VDP_MODE0_REG_BORDER_CTRL, border_ctrl);
 }
 
 void vdp_mode0_set_affine(const vdp_mode0_affine_t *cfg)
@@ -157,6 +168,11 @@ void vdp_mode0_set_bitmap_cfg(const vdp_mode0_bitmap_cfg_t *cfg)
     vdp_mode0_write_block(VDP_MODE0_REG_BITMAP_CTRL, words, 7);
 }
 
+void vdp_mode0_set_bitmap_ctrl(uint16_t ctrl)
+{
+    vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL, ctrl);
+}
+
 bool vdp_mode0_set_raster_trigger(uint8_t trigger_index, const vdp_mode0_trigger_t *cfg)
 {
     uint16_t base;
@@ -170,6 +186,11 @@ bool vdp_mode0_set_raster_trigger(uint8_t trigger_index, const vdp_mode0_trigger
     return true;
 }
 
+void vdp_mode0_set_color_math(uint16_t ctrl)
+{
+    vdp_reg_write(VDP_MODE0_REG_COLOR_MATH_CTRL, ctrl);
+}
+
 void vdp_mode0_write_copper_word(uint16_t word_index, uint16_t data)
 {
     vdp_reg_write((uint16_t)(VDP_MODE0_REG_COPPER_RAM_BASE + word_index), data);
@@ -180,6 +201,11 @@ bool vdp_mode0_hdma_write(uint8_t offset, uint16_t data)
     if (offset > 0x49u && offset != 0x50u && offset != 0x51u) return false;
     vdp_reg_write((uint16_t)(VDP_MODE0_REG_HDMA_BASE + offset), data);
     return true;
+}
+
+void vdp_mode0_set_hdma_base(uint16_t hdma_base)
+{
+    vdp_reg_write(VDP_MODE0_REG_HDMA_BASE, hdma_base);
 }
 
 void vdp_mode0_palette_set_ptr(uint8_t ptr)

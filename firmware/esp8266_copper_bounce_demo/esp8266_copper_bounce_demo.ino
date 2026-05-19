@@ -175,8 +175,8 @@ void setup(void)
 
     /* Disable all rendering sources so only border shows */
     vdp_mode0_set_layer_enable(0x0000u);
-    vdp_reg_write(0x0350u, 0x0000u);
-    vdp_reg_write(0x0334u, 0x0000u);
+    vdp_mode0_set_bitmap_ctrl(0x0000u);
+    vdp_mode0_set_color_math(0x0000u);
 
     /* Border everywhere: empty inner rect */
     vdp_mode0_rect_t rect = { 0, 1280, 0, 0 };

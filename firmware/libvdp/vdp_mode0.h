@@ -187,6 +187,7 @@ void vdp_mode0_set_vdp_ctrl(bool copper_enable);
 void vdp_mode0_set_tile_mode(uint8_t mode);
 void vdp_mode0_set_attr_mode(uint8_t mode);
 void vdp_mode0_set_mode_select(uint16_t mode_select);
+void vdp_mode0_set_vdp_ctrl_word(uint16_t ctrl);
 uint8_t vdp_mode0_read_live_mode(void);
 
 void vdp_mode0_set_status_enable(uint16_t mask);
@@ -200,14 +201,18 @@ void vdp_mode0_set_window1(const vdp_mode0_rect_t *rect, uint16_t color_math_ctr
 void vdp_mode0_set_window2(const vdp_mode0_rect_t *rect, uint16_t win2_ctrl);
 void vdp_mode0_set_window_combine(uint16_t combine_ctrl, uint16_t layer_mask);
 void vdp_mode0_set_border_window(const vdp_mode0_rect_t *rect, uint16_t border_ctrl);
+void vdp_mode0_set_border_ctrl(uint16_t border_ctrl);
 
 void vdp_mode0_set_affine(const vdp_mode0_affine_t *cfg);
 void vdp_mode0_set_bitmap_cfg(const vdp_mode0_bitmap_cfg_t *cfg);
+void vdp_mode0_set_bitmap_ctrl(uint16_t ctrl);
 
 bool vdp_mode0_set_raster_trigger(uint8_t trigger_index, const vdp_mode0_trigger_t *cfg);
+void vdp_mode0_set_color_math(uint16_t ctrl);
 
 void vdp_mode0_write_copper_word(uint16_t word_index, uint16_t data);
 bool vdp_mode0_hdma_write(uint8_t offset, uint16_t data);
+void vdp_mode0_set_hdma_base(uint16_t hdma_base);
 void vdp_mode0_palette_set_ptr(uint8_t ptr);
 void vdp_mode0_palette_write_data(uint16_t data);
 void vdp_mode0_palette_write_rgb888(uint8_t entry_index, uint8_t r, uint8_t g, uint8_t b);
