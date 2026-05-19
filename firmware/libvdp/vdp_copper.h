@@ -46,11 +46,30 @@ static inline uint16_t vdp_copper_write_seq_hdr(uint16_t addr, uint8_t count_m1)
 }
 
 /**
+ * Encode a single WRITE opcode header (1 word).
+ * The data word must follow immediately in the program stream.
+ */
+static inline uint16_t vdp_copper_write_op(uint16_t addr)
+{
+    return (uint16_t)(0x4000u | (addr & 0x7FFu));
+}
+
+/**
  * Encode a JUMP opcode (1 word).
  */
 static inline uint16_t vdp_copper_jump(uint16_t target_pc)
 {
     return (uint16_t)(0xC000u | (target_pc & 0x1FFu));
+}
+
+/**
+ * Encode a SKIP opcode (BH-2, 1 word).
+ * @param cond   3-bit condition code
+ * @param offset 5-bit skip offset in program words
+ */
+static inline uint16_t vdp_copper_skip_op(uint8_t cond, uint8_t offset)
+{
+    return (uint16_t)(0xE000u | (((uint16_t)(cond & 0x7u)) << 5) | (offset & 0x1Fu));
 }
 
 /**
@@ -73,6 +92,15 @@ void vdp_copper_enable(bool en);
  * Writes 0x0003 to VDP_CTRL @ 0x0310 (keeps COPPER_ENABLE set).
  */
 void vdp_copper_swap_request(void);
+
+/**
+ * Upload a copper program to the inactive bank and request an atomic swap.
+ * Convenience wrapper that combines burst upload with swap request.
+ * Precondition: copper must already be enabled so writes route to the
+ * inactive bank. This helper closes the stale-bank hazard (CopperSim case 11)
+ * by making the swap step unskippable.
+ */
+void vdp_copper_upload_and_swap(const uint16_t *prog, uint16_t nwords);
 
 #ifdef __cplusplus
 }

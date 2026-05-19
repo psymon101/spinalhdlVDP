@@ -62,3 +62,14 @@ void vdp_copper_swap_request(void)
      */
     vdp_reg_write(0x0310u, 0x0003u);
 }
+
+void vdp_copper_upload_and_swap(const uint16_t *prog, uint16_t nwords)
+{
+    if (!prog || nwords == 0 || nwords > 512u) return;
+
+    /* Precondition: copper must be enabled so burst writes to 0x0400
+     * route to the inactive bank rather than corrupting the active one.
+     */
+    vdp_reg_write_burst(COPPER_RAM_BASE, prog, nwords);
+    vdp_copper_swap_request();
+}
