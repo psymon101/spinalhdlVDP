@@ -137,6 +137,7 @@ python3 scripts/assets/bin_to_c_array.py build/frame.tiles.bin \
 | **Window / Border** | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_border_ctrl`, `vdp_mode0_set_color_math` | 2-window + color-math. |
 | **Bitmap / Affine** | `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_base`, `vdp_mode0_set_bitmap_stride`, `vdp_mode0_set_affine` | Page-flipping and transform. |
 | **Palette** | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_rgb888` | RGB888 burst writes. |
+| **Palette LUTs** | `vdp_tms9918_load_palette`, `vdp_sms_palette_write`, `vdp_gg_palette_write`, `vdp_atarist_palette_write`, `vdp_atariste_palette_write` | Per-platform native-value → RGB888 converters. |
 | **Copper / HDMA** | `vdp_copper_upload`, `vdp_copper_swap_request`, `vdp_mode0_set_hdma_ctrl`, `vdp_mode0_hdma_done_ack` | RAM and FSM control. |
 | **DMA / Blitter** | `vdp_mode0_dma_config`, `vdp_mode0_blit_config` | Contiguous burst init. |
 | **Raster** | `vdp_mode0_set_raster_trigger` | All 3 hardware triggers. |
