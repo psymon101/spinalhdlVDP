@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-19 (Mode2optimized Compile-Time Feature Strip DONE — bitstream produced `22afb90`; Task 10026 Barebones Simple Sprite DONE audit PASS #10117; 3b Copper Double-Buffer lane DONE closed at `01f2e91`; libvdp Mode0 helper-surface DONE `9f6b86f`, `29be453`; CoralReef audit checklist landed `4ba550e`; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
+**Updated:** 2026-05-19 (Mode2optimized Compile-Time Feature Strip DONE — bitstream produced `22afb90`; Task 10026 Barebones Simple Sprite DONE audit PASS #10117; 3b Copper Double-Buffer lane DONE closed at `01f2e91`; libvdp Mode0 helper-surface DONE `9f6b86f`, `29be453`; CoralReef audit checklist landed `4ba550e`; libvdp all-in-one sprite upload helper DONE `c9e6702`; libvdp per-platform palette LUT helpers DONE `45f0d88`; docs cleanup DONE `b10ab71`; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
 **Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
 
 Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
@@ -24,9 +24,9 @@ This section tracks the active lane.
 |-------|-------|
 | **Task** | **No active critical-path lane** |
 | **Status** | **AWAITING PM AUTHORIZATION** |
-| **Latest Commit** | `29be453` (TopazCliff) |
+| **Latest Commit** | `3f108fd` (CyanPeak docs cleanup) |
 | **Latest Auth Mail** | BronzeGate #10295 |
-| **Summary** | Feature-strip complete (22afb90, 51% headroom). 3b Copper swap proven. libvdp Mode0 surface complete. |
+| **Summary** | Feature-strip complete (22afb90, 51% headroom). 3b Copper swap proven. libvdp Mode0 surface, sprite upload, and palette LUTs complete. Docs cleanup complete. |
 | **Next Step** | Wait for PM lane-open ruling (Atari ST, mode2optimized follow-up, or idle). |
 
 ---
@@ -68,6 +68,9 @@ Parallel work completed outside the FPGA critical path.
 | Task | Status | Owner | Audit | Closeout Mail | Commit |
 |---|---|---|---|---|---|
 | libvdp Mode0 Helper-Surface Completion — pattern-RAM, VSCROLL, HDMA, bitmap base/stride, standalone control helpers | **DONE** | TopazCliff | CoralReef verified | BronzeGate #10273 | `6830b55`, `9f6b86f`, `29be453` |
+| libvdp All-in-One Sprite Upload Helper | **DONE** | TopazCliff | CoralReef verified | BronzeGate #10296 | `c9e6702` |
+| libvdp Per-Platform Palette LUT Helpers — TMS9918, SMS/GG, Atari ST/STE | **DONE** | TopazCliff | CoralReef verified | BronzeGate #10305/#10306 | `45f0d88` |
+| Docs Cleanup — concision, consistency, visual-fidelity policy sync | **DONE** | CyanPeak | CoralReef verified | BronzeGate #10303 | `b10ab71`, `1b7449c`, `3f108fd` |
 | Firmware Platform Parity — ESP32 Scenario Coverage | **DONE** | FoggyWolf | CyanPeak PASS #9727 | #9727 | \`e7c8a06\` |
 
 ---

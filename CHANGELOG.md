@@ -6,6 +6,25 @@
   - `PROJECT_PLAN/PLATFORM_ADAPTERS.md` — Removed redundant §3 "Per-Adapter Summary" (covered by §1 Index + §2 Honesty Matrix). Saved ~45 lines.
   - `PROJECT_PLAN/CONVENTIONS.md` — Tightened "Platform Adapter Fidelity Standards" preamble. Saved ~5 lines.
   - `kb/libvdp/README.md` — Tightened "All-in-one sprite upload", "Migration & Naming Plan" (converted to table), and "Critical Implementation Facts". Net ~15 lines leaner.
+  - `PROJECT_PLAN/MODE0_PLANNING.md` — Consolidated quantified behavior tables, removed redundant register map. Saved ~230 lines.
+  - `PROJECT_PLAN/ASSESSMENT.md` — Removed redundant internal report headers. Saved ~4 lines.
+
+## 2026-05-19 — libvdp All-in-One Sprite Upload Helper + Per-Platform Palette LUTs
+
+- **libvdp All-in-One Sprite Upload Helper** — DONE (BronzeGate #10296)
+  - `vdp_sprite_upload()` wraps palette upload + pattern RAM upload + sprite descriptor config in one call (`c9e6702`)
+  - Proof: `esp8266_sc62_sprite_flip` and `esp32_sc62_sprite_flip` updated to use helper; compile clean
+  - `kb/libvdp/README.md` updated with API signature and usage notes
+
+- **libvdp Per-Platform Palette LUT Helpers** — DONE (BronzeGate #10305/#10306)
+  - `vdp_tms9918_load_palette()` — fixed 16-color TMS9918A palette
+  - `vdp_sms_palette_write(idx, val)` — SMS 6-bit CRAM
+  - `vdp_gg_palette_write(idx, val)` — Game Gear 12-bit CRAM
+  - `vdp_atarist_palette_write(idx, val)` — Atari ST 9-bit
+  - `vdp_atariste_palette_write(idx, val)` — Atari STE 12-bit
+  - Bit-expansion policy documented: 2-bit replicate, 3-bit weighted, 4-bit nibble-duplicate
+  - Proof: `esp8266_palette_lut_smoke` and `test_palette_lut_smoke` compile clean
+  - Commit: `45f0d88`
 
 ## 2026-05-19 — 3b Copper Double-Buffer Closed + libvdp Helper-Surface Complete + Audit Checklist Landed
 
