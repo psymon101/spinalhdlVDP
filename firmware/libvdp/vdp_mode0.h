@@ -253,6 +253,24 @@ void vdp_mode0_set_color_math(uint16_t ctrl);
 
 void vdp_mode0_set_sprite(uint8_t slot, const vdp_mode0_sprite_cfg_t *cfg);
 
+/**
+ * One-shot sprite upload: pattern RAM + optional palette + descriptor.
+ *
+ * @param slot           Sprite slot (0..31)
+ * @param pattern        4bpp pixel data, one uint16_t per pixel
+ * @param pattern_start  Pattern RAM pixel index to start writing
+ * @param pattern_pixels Number of pixels to upload
+ * @param palette        Array of 0x00RRGGBB palette entries, or NULL
+ * @param palette_start  First palette entry index (0..255)
+ * @param palette_count  Number of palette entries (0 = skip)
+ * @param cfg            Sprite descriptor config; NULL = skip descriptor write
+ * @return true on success, false if slot out of range
+ */
+bool vdp_sprite_upload(uint8_t slot,
+                       const uint16_t *pattern, uint16_t pattern_start, uint16_t pattern_pixels,
+                       const uint32_t *palette, uint8_t palette_start, uint8_t palette_count,
+                       const vdp_mode0_sprite_cfg_t *cfg);
+
 void vdp_mode0_write_copper_word(uint16_t word_index, uint16_t data);
 bool vdp_mode0_hdma_write(uint8_t offset, uint16_t data);
 void vdp_mode0_set_hdma_base(uint16_t hdma_base);

@@ -24,13 +24,16 @@ static void sc62_upload_pattern(void)
 {
     Serial.println(F("sc62: uploading 16x16 4bpp asymmetric-L pattern to slot 0..."));
 
-    vdp_mode0_set_pattern_ptr(0);   // pattern slot 0, pixel 0
-
+    uint16_t pixels[256];
     for (uint8_t row = 0; row < 16; ++row) {
         for (uint8_t col = 0; col < 16; ++col) {
-            vdp_mode0_write_pattern_data((uint16_t)pattern_pixel(row, col));
+            pixels[row * 16 + col] = (uint16_t)pattern_pixel(row, col);
         }
     }
+
+    vdp_sprite_upload(/*slot=*/0, pixels, /*pattern_start=*/0, /*pattern_pixels=*/256,
+                      /*palette=*/NULL, /*palette_start=*/0, /*palette_count=*/0,
+                      /*cfg=*/NULL);
 
     Serial.println(F("sc62: pattern uploaded; sprite descriptors are configured by copper"));
 }

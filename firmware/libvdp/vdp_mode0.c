@@ -251,6 +251,42 @@ void vdp_mode0_set_sprite(uint8_t slot, const vdp_mode0_sprite_cfg_t *cfg)
     vdp_reg_write((uint16_t)(VDP_MODE0_REG_SPRITE_HARD_BASE + slot), w8);
 }
 
+bool vdp_sprite_upload(uint8_t slot,
+                       const uint16_t *pattern, uint16_t pattern_start, uint16_t pattern_pixels,
+                       const uint32_t *palette, uint8_t palette_start, uint8_t palette_count,
+                       const vdp_mode0_sprite_cfg_t *cfg)
+{
+    if (slot >= 32u) return false;
+
+    /* 1. Optional palette upload */
+    if (palette != NULL && palette_count > 0u) {
+        uint8_t entry = palette_start;
+        for (uint8_t i = 0; i < palette_count; ++i) {
+            uint32_t rgb = palette[i];
+            uint8_t r = (uint8_t)((rgb >> 16) & 0xFFu);
+            uint8_t g = (uint8_t)((rgb >>  8) & 0xFFu);
+            uint8_t b = (uint8_t)( rgb        & 0xFFu);
+            vdp_mode0_palette_write_rgb888(entry, r, g, b);
+            ++entry;
+        }
+    }
+
+    /* 2. Pattern RAM upload */
+    if (pattern != NULL && pattern_pixels > 0u) {
+        vdp_mode0_set_pattern_ptr(pattern_start);
+        for (uint16_t i = 0; i < pattern_pixels; ++i) {
+            vdp_mode0_write_pattern_data(pattern[i] & 0x000Fu);
+        }
+    }
+
+    /* 3. Sprite descriptor configuration */
+    if (cfg != NULL) {
+        vdp_mode0_set_sprite(slot, cfg);
+    }
+
+    return true;
+}
+
 void vdp_mode0_write_copper_word(uint16_t word_index, uint16_t data)
 {
     vdp_reg_write((uint16_t)(VDP_MODE0_REG_COPPER_RAM_BASE + word_index), data);

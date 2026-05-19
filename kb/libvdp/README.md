@@ -149,7 +149,7 @@ documented raw-only exception.
 | tables | `vdp_mode0_write_linestate`, `vdp_mode0_write_vscroll_entry`, `vdp_mode0_set_vscroll_base` |
 | dma | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_write_staging`, `vdp_mode0_dma_config` |
 | blitter | `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_write_src`, `vdp_mode0_blit_config` |
-| sprite | `vdp_mode0_set_sprite`, `vdp_mode0_set_pattern_ptr`, `vdp_mode0_write_pattern_data` |
+| sprite | `vdp_mode0_set_sprite`, `vdp_mode0_set_pattern_ptr`, `vdp_mode0_write_pattern_data`, `vdp_sprite_upload` |
 
 ### Sprite Programming Example
 
@@ -209,7 +209,24 @@ vdp_mode0_set_sprite(0, &cfg);
 | **Raster** | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` | Covers all 3 bus-controlled triggers in one burst per trigger. |
 | **Copper / HDMA** | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write`, `vdp_mode0_set_hdma_base`, `vdp_mode0_set_hdma_ctrl`, `vdp_mode0_hdma_done_ack`, `vdp_mode0_set_hdma_ch_addr`, `vdp_mode0_set_hdma_data_ptr`, `vdp_mode0_hdma_write_data` | RAM and HDMA config registers. Structured helpers cover enable/mask, done-ack, channel addresses, and indirect-data pointer/write. |
 | **Status** | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status`, `vdp_wait_sticky`, `vdp_wait_vblank`, `vdp_clear_sticky` | Interrupt/sticky mask control + polling helpers. Sticky constants cover RASTER_MATCH through MODE_SELECT_CHANGED. |
-| **Sprite** | `vdp_mode0_set_sprite`, `vdp_mode0_set_pattern_ptr`, `vdp_mode0_write_pattern_data` | Covers 32 slots of affine descriptor RAM (8 words/slot) plus Hardening extension (word 8). Pattern-RAM upload helpers for `0x0D10/0x0D11` (Task 53). |
+| **Sprite** | `vdp_mode0_set_sprite`, `vdp_mode0_set_pattern_ptr`, `vdp_mode0_write_pattern_data`, `vdp_sprite_upload` | Covers 32 slots of affine descriptor RAM (8 words/slot) plus Hardening extension (word 8). Pattern-RAM upload helpers for `0x0D10/0x0D11` (Task 53). All-in-one `vdp_sprite_upload()` wraps palette + pattern + descriptor config in one call for the common 4bpp path. |
+
+### All-in-one sprite upload (`vdp_sprite_upload`)
+
+```c
+bool vdp_sprite_upload(uint8_t slot,
+                       const uint16_t *pattern, uint16_t pattern_start, uint16_t pattern_pixels,
+                       const uint32_t *palette, uint8_t palette_start, uint8_t palette_count,
+                       const vdp_mode0_sprite_cfg_t *cfg);
+```
+
+Wraps the three most common sprite-setup steps into one call:
+
+1. **Palette** (optional) — uploads `palette_count` entries from `palette` (0x00RRGGBB format) starting at `palette_start`.
+2. **Pattern RAM** — streams `pattern_pixels` 4bpp pixels from `pattern` into pattern RAM at `pattern_start`.
+3. **Descriptor** (optional) — writes the sprite descriptor via `vdp_mode0_set_sprite()` when `cfg != NULL`.
+
+Any step can be skipped by passing `NULL` / `0`. This is the preferred path for the common "upload one sprite and turn it on" use case.
 
 ## Sprite API Surface
 
@@ -221,6 +238,7 @@ vdp_mode0_set_sprite(0, &cfg);
 | **Control** | `vdp_mode0_clear_sprite_coll_mask` | **DONE** | Clears sticky collision bits in `0x0322`. |
 | **Programming** | `vdp_mode0_set_sprite` | **DONE** | High-level API for sprite attribute table (SDRAM/Reg-backed) and hardening extension. |
 | **Pattern RAM** | `vdp_mode0_set_pattern_ptr`, `vdp_mode0_write_pattern_data` | **DONE** | Upload 4bpp pixels into sprite pattern RAM at `0x0D10/0x0D11` (Task 53). Pointer auto-increments on data write. |
+| **All-in-one** | `vdp_sprite_upload` | **DONE** | One-call palette + pattern + descriptor upload for the common 4bpp sprite path. |
 
 ## Migration & Naming Plan
 
