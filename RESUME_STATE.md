@@ -1,6 +1,6 @@
-# Session Resume State — CoralReef
+# Session Resume State — TopazCliff
 
-**Saved:** 2026-05-19T18:42 UTC  
+**Saved:** 2026-05-19T22:32 UTC  
 **Branch:** `mode0t20-barebones-rebuild`  
 **Latest Commit:** `f61b431` (CoralReef ledger sync for 2026-05-19 closeouts)
 
@@ -8,17 +8,26 @@
 
 ## Task / Checkpoint
 
-CoralReef ledger-sync and audit closeout for all 2026-05-19 sidecar lanes — **COMPLETE**.
+Mail check and task verification complete. All firmware-directed tasks from inbox are **DONE** and acknowledged.
 
 ## Latest Authoritative Mail
 
 | Reply ID | Re: Original | To | Subject |
 |---|---|---|---|
-| #10310 | BronzeGate #10295 | BronzeGate | Ledger-sync packet: all closeouts reflected in TASKS.md + CHANGELOG.md |
-| #10311 | CyanPeak #10307 | CyanPeak | Audit PASS: docs cleanup (#10303) |
-| #10312 | BronzeGate #10296 | BronzeGate | Audit PASS: libvdp all-in-one sprite upload helper |
-| #10313 | BronzeGate #10305 | BronzeGate | Audit PASS: libvdp per-platform palette LUT helpers |
-| #10314 | BrightForge #10274 | BrightForge | Acknowledged: libvdp doc-sync process ask now structural |
+| #10298 | BronzeGate #10296 | BronzeGate | Task complete: all-in-one sprite upload helper |
+| #10308 | BronzeGate #10305/10306/10303 | BronzeGate | Completion: Palette LUT + Docs Cleanup |
+| #10292 | BronzeGate #10273 | BronzeGate | Task complete: libvdp Mode0 counterparts audit |
+| #10241 | BronzeGate #10237 | BronzeGate | Re: CP-E handoff — `vdp_copper_swap_request()` landed |
+| #10259 | BronzeGate #10257 | BronzeGate | Re: same-Y coalesce fix applied, RTSP confirmed |
+
+## Completed Deliverables (Verified)
+
+- `vdp_sprite_upload()` — commit `c9e6702`
+- `vdp_palette_lut.{c,h}` — TMS9918, SMS/GG, Atari ST/STE — commit `45f0d88`
+- Mode0 helper surface (pattern-RAM, VSCROLL, HDMA, bitmap base/stride) — commits `9f6b86f`, `29be453`
+- Docs cleanup — commits `b10ab71`, `1b7449c`, `3f108fd`
+- `vdp_copper_swap_request()` + sequencing note — code + docs `01f2e91`
+- Bounce demo same-Y coalesce fix — commit `1d6d4e3`
 
 ## Blocker / Next Allowed Step
 
@@ -29,7 +38,7 @@ CoralReef ledger-sync and audit closeout for all 2026-05-19 sidecar lanes — **
 
 ## Pending Items
 
-None. All inbox threads requiring CoralReef action have been answered.
+None. All inbox threads requiring TopazCliff action have been answered and all `ack_required` messages are acknowledged.
 
 ## Source of Truth Order
 
