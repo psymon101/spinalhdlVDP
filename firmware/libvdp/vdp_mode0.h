@@ -82,6 +82,20 @@ extern "C" {
 #define VDP_MODE0_REG_PALETTE_PTR       0x0601u
 #define VDP_MODE0_REG_VSCROLL_BASE      0x0A00u
 
+/* Sprite pattern RAM (Task 53 / Phase 2) */
+#define VDP_MODE0_REG_PATTERN_RAM_DATA  0x0D10u
+#define VDP_MODE0_REG_PATTERN_RAM_PTR   0x0D11u
+
+/* HDMA sub-register offsets (base = 0x0380) */
+#define VDP_MODE0_HDMA_OFFSET_CTRL      0x00u
+#define VDP_MODE0_HDMA_OFFSET_DONE_ACK  0x01u
+#define VDP_MODE0_HDMA_OFFSET_CH0_ADDR  0x02u
+#define VDP_MODE0_HDMA_OFFSET_CH1_ADDR  0x04u
+#define VDP_MODE0_HDMA_OFFSET_CH2_ADDR  0x06u
+#define VDP_MODE0_HDMA_OFFSET_CH3_ADDR  0x08u
+#define VDP_MODE0_HDMA_OFFSET_DATA_PTR  0x50u
+#define VDP_MODE0_HDMA_OFFSET_DATA_WR   0x51u
+
 /* DMA / blitter */
 #define VDP_MODE0_REG_DMA_DST           0x0B00u
 #define VDP_MODE0_REG_DMA_LEN           0x0B01u
@@ -237,6 +251,19 @@ void vdp_mode0_set_sprite(uint8_t slot, const vdp_mode0_sprite_cfg_t *cfg);
 void vdp_mode0_write_copper_word(uint16_t word_index, uint16_t data);
 bool vdp_mode0_hdma_write(uint8_t offset, uint16_t data);
 void vdp_mode0_set_hdma_base(uint16_t hdma_base);
+
+uint16_t vdp_mode0_hdma_ctrl_encode(bool enable, uint8_t ch_mask, bool indirect);
+void vdp_mode0_set_hdma_ctrl(bool enable, uint8_t ch_mask, bool indirect);
+void vdp_mode0_hdma_done_ack(void);
+bool vdp_mode0_set_hdma_ch_addr(uint8_t ch, uint16_t addr);
+void vdp_mode0_set_hdma_data_ptr(uint8_t ptr);
+void vdp_mode0_hdma_write_data(uint16_t data);
+
+void vdp_mode0_set_vscroll_base(uint16_t base);
+
+void vdp_mode0_set_pattern_ptr(uint16_t ptr);
+void vdp_mode0_write_pattern_data(uint16_t data);
+
 void vdp_mode0_palette_set_ptr(uint8_t ptr);
 void vdp_mode0_palette_write_data(uint16_t data);
 void vdp_mode0_palette_write_rgb888(uint8_t entry_index, uint8_t r, uint8_t g, uint8_t b);

@@ -246,6 +246,63 @@ void vdp_mode0_set_hdma_base(uint16_t hdma_base)
     vdp_reg_write(VDP_MODE0_REG_HDMA_BASE, hdma_base);
 }
 
+uint16_t vdp_mode0_hdma_ctrl_encode(bool enable, uint8_t ch_mask, bool indirect)
+{
+    return (uint16_t)((enable ? 1u : 0u)
+                    | (((uint16_t)ch_mask & 0x0Fu) << 1)
+                    | (indirect ? 0x0020u : 0u));
+}
+
+void vdp_mode0_set_hdma_ctrl(bool enable, uint8_t ch_mask, bool indirect)
+{
+    vdp_reg_write((uint16_t)(VDP_MODE0_REG_HDMA_BASE + VDP_MODE0_HDMA_OFFSET_CTRL),
+                  vdp_mode0_hdma_ctrl_encode(enable, ch_mask, indirect));
+}
+
+void vdp_mode0_hdma_done_ack(void)
+{
+    vdp_reg_write((uint16_t)(VDP_MODE0_REG_HDMA_BASE + VDP_MODE0_HDMA_OFFSET_DONE_ACK), 0x0001u);
+}
+
+bool vdp_mode0_set_hdma_ch_addr(uint8_t ch, uint16_t addr)
+{
+    uint8_t off;
+    switch (ch) {
+        case 0: off = VDP_MODE0_HDMA_OFFSET_CH0_ADDR; break;
+        case 1: off = VDP_MODE0_HDMA_OFFSET_CH1_ADDR; break;
+        case 2: off = VDP_MODE0_HDMA_OFFSET_CH2_ADDR; break;
+        case 3: off = VDP_MODE0_HDMA_OFFSET_CH3_ADDR; break;
+        default: return false;
+    }
+    vdp_reg_write((uint16_t)(VDP_MODE0_REG_HDMA_BASE + off), addr & 0x7FFFu);
+    return true;
+}
+
+void vdp_mode0_set_hdma_data_ptr(uint8_t ptr)
+{
+    vdp_reg_write((uint16_t)(VDP_MODE0_REG_HDMA_BASE + VDP_MODE0_HDMA_OFFSET_DATA_PTR), ptr);
+}
+
+void vdp_mode0_hdma_write_data(uint16_t data)
+{
+    vdp_reg_write((uint16_t)(VDP_MODE0_REG_HDMA_BASE + VDP_MODE0_HDMA_OFFSET_DATA_WR), data);
+}
+
+void vdp_mode0_set_vscroll_base(uint16_t base)
+{
+    vdp_reg_write(VDP_MODE0_REG_VSCROLL_BASE, base);
+}
+
+void vdp_mode0_set_pattern_ptr(uint16_t ptr)
+{
+    vdp_reg_write(VDP_MODE0_REG_PATTERN_RAM_PTR, ptr);
+}
+
+void vdp_mode0_write_pattern_data(uint16_t data)
+{
+    vdp_reg_write(VDP_MODE0_REG_PATTERN_RAM_DATA, data);
+}
+
 void vdp_mode0_palette_set_ptr(uint8_t ptr)
 {
     vdp_reg_write(VDP_MODE0_REG_PALETTE_PTR, ptr);

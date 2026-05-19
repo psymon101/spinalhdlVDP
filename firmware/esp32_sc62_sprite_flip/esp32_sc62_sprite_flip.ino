@@ -19,6 +19,7 @@
 
 #include <Arduino.h>
 #include <vdp_qspi.h>
+#include <vdp_mode0.h>
 
 // Asymmetric L-shape: col 0 OR row 15 → palette index 1, elsewhere → 0.
 static inline uint8_t pattern_pixel(uint8_t row, uint8_t col)
@@ -30,11 +31,11 @@ static void sc62_upload_pattern(void)
 {
     Serial.println("sc62: uploading 16x16 4bpp asymmetric-L pattern to slot 0...");
 
-    vdp_reg_write(0x0D11u, 0x0000u);   // pointer = 0 (pattern slot 0, pixel 0)
+    vdp_mode0_set_pattern_ptr(0);   // pattern slot 0, pixel 0
 
     for (uint8_t row = 0; row < 16; ++row) {
         for (uint8_t col = 0; col < 16; ++col) {
-            vdp_reg_write(0x0D10u, (uint16_t)pattern_pixel(row, col));
+            vdp_mode0_write_pattern_data((uint16_t)pattern_pixel(row, col));
         }
     }
 
