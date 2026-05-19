@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-17 (Mode2optimized Compile-Time Feature Strip DONE — bitstream produced `22afb90`; Task 10026 Barebones Simple Sprite DONE audit PASS #10117; libvdp doc update `abae575`; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
+**Updated:** 2026-05-19 (Mode2optimized Compile-Time Feature Strip DONE — bitstream produced `22afb90`; Task 10026 Barebones Simple Sprite DONE audit PASS #10117; 3b Copper Double-Buffer lane DONE closed at `01f2e91`; libvdp Mode0 helper-surface DONE `9f6b86f`, `29be453`; CoralReef audit checklist landed `4ba550e`; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
 **Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
 
 Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
@@ -25,13 +25,13 @@ This section tracks the single active lane.
 | **Task** | **No active critical-path lane** |
 | **Status** | **DONE / AWAITING NEXT PM AUTHORIZATION** |
 | **Phase** | Mode2optimized Compile-Time Feature Strip closed: Gate #1 DFF blocker diagnosed and fixed via activeListMem readport-trim (\`40c0384\`). Gates 2-4 stacked with Mem-inference hardening (\`bc0e493\`, \`f0a09e2\`, \`49c3a5f\`, \`22afb90\`). Tang Nano PnR passes with massive headroom: 5874 LUT (28%), 3791 Register (24%), 6888 CLS (67%). Bitstream \`project.fs\` produced on branch \`mode2optimized-gate2-enableL2L3\` @ \`22afb90\`. Task 10026 Barebones Simple Sprite closed audit PASS #10117. |
-| **Latest Commit** | \`22afb90\` (SpriteRasterizer slbA/slbB BSRAM, BrightForge) |
-| **Commits in lane** | \`5020344\` (Gate #1), \`40c0384\` (readport-trim), \`f0a09e2\` (Gate #2), \`bc0e493\` (planeRows trim), \`49c3a5f\` (LinestateStore BSRAM), \`22afb90\` (slbA/slbB BSRAM) |
-| **Latest Auth Mail** | BronzeGate #10141 (broader autonomy); BrightForge #10142 (bitstream produced) |
-| **Artifact** | Branch \`mode2optimized-gate2-enableL2L3\` @ \`22afb90\` produces \`project.fs\` with 51% logic headroom. GT-023..GT-028 documented in \`kb/gowin/GOTCHAS.md\`. MemReport tool landed (\`47f0a87\`, \`d32f446\`). |
-| **Next Deliverable** | BronzeGate authorization for optional next steps (Gate #3/#4 per-scenario re-enable, hardware flash, or next lane) |
+| **Latest Commit** | \`29be453\` (libvdp standalone bitmap base/stride helpers, TopazCliff) |
+| **Commits in lane** | \`5020344\` (Gate #1), \`40c0384\` (readport-trim), \`f0a09e2\` (Gate #2), \`bc0e493\` (planeRows trim), \`49c3a5f\` (LinestateStore BSRAM), \`22afb90\` (slbA/slbB BSRAM), \`d32616d\` (Copper double-buffer RTL), \`ec474c9\` (Copper bounce demo), \`01f2e91\` (Copper doc CP-G), \`6830b55\` (Mode0 standalone helpers), \`b9eb4a9\` (sprite API + asset pipeline), \`9f6b86f\` (pattern-RAM / VSCROLL / HDMA helpers), \`29be453\` (bitmap base/stride helpers), \`4ba550e\` (CoralReef audit checklist) |
+| **Latest Auth Mail** | BronzeGate #10295 (ledger-sync ruling, no new lane); BronzeGate #10270 (3b CP-G closeout accepted); BronzeGate #10273 (libvdp helper authorization) |
+| **Artifact** | Branch \`mode2optimized-gate2-enableL2L3\` @ \`22afb90\` produces \`project.fs\` with 51% logic headroom. GT-023..GT-028 documented in \`kb/gowin/GOTCHAS.md\`. MemReport tool landed (\`47f0a87\`, \`d32f446\`). 3b bitstream with double-buffer at \`d32616d\` + \`22afb90\` merge. \`kb/libvdp/README.md\` fully covers Mode0 register surface. \`PROJECT_PLAN/CORALREEF_AUDIT_CHECKLIST.md\` landed. |
+| **Next Deliverable** | BronzeGate chooses one of: reopen Atari ST, authorize optional mode2optimized Gate #3/#4 follow-up, or keep engineering idle. |
 
-**Context:** The Mode2optimized feature-strip lane is complete. BrightForge #10142 produced a working Tang Nano bitstream with full resource headroom after a cascade of Mem-inference hardening fixes. The barebones simple-sprite lane (Task 10026) is also closed audit PASS. No active engineering lanes remain. CyanPeak's libvdp doc update (\`abae575\`) is complete.
+**Context:** The Mode2optimized feature-strip lane is complete. BrightForge #10142 produced a working Tang Nano bitstream with full resource headroom. The barebones simple-sprite lane (Task 10026) is closed audit PASS. The 3b Copper double-buffer lane is closed at CP-G (\`01f2e91\`) per BronzeGate #10270. libvdp Mode0 helper-surface is complete (\`6830b55\`, \`9f6b86f\`, \`29be453\`) per BronzeGate #10273. CoralReef audit checklist (\`4ba550e\`) is landed. No active critical-path engineering lanes remain. Awaiting PM authorization for next lane.
 
 ---
 
@@ -190,6 +190,7 @@ Recently closed lanes. Full history (phase detail, extended narratives, proof re
 
 | Task | Status | Closeout Mail | Archive Artifact |
 |---|---|---|---|
+| 3b Copper Double-Buffer Live-Update — atomic bank-swap at vSyncStart, `COPPER_SWAP_REQUEST` bit, back-compat preserved | **DONE** | BronzeGate #10270 (CP-G closeout accepted) | Commits `d32616d` (RTL+sim), `ec474c9` (firmware helper + demo), `01f2e91` (doc CP-G), `94f401f` (A1/A4 helpers), `b68e102` (README sync); bitstream produced at `d32616d` + `22afb90` merge |
 | Mode2optimized Compile-Time Feature Strip — compile-time gates + Mem-inference hardening for GW2AR-LV18 fit recovery | **DONE** | BrightForge #10142 / CoralReef audit closeout | Branch `mode2optimized-gate2-enableL2L3` @ `22afb90`; commits `5020344`, `40c0384`, `f0a09e2`, `bc0e493`, `49c3a5f`, `22afb90`; `project.fs` produced |
 | Task 10026 — Barebones Simple Sprite over Background (sprite > L1 > L0) | **DONE** | #10108 / audit PASS | Commit `eda89d7`, `6119360`, `40f1424` |
 | Host Platform Fidelity Requirements — authoritative vs functional host, QSPI_ERROR trust, artifact stewardship | **DONE** | #9883 / audit PASS #9891 | Commits `8afc432`, `4814dc2` |
@@ -221,6 +222,7 @@ Parallel work completed outside the FPGA critical path.
 
 | Task | Status | Owner | Audit | Closeout Mail | Commit |
 |---|---|---|---|---|---|
+| libvdp Mode0 Helper-Surface Completion — pattern-RAM, VSCROLL, HDMA, bitmap base/stride, standalone control helpers | **DONE** | TopazCliff | CoralReef verified | BronzeGate #10273 | `6830b55`, `9f6b86f`, `29be453` |
 | Firmware Platform Parity — ESP32 Scenario Coverage | **DONE** | FoggyWolf | CyanPeak PASS #9727 | #9727 | \`e7c8a06\` |
 
 ---

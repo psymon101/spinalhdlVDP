@@ -1,5 +1,26 @@
 # spinalhdlVDP Changelog
 
+## 2026-05-19 — 3b Copper Double-Buffer Closed + libvdp Helper-Surface Complete + Audit Checklist Landed
+
+- **3b Copper Double-Buffer Live-Update** — DONE (BronzeGate #10270 CP-G closeout accepted)
+  - RTL: `Copper.scala` + `VdpTop.scala` changes for double-buffered 2×512-word program RAM (`d32616d`)
+  - Register: `VDP_CTRL[1] = COPPER_SWAP_REQUEST`, HW auto-clears after commit at vSyncStart
+  - Firmware: `vdp_copper_swap_request()`, `vdp_copper_upload_and_swap()` helpers + bouncing-bars demo (`ec474c9`)
+  - Docs: `kb/libvdp/README.md` updated with double-buffer facts and copper helper tables (`01f2e91`, `b68e102`)
+  - A1/A4 helpers landed: `vdp_copper_write_op()`, `vdp_copper_skip_op()`, `vdp_copper_upload_and_swap()` (`94f401f`)
+  - Bitstream produced at `d32616d` + `22afb90` merge; LUT 5583 (−291 vs baseline), CLS 6413 (−475)
+
+- **libvdp Mode0 Helper-Surface Completion** — DONE (BronzeGate #10273)
+  - Standalone control helpers: `vdp_mode0_set_color_math()`, `vdp_mode0_set_bitmap_ctrl()`, `vdp_mode0_set_border_ctrl()`, `vdp_mode0_set_vdp_ctrl_word()` (`6830b55`)
+  - Pattern-RAM + VSCROLL + HDMA structured helpers: `vdp_mode0_set_pattern_ptr()`, `vdp_mode0_write_pattern_data()`, `vdp_mode0_set_vscroll_base()`, `vdp_mode0_set_hdma_ctrl()`, etc. (`9f6b86f`)
+  - Bitmap base/stride standalone helpers: `vdp_mode0_set_bitmap_base()`, `vdp_mode0_set_attr_base()`, `vdp_mode0_set_bitmap_stride()`, `vdp_mode0_set_attr_stride()` (`29be453`)
+  - `kb/libvdp/README.md` coverage tables updated to match
+
+- **CoralReef Audit / Doc-Sync Checklist** — LANDED (`4ba550e`)
+  - Created `PROJECT_PLAN/CORALREEF_AUDIT_CHECKLIST.md` per BrightForge #10274
+  - Embeds libvdp doc-sync check into every lane audit/closeout
+  - Verified BronzeGate #10174 / #10178 Copper upload-path doc sync is complete in tree
+
 ## 2026-05-17 — Mode2optimized Compile-Time Feature Strip Closed
 
 - **Mode2optimized Compile-Time Feature Strip** — DONE (BrightForge #10142 / CoralReef audit closeout)
