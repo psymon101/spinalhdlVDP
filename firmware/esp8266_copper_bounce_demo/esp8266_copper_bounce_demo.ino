@@ -112,24 +112,32 @@ static uint16_t build_bounce_program(uint16_t *prog, const uint16_t *ys,
     prog[pc++] = (uint16_t)(0x4000u | 0x0347u);
     prog[pc++] = vdp_mode0_border_ctrl(true, 0);
 
-    for (uint8_t e = 0; e < n_events; ++e) {
-        if (events[e].is_enter) {
-            stack[depth++] = events[e].bar;
-        } else {
-            /* Remove this bar from the stack (it may not be on top
-             * if another bar entered after it). */
-            for (uint8_t s = 0; s < depth; ++s) {
-                if (stack[s] == events[e].bar) {
-                    for (uint8_t t = s; t + 1 < depth; ++t)
-                        stack[t] = stack[t + 1];
-                    depth--;
-                    break;
+    uint8_t e = 0;
+    while (e < n_events) {
+        uint16_t curY = events[e].y;
+
+        /* Apply every event at this Y before deciding what to emit.
+         * Without this, two same-Y events emit two WAIT(Y) pairs and the
+         * second one stalls (hCounter==0 only fires once per line). */
+        while (e < n_events && events[e].y == curY) {
+            if (events[e].is_enter) {
+                stack[depth++] = events[e].bar;
+            } else {
+                for (uint8_t s = 0; s < depth; ++s) {
+                    if (stack[s] == events[e].bar) {
+                        for (uint8_t t = s; t + 1 < depth; ++t)
+                            stack[t] = stack[t + 1];
+                        depth--;
+                        break;
+                    }
                 }
             }
+            e++;
         }
+
         uint8_t new_color = (depth > 0) ? idxs[stack[depth - 1]] : 0;
         if (new_color != prev_color) {
-            prog[pc++] = vdp_copper_wait(events[e].y);
+            prog[pc++] = vdp_copper_wait(curY);
             prog[pc++] = (uint16_t)(0x4000u | 0x0347u);
             prog[pc++] = vdp_mode0_border_ctrl(true, new_color);
             prev_color = new_color;
