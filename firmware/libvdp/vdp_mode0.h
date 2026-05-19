@@ -243,6 +243,11 @@ void vdp_mode0_set_affine(const vdp_mode0_affine_t *cfg);
 void vdp_mode0_set_bitmap_cfg(const vdp_mode0_bitmap_cfg_t *cfg);
 void vdp_mode0_set_bitmap_ctrl(uint16_t ctrl);
 
+void vdp_mode0_set_bitmap_base(uint32_t base);
+void vdp_mode0_set_attr_base(uint32_t base);
+void vdp_mode0_set_bitmap_stride(uint16_t stride);
+void vdp_mode0_set_attr_stride(uint16_t stride);
+
 bool vdp_mode0_set_raster_trigger(uint8_t trigger_index, const vdp_mode0_trigger_t *cfg);
 void vdp_mode0_set_color_math(uint16_t ctrl);
 

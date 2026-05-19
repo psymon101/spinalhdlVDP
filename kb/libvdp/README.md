@@ -142,7 +142,7 @@ documented raw-only exception.
 | status | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status`, `vdp_mode0_clear_sprite_coll_mask` |
 | windows / border | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window`, `vdp_mode0_border_ctrl` |
 | affine | `vdp_mode0_set_affine` |
-| bitmap | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg` |
+| bitmap | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_ctrl`, `vdp_mode0_set_bitmap_base`, `vdp_mode0_set_attr_base`, `vdp_mode0_set_bitmap_stride`, `vdp_mode0_set_attr_stride` |
 | raster | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` |
 | palette | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_data`, `vdp_mode0_palette_write_rgb888` |
 | copper / hdma | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write`, `vdp_mode0_set_hdma_base`, `vdp_mode0_set_hdma_ctrl`, `vdp_mode0_hdma_done_ack`, `vdp_mode0_set_hdma_ch_addr`, `vdp_mode0_set_hdma_data_ptr`, `vdp_mode0_hdma_write_data` |
@@ -203,7 +203,7 @@ vdp_mode0_set_sprite(0, &cfg);
 | **Background** | `vdp_mode0_set_layer_enable`, `vdp_mode0_write_vscroll_entry`, `vdp_mode0_set_vscroll_base` | Covers global enable and 1D scroll table. |
 | **Window / Border / Color Math** | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window`, `vdp_mode0_border_ctrl`, `vdp_mode0_set_border_ctrl`, `vdp_mode0_set_color_math` | Comprehensive 2-window + border + color-math control. Standalone helpers for dynamic updates without rewriting full blocks. |
 | **Affine** | `vdp_mode0_set_affine` | Covers regs A-D, X, Y, and ctrl with one contiguous burst. |
-| **Bitmap** | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_ctrl` | Base addresses, stride, and BPP with one contiguous burst. Standalone bitmap ctrl helper for quick enable/disable. |
+| **Bitmap** | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_ctrl`, `vdp_mode0_set_bitmap_base`, `vdp_mode0_set_attr_base`, `vdp_mode0_set_bitmap_stride`, `vdp_mode0_set_attr_stride` | Base addresses, stride, and BPP with one contiguous burst or standalone registers. Standalone helpers for runtime page-flipping and stride changes without rewriting the full block. |
 | **Palette** | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_data`, `vdp_mode0_palette_write_rgb888` | High-level RGB888 and low-level word access. |
 | **DMA / Blitter** | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_config`, `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_config` | Staging RAM and FSM control with batched contiguous register writes. |
 | **Raster** | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` | Covers all 3 bus-controlled triggers in one burst per trigger. |

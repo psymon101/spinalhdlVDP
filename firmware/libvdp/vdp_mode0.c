@@ -173,6 +173,28 @@ void vdp_mode0_set_bitmap_ctrl(uint16_t ctrl)
     vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL, ctrl);
 }
 
+void vdp_mode0_set_bitmap_base(uint32_t base)
+{
+    vdp_reg_write(VDP_MODE0_REG_BITMAP_BASE_LO, (uint16_t)(base & 0xFFFFu));
+    vdp_reg_write(VDP_MODE0_REG_BITMAP_BASE_HI, (uint16_t)((base >> 16) & 0xFFFFu));
+}
+
+void vdp_mode0_set_attr_base(uint32_t base)
+{
+    vdp_reg_write(VDP_MODE0_REG_ATTR_BASE_LO, (uint16_t)(base & 0xFFFFu));
+    vdp_reg_write(VDP_MODE0_REG_ATTR_BASE_HI, (uint16_t)((base >> 16) & 0xFFFFu));
+}
+
+void vdp_mode0_set_bitmap_stride(uint16_t stride)
+{
+    vdp_reg_write(VDP_MODE0_REG_BITMAP_STRIDE, stride);
+}
+
+void vdp_mode0_set_attr_stride(uint16_t stride)
+{
+    vdp_reg_write(VDP_MODE0_REG_ATTR_STRIDE, stride);
+}
+
 bool vdp_mode0_set_raster_trigger(uint8_t trigger_index, const vdp_mode0_trigger_t *cfg)
 {
     uint16_t base;
