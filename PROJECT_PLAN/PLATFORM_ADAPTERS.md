@@ -10,6 +10,18 @@ This document is the **central summary/index** for all platform adapters. The **
 
 If any adapter spec disagrees with `TASKS.md` on execution priority, `TASKS.md` wins.
 
+## Visual Fidelity Policy
+
+Platform-adapter work prioritizes **visual output over internal mechanics**.
+
+**Rules:**
+1. **Capability Envelope:** Shared `Mode0` primitives may exceed original hardware limits if the visible output is identical.
+2. **Visible Nuance:** Palette behavior, resistor/DAC-aware color, border/backdrop effects, raster timing, and visible priority are **first-class concerns**.
+3. **Internal Mechanics:** Exact reproduction of original logic is **not required** unless it materially changes the displayed result.
+4. **Selective Clamping:** Adapters should only enforce platform limits (e.g., sprite counts) where they affect the visible scene.
+
+The honesty matrix below serves as a capability audit; execution decisions follow the visual-equivalence policy.
+
 ---
 
 ## 1. Adapter Index

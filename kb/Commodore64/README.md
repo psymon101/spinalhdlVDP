@@ -40,12 +40,11 @@
 
 | C64 Function | Mode0 Primitive | Adapter Responsibility |
 |---|---|---|
-| 40×25 text | Tilemap + attribute fetch | Map character ROM to tile data |
-| 320×200 bitmap | Bitmap fetch | Present as 1bpp with color RAM pairing |
-| 160×200 multicolor | Bitmap fetch (2bpp) | Present as 2bpp with color RAM pairing |
-| 8 sprites | Sprite evaluation (descCount=8) | Map sprite coordinates and patterns |
-| Raster IRQ | Raster trigger / Copper-lite | Fire IRQ at programmable scanline |
-| Border/Background | Background fill | Honor `$D020`/`$D021` relationship |
+| Text | Tilemap fetch | Map character ROM to L0 |
+| Bitmap | Bitmap fetch | Present as 1bpp or 2bpp |
+| Sprites | Sprite evaluation | Map coordinates/patterns to 64 available slots |
+| Raster IRQ | Raster trigger | Fire IRQ at programmable scanline |
+| Border | Border control | Honor `$D020`/`$D021` visual relationship |
 
 ## 6. Host Memory Layout
 

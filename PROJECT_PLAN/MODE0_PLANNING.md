@@ -17,49 +17,23 @@
 
 ## 2. Guaranteed Feature Summary
 
-| Feature | Guaranteed |
+| Feature | Limit / Value |
 |---|---|
-| Progressive raster output | `1` |
-| Strong live background layers | `2` |
-| Architectural maximum background layers | `4` |
-| Visible sprites per scanline | `8` |
-| Guaranteed descriptor count | `8` |
-| Tile + attribute fetch | `1` |
-| Bitmap fetch | `1` |
-| Planar / bitplane fetch | `1` |
-| Raster trigger | `1` |
-| Beam-synchronous automation | `1` |
-| Windowing / clipping | `1` |
-| Basic color math | `1` |
-| Basic blitter / transfer | `1` |
+| Background Layers | 2 (Strong) / 4 (Max) |
+| Sprites / Scanline | 8 |
+| Descriptor Count | 8 |
+| Planar Depth | 4 planes |
+| Raster Compare | 1 unit |
+| Fetch Formats | Tile+Attr, Bitmap, Planar |
+| Automation | Beam-sync, Basic Blitter, HDMA, Copper |
+| Clipping | 1 Window |
 
----
+## 3. Optional Build Features (Build-Gated)
 
-## 3. Guaranteed Limits
-
-| Parameter | Guaranteed Value |
-|---|---|
-| Scan model | Progressive |
-| Strong live BG layers | 2 |
-| Architectural max BG layers | 4 |
-| Visible sprites / scanline | 8 |
-| Descriptor count | 8 |
-| Guaranteed planar depth | 4 planes |
-| Raster compare units | 1 |
-| Per-line register update support | `1` |
-
----
-
-## 4. Optional Build Features
-
-| Feature | Status |
-|---|---|
-| L2/L3 richer live use | `build-gated` |
-| Affine / Mode7 path | `build-gated` |
-| Expanded sprite count | `build-gated` |
-| Deeper planar support | `separately-proven` |
-| Advanced blitter ops | `deferred` |
-| HAM / EHB style decode | `deferred` |
+- L2/L3 rich layers
+- Affine / Mode7 path
+- Expanded sprite count (32/line)
+- Deeper planar support
 
 ---
 

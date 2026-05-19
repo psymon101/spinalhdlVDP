@@ -129,87 +129,19 @@ python3 scripts/assets/bin_to_c_array.py build/frame.tiles.bin \
 | `vdp_mode0_dma_cfg_t` | `dst`, `len_m1`, `fill`, `mode` | DMA engine configuration (FILL or COPY) |
 | `vdp_mode0_blit_cfg_t` | `ctrl`, `width_m1`, `height_m1`, `dst_addr`, `dst_stride`, `src_addr`, `src_stride`, `fill_val` | Blitter engine configuration |
 
-## Mode0 Helpers
-
-Implementation rule: when Mode0 gains a new register block or control path,
-the firmware surface should grow a matching `vdp_mode0_*` helper and this
-table should be updated in the same change unless BronzeGate approves a
-documented raw-only exception.
-
-| Area | Helpers |
-|---|---|
-| globals | `vdp_mode0_set_layer_enable`, `vdp_mode0_set_vdp_ctrl`, `vdp_mode0_set_tile_mode`, `vdp_mode0_set_attr_mode`, `vdp_mode0_set_mode_select`, `vdp_mode0_read_live_mode` |
-| status | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status`, `vdp_mode0_clear_sprite_coll_mask` |
-| windows / border | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window`, `vdp_mode0_border_ctrl` |
-| affine | `vdp_mode0_set_affine` |
-| bitmap | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_ctrl`, `vdp_mode0_set_bitmap_base`, `vdp_mode0_set_attr_base`, `vdp_mode0_set_bitmap_stride`, `vdp_mode0_set_attr_stride` |
-| raster | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` |
-| palette | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_data`, `vdp_mode0_palette_write_rgb888` |
-| copper / hdma | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write`, `vdp_mode0_set_hdma_base`, `vdp_mode0_set_hdma_ctrl`, `vdp_mode0_hdma_done_ack`, `vdp_mode0_set_hdma_ch_addr`, `vdp_mode0_set_hdma_data_ptr`, `vdp_mode0_hdma_write_data` |
-| tables | `vdp_mode0_write_linestate`, `vdp_mode0_write_vscroll_entry`, `vdp_mode0_set_vscroll_base` |
-| dma | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_write_staging`, `vdp_mode0_dma_config` |
-| blitter | `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_write_src`, `vdp_mode0_blit_config` |
-| sprite | `vdp_mode0_set_sprite`, `vdp_mode0_set_pattern_ptr`, `vdp_mode0_write_pattern_data`, `vdp_sprite_upload` |
-
-### Sprite Programming Example
-
-```c
-vdp_mode0_sprite_cfg_t cfg = {0};
-cfg.x = 100;
-cfg.y = 150;
-cfg.pat_idx = 4;
-cfg.enabled = true;
-cfg.size_sel = 1;     // 16x16
-cfg.pal_bank = 0;
-cfg.prio = 1;
-vdp_mode0_set_sprite(0, &cfg);
-```
-
-## Copper Helpers
-
-| Function | Signature | Purpose |
-|---|---|---|
-| `vdp_copper_wait` | `uint16_t vdp_copper_wait(uint16_t y)` | Encode legacy `WAIT(Y)` opcode (1 word) |
-| `vdp_copper_wait_xy` | `uint16_t vdp_copper_wait_xy(uint16_t x)` | Encode pixel-precise `WAIT(X,Y)` header word (2-word sequence) |
-| `vdp_copper_write_seq_hdr` | `uint16_t vdp_copper_write_seq_hdr(uint16_t addr, uint8_t count_m1)` | Encode `WRITE_SEQ` header for N consecutive register writes |
-| `vdp_copper_write_op` | `uint16_t vdp_copper_write_op(uint16_t addr)` | Encode single `WRITE` opcode header (1 word; data word follows) |
-| `vdp_copper_jump` | `uint16_t vdp_copper_jump(uint16_t target_pc)` | Encode `JUMP` opcode (1 word) |
-| `vdp_copper_skip_op` | `uint16_t vdp_copper_skip_op(uint8_t cond, uint8_t offset)` | Encode `SKIP` opcode (BH-2, 1 word). `cond` = 3-bit comparator, `offset` = words to skip |
-| `vdp_copper_upload` | `void vdp_copper_upload(const uint16_t *prog, uint16_t nwords)` | Upload a copper program into FPGA copper RAM via burst writes (disables copper first) |
-| `vdp_copper_enable` | `void vdp_copper_enable(bool en)` | Enable/disable copper via `VDP_CTRL` bit[0] |
-| `vdp_copper_swap_request` | `void vdp_copper_swap_request(void)` | Request atomic bank swap at next vSyncStart. Copper must be enabled. Writes `0x0003` to `VDP_CTRL @ 0x0310` (bit[0]=enable, bit[1]=swap). HW auto-clears bit[1] after commit. |
-| `vdp_copper_upload_and_swap` | `void vdp_copper_upload_and_swap(const uint16_t *prog, uint16_t nwords)` | Upload to inactive bank (copper must be enabled) and request atomic swap. Closes stale-bank hazard by making swap unskippable. |
-
-## Platform Constants
-
-| Constant | Value | Meaning |
-|---|---|---|
-| `VDP_QSPI_SCK_HZ` | `2000000u` | proven transport clock |
-
-## API Classification
-
-| Category | Description | Target Build | Status |
-|---|---|---|---|
-| **Transport** | QSPI framing (`vdp_reg_write`, `vdp_reg_write_burst`, `vdp_read_status`) | All | Authoritative |
-| **System** | Status, vblank sync, asset upload | All | Authoritative |
-| **Generic Mode0** | Rich-top register surface (`vdp_mode0_*`) | mode2optimized | Authoritative — all allocated write-path registers have direct helpers. |
-| **Barebones Proof**| Barebones-top registers (scroll + sprite) | barebones-rebuild| Functional — inline bit-bang sketches; not yet wrapped in `libvdp` |
-| **Copper** | Copper opcode helpers + program upload | mode2optimized | Authoritative |
-
 ## Mode0 Helper Coverage
 
-| Area | Helpers | Coverage Notes |
+| Area | Helpers | Status / Coverage |
 |---|---|---|
-| **Background** | `vdp_mode0_set_layer_enable`, `vdp_mode0_write_vscroll_entry`, `vdp_mode0_set_vscroll_base` | Covers global enable and 1D scroll table. |
-| **Window / Border / Color Math** | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window`, `vdp_mode0_border_ctrl`, `vdp_mode0_set_border_ctrl`, `vdp_mode0_set_color_math` | Comprehensive 2-window + border + color-math control. Standalone helpers for dynamic updates without rewriting full blocks. |
-| **Affine** | `vdp_mode0_set_affine` | Covers regs A-D, X, Y, and ctrl with one contiguous burst. |
-| **Bitmap** | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_ctrl`, `vdp_mode0_set_bitmap_base`, `vdp_mode0_set_attr_base`, `vdp_mode0_set_bitmap_stride`, `vdp_mode0_set_attr_stride` | Base addresses, stride, and BPP with one contiguous burst or standalone registers. Standalone helpers for runtime page-flipping and stride changes without rewriting the full block. |
-| **Palette** | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_data`, `vdp_mode0_palette_write_rgb888` | High-level RGB888 and low-level word access. |
-| **DMA / Blitter** | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_config`, `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_config` | Staging RAM and FSM control with batched contiguous register writes. |
-| **Raster** | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` | Covers all 3 bus-controlled triggers in one burst per trigger. |
-| **Copper / HDMA** | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write`, `vdp_mode0_set_hdma_base`, `vdp_mode0_set_hdma_ctrl`, `vdp_mode0_hdma_done_ack`, `vdp_mode0_set_hdma_ch_addr`, `vdp_mode0_set_hdma_data_ptr`, `vdp_mode0_hdma_write_data` | RAM and HDMA config registers. Structured helpers cover enable/mask, done-ack, channel addresses, and indirect-data pointer/write. |
-| **Status** | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status`, `vdp_wait_sticky`, `vdp_wait_vblank`, `vdp_clear_sticky` | Interrupt/sticky mask control + polling helpers. Sticky constants cover RASTER_MATCH through MODE_SELECT_CHANGED. |
-| **Sprite** | `vdp_mode0_set_sprite`, `vdp_mode0_set_pattern_ptr`, `vdp_mode0_write_pattern_data`, `vdp_sprite_upload` | Covers 32 slots of affine descriptor RAM (8 words/slot) plus Hardening extension (word 8). Pattern-RAM upload helpers for `0x0D10/0x0D11` (Task 53). All-in-one `vdp_sprite_upload()` wraps palette + pattern + descriptor config in one call for the common 4bpp path. |
+| **Globals** | `vdp_mode0_set_layer_enable`, `vdp_mode0_set_vdp_ctrl`, `vdp_mode0_set_mode_select`, `vdp_mode0_read_live_mode` | Full control plane. |
+| **Window / Border** | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_border_ctrl`, `vdp_mode0_set_color_math` | 2-window + color-math. |
+| **Bitmap / Affine** | `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_base`, `vdp_mode0_set_bitmap_stride`, `vdp_mode0_set_affine` | Page-flipping and transform. |
+| **Palette** | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_rgb888` | RGB888 burst writes. |
+| **Copper / HDMA** | `vdp_copper_upload`, `vdp_copper_swap_request`, `vdp_mode0_set_hdma_ctrl`, `vdp_mode0_hdma_done_ack` | RAM and FSM control. |
+| **DMA / Blitter** | `vdp_mode0_dma_config`, `vdp_mode0_blit_config` | Contiguous burst init. |
+| **Raster** | `vdp_mode0_set_raster_trigger` | All 3 hardware triggers. |
+| **Sprite** | `vdp_mode0_set_sprite`, `vdp_mode0_write_pattern_data`, `vdp_sprite_upload` | Descriptor, Pattern RAM, and All-in-one. |
+| **Tables** | `vdp_mode0_write_linestate`, `vdp_mode0_set_vscroll_base` | V-scroll and line-buffer init. |
 
 ### All-in-one sprite upload (`vdp_sprite_upload`)
 

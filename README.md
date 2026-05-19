@@ -15,99 +15,19 @@ The Scala package for this repository is `spinalhdlvdp`.
 
 ## Toolchain
 
-- Java 11+
-- `sbt`
-- Gowin IDE CLI `gw_sh`
-- `openFPGALoader`
-- `arduino-cli` (for ESP32/ESP8266 firmware)
-- CMake & Pico SDK 2.2.0 (for Pico 2 firmware)
-- Python 3.8+ (for asset conversion)
+- **Scala:** Java 11+, `sbt`
+- **FPGA:** Gowin IDE CLI `gw_sh`, `openFPGALoader`
+- **Firmware:** `arduino-cli` (ESP), CMake & Pico SDK 2.2.0 (Pico 2)
+- **Assets:** Python 3.8+ (PNG → VDP)
 
-This repo currently targets:
+## Mode0 Architecture
 
-- Sipeed Tang Nano 20K
-- 27 MHz board clock
-- 640x480@60 HDMI output with SDRAM-backed Mode0 rendering: tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control
-- HDMI / TMDS output path
+`Mode0` is a foundational rendering substrate providing generic primitives: raster timing, fetch, composition, palette, sprites, scrolling, Copper, and HDMA.
 
-## Host Firmware
+**Principles:**
+1. **Generic Core:** `Mode0` grows universal capabilities needed by multiple platforms.
+2. **Semantic Adapters:** Platform-specific modes (C64, NES, Amiga, etc.) sit on top as adapters.
+3. **Quirk Isolation:** Platform-specific registers and logic belong in adapters, not the core substrate.
 
-The `firmware/` directory contains the host driver library (`libvdp`) and
-example sketches for ESP32, ESP8266, and Pico 2.
-
-See [`firmware/README.md`](firmware/README.md) for build instructions and
-platform-specific pin maps.
-
-## Asset Pipeline
-
-Host-side art conversion tools live in [`scripts/assets/`](scripts/assets/).
-These tools convert PNG sources into raw VDP data blocks and generated C
-headers for the firmware.
-
-See [`scripts/assets/README.md`](scripts/assets/README.md) for usage examples
-and the ESP8266 asset-upload template in
-[`firmware/esp8266_asset_upload/`](firmware/esp8266_asset_upload/).
-
-## Common commands
-
-Generate the checker core:
-
-```sh
-sbt "runMain spinalhdlvdp.VdpTopVerilog"
-```
-
-Generate the Tang Nano 20K HDMI top-level:
-
-```sh
-sbt "runMain spinalhdlvdp.TopTang20kHdmiVerilog"
-```
-
-Run the checker-core simulation:
-
-```sh
-sbt "runMain spinalhdlvdp.VdpTopSim"
-```
-
-Build the Tang Nano 20K bitstream:
-
-```sh
-cd fpga/tang20k
-make gen
-make
-```
-
-## Current architecture
-
-`VdpTop.scala` is the fresh pattern generator. `TopTang20kHdmi.scala` is the
-fresh board-facing HDMI top that adds:
-
-- TMDS encoding
-- Gowin primitive wrappers for clocking and serialization
-- Tang Nano 20K HDMI pin and build integration
-
-## Mode0 direction
-
-`Mode0` in this repo is the foundational rendering substrate, not a clone of a
-single historical machine. The intended architecture is:
-
-- `Mode0` grows the generic primitives that platforms need: raster timing,
-  linestate, fetch, composition, palette, sprites, scrolling, and related
-  control hooks
-- platform-specific modes sit on top as semantic adapters
-- platform-specific registers and quirks belong in those adapters, not inside
-  `Mode0` itself
-
-So, for example, an Amiga-oriented adapter would model Copper-visible behavior
-using `Mode0` scanline/raster and state-commit primitives, rather than requiring
-a separate Amiga-only rendering engine beside `Mode0`.
-
-Candidate adapter targets mentioned in the repo now include platforms such as
-ZX Spectrum, Commodore 64, NES / Famicom, TMS9918-family systems, Master
-System / Game Gear, MSX1 / MSX2, PC Engine / TurboGrafx-16, Genesis / Mega
-Drive, SNES, Amiga, Atari ST, and other systems whose video behavior can be
-expressed through `Mode0` primitives.
-
-The strategic build order for those primitives now lives in
-`PROJECT_PLAN/MODE0_PLANNING.md`. That file describes the capability progression
-needed for `Mode0` to support the intended adapter platforms without baking
-platform-specific semantics into the substrate itself.
+Roadmap: [`PROJECT_PLAN/MODE0_PLANNING.md`](PROJECT_PLAN/MODE0_PLANNING.md).
+Detailed adapter specs: [`PROJECT_PLAN/PLATFORM_ADAPTERS.md`](PROJECT_PLAN/PLATFORM_ADAPTERS.md).

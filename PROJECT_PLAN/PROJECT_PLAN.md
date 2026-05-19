@@ -25,19 +25,15 @@ If these documents disagree:
 
 ## Current Reality
 
-This is a **full Mode0 rendering substrate** past initial bring-up. The hardware-proven path includes SDRAM-backed tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control — 20+ hardware-proven scenarios on Tang Nano 20K.
+This is a **full Mode0 rendering substrate** (SDRAM-backed tile, planar, bitmap, affine, sprites, Copper, HDMA, etc.) with 20+ hardware-proven scenarios on Tang Nano 20K.
 
-The project has no active critical-path lanes. Recently completed:
+The project currently has **no active critical-path lanes**. 
 
-- **Mode2optimized Compile-Time Feature Strip** — DONE (BrightForge #10142 / CoralReef audit closeout)
-  - Rich-top default build now fits Tang Nano 20K with `project.fs` produced
-  - Branch `mode2optimized-gate2-enableL2L3` @ `22afb90`
-- **Task 10026 — Barebones Simple Sprite over Background** — DONE (audit PASS #10117)
-  - Commits `eda89d7`, `6119360`, `40f1424`
-- **Task 56 — Multi-Layer SDRAM Fetch** — DONE (audit PASS #9709)
-- **Task 54 — Sprite-Sprite Collision Detector** — DONE (audit PASS #9672)
-
-For the authoritative execution ledger, see `TASKS.md`.
+Authoritative execution status: [`TASKS.md`](TASKS.md).
+Summary of recent closeouts:
+- **Mode2optimized Feature Strip** — Bitstream fits Tang Nano with 51% headroom.
+- **Copper Double-Buffer (3b)** — Atomic bank-swap proven on silicon.
+- **libvdp Mode0 Surface** — Full register-map helper coverage.
 
 ## Working Principles
 

@@ -152,6 +152,13 @@ The current board-specific boundary is split between:
 > This section previously contained the General Capability Rule, Transport Separation Rule,
 > Circuitry-Accurate Palettes, Native Platform Fonts, Display Nuances, and Gap Analysis.
 
+### Visual Fidelity Rule
+
+- **Primary Goal:** Visible output equivalence.
+- **Substrate Use:** Shared `Mode0` capabilities may exceed original platform limits.
+- **Fidelity Focus:** Palette/DAC behavior, borders, raster splits, and layering.
+- **Guidance:** See `PROJECT_PLAN/PLATFORM_ADAPTERS.md` §Visual Fidelity Policy.
+
 ---
 
 ## What Not To Do
