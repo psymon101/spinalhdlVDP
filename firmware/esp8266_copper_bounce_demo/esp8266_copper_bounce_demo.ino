@@ -75,20 +75,37 @@ static uint16_t build_bounce_program(uint16_t *prog, const uint16_t *ys,
 {
     uint16_t pc = 0;
 
+    /* Sort bar indices by Y so WAITs are monotonically increasing.
+     * Copper WAIT(Y) only fires once per frame when vCounter == Y.
+     * If bars cross, emitting out of Y-order causes misses.
+     */
+    uint8_t order[NUM_BARS];
+    for (uint8_t i = 0; i < n; ++i) order[i] = i;
+    for (uint8_t k = 1; k < n; ++k) {
+        uint8_t cur = order[k];
+        int8_t j = (int8_t)(k - 1);
+        while (j >= 0 && ys[order[(uint8_t)j]] > ys[cur]) {
+            order[(uint8_t)(j + 1)] = order[(uint8_t)j];
+            j--;
+        }
+        order[(uint8_t)(j + 1)] = cur;
+    }
+
     /* Ensure screen starts black before first bar */
     prog[pc++] = vdp_copper_wait(0);
     prog[pc++] = (uint16_t)(0x4000u | 0x0347u);
     prog[pc++] = vdp_mode0_border_ctrl(true, 0); /* black */
 
-    for (uint8_t i = 0; i < n; ++i) {
-        uint16_t y0 = ys[i];
+    for (uint8_t k = 0; k < n; ++k) {
+        uint8_t bar = order[k];
+        uint16_t y0 = ys[bar];
         uint16_t y1 = y0 + BAR_THICKNESS;
         if (y0 > 480u) y0 = 480u;
         if (y1 > 480u) y1 = 480u;
 
         prog[pc++] = vdp_copper_wait(y0);         /* WAIT(Y) — bar top */
         prog[pc++] = (uint16_t)(0x4000u | 0x0347u); /* WRITE BORDER_CTRL */
-        prog[pc++] = vdp_mode0_border_ctrl(true, idxs[i]);
+        prog[pc++] = vdp_mode0_border_ctrl(true, idxs[bar]);
 
         prog[pc++] = vdp_copper_wait(y1);         /* WAIT(Y+thickness) — bar bottom */
         prog[pc++] = (uint16_t)(0x4000u | 0x0347u); /* WRITE BORDER_CTRL */
