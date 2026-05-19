@@ -123,10 +123,13 @@ Canonical API reference for `firmware/libvdp/`.
 | `vdp_copper_wait` | `uint16_t vdp_copper_wait(uint16_t y)` | Encode legacy `WAIT(Y)` opcode (1 word) |
 | `vdp_copper_wait_xy` | `uint16_t vdp_copper_wait_xy(uint16_t x)` | Encode pixel-precise `WAIT(X,Y)` header word (2-word sequence) |
 | `vdp_copper_write_seq_hdr` | `uint16_t vdp_copper_write_seq_hdr(uint16_t addr, uint8_t count_m1)` | Encode `WRITE_SEQ` header for N consecutive register writes |
+| `vdp_copper_write_op` | `uint16_t vdp_copper_write_op(uint16_t addr)` | Encode single `WRITE` opcode header (1 word; data word follows) |
 | `vdp_copper_jump` | `uint16_t vdp_copper_jump(uint16_t target_pc)` | Encode `JUMP` opcode (1 word) |
-| `vdp_copper_upload` | `void vdp_copper_upload(const uint16_t *prog, uint16_t nwords)` | Upload a copper program into FPGA copper RAM via burst writes |
+| `vdp_copper_skip_op` | `uint16_t vdp_copper_skip_op(uint8_t cond, uint8_t offset)` | Encode `SKIP` opcode (BH-2, 1 word). `cond` = 3-bit comparator, `offset` = words to skip |
+| `vdp_copper_upload` | `void vdp_copper_upload(const uint16_t *prog, uint16_t nwords)` | Upload a copper program into FPGA copper RAM via burst writes (disables copper first) |
 | `vdp_copper_enable` | `void vdp_copper_enable(bool en)` | Enable/disable copper via `VDP_CTRL` bit[0] |
 | `vdp_copper_swap_request` | `void vdp_copper_swap_request(void)` | Request atomic bank swap at next vSyncStart. Copper must be enabled. Writes `0x0003` to `VDP_CTRL @ 0x0310` (bit[0]=enable, bit[1]=swap). HW auto-clears bit[1] after commit. |
+| `vdp_copper_upload_and_swap` | `void vdp_copper_upload_and_swap(const uint16_t *prog, uint16_t nwords)` | Upload to inactive bank (copper must be enabled) and request atomic swap. Closes stale-bank hazard by making swap unskippable. |
 
 ## Platform Constants
 
