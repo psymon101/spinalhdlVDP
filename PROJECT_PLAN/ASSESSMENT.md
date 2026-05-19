@@ -29,10 +29,8 @@ If any assessment disagrees with `TASKS.md` on execution priority, `TASKS.md` wi
 
 # §1 — Fetch Envelope Assessment
 
-> Source:  (292 lines)
 > Verdict: Tile+attribute and bitmap+attribute are **Strong**; planar is **Usable but limited** (needs 5–6 planes for Amiga/ST); shuffled is honest with adapter-local address calc.
 
-# Mode0 Fetch Envelope Assessment Report
 
 **Assessment version:** 1.0  
 **Author:** CoralReef  
@@ -43,8 +41,6 @@ If any assessment disagrees with `TASKS.md` on execution priority, `TASKS.md` wi
 ---
 
 ## 1. Executive Summary
-
-This assessment answers the four acceptance questions defined in `TASK_MODE0_FETCH_ENVELOPE_HARDENING.md` §7, using empirical evidence from the current codebase, external platform research, and `MODE0_STOPLINES.md` budget framing.
 
 | Question | Ruling |
 |---|---|
@@ -329,10 +325,8 @@ This preserves the architectural rule that `Mode0` owns the reusable superset wh
 
 # §2 — Sprite Envelope Assessment
 
-> Source:  (294 lines)
 > Verdict: Strong for NES/C64/Amiga (≤8/line). **Usable but insufficient for Genesis/SNES** (needs visiblePerLine=32 + 5 new descriptor fields). Recommendations implemented via Tasks 2a/2c/2b.
 
-# Mode0 Sprite Envelope Assessment Report
 
 **Assessment version:** 1.1-updated  
 **Author:** CoralReef  
@@ -631,10 +625,8 @@ This preserves the architectural rule that `Mode0` owns the reusable superset wh
 
 # §3 — Color, Window, and Beam-Driven Automation Assessment
 
-> Source:  (229 lines)
 > Verdict: All three primitives rated **Harden**. Combined ~+1,200 LUT / ~+700 FF, stays green.
 
-# Mode0 Color / Window / Beam-Driven Assessment Report
 
 **Assessment version:** 1.0  
 **Author:** CoralReef  
@@ -868,10 +860,8 @@ If the result is accepted, the next step is to open a bounded **Color/Window Har
 
 # §4 — Platform Coverage Audit
 
-> Source:  (339 lines)
 > Verdict: C64/NES/ZX Spectrum **Ready**; Genesis/Atari ST **Usable with gaps**; SNES **Usable with significant gaps**; Amiga **Gap — architectural mismatch**.
 
-# Mode0 Platform-by-Platform Adapter Coverage Audit
 
 **Audit version:** 1.0  
 **Author:** CoralReef  
@@ -1215,10 +1205,8 @@ This audit is successful because it:
 
 # §5 — Universal Sprite Engine Gaps
 
-> Source:  (231 lines)
 > Verdict: 8 hard substrate gaps identified. Universal blocker: **Pattern Memory Architecture** (needs RAM-backed storage). Full universal engine ≈ +~1,200 LUT / +~900 FF / +2–4 BSRAM, green zone.
 
-# Mode0 Universal Sprite Engine — Gap Analysis
 
 **Assessment version:** 1.0  
 **Author:** CoralReef  

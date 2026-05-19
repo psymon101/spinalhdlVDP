@@ -33,38 +33,9 @@ This section tracks the active lane.
 
 ## Next Up / Open Queue
 
-### Mode2optimized Compile-Time Feature Strip
-- **Status:** **DONE** (22afb90). Bitstream produced with 51% logic headroom.
-- **Impact:** High — restores hardware-readiness for Tang Nano 20K.
-- **Remaining:** Optional Gate #3 (affine) and Gate #4 (planeCount=5) per-scenario re-enable.
-
-### Mode0-T20 Barebones Rebuild (Stages 2-4)
-- **Status:** **DONE** (1e316a4). Audit PASS #10063.
-- **Impact:** Established a minimal proven QSPI rendering substrate.
-- **Proof:** HW-verified dual-layer independent motion.
-
-### Host Platform Fidelity Requirements
-- **Status:** **DONE** (8afc432). Audit PASS #9891.
-- **Impact:** Canonical rules for authoritative (Pico 2) vs functional (ESP) hosts.
-
----
-
 ### Atari ST Adapter Lane
 - **Status:** **PAUSED** (#9783). Checkpoint A accepted (#9782).
 - **Scope:** 320×200 4-plane planar only. No sprites/blitter for v1.
-
-### Task 54 — Sprite-Sprite Collision Detector
-- **Status:** **DONE** (#9672). Sim-only proof.
-- **Impact:** PAirwise overlap detection for C64-style collisions.
-
-### Task 55 — Sprite Masking + Budget Counter
-- **Status:** **DONE** (#9440). Genesis-style masking and SNES-style fetch limits.
-
-### Task 56 — Multi-Layer SDRAM Fetch
-- **Status:** **DONE** (#9709). L0+L1 concurrent SDRAM fetch.
-
-### Task 57 — Substrate DFF Optimization
-- **Status:** **DONE** (#9605). Restored hardware-readiness for sprite-heavy scenarios.
 
 ---
 
