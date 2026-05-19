@@ -49,7 +49,10 @@ static uint16_t frame = 0;
 
 static void upload_rainbow_palette(void)
 {
-    for (uint8_t i = 0; i < 32; ++i) {
+    /* Entry 0 = black (background) */
+    vdp_mode0_palette_write_rgb888(0, 0, 0, 0);
+
+    for (uint8_t i = 1; i < 32; ++i) {
         uint16_t hue = i * 360 / 32;
         uint8_t r, g, b;
         uint8_t hi = hue / 60;
@@ -71,12 +74,25 @@ static uint16_t build_bounce_program(uint16_t *prog, const uint16_t *ys,
                                       const uint8_t *idxs, uint8_t n)
 {
     uint16_t pc = 0;
+
+    /* Ensure screen starts black before first bar */
+    prog[pc++] = vdp_copper_wait(0);
+    prog[pc++] = (uint16_t)(0x4000u | 0x0347u);
+    prog[pc++] = vdp_mode0_border_ctrl(true, 0); /* black */
+
     for (uint8_t i = 0; i < n; ++i) {
-        uint16_t y = ys[i];
-        if (y > 480u) y = 480u;                 /* clamp to active area */
-        prog[pc++] = vdp_copper_wait(y);         /* WAIT(Y) */
-        prog[pc++] = (uint16_t)(0x4000u | 0x0347u); /* WRITE addr=0x347 (BORDER_CTRL) */
+        uint16_t y0 = ys[i];
+        uint16_t y1 = y0 + BAR_THICKNESS;
+        if (y0 > 480u) y0 = 480u;
+        if (y1 > 480u) y1 = 480u;
+
+        prog[pc++] = vdp_copper_wait(y0);         /* WAIT(Y) — bar top */
+        prog[pc++] = (uint16_t)(0x4000u | 0x0347u); /* WRITE BORDER_CTRL */
         prog[pc++] = vdp_mode0_border_ctrl(true, idxs[i]);
+
+        prog[pc++] = vdp_copper_wait(y1);         /* WAIT(Y+thickness) — bar bottom */
+        prog[pc++] = (uint16_t)(0x4000u | 0x0347u); /* WRITE BORDER_CTRL */
+        prog[pc++] = vdp_mode0_border_ctrl(true, 0); /* black */
     }
     prog[pc++] = vdp_copper_jump(0);             /* loop */
     return pc;
