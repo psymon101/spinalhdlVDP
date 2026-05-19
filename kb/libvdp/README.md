@@ -126,6 +126,7 @@ Canonical API reference for `firmware/libvdp/`.
 | `vdp_copper_jump` | `uint16_t vdp_copper_jump(uint16_t target_pc)` | Encode `JUMP` opcode (1 word) |
 | `vdp_copper_upload` | `void vdp_copper_upload(const uint16_t *prog, uint16_t nwords)` | Upload a copper program into FPGA copper RAM via burst writes |
 | `vdp_copper_enable` | `void vdp_copper_enable(bool en)` | Enable/disable copper via `VDP_CTRL` bit[0] |
+| `vdp_copper_swap_request` | `void vdp_copper_swap_request(void)` | Request atomic bank swap at next vSyncStart. Copper must be enabled. Writes `0x0003` to `VDP_CTRL @ 0x0310` (bit[0]=enable, bit[1]=swap). HW auto-clears bit[1] after commit. |
 
 ## Platform Constants
 
@@ -183,6 +184,7 @@ Canonical API reference for `firmware/libvdp/`.
 | **HostInterface is ABSENT** | `HostInterface.scala` is not instantiated in `TopTang20kHdmi` or `VdpTop`. The QSPI transport writes directly to the internal register bus. There is no host-side entry FIFO; bursts are not silently dropped by the transport itself. |
 | **Copper Upload is Unbuffered** | Writes to `0x0400..0x05FF` (Copper Program RAM) hit memory directly. Chunking and inter-chunk delays in `vdp_copper_upload` are unnecessary and have been removed. |
 | **Copper Drain Latency** | `copperFifo` (64 words) buffers writes *from* the Copper script. It drains at most once per scanline at `hCounter == 0`. This introduces a ~1-line vertical lag for effects committed via Copper. |
+| **Copper Double-Buffer** | Two 512-word banks. Upload to `0x0400..0x05FF` while copper is **enabled** routes to the inactive bank. `vdp_copper_swap_request()` atomically swaps banks at the next `vSyncStart`. Sequencing rule: always upload to the inactive bank *before* requesting swap. |
 
 ## Minimal Usage Order
 
