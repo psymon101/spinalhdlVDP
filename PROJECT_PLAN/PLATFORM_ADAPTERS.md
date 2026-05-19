@@ -72,51 +72,7 @@ This matrix tracks whether the current `Mode0` substrate supports an "honest" im
 
 ## 3. Per-Adapter Summary
 
-For full adapter contracts, see the canonical `kb/<Adapter>/README.md` files above. The summaries below list only status and honest gaps.
-
-### 3.1 ZX Spectrum
-- **Status:** Implemented + proven (v3.8 + E3.45 polish, closure #8976)
-- **Honest gaps:** None for v1. Border effects and ULA+ are deferred.
-
-### 3.2 Commodore 64
-- **Status:** Implemented + proven (smoke test proven; Task 40b gaps documented)
-- **Honest gaps:** Sprite-sprite collision detector (Task 54) enhances but is not required for baseline honesty.
-
-### 3.3 Atari ST
-- **Status:** Spec drafted — lowest-risk Tier 1 target
-- **Honest gaps:** Immediate palette effect (safe-boundary commits), no hardware scroll, STE Blitter semantics differ.
-
-### 3.4 TMS9918 Family (MSX1 / SMS / GG)
-- **Status:** Spec drafted — family doc
-- **Honest gaps:** Hardware sprite-sprite collision not available; TMS text mode approximated with 8×8; SMS/GG sprite zoom not directly supported; line interrupt auto-reload may need substrate support.
-
-### 3.5 NES / Famicom
-- **Status:** Spec drafted
-- **Honest gaps:** Colour emphasis has no Mode0 equivalent; mapper IRQs are cartridge-specific; PPU open-bus read quirks not emulated.
-
-### 3.6 PC Engine / TurboGrafx-16
-- **Status:** Spec drafted — audit PASS #9192
-- **Honest gaps:** SATB DMA not present; per-tile palette bank may not be natively supported; Y/X coordinate offsets need adapter translation.
-
-### 3.7 MSX2
-- **Status:** Spec drafted — audit PASS #9192
-- **Honest gaps:** Sprite Mode 2 per-line colour attribute table missing; command engine exact semantics differ from Mode0 blitter; interlace modes not supported.
-
-### 3.8 Genesis / Mega Drive
-- **Status:** Spec drafted — audit PASS #9192
-- **Honest gaps:** 80 sprite descriptors needed; Window layer primitive missing; shadow/highlight mode absent; linked-list sprite order vs fixed index order.
-
-### 3.9 Neo Geo
-- **Status:** Spec drafted — audit PASS #9192
-- **Honest gaps:** 380 sprite descriptors needed; 96 sprites/line needed; sprite shrinking has no Mode0 equivalent; external ROM graphics must be pre-loaded to SDRAM.
-
-### 3.10 SNES / Super Famicom
-- **Status:** Spec drafted — audit PASS #9192
-- **Honest gaps:** 128 sprite descriptors needed; Mode 7 affine transform has no Mode0 equivalent; colour math (add/sub/blend) missing; interlace output not supported.
-
-### 3.11 Amiga OCS/ECS
-- **Status:** Spec drafted — audit PASS #9192
-- **Honest gaps:** HAM mode has no Mode0 equivalent decoder; EHB mode is not a native Mode0 feature; 640-pixel hires horizontal may exceed Mode0 output capabilities.
+For status and honest gaps, see the Adapter Index (§1) and Honesty Matrix (§2) above. Full adapter contracts live in the canonical `kb/<Adapter>/README.md` files.
 
 ---
 

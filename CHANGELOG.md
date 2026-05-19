@@ -1,5 +1,12 @@
 # spinalhdlVDP Changelog
 
+## 2026-05-19 — Active Documentation Cleanup (#10303)
+
+- **Docs cleanup** — Reduced repetition and tightened verbose sections across active docs:
+  - `PROJECT_PLAN/PLATFORM_ADAPTERS.md` — Removed redundant §3 "Per-Adapter Summary" (covered by §1 Index + §2 Honesty Matrix). Saved ~45 lines.
+  - `PROJECT_PLAN/CONVENTIONS.md` — Tightened "Platform Adapter Fidelity Standards" preamble. Saved ~5 lines.
+  - `kb/libvdp/README.md` — Tightened "All-in-one sprite upload", "Migration & Naming Plan" (converted to table), and "Critical Implementation Facts". Net ~15 lines leaner.
+
 ## 2026-05-19 — 3b Copper Double-Buffer Closed + libvdp Helper-Surface Complete + Audit Checklist Landed
 
 - **3b Copper Double-Buffer Live-Update** — DONE (BronzeGate #10270 CP-G closeout accepted)

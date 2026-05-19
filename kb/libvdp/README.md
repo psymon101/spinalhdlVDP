@@ -153,13 +153,11 @@ bool vdp_sprite_upload(uint8_t slot,
                        const vdp_mode0_sprite_cfg_t *cfg);
 ```
 
-Wraps the three most common sprite-setup steps into one call:
+One-call palette + pattern + descriptor upload. Any step can be skipped with `NULL` / `0`:
 
-1. **Palette** (optional) — uploads `palette_count` entries from `palette` (0x00RRGGBB format) starting at `palette_start`.
-2. **Pattern RAM** — streams `pattern_pixels` 4bpp pixels from `pattern` into pattern RAM at `pattern_start`.
-3. **Descriptor** (optional) — writes the sprite descriptor via `vdp_mode0_set_sprite()` when `cfg != NULL`.
-
-Any step can be skipped by passing `NULL` / `0`. This is the preferred path for the common "upload one sprite and turn it on" use case.
+1. **Palette** — uploads `palette_count` RGB888 entries from `palette` to `palette_start`.
+2. **Pattern RAM** — streams `pattern_pixels` 4bpp pixels from `pattern` to `pattern_start`.
+3. **Descriptor** — writes the sprite descriptor via `vdp_mode0_set_sprite()` when `cfg != NULL`.
 
 ## Sprite API Surface
 
@@ -175,22 +173,22 @@ Any step can be skipped by passing `NULL` / `0`. This is the preferred path for 
 
 ## Migration & Naming Plan
 
-1. **Barebones Separation:** Registers `0x0000..0x0005` in `TopTang20kBarebones` are build-specific proof registers. They conflict with the standard Mode0 `LINESTATE` map and must not be used with `vdp_mode0_*` helpers.
-2. **Naming Convention:**
-   - Helpers targeting barebones-only registers must use the `vdp_barebones_*` prefix.
-   - Helpers targeting the stable, rich-top control plane must use the `vdp_mode0_*` prefix.
-3. **Refactoring:** No renaming of existing `vdp_mode0_*` symbols or introduction of new `vdp_barebones_*` symbols is permitted until this document is audited.
-4. **Transition Path:** When a barebones feature (e.g., procedural sprite) is adopted into the rich-top baseline, its `vdp_barebones_*` wrapper will be retired in favor of the equivalent `vdp_mode0_*` helper.
+| Rule | Detail |
+|---|---|
+| Barebones separation | Registers `0x0000..0x0005` (barebones) conflict with Mode0 `LINESTATE` (`0x0000`). Do not mix `vdp_mode0_*` helpers with barebones builds. |
+| Naming convention | `vdp_barebones_*` = barebones-only registers; `vdp_mode0_*` = rich-top control plane. |
+| Refactoring freeze | No renaming of existing `vdp_mode0_*` symbols or new `vdp_barebones_*` symbols until this document is audited. |
+| Transition path | When a barebones feature moves to rich-top, retire its `vdp_barebones_*` wrapper for the equivalent `vdp_mode0_*` helper. |
 
 ## Critical Implementation Facts
 
 | Fact | Implication |
 |---|---|
-| **HostInterface is ABSENT** | `HostInterface.scala` is not instantiated in `TopTang20kHdmi` or `VdpTop`. The QSPI transport writes directly to the internal register bus. There is no host-side entry FIFO; bursts are not silently dropped by the transport itself. |
-| **Copper Upload is Unbuffered** | Writes to `0x0400..0x05FF` (Copper Program RAM) hit memory directly. Chunking and inter-chunk delays in `vdp_copper_upload` are unnecessary and have been removed. |
-| **Copper Drain Latency** | `copperFifo` (64 words) buffers writes *from* the Copper script. It drains at most once per scanline at `hCounter == 0`. This introduces a ~1-line vertical lag for effects committed via Copper. |
-| **Copper Double-Buffer** | Two 512-word banks. Upload to `0x0400..0x05FF` while copper is **enabled** routes to the inactive bank. `vdp_copper_swap_request()` atomically swaps banks at the next `vSyncStart`. Sequencing rule: always upload to the inactive bank *before* requesting swap. |
-| **Mode0 Coverage** | The `vdp_mode0_*` surface mirrors the landed rich-top register map block-by-block. New Mode0 blocks should land with matching helpers and doc updates; the only intentional gap is high-level sprite programming. |
+| **HostInterface is ABSENT** | QSPI writes directly to the internal register bus. No host-side entry FIFO; bursts are not silently dropped by transport. |
+| **Copper Upload is Unbuffered** | Writes to `0x0400..0x05FF` hit Copper Program RAM directly. Chunking and inter-chunk delays are unnecessary and removed. |
+| **Copper Drain Latency** | `copperFifo` (64 words) drains at most once per scanline at `hCounter == 0`. Effects via Copper have ~1-line vertical lag. |
+| **Copper Double-Buffer** | Two 512-word banks. Upload while copper is **enabled** routes to the inactive bank. `vdp_copper_swap_request()` swaps at the next `vSyncStart`. Upload *before* requesting swap. |
+| **Mode0 Coverage** | `vdp_mode0_*` mirrors the rich-top register map block-by-block. New Mode0 blocks land with matching helpers and doc updates; the only intentional gap is high-level sprite programming. |
 
 ## Minimal Usage Order
 

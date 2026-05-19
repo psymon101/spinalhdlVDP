@@ -147,10 +147,7 @@ The current board-specific boundary is split between:
 
 ## Platform Adapter Fidelity Standards
 
-> Moved to per-platform README files under `kb/<Adapter>/README.md` (2026-05-10).  
-> Retired source: `archive/ADAPTER_NUANCES.md`.
-> This section previously contained the General Capability Rule, Transport Separation Rule,
-> Circuitry-Accurate Palettes, Native Platform Fonts, Display Nuances, and Gap Analysis.
+Per-platform fidelity rules moved to `kb/<Adapter>/README.md` (2026-05-10).
 
 ### Visual Fidelity Rule
 
