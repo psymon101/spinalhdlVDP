@@ -50,6 +50,12 @@ arduino-cli compile --fqbn esp32:esp32:esp32 --library libvdp esp32_sc62_sprite_
 arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 --library libvdp esp8266_sc62_sprite_flip
 ```
 
+## Asset Conversion
+
+`../scripts/assets/png_to_vdp_assets.py` converts PNG sources into raw
+background, tile, sprite, and palette assets that match the current VDP
+layouts.
+
 ## Pin Maps (Host ↔ Tang Nano 20K)
 
 ### Raspberry Pi Pico 2

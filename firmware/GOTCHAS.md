@@ -108,6 +108,33 @@ Per the Artifact Match Rule (AGENTS.md / commit `07e00c5`), every bench test mus
 
 ---
 
+### FIDELITY-5: Copper timing depends on program shape
+
+**Fact:** Copper timing fixes are not universally reusable across all Copper
+programs.
+
+**Rule:**
+- `y-1` compensation is appropriate for single-shot effects that must land on a
+  specific target line after the FIFO drain latency.
+- Looping Copper programs must be bounded to the active area and timed from the
+  actual program geometry, not from a global `y-1` rule.
+
+**Why:** The Copper script FIFO drains at most once per scanline. If a program
+already spans the full active area, subtracting one from every wait target can
+move the first effect into blanking and push later effects past the frame
+boundary.
+
+**Proof expectation:** For Copper demos, keep the bench report explicit about
+whether the program is:
+- single-shot or looping
+- line-accurate or pixel-accurate
+- using raw `WAIT(Y)` or `WAIT(X,Y)`
+
+Do not claim the latency compensation is a general fix unless the exact Copper
+program shape has been validated on hardware.
+
+---
+
 ## Build / Flash
 
 ### GOTCHA-4: Arduino CLI board identifiers

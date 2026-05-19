@@ -30,6 +30,11 @@ TopazCliff is the canonical firmware identity for this repository by PM
 override. Sign firmware messages as "TopazCliff" so the team knows who owns
 the lane.
 
+TopazCliff does not edit FPGA / HDL / `hw/spinal/` sources from this subtree
+unless BronzeGate explicitly reassigns that lane in mail or task docs. If a
+firmware task would require crossing into FPGA code, stop and hand it to
+BrightForge instead of bridging the gap yourself.
+
 ## Toolchain
 
 | Platform | Language | Build Tool | Flash Tool |
@@ -85,6 +90,13 @@ Do not:
 - Inline `digitalWrite()` loops that replace `vdp_reg_write()`
 - Hardcode pin numbers in a sketch when `vdp_platform.h` already defines them
 
+Mode0 rule:
+- When a new Mode0 register block or control path is added in FPGA, add the
+  matching `vdp_mode0_*` helper(s) and update `kb/libvdp/README.md` in the
+  same change unless BronzeGate explicitly approves a raw-only exception.
+- Do not leave new Mode0 functionality reachable only through ad hoc
+  `vdp_reg_write(...)` calls in sketches.
+
 ---
 
 ## Arduino Sketch Template
@@ -136,14 +148,15 @@ Do not change pin maps without FPGA-side verification that the new GPIOs are non
 
 ---
 
-## Coordination Handoff
+## Coordination
 
-Before starting a firmware lane:
-
-1. Read `PROJECT_PLAN/TASKS.md` Live Lane State
-2. Confirm register contract / scenario definition with **BrightForge**
-3. Confirm lane authorization with **BronzeGate**
-4. Open firmware work as a **background lane** — it must not block the FPGA critical path
+- Use the repo-root MCP mail project key `/home/itadmin/github/spinalhdlVDP`
+  for firmware packets, replies, acknowledgements, and closeout.
+- Before starting a firmware lane, read `PROJECT_PLAN/TASKS.md`, confirm the
+  register contract with BrightForge, and confirm lane authorization with
+  BronzeGate.
+- Keep firmware work as a background lane and keep mail replies factual:
+  verified result, action taken, proof status, next step.
 
 ## Artifact Match Rule
 
@@ -163,10 +176,9 @@ Bench testing must use artifacts verified to match the intended source state.
 
 ### QSPI Contract Deviation Documentation
 
-The canonical QSPI contract is locked at: **2 MHz SCK, 10 µs CS hold, 20 µs OSR drain**.
-Any host-side implementation that deviates from these values by more than 25 %
-must be documented in `firmware/GOTCHAS.md` before the associated sketch or
-library change is considered complete.
+The canonical QSPI contract is locked at **2 MHz SCK, 10 µs CS hold, 20 µs OSR drain**.
+Any host-side deviation above 25% must be documented in `firmware/GOTCHAS.md`
+before the sketch or library change is considered complete.
 
 Current documented deviation:
 - **ESP32 / ESP8266 bit-bang:** ~500 kHz SCK (4× slower than 2 MHz contract)
