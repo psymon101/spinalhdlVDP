@@ -172,6 +172,14 @@ Bench testing must use artifacts verified to match the intended source state.
 
 ---
 
+## Audit / Doc-Sync Checklist
+
+When closing a lane, submitting a pull request, or performing an audit:
+
+- [ ] **libvdp sync:** If this lane touched libvdp API surface (`.h`), semantics (`.c`), RTL registers, or programming patterns, verify that `kb/libvdp/README.md` is current.
+
+---
+
 ## Preventive Rules (firmware-specific)
 
 ### QSPI Contract Deviation Documentation

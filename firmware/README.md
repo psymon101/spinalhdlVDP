@@ -27,6 +27,7 @@ platforms over a full 6-wire quad QSPI transport.
 - `esp8266_mode2_rich_top_exercise/` — rich-top register-surface exercise via `libvdp`
 - `test_qspi_smoke/` — Pico-native smoke test exercising the full libvdp surface.
 - `test_mode0_bad_apple/` — Pico demo uploading a monochrome Bad Apple frame.
+- `esp8266_asset_upload/` — ESP8266 template showing generated asset headers + `vdp_upload_asset()`
 
 ## Build
 
@@ -54,7 +55,44 @@ arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 --library libvdp esp8266_sc
 
 `../scripts/assets/png_to_vdp_assets.py` converts PNG sources into raw
 background, tile, sprite, and palette assets that match the current VDP
-layouts.
+layouts. Use `--header` to generate sketch-facing metadata and `--sdram-base`
+to embed the chosen upload address in that metadata.
+
+Typical use:
+
+```sh
+python3 ../scripts/assets/png_to_vdp_assets.py background \
+  path/to/frame.png build/assets/frame \
+  --bpp 4 --header build/assets/frame.h --sdram-base 0x6000
+
+python3 ../scripts/assets/png_to_vdp_assets.py palette \
+  path/to/palette.png build/assets/palette.bin \
+  --count 16 --header build/assets/palette.h --sdram-base 0x7000
+```
+
+The generated header is meant to be included by a sketch or test harness.
+`test_mode0_bad_apple/` shows the same pattern for a preprocessed frame asset.
+`esp8266_asset_upload/` is the smallest in-tree ESP8266 template for the
+generated-header path.
+
+If you want the payload itself in a header, run
+`scripts/assets/bin_to_c_array.py` on the raw `.bin` file and include that
+generated header from the sketch.
+
+Minimal upload pattern:
+
+```c
+#include "frame.h"   /* generated header: FRAME_SDRAM_BASE, dimensions, etc. */
+
+extern const uint16_t frame_words[];
+extern const uint16_t frame_word_count;
+
+vdp_qspi_init();
+vdp_upload_asset(FRAME_SDRAM_BASE, frame_words, frame_word_count, NULL);
+```
+
+The generated header carries the metadata; the raw payload still comes from a
+`uint16_t` buffer or generated object file in the consuming build.
 
 ## Pin Maps (Host ↔ Tang Nano 20K)
 

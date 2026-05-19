@@ -7,7 +7,7 @@ Canonical API reference for `firmware/libvdp/`.
 | Item | Value |
 |---|---|
 | Library path | `firmware/libvdp/` |
-| Platforms | Pico 2, ESP32, ESP8266 |
+| Platforms | Pico 2 (Authoritative), ESP32, ESP8266 |
 | Contract style | blocking C API |
 | Source of truth | public headers in `firmware/libvdp/*.h` |
 
@@ -57,6 +57,35 @@ Canonical API reference for `firmware/libvdp/`.
 |---|---|---|---|
 | `vdp_sdram_write` | `void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words)` | stream 16-bit words into SDRAM | low-level burst write; does not vblank-pace itself |
 | `vdp_upload_asset` | `bool vdp_upload_asset(uint32_t sdram_addr, const uint16_t *words, uint16_t num_words, vdp_upload_cb cb)` | paced SDRAM upload across vblank windows | preferred high-level upload helper |
+
+### Asset Pipeline
+
+Host-side PNG conversion lives in [`scripts/assets/png_to_vdp_assets.py`](/home/itadmin/github/spinalhdlVDP/scripts/assets/png_to_vdp_assets.py).
+Use it to generate raw `.bin` outputs plus optional `--header` metadata for
+sketches or test harnesses.
+
+If you want the raw payload embedded directly into a C header, use
+[`scripts/assets/bin_to_c_array.py`](/home/itadmin/github/spinalhdlVDP/scripts/assets/bin_to_c_array.py)
+on the generated `.bin` file.
+[`firmware/esp8266_asset_upload/`](/home/itadmin/github/spinalhdlVDP/firmware/esp8266_asset_upload/)
+shows the corresponding ESP8266 sketch template.
+
+Typical flow:
+
+1. Convert the source image into raw data and a generated header.
+2. Include the generated header from a sketch or test harness.
+3. Pass the exported SDRAM base address to `vdp_upload_asset()` or
+   `vdp_sdram_write()`.
+
+Example:
+
+```sh
+python3 scripts/assets/png_to_vdp_assets.py background frame.png build/frame \
+  --bpp 4 --header build/frame.h --sdram-base 0x6000
+
+python3 scripts/assets/bin_to_c_array.py build/frame.tiles.bin \
+  build/frame_tiles.h --symbol frame_tiles
+```
 
 ### Upload callback
 
@@ -120,6 +149,21 @@ documented raw-only exception.
 | tables | `vdp_mode0_write_linestate`, `vdp_mode0_write_vscroll_entry` |
 | dma | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_write_staging`, `vdp_mode0_dma_config` |
 | blitter | `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_write_src`, `vdp_mode0_blit_config` |
+| sprite | `vdp_mode0_set_sprite` |
+
+### Sprite Programming Example
+
+```c
+vdp_mode0_sprite_cfg_t cfg = {0};
+cfg.x = 100;
+cfg.y = 150;
+cfg.pat_idx = 4;
+cfg.enabled = true;
+cfg.size_sel = 1;     // 16x16
+cfg.pal_bank = 0;
+cfg.prio = 1;
+vdp_mode0_set_sprite(0, &cfg);
+```
 
 ## Copper Helpers
 
@@ -148,7 +192,7 @@ documented raw-only exception.
 |---|---|---|---|
 | **Transport** | QSPI framing (`vdp_reg_write`, `vdp_reg_write_burst`, `vdp_read_status`) | All | Authoritative |
 | **System** | Status, vblank sync, asset upload | All | Authoritative |
-| **Generic Mode0** | Rich-top register surface (`vdp_mode0_*`) | mode2optimized | Authoritative — all allocated write-path registers have direct helpers. Intentional gap: high-level sprite attribute table (Task 37). |
+| **Generic Mode0** | Rich-top register surface (`vdp_mode0_*`) | mode2optimized | Authoritative — all allocated write-path registers have direct helpers. |
 | **Barebones Proof**| Barebones-top registers (scroll + sprite) | barebones-rebuild| Functional — inline bit-bang sketches; not yet wrapped in `libvdp` |
 | **Copper** | Copper opcode helpers + program upload | mode2optimized | Authoritative |
 
@@ -165,6 +209,7 @@ documented raw-only exception.
 | **Raster** | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` | Covers all 3 bus-controlled triggers in one burst per trigger. |
 | **Copper / HDMA** | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write`, `vdp_mode0_set_hdma_base` | RAM and HDMA config registers. |
 | **Status** | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status`, `vdp_wait_sticky`, `vdp_wait_vblank`, `vdp_clear_sticky` | Interrupt/sticky mask control + polling helpers. Sticky constants cover RASTER_MATCH through MODE_SELECT_CHANGED. |
+| **Sprite** | `vdp_mode0_set_sprite` | Covers 32 slots of affine descriptor RAM (8 words/slot) plus Hardening extension (word 8). |
 
 ## Sprite API Surface
 
@@ -174,7 +219,7 @@ documented raw-only exception.
 | **Status (Sticky)** | `VDP_STICKY_SPRITE_0_HIT` | **DONE** | Slot-0 opaque-on-opaque hit. |
 | **Status (Sticky)** | `VDP_STICKY_SPRITE_BG_HIT` | **DONE** | Any-sprite opaque-on-opaque hit. |
 | **Control** | `vdp_mode0_clear_sprite_coll_mask` | **DONE** | Clears sticky collision bits in `0x0322`. |
-| **Programming** | **NONE** | **GAP** | **Missing:** High-level API for sprite attribute table (SDRAM) or barebones position. All landed rich-top control blocks in `vdp_mode0.h` otherwise have direct helpers. |
+| **Programming** | `vdp_mode0_set_sprite` | **DONE** | High-level API for sprite attribute table (SDRAM/Reg-backed) and hardening extension. |
 
 ## Migration & Naming Plan
 

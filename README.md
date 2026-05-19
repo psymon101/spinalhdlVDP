@@ -8,6 +8,7 @@ Fresh SpinalHDL-based Tang Nano 20K HDMI VDP development repository.
 - `hw/gen/` generated HDL output
 - `fpga/tang20k/` Tang Nano 20K HDMI build files
 - `kb/` local hardware and Gowin documentation
+- `scripts/assets/` host-side asset conversion helpers for PNG → VDP data
 - `project/` SBT project metadata
 
 The Scala package for this repository is `spinalhdlvdp`.
@@ -18,6 +19,9 @@ The Scala package for this repository is `spinalhdlvdp`.
 - `sbt`
 - Gowin IDE CLI `gw_sh`
 - `openFPGALoader`
+- `arduino-cli` (for ESP32/ESP8266 firmware)
+- CMake & Pico SDK 2.2.0 (for Pico 2 firmware)
+- Python 3.8+ (for asset conversion)
 
 This repo currently targets:
 
@@ -25,6 +29,24 @@ This repo currently targets:
 - 27 MHz board clock
 - 640x480@60 HDMI output with SDRAM-backed Mode0 rendering: tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control
 - HDMI / TMDS output path
+
+## Host Firmware
+
+The `firmware/` directory contains the host driver library (`libvdp`) and
+example sketches for ESP32, ESP8266, and Pico 2.
+
+See [`firmware/README.md`](firmware/README.md) for build instructions and
+platform-specific pin maps.
+
+## Asset Pipeline
+
+Host-side art conversion tools live in [`scripts/assets/`](scripts/assets/).
+These tools convert PNG sources into raw VDP data blocks and generated C
+headers for the firmware.
+
+See [`scripts/assets/README.md`](scripts/assets/README.md) for usage examples
+and the ESP8266 asset-upload template in
+[`firmware/esp8266_asset_upload/`](firmware/esp8266_asset_upload/).
 
 ## Common commands
 
