@@ -75,43 +75,68 @@ static uint16_t build_bounce_program(uint16_t *prog, const uint16_t *ys,
 {
     uint16_t pc = 0;
 
-    /* Sort bar indices by Y so WAITs are monotonically increasing.
-     * Copper WAIT(Y) only fires once per frame when vCounter == Y.
-     * If bars cross, emitting out of Y-order causes misses.
-     */
-    uint8_t order[NUM_BARS];
-    for (uint8_t i = 0; i < n; ++i) order[i] = i;
-    for (uint8_t k = 1; k < n; ++k) {
-        uint8_t cur = order[k];
-        int8_t j = (int8_t)(k - 1);
-        while (j >= 0 && ys[order[(uint8_t)j]] > ys[cur]) {
-            order[(uint8_t)(j + 1)] = order[(uint8_t)j];
-            j--;
-        }
-        order[(uint8_t)(j + 1)] = cur;
-    }
-
-    /* Ensure screen starts black before first bar */
-    prog[pc++] = vdp_copper_wait(0);
-    prog[pc++] = (uint16_t)(0x4000u | 0x0347u);
-    prog[pc++] = vdp_mode0_border_ctrl(true, 0); /* black */
-
-    for (uint8_t k = 0; k < n; ++k) {
-        uint8_t bar = order[k];
-        uint16_t y0 = ys[bar];
+    /* Build (y, bar, is_enter) event list: 2 events per bar. */
+    typedef struct { uint16_t y; uint8_t bar; uint8_t is_enter; } event_t;
+    event_t events[NUM_BARS * 2];
+    uint8_t n_events = 0;
+    for (uint8_t i = 0; i < n; ++i) {
+        uint16_t y0 = ys[i];
         uint16_t y1 = y0 + BAR_THICKNESS;
         if (y0 > 480u) y0 = 480u;
         if (y1 > 480u) y1 = 480u;
-
-        prog[pc++] = vdp_copper_wait(y0);         /* WAIT(Y) — bar top */
-        prog[pc++] = (uint16_t)(0x4000u | 0x0347u); /* WRITE BORDER_CTRL */
-        prog[pc++] = vdp_mode0_border_ctrl(true, idxs[bar]);
-
-        prog[pc++] = vdp_copper_wait(y1);         /* WAIT(Y+thickness) — bar bottom */
-        prog[pc++] = (uint16_t)(0x4000u | 0x0347u); /* WRITE BORDER_CTRL */
-        prog[pc++] = vdp_mode0_border_ctrl(true, 0); /* black */
+        events[n_events++] = (event_t){ y0, i, 1 };  /* enter */
+        events[n_events++] = (event_t){ y1, i, 0 };  /* exit  */
     }
-    prog[pc++] = vdp_copper_jump(0);             /* loop */
+
+    /* Insertion sort events by y (n_events <= 6 for 3 bars, trivial). */
+    for (uint8_t k = 1; k < n_events; ++k) {
+        event_t cur = events[k];
+        int8_t j = (int8_t)(k - 1);
+        while (j >= 0 && events[(uint8_t)j].y > cur.y) {
+            events[(uint8_t)(j + 1)] = events[(uint8_t)j];
+            j--;
+        }
+        events[(uint8_t)(j + 1)] = cur;
+    }
+
+    /* Walk events. Maintain a stack of currently-active bars; visible color
+     * = palette idx of top-of-stack (most-recently-entered = front), or 0
+     * (black) if no bars active. Only emit a WAIT/WRITE pair when the
+     * visible color actually changes — avoids redundant writes. */
+    uint8_t stack[NUM_BARS];
+    uint8_t depth = 0;
+    uint8_t prev_color = 0;
+
+    /* Initial state: black from line 0. */
+    prog[pc++] = vdp_copper_wait(0);
+    prog[pc++] = (uint16_t)(0x4000u | 0x0347u);
+    prog[pc++] = vdp_mode0_border_ctrl(true, 0);
+
+    for (uint8_t e = 0; e < n_events; ++e) {
+        if (events[e].is_enter) {
+            stack[depth++] = events[e].bar;
+        } else {
+            /* Remove this bar from the stack (it may not be on top
+             * if another bar entered after it). */
+            for (uint8_t s = 0; s < depth; ++s) {
+                if (stack[s] == events[e].bar) {
+                    for (uint8_t t = s; t + 1 < depth; ++t)
+                        stack[t] = stack[t + 1];
+                    depth--;
+                    break;
+                }
+            }
+        }
+        uint8_t new_color = (depth > 0) ? idxs[stack[depth - 1]] : 0;
+        if (new_color != prev_color) {
+            prog[pc++] = vdp_copper_wait(events[e].y);
+            prog[pc++] = (uint16_t)(0x4000u | 0x0347u);
+            prog[pc++] = vdp_mode0_border_ctrl(true, new_color);
+            prev_color = new_color;
+        }
+    }
+
+    prog[pc++] = vdp_copper_jump(0);
     return pc;
 }
 
