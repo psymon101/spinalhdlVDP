@@ -275,6 +275,11 @@ The `memory` MCP is a **queryable cache**, not the authoritative log. Backing st
 
 **Workflow:** check `memory` first → use mail/docs as authority → add back only short, reusable findings.
 
+**Standing coordination rule:**
+- Before asking another agent a question, search MCP memory / workspace memory first for an existing answer.
+- Only ask the team after checking memory and the live docs/code, unless the question is genuinely new.
+- If you learn a durable fact, write it back to MCP memory with a short summary and commit/mail tie-back.
+
 **Typical uses:**
 - Tang/Gowin gotchas before hardware-debug branch
 - Prior audit conclusions before architecture restatement

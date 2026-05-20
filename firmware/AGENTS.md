@@ -152,6 +152,9 @@ Do not change pin maps without FPGA-side verification that the new GPIOs are non
 
 - Use the repo-root MCP mail project key `/home/itadmin/github/spinalhdlVDP`
   for firmware packets, replies, acknowledgements, and closeout.
+- Before asking another agent a question, search MCP memory / workspace memory
+  first for an existing answer. If you learn a durable firmware fact, write it
+  back to MCP memory with a short summary and commit/mail tie-back.
 - Before starting a firmware lane, read `PROJECT_PLAN/TASKS.md`, confirm the
   register contract with BrightForge, and confirm lane authorization with
   BronzeGate.
