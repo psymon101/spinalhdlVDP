@@ -145,14 +145,18 @@ case class SpriteEvaluator(
   val InfoW1Width = 10                                // x
   val InfoW8Width = 2 + 3 + 2 + 1 + 1 + 2 + 1 + (patternSelBits - 4).max(0)
                                                        // sizeSel + bank + prio + flipH + flipV + bppSel + mask + patIdxHigh
-  // Initial content matches the original Vec[Reg] defaults so existing
-  // tests see the same "off-line" parked-sprite state at boot:
-  //   regEnabled=0, regX=1023, regY=1023, regPatternIndex=0,
-  //   regSizeSel=DefaultSizeSel(=1), other word-8 fields=0.
-  // Pack:
-  //   w0 = (y=1023)<<(1+patLowBits) | 0 → (1023 << 5) = 0x7FE0
-  //   w1 = (x=1023) → 0x3FF
-  //   w8 = sizeSel=1 at bits [1:0] → 0x01
+  // Parked-sprite boot defaults (preserved as initialContent): enabled=0,
+  // x=1023, y=1023, patternIndex=0, sizeSel=DefaultSizeSel(=1), other
+  // word-8 fields=0 — so an un-programmed descriptor reads as a 16×16
+  // off-line sprite, the contract existing host code and sims rely on.
+  //   w0 = (y=1023)<<(1+patLowBits) → 0x7FE0
+  //   w1 = (x=1023)                 → 0x3FF
+  //   w8 = sizeSel=1 at bits [1:0]  → 0x01
+  // Storage move #10357: these Mems are read via `readSync` (scan FSM
+  // below) so Gowin infers BSRAM. The earlier Mem→FF promotion was caused
+  // by readAsync *with* initialContent — Gowin distributed RAM cannot
+  // carry an init, so it fell back to DFFs. BSRAM does support
+  // initialization, so the parked defaults are kept.
   private val w0InitVal = BigInt(1023) << (1 + patternSelBits.min(4))
   private val w1InitVal = BigInt(1023)
   private val w8InitVal = BigInt(SpriteDescriptor.DefaultSizeSel)
@@ -162,29 +166,21 @@ case class SpriteEvaluator(
     initialContent = Array.fill(extCount)(B(w1InitVal, InfoW1Width bits))).simPublic()
   val infoMemW8 = Mem(Bits(InfoW8Width bits),
     initialContent = Array.fill(extCount)(B(w8InitVal, InfoW8Width bits))).simPublic()
-  // Task 57: SpinalHDL auto-generates ram_style="distributed" for small
-  // Mems; manual syn_ramstyle causes EX0200 "Property set invalid".
-  // initialContent on these Mems forces DFF inference — init removal
-  // is the actual fix if DFF budget is exceeded.
   val regAffineEnable = Vec.fill(extCount)(RegInit(False))
-  // Task 57 Slice 2 (CyanPeak DECISION #9502, BrightForge #9487): the
-  // 6×16-bit affine matrix state per slot moves from Vec[Reg] to
-  // readAsync `Mem`s to recover GW2AR-LV18 DFF headroom (#9474, #9501).
-  // Synth maps these to LUTRAM/SSRAM (same path as `activeListMem`),
-  // removing them from the DFF accounting. Bus writes target one Mem
-  // at a time on word matches 2..7; combinational reads via
-  // `descMatrix(i, sel)` below preserve the existing scan-FSM
-  // interface (no pipeline shift required).
+  // Task 57 Slice 2 (#9502 / #9487) + storage move #10357: the 6×16-bit
+  // affine matrix state per slot lives in `Mem`s (was Vec[Reg]). Reads
+  // are `readSync` (scan-FSM hoist below) so Gowin infers BSRAM; bus
+  // writes target one Mem at a time on word matches 2..7. The readSync
+  // latency is absorbed by the 2-cycle scan walk (see the scan FSM).
   val matAMem  = Mem(Bits(16 bits), extCount).simPublic()
   val matBMem  = Mem(Bits(16 bits), extCount).simPublic()
   val matCMem  = Mem(Bits(16 bits), extCount).simPublic()
   val matDMem  = Mem(Bits(16 bits), extCount).simPublic()
   val transXMem = Mem(Bits(16 bits), extCount).simPublic()
   val transYMem = Mem(Bits(16 bits), extCount).simPublic()
-  // Task 57: SpinalHDL auto-generates ram_style="distributed" for small
-  // Mems; manual syn_ramstyle causes EX0200 "Property set invalid".
-  // Matrix Mems have no initialContent so they infer as LUTRAM/SSRAM
-  // correctly with the auto-generated attribute alone.
+  // No initialContent on these Mems + `readSync` access → Gowin infers
+  // BSRAM (block RAM). Manual syn_ramstyle is not set: it caused EX0200
+  // "Property set invalid" (Task 57); default inference is correct.
 
   // Task 57 Slice 3: regFlipH/V/Mask, regPaletteBank, regPriority,
   // regSizeSel, regBppSel are now packed into infoMemW8 (read via the
@@ -275,7 +271,7 @@ case class SpriteEvaluator(
   // Unified descriptor read path.
   //
   // Task 57 Slice 3: ext-slot fields (X/Y/Enabled/PatternIdx/FlipH/V/Mask
-  // PaletteBank/Priority/SizeSel/BppSel) are now backed by readAsync Mems
+  // PaletteBank/Priority/SizeSel/BppSel) are backed by `readSync` Mems
   // and read by a single-port hoist below the scan switch. The helpers
   // return DEFAULTS for ext slots — actual values are overridden by the
   // hoisted block. This avoids per-i Mem read ports inside the
@@ -296,24 +292,10 @@ case class SpriteEvaluator(
     else                   U(0, patternSelBits bits)         // overridden below
   def descAffineEnable(i: Int): Bool =
     if (i < legacyIoCount) False else regAffineEnable(i - legacyIoCount)
-  // Task 57 Slice 2: matrix/trans reads via readAsync `Mem` (LUTRAM/SSRAM
-  // backed) instead of Vec[Reg]. Combinational read preserves the
-  // existing scan-FSM contract — same-cycle availability of matrix
-  // data when scanIdx points at a slot.
-  def descMatrix(i: Int, sel: Int): Bits = {
-    if (i < legacyIoCount) B(0, 16 bits)
-    else {
-      val rel = U(i - legacyIoCount, log2Up(extCount) bits)
-      sel match {
-        case 0 => matAMem.readAsync(rel)
-        case 1 => matBMem.readAsync(rel)
-        case 2 => matCMem.readAsync(rel)
-        case 3 => matDMem.readAsync(rel)
-        case 4 => transXMem.readAsync(rel)
-        case 5 => transYMem.readAsync(rel)
-      }
-    }
-  }
+  // Task 57 Slice 2 / storage move #10357: affine matrix + translation
+  // values are read in the hoisted scan-FSM block below — one `readSync`
+  // port per Mem so Gowin infers BSRAM. (The former `descMatrix` helper,
+  // a readAsync per-slot accessor, was dead code and has been removed.)
   // Sprite Envelope Hardening — legacy slots get back-compat defaults.
   // Ext-slot defaults are overridden below by the hoisted Mem read.
   def descFlipH(i: Int): Bool =
@@ -342,6 +324,9 @@ case class SpriteEvaluator(
   val activeCount    = Reg(UInt(log2Up(visiblePerLine + 1) bits)) init 0
   val totalOnLine    = Reg(UInt(log2Up(descCount + 1) bits)) init 0
   val scanBusy       = Reg(Bool()) init False
+  // Storage move #10357: two scan cycles per descriptor — readPhase False
+  // presents the readSync Mem address, True processes the valid data.
+  val readPhase      = Reg(Bool()) init False
 
   // Sprite Phase 2 — P2-4 (CyanPeak #8614): SNES-style tile-fetch budget
   // counter. Sums (size/8)² 8×8-tile equivalents per on-line sprite,
@@ -373,6 +358,7 @@ case class SpriteEvaluator(
     totalOnLine  := 0
     tileCountReg := 0    // Phase 2 P2-4: reset tile-budget counter per line
     scanBusy     := True
+    readPhase    := False   // storage move #10357: start in address phase
     // Task 2c: no per-slot activeValidReg clearing needed — validity is
     // implicit via `s < activeCount`, which goes to 0 here.
   }
@@ -430,17 +416,18 @@ case class SpriteEvaluator(
     val scanRel   = (scanIdx - U(legacyIoCount, descIdxBits bits)).resize(log2Up(extCount))
 
     // Slice 2 — affine matrix Mems
-    val matAR     = matAMem.readAsync(scanRel)
-    val matBR     = matBMem.readAsync(scanRel)
-    val matCR     = matCMem.readAsync(scanRel)
-    val matDR     = matDMem.readAsync(scanRel)
-    val transXR   = transXMem.readAsync(scanRel)
-    val transYR   = transYMem.readAsync(scanRel)
+    val matAR     = matAMem.readSync(scanRel)
+    val matBR     = matBMem.readSync(scanRel)
+    val matCR     = matCMem.readSync(scanRel)
+    val matDR     = matDMem.readSync(scanRel)
+    val transXR   = transXMem.readSync(scanRel)
+    val transYR   = transYMem.readSync(scanRel)
 
-    // Slice 3 — packed info Mems
-    val w0R = infoMemW0.readAsync(scanRel)   // {y[14:5], patIdxLow[4:1], enabled[0]}
-    val w1R = infoMemW1.readAsync(scanRel)   // {x[9:0]}
-    val w8R = infoMemW8.readAsync(scanRel)
+    // Slice 3 — packed info Mems. readSync → BSRAM; data valid in the
+    // process phase (scanIdx held stable across the 2-cycle walk).
+    val w0R = infoMemW0.readSync(scanRel)   // {y[14:5], patIdxLow[4:1], enabled[0]}
+    val w1R = infoMemW1.readSync(scanRel)   // {x[9:0]}
+    val w8R = infoMemW8.readSync(scanRel)
     // w8 unpack offsets (LSB first per write order):
     //   [1:0]   sizeSel
     //   [4:2]   paletteBank
@@ -500,35 +487,44 @@ case class SpriteEvaluator(
                  (io.evalLine >= curY) &&
                  (io.evalLine < (curY + curSize.resize(10)))
 
+  // Storage move #10357: descriptor Mems are `readSync`, so each
+  // descriptor takes two scan cycles. readPhase=False presents the read
+  // address; readPhase=True processes the descriptor with the now-valid
+  // registered Mem data and advances. Scan length is 2×descCount cycles —
+  // still a small fraction of the per-line budget.
   when(scanBusy) {
-    when(dOnLine) {
-      totalOnLine  := totalOnLine + 1
-      // Phase 2 P2-4: every on-line sprite contributes its tile demand to
-      // the budget regardless of whether it gets a visible slot — this
-      // matches the SNES OAM evaluation cost model where the limit is on
-      // tile fetches, not on visible-slot allocation.
-      tileCountReg := tileCountReg + tilesForSize(curSizeSel).resize(11)
-      when(activeCount < U(visiblePerLine, activeCount.getWidth bits)) {
-        // Task 2c: per-slot Vec writes removed. The active-list Mem
-        // write below (single packed-word write at addr=activeCount)
-        // replaces the 16 per-Vec assignments.
-        activeCount := activeCount + 1
+    readPhase := !readPhase
+    when(readPhase) {
+      when(dOnLine) {
+        totalOnLine  := totalOnLine + 1
+        // Phase 2 P2-4: every on-line sprite contributes its tile demand to
+        // the budget regardless of whether it gets a visible slot — this
+        // matches the SNES OAM evaluation cost model where the limit is on
+        // tile fetches, not on visible-slot allocation.
+        tileCountReg := tileCountReg + tilesForSize(curSizeSel).resize(11)
+        when(activeCount < U(visiblePerLine, activeCount.getWidth bits)) {
+          // Task 2c: per-slot Vec writes removed. The active-list Mem
+          // write below (single packed-word write at addr=activeCount)
+          // replaces the 16 per-Vec assignments.
+          activeCount := activeCount + 1
+        }
       }
-    }
-    when(scanIdx === U(descCount - 1, descIdxBits bits)) {
-      scanBusy := False
-      // Phase 2 P2-4: overflow now fires on EITHER (a) more sprites on
-      // line than visiblePerLine, or (b) per-line tile demand > 34 (SNES
-      // budget). The two cases share the same status bit.
-      val finalTileCount = tileCountReg +
-        Mux(dOnLine, tilesForSize(curSizeSel).resize(11), U(0, 11 bits))
-      val capacityOver   = (totalOnLine +
-        Mux(dOnLine, U(1, totalOnLine.getWidth bits), U(0, totalOnLine.getWidth bits))) >
-        U(visiblePerLine, totalOnLine.getWidth bits)
-      val tileBudgetOver = finalTileCount > U(TileBudget, 11 bits)
-      overflowFlagReg := capacityOver || tileBudgetOver
-    } otherwise {
-      scanIdx := scanIdx + 1
+      when(scanIdx === U(descCount - 1, descIdxBits bits)) {
+        scanBusy  := False
+        readPhase := False
+        // Phase 2 P2-4: overflow now fires on EITHER (a) more sprites on
+        // line than visiblePerLine, or (b) per-line tile demand > 34 (SNES
+        // budget). The two cases share the same status bit.
+        val finalTileCount = tileCountReg +
+          Mux(dOnLine, tilesForSize(curSizeSel).resize(11), U(0, 11 bits))
+        val capacityOver   = (totalOnLine +
+          Mux(dOnLine, U(1, totalOnLine.getWidth bits), U(0, totalOnLine.getWidth bits))) >
+          U(visiblePerLine, totalOnLine.getWidth bits)
+        val tileBudgetOver = finalTileCount > U(TileBudget, 11 bits)
+        overflowFlagReg := capacityOver || tileBudgetOver
+      } otherwise {
+        scanIdx := scanIdx + 1
+      }
     }
   }
 
@@ -592,7 +588,9 @@ case class SpriteEvaluator(
   )
   // Mem write occurs in the same conditions as the legacy active*Reg
   // Vec writes — gated on (scanBusy && dOnLine && activeCount<visiblePerLine).
-  val memWrite = scanBusy && dOnLine && (activeCount < U(visiblePerLine, activeCount.getWidth bits))
+  // Storage move #10357: gated on readPhase so the write fires once, in
+  // the process phase, with valid readSync descriptor data.
+  val memWrite = scanBusy && readPhase && dOnLine && (activeCount < U(visiblePerLine, activeCount.getWidth bits))
   activeListMem.write(
     address = activeCount.resize(log2Up(visiblePerLine)),
     data    = packedSlot,

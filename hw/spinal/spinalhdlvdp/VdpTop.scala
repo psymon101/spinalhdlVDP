@@ -182,9 +182,14 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     // Host-visible IRQ line — asserted while any enabled sticky bit is set:
     val irq                = out Bool()
     // Task 54 — sprite-sprite collision per-descriptor mask, addr 0x0322.
-    // Width fixed at 8 bits (Path 5A descCount=8); each bit set indicates
-    // the corresponding descriptor participated in at least one
-    // sprite-sprite overlap since the last write-1-to-clear.
+    // Width deliberately held at 8 bits per BronzeGate #10363 even though
+    // descCount is now 32: each bit set indicates the corresponding
+    // descriptor participated in at least one sprite-sprite overlap since
+    // the last write-1-to-clear. With descCount=32 the hit-descriptor
+    // index is truncated to 3 bits, so descriptors 8/16/24 alias onto
+    // bit 0, 9/17/25 onto bit 1, etc. Widening to 32 bits is parked
+    // until a concrete product need for per-descriptor collision
+    // resolution above descriptor 7 is shown (#10363).
     val spriteCollMask     = out Bits(8 bits)
 
     // Task 1 (MODE_SELECT, #9154) — runtime adapter selection per
@@ -1389,27 +1394,17 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // Gowin timing/resource reports show ample headroom. 4 legacy IO slots +
   // 28 bus-programmable extended slots.
   val spriteEval = SpriteEvaluator(
-    // Task 57 (CyanPeak CORRECTED RULING #9605 = Path 5A): descCount 64 → 8
-    // as the final hardware discriminator. Diagnostic at descCount=16
-    // failed PnR (`PR0003`, 7539 unplaced REGs); #9601 corrects the prior
-    // false "fit" claim. Path 5A's 8-descriptor floor is the smallest
-    // meaningful sprite config; if this also fails PnR, CyanPeak's
-    // stop-line is Path 5D (sim-only closure per #9479 already in force).
-    descCount      = 8,
-    // Sprite Envelope Hardening B-1 (CyanPeak #8577) — TIMING-BLOCKED
-    // capacity bump. 32 blew the logic budget (51 k of 20.7 k); 16 ran
-    // 1.06× over (21.9 k); 12 fit resource but missed timing by 2 ns
-    // on vCounter→lineBuf paths (15 violations, TNS −25.9 ns). The 5
-    // new descriptor fields land at the original 8/line capacity so
-    // they can be used by adapters — capacity bump is parked for a
-    // follow-on slice that pipelines the compositor merge or shares
-    // the per-slot AffineStepper. Out of #8577 scope.
-    //
-    // Task 2 (#9204) attempt 2026-05-04: same 51,191-logic failure
-    // mode reproduced when bumped to 64/32 directly. Blocker filed
-    // — substrate redesign (shared pattern Mems / pipelined
-    // compositor) required before capacity bump can land.
-    visiblePerLine = 8,   // Task 57 Path 5A (CyanPeak #9605): match descCount=8 floor
+    // descCount=32 landed per BronzeGate #10363 (2026-05-19 lane).
+    // The earlier descCount=16 PnR failure (`PR0003`, 7539 unplaced REGs)
+    // and the 51 k-logic blowup at 32 were both artefacts of the old
+    // readAsync descriptor-Mem substrate, which Gowin promoted to DFFs.
+    // The storage-move redesign (#10357: descriptor Mems readAsync →
+    // readSync/BSRAM) removed that promotion; the descCount=16/32
+    // feasibility proof (#10360) showed both place, route, and meet
+    // timing on Tang Nano with near-flat scaling. #10363 authorises
+    // landing descCount=32 with visiblePerLine held at 8.
+    descCount      = 32,
+    visiblePerLine = 8,   // #10363: held at 8 (visible-per-line unchanged)
     patternSelBits = SpriteEvaluator.PatIdxWidth,   // Task 53 (#9419): 6 bits
     legacyIoCount  = 4)
   spriteEval.io.descX(0)          := io.sprite0X
@@ -2025,7 +2020,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // Rollup into STATUS_STICKY bit 6 (SPRITE_SPRITE_HIT) is wired below
   // by adding `spriteSpriteHit` into the evBus packing.
   // -------------------------------------------------------------------
-  val SpriteCollWidth = 8   // Path 5A descCount=8 → 8-bit per-descriptor mask
+  // Held at 8 bits per BronzeGate #10363 — NOT widened to descCount=32.
+  // Hit-descriptor indices ≥8 alias into the low 3 bits (see io.spriteCollMask
+  // comment). Widening is parked until a concrete product need is shown.
+  val SpriteCollWidth = 8
   val spriteCollMaskReg = Reg(Bits(SpriteCollWidth bits)) init 0
 
   val spriteSpriteHit       = spriteRasterizer.io.spriteSpriteHit

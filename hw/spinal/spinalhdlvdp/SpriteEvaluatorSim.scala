@@ -6,8 +6,9 @@ import spinal.core.sim._
 /** Task 28 — Two-Pass Sprite Evaluator validation sim.
   *
   * Parameters match the Task 28 landing: `descCount=32`, `visiblePerLine=8`,
-  * `patternSelBits=4`, `legacyIoCount=4`. The sequential Pass-1 FSM takes
-  * `descCount` cycles to complete; tests wait on that before reading
+  * `patternSelBits=4`, `legacyIoCount=4`. The sequential Pass-1 FSM uses a
+  * 2-cycle-per-descriptor walk (storage move #10357), so it takes
+  * 2×descCount cycles to complete; tests wait on that before reading
   * active-list outputs.
   *
   * Cases:
@@ -64,8 +65,9 @@ object SpriteEvaluatorSim extends App {
       dut.io.evalStart #= true
       dut.clockDomain.waitSampling()
       dut.io.evalStart #= false
-      // Sequential scan takes descCount cycles; wait a safety margin.
-      dut.clockDomain.waitSampling(D + 4)
+      // Storage move #10357: the 2-cycle scan walk takes 2×descCount
+      // cycles; wait for that plus a safety margin.
+      dut.clockDomain.waitSampling(2 * D + 4)
     }
 
     def readSlot(s: Int): BigInt = {
