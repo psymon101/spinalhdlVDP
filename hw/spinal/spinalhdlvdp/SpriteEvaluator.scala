@@ -145,18 +145,27 @@ case class SpriteEvaluator(
   val InfoW1Width = 10                                // x
   val InfoW8Width = 2 + 3 + 2 + 1 + 1 + 2 + 1 + (patternSelBits - 4).max(0)
                                                        // sizeSel + bank + prio + flipH + flipV + bppSel + mask + patIdxHigh
-  // Sprite-substrate storage move (BronzeGate #10357): the three info
-  // Mems are declared init-free and read via `readSync` (scan FSM below)
-  // so Gowin infers BSRAM rather than the DFF fabric that `initialContent`
-  // forced (Mem→FF promotion — see #9605 history).
-  // Boot state: BSRAM powers up to 0, so every ext-slot `enabled` bit
-  // (infoMemW0 bit 0) is 0 at reset — slots are parked off-line until the
-  // host writes them. That is the only load-bearing part of the former
-  // parked default; the old x=y=1023 off-screen default is redundant once
-  // enabled=0.
-  val infoMemW0 = Mem(Bits(InfoW0Width bits), extCount).simPublic()
-  val infoMemW1 = Mem(Bits(InfoW1Width bits), extCount).simPublic()
-  val infoMemW8 = Mem(Bits(InfoW8Width bits), extCount).simPublic()
+  // Parked-sprite boot defaults (preserved as initialContent): enabled=0,
+  // x=1023, y=1023, patternIndex=0, sizeSel=DefaultSizeSel(=1), other
+  // word-8 fields=0 — so an un-programmed descriptor reads as a 16×16
+  // off-line sprite, the contract existing host code and sims rely on.
+  //   w0 = (y=1023)<<(1+patLowBits) → 0x7FE0
+  //   w1 = (x=1023)                 → 0x3FF
+  //   w8 = sizeSel=1 at bits [1:0]  → 0x01
+  // Storage move #10357: these Mems are read via `readSync` (scan FSM
+  // below) so Gowin infers BSRAM. The earlier Mem→FF promotion was caused
+  // by readAsync *with* initialContent — Gowin distributed RAM cannot
+  // carry an init, so it fell back to DFFs. BSRAM does support
+  // initialization, so the parked defaults are kept.
+  private val w0InitVal = BigInt(1023) << (1 + patternSelBits.min(4))
+  private val w1InitVal = BigInt(1023)
+  private val w8InitVal = BigInt(SpriteDescriptor.DefaultSizeSel)
+  val infoMemW0 = Mem(Bits(InfoW0Width bits),
+    initialContent = Array.fill(extCount)(B(w0InitVal, InfoW0Width bits))).simPublic()
+  val infoMemW1 = Mem(Bits(InfoW1Width bits),
+    initialContent = Array.fill(extCount)(B(w1InitVal, InfoW1Width bits))).simPublic()
+  val infoMemW8 = Mem(Bits(InfoW8Width bits),
+    initialContent = Array.fill(extCount)(B(w8InitVal, InfoW8Width bits))).simPublic()
   val regAffineEnable = Vec.fill(extCount)(RegInit(False))
   // Task 57 Slice 2 (#9502 / #9487) + storage move #10357: the 6×16-bit
   // affine matrix state per slot lives in `Mem`s (was Vec[Reg]). Reads
