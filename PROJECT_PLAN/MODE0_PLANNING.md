@@ -1,6 +1,6 @@
 # MODE0_PLANNING.md
 
-**Updated:** 2026-05-15
+**Updated:** 2026-05-20
 **Purpose:** Current `Mode0-T20` profile specification for the Tang20k-targeted Mode0 build.
 
 ---
@@ -20,8 +20,8 @@
 | Feature | Limit / Value |
 |---|---|
 | Background Layers | 2 (Strong) / 4 (Max) |
-| Sprites / Scanline | 8 |
-| Descriptor Count | 8 |
+| Sprites / Scanline | 8 (live build) |
+| Descriptor Count | 8 (live build) / 32 (approved redesign target) |
 | Planar Depth | 4 planes |
 | Raster Compare | 1 unit |
 | Fetch Formats | Tile+Attr, Bitmap, Planar |
@@ -32,7 +32,7 @@
 
 - L2/L3 rich layers
 - Affine / Mode7 path
-- Expanded sprite count (32/line) — **deferred; live instantiation is 8/8**
+- Expanded sprite count (32 descriptors, 8 visible/line) — **approved redesign target proven by BrightForge #10360; live build remains 8/8 pending merge**
 - Deeper planar support
 
 ---
@@ -79,7 +79,7 @@ The register map is canonically defined and maintained in **`PROJECT_PLAN/MODE0_
 - **Source:** `MODE0_PLANNING.md` §2, `VdpTop.scala`
 
 ### 6.4 Object & Composition Limits
-- **Sprites:** 8 visible/scanline; 8 total descriptors
+- **Sprites:** 8 visible/scanline; 8 total descriptors (live build). Approved redesign target: 32 total descriptors, 8 visible/scanline — proven fit/timing on Tang Nano 20K by BrightForge (#10360).
 - **Collision:** Sprite-0-hit + Sprite-BG-hit status bits
 - **Windowing:** 1 active rectangle (standard) / 2 rectangles (extended)
 - **Source:** `MODE0_PLANNING.md` §4, `SpriteCapacitySim.scala`
@@ -101,7 +101,7 @@ The register map is canonically defined and maintained in **`PROJECT_PLAN/MODE0_
 | Affine / Mode7 | **Disabled** | Enabled | #10142 |
 | Extra Triggers | **Disabled** | Enabled | #10142 |
 | Plane Count | `4` | `5` or `6` | #10011 |
-| Sprite Density | `8/line` | `32/line` | #10077 |
+| Sprite Density | `8/line` (live build) | `32 descriptors / 8 visible` (approved redesign target, proven #10360) | #10077 |
 
 ---
 

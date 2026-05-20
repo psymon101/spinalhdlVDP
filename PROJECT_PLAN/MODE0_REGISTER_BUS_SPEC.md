@@ -255,6 +255,7 @@ All pass as of commit `4cee22e` (Task 38c closeout). Task 32a does not introduce
 - **§5:** Status register clear semantics (write-1-to-clear vs read-to-clear vs auto-clear) — Task 35 artifact.
 - **§7.1:** If Task 34 bulk asset upload needs a sideband write register (e.g. `ASSET_ADDR` pointer), its placement at `0x0350..0x035F` is suggested but not locked.
 - **§7.2:** Task 19 Affine Background registers (`0x0340..0x0346`) were omitted in v1.0; corrected in v1.1. Task 33 Copper-lite relocated from `0x0340..0x034F` (erroneous) to `0x0380..0x03DF`.
+- **Sprite descriptor capacity:** Approved redesign target is `descCount=32`, `visiblePerLine=8` (BrightForge #10360). The existing `0x0800..0x0FFF` Task 37 descriptor space (2048 words) is already sized for this target; no register-address changes are required. Live build remains `descCount=8` pending merge.
 
 ---
 
