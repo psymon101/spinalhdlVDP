@@ -4,6 +4,9 @@
 **Branch:** `mode0t20-barebones-rebuild`  
 **Latest Commit:** `f61b431` (CoralReef ledger sync for 2026-05-19 closeouts)
 
+**Project:** `spinalhdlVDP`
+**Note:** CyanPeak's recent work was the Tang Nano 20K + ESP8266 MCU host bitstream build lane for this project.
+
 ---
 
 ## Task / Checkpoint

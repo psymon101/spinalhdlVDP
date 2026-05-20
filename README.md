@@ -2,6 +2,8 @@
 
 Fresh SpinalHDL-based Tang Nano 20K HDMI VDP development repository.
 
+Project identity: `spinalhdlVDP`. Any CyanPeak bitstream work referenced in mail or notes is a build lane for this repository, including the Tang Nano 20K + ESP8266 MCU host bitstream effort.
+
 ## Repository layout
 
 - `hw/spinal/spinalhdlvdp/` Scala / SpinalHDL sources
@@ -31,3 +33,4 @@ The Scala package for this repository is `spinalhdlvdp`.
 
 Roadmap: [`PROJECT_PLAN/MODE0_PLANNING.md`](PROJECT_PLAN/MODE0_PLANNING.md).
 Detailed adapter specs: [`PROJECT_PLAN/PLATFORM_ADAPTERS.md`](PROJECT_PLAN/PLATFORM_ADAPTERS.md).
+User guide: [`VDP_PROGRAMMING_GUIDE.md`](VDP_PROGRAMMING_GUIDE.md).
