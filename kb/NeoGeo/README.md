@@ -19,7 +19,7 @@
 
 ## 3. Unsupported / Deferred Features
 
-- **96 sprites per scanline:** Mode0 substrate limited to 32/8; massive sprite expansion required.
+- **96 sprites per scanline:** Mode0 substrate limited to 8/8; massive sprite expansion required.
 - **Hardware shrinking logic:** Not supported in Mode0 v1.
 - **Massive palette capacity:** 4,096 active colors exceeds Mode0 palette RAM.
 - **Line buffer architecture:** Dual line buffers are not part of Mode0 substrate.
@@ -47,7 +47,7 @@
 | Neo Geo Function | Mode0 Primitive | Adapter Responsibility |
 |---|---|---|
 | Fix layer | Tile + attribute fetch | Map FIX map to tile overlay |
-| Sprite backgrounds | Sprite evaluation (descCount=8/32) | Chain sprites to form background strips |
+| Sprite backgrounds | Sprite evaluation (descCount=8, visiblePerLine=8) | Chain sprites to form background strips |
 | Sprite objects | Sprite evaluation | Map SCB to sprite slots |
 | Scaling | Not supported in v1 | Document as deferred |
 | Rich palette | Palette RAM | Subset to Mode0 palette capacity |

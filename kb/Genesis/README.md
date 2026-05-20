@@ -51,7 +51,7 @@
 |---|---|---|
 | Plane A / B | Tile fetch (L0, L1) | Map to scrollable tilemaps |
 | Window | Tile fetch (L2) | Fixed or independent scroll window |
-| Sprites | Sprite evaluation | Map 80 SAT entries to 64 available slots (v1 limit) |
+| Sprites | Sprite evaluation | Map 80 SAT entries to 8 available slots (v1 limit) |
 | Scroll | Scroll tables | Use Mode0 linestate/scroll-table primitive |
 | DMA | Memory-to-VRAM copy | Use host transport or Mode0 DMA if available |
 

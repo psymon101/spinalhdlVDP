@@ -27,6 +27,8 @@ If any assessment disagrees with `TASKS.md` on execution priority, `TASKS.md` wi
 
 ---
 
+> **Erratum (2026-05-19):** This assessment describes the *target* substrate sizing pursued by Tasks 2a/2c/2b. The **live shipped substrate** was rolled back to `descCount=8`, `visiblePerLine=8` per Task 57 Path 5A (`VdpTop.scala:1399/1413`). Claims below that the substrate "now supports" `64/32` or that `32/64` is the "current default" are stale. BrightForge's active redesign-feasibility lane (`#10340`) is authoritative for the next substrate target. Until that lane lands, the honest hardware floor is `8/8`.
+
 # §1 — Fetch Envelope Assessment
 
 > Verdict: Tile+attribute and bitmap+attribute are **Strong**; planar is **Usable but limited** (needs 5–6 planes for Amiga/ST); shuffled is honest with adapter-local address calc.
@@ -335,7 +337,7 @@ This preserves the architectural rule that `Mode0` owns the reusable superset wh
 **Audit:** PASS #8577  
 **Scope:** Assessment / analysis only; no substrate implementation changes authorized
 
-**Implementation note:** The recommendations in this assessment have been implemented and closed via Tasks 2a, 2c, and 2b (Sprite Capacity Expansion epic). Current Mode0 defaults: `descCount=64`, `visiblePerLine=32`. See `TASKS.md` for closure evidence.
+**Implementation note:** The recommendations in this assessment were pursued via Tasks 2a, 2c, and 2b (Sprite Capacity Expansion epic) but **never shipped at 64/32**. The live substrate was rolled back to `descCount=8`, `visiblePerLine=8` per Task 57 Path 5A. The 64/32 sizing remains a **parked target** pending BrightForge's substrate-redesign feasibility lane (`#10340`). See `TASKS.md` and `VdpTop.scala:1399/1413` for the shipped reality.
 
 ---
 
@@ -345,12 +347,12 @@ This assessment answers the four acceptance questions defined in `TASK_MODE0_SPR
 
 | Question | Ruling |
 |---|---|
-| Q1 — Is `visiblePerLine=8` sufficient? | **NO — increase to 32 recommended** (covers SNES; Neo Geo deferred) — **IMPLEMENTED** via Tasks 2a/2c/2b. Current default: `visiblePerLine=32`, `descCount=64`. |
+| Q1 — Is `visiblePerLine=8` sufficient? | **NO — increase to 32 recommended** (covers SNES; Neo Geo deferred). The 32/line target was **attempted** via Tasks 2a/2c/2b but **rolled back** to 8/8 per Task 57 Path 5A. A substrate redesign is required before 32/line can land. |
 | Q2 — Which descriptor fields belong in shared substrate? | **flip H/V, palette bank (3b), priority bit, size select (2b)** — all shared |
 | Q3 — Can current evaluator absorb extensions without a second engine? | **YES — two-pass architecture is fundamentally sound; no second engine needed** |
 | Q4 — Exact stop-line-aware cost? | **+~900 LUT, +~1,200 FF, +0 DSP, +0–1 BSRAM** — stays green zone |
 
-**Top-line recommendation:** ✅ **IMPLEMENTED** via Tasks 2a/2c/2b (Sprite Capacity Expansion epic). The substrate now supports `visiblePerLine=32`, `descCount=64` with zero unplaced REGs on Tang Nano 20K. For remaining gaps (Genesis 80 desc, SNES 128 desc, Neo Geo 96/line), see `TASKS.md` §Open Gap Tasks (Task 53).
+**Top-line recommendation:** The 32/64 substrate target was **attempted** via Tasks 2a/2c/2b but **rolled back** to 8/8 per Task 57 Path 5A due to PnR failure (51 k logic demand vs 20.7 k available). BrightForge's active redesign-feasibility lane (`#10340`) is the authorized path to unblock larger sizing. Until that lane lands, the honest hardware floor is `descCount=8`, `visiblePerLine=8` on Tang Nano 20K.
 
 ---
 
@@ -906,7 +908,7 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 | Text mode | Strong | None | L0/L1 tile layers cover this |
 | Bitmap mode | Strong | None | L0 SDRAM-backed bitmap fetch |
 | Multicolor | Strong | None | 2-bit-per-pixel via bitplane |
-| 8 sprites | Strong | None | 32 slots available; evaluator handles Y-sort |
+| 8 sprites | Strong | None | 8 slots available; evaluator handles Y-sort |
 | Sprite X/Y expand | Usable | None | `sizeSel` covers this (8/16/32/64) |
 | Sprite priority | Strong | None | Back-to-front compositor |
 | Raster splits | Usable | None | RasterTrigger + Copper sufficient |
@@ -935,7 +937,7 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 | 1 BG tile layer | Strong | None | L0 covers this |
 | 8×8 / 8×16 tiles | Strong | None | Tile size configurable |
 | 4 BG palettes | Strong | None | 8 banks available |
-| 64 sprites | Strong | None | 32 slots; evaluator covers Y-range |
+| 64 sprites | Strong | None | 8 slots; evaluator covers Y-range (expansion deferred) |
 | 8×8 / 8×16 sprite sizes | Strong | None | `sizeSel` configurable per sprite |
 | Sprite priority bit | Usable | Gap | `activePriority` exists but compositor ignores it |
 | 4 sprite palettes | Strong | None | 8 banks available; sprite palette bank wired but unused |
@@ -1011,8 +1013,8 @@ This audit evaluates 7+ target platforms against current `Mode0` substrate capab
 | 1–4 BG layers | Strong | None | 4-layer compositor covers this |
 | Mode 7 (affine BG) | Usable | None | Affine texture source exists |
 | Per-tile priority | Strong | None | L0 priority bit supported |
-| 128 sprites | Strong | None | 32 descriptor slots; need more for 128 |
-| 32 sprites/line | Strong | None | `visiblePerLine=32` matches exactly |
+| 128 sprites | Strong | None | 8 descriptor slots; need substrate redesign for 128 |
+| 32 sprites/line | Strong | None | `visiblePerLine=8` shipped; 32/line requires substrate redesign |
 | Sprite sizes 8–64 | Strong | None | `sizeSel` covers all sizes |
 | Sprite 8 palettes | Strong | Gap | Sprite palette bank wired but unused |
 | Sprite priority bit | Usable | Gap | Compositor ignores `activePriority` |

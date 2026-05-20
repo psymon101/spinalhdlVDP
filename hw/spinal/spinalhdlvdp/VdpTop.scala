@@ -1386,9 +1386,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true) ex
   // 0x0800..0x083F. See SpriteEvaluator.scala for the slot layout and
   // the word-0 / word-1 packing.
   // Task 45 (BronzeGate #8189): restore sprite evaluator to full parametric
-  // defaults descCount=32, visiblePerLine=8 now that Task 44b has cleared and
-  // Gowin timing/resource reports show ample headroom. 4 legacy IO slots +
-  // 28 bus-programmable extended slots.
+  // form. SpriteEvaluator case-class defaults are descCount=64, visiblePerLine=32.
+  // Live instantiation is descCount=8, visiblePerLine=8 per Task 57 Path 5A.
+  // 4 legacy IO slots + 4 bus-programmable extended slots.
   val spriteEval = SpriteEvaluator(
     // Task 57 (CyanPeak CORRECTED RULING #9605 = Path 5A): descCount 64 → 8
     // as the final hardware discriminator. Diagnostic at descCount=16

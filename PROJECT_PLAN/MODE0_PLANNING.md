@@ -32,7 +32,7 @@
 
 - L2/L3 rich layers
 - Affine / Mode7 path
-- Expanded sprite count (32/line)
+- Expanded sprite count (32/line) — **deferred; live instantiation is 8/8**
 - Deeper planar support
 
 ---
@@ -79,7 +79,7 @@ The register map is canonically defined and maintained in **`PROJECT_PLAN/MODE0_
 - **Source:** `MODE0_PLANNING.md` §2, `VdpTop.scala`
 
 ### 6.4 Object & Composition Limits
-- **Sprites:** 8 visible/scanline; 64 total descriptors
+- **Sprites:** 8 visible/scanline; 8 total descriptors
 - **Collision:** Sprite-0-hit + Sprite-BG-hit status bits
 - **Windowing:** 1 active rectangle (standard) / 2 rectangles (extended)
 - **Source:** `MODE0_PLANNING.md` §4, `SpriteCapacitySim.scala`

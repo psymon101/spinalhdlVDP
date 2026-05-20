@@ -72,7 +72,7 @@
 
 - **Visual Fidelity:** Preservation of 2×2 tile color granularity and overscan feel is prioritized over internal PPU pipeline emulation.
 - **Sprite 0 Hit:** Requires wiring specific compositor collision events to the `RASTER_MATCH` status bit.
-- **Sprite Limit:** Mode0 supports 32 sprites/line, exceeding the NES limit of 8. The adapter must clamp to 8 for strict fidelity if desired.
+- **Sprite Limit:** Mode0 substrate limit is 8 sprites/line, matching the NES limit of 8. The adapter need not clamp; the substrate is already honest.
 
 ## 10. Reference Links
 

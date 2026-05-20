@@ -53,12 +53,12 @@ This matrix tracks whether the current `Mode0` substrate supports an "honest" im
 | C64 | 1 | ✅ Yes | — | Sprite-sprite collision (Task 54) |
 | Atari ST | 1 | ✅ Yes | — | Immediate palette, blitter semantics |
 | NES | 2 | ✅ Yes | — | Colour emphasis, mapper IRQs |
-| PC Engine | 2 | ✅ Yes | descCount 64→80 | SATB DMA, per-tile palette bank |
+| PC Engine | 2 | ✅ Yes | descCount 8→80 | SATB DMA, per-tile palette bank |
 | SMS/GG | 1/2 | ⚠️ v1 only | Verify 4bpp tile decoder (v1.1) | Sprite zoom, line interrupt reload |
 | MSX2 | 2 | ✅ Yes | — | Command engine quirks |
-| Genesis | 3 | ⚠️ v1 only | descCount 64→80 | — |
-| SNES | 4 | ⚠️ v1 only | descCount 64→128 | — |
-| Neo Geo | 3 | 🔴 No | descCount 64→380, per-line 32→96, palette 512→4096 | — |
+| Genesis | 3 | ⚠️ v1 only | descCount 8→80 | — |
+| SNES | 4 | ⚠️ v1 only | descCount 8→128 | — |
+| Neo Geo | 3 | 🔴 No | descCount 8→380, per-line 8→96, palette 512→4096 | — |
 | Amiga | 4 | ✅ Yes | — | Copper wait/move exact timing |
 
 **Rules:**
@@ -80,7 +80,7 @@ For status and honest gaps, see the Adapter Index (§1) and Honesty Matrix (§2)
 
 | Substrate Gap | Task / Capability | Unblocks These Adapters |
 |---------------|-------------------|------------------------|
-| Sprite descriptor 64→80 | Task 2b extension | Genesis, PC Engine |
+| Sprite descriptor 8→80 | Task 2b extension (deferred) | Genesis, PC Engine |
 | Sprite descriptor 80→128 | — | SNES |
 | Sprite descriptor 128→380 | — | Neo Geo |
 | Sprite per-line 32→96 | — | Neo Geo |

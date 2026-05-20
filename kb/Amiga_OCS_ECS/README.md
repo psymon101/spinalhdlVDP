@@ -40,7 +40,7 @@
 | Amiga Function | Mode0 Primitive | Adapter Responsibility |
 |---|---|---|
 | Bitplanes | Planar fetch | Map BPLxPTH/BPLxPTL to `vdp_mode0_write_linestate` |
-| Sprites | Sprite evaluation | Map pairs to sprite slots (64 available) |
+| Sprites | Sprite evaluation | Map pairs to sprite slots (8 available; multiplexing required) |
 | Copper | Copper | Translate instruction list to Copper RAM |
 | Blitter | Blitter | Basic copy/fill/line operations |
 | Window | Windowing | Clamp output to DIW boundaries (2 windows available) |
