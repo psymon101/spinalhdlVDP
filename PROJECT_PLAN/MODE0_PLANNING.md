@@ -49,6 +49,7 @@ This profile operates under the **Visual Fidelity Priority** ruling (#10301).
 ## 5. Canonical Register Map
 
 The register map is canonically defined and maintained in **`PROJECT_PLAN/MODE0_REGISTER_BUS_SPEC.md` §3**.
+For high-level usage and examples, see the [**`VDP Programming Guide`**](../VDP_PROGRAMMING_GUIDE.md).
 - **Global Control:** `0x0300..0x031F`
 - **Window/Color/Affine:** `0x0330..0x034F`
 - **Fetch/Raster:** `0x0350..0x037F`
@@ -85,7 +86,7 @@ The register map is canonically defined and maintained in **`PROJECT_PLAN/MODE0_
 - **Source:** `MODE0_PLANNING.md` §4, `SpriteCapacitySim.scala`
 
 ### 6.5 Automation & DMA Performance
-- **Copper:** 512-word dual-bank program RAM; line-paced drain
+- **Copper:** 1024-word dual-bank program RAM (2×512); line-paced drain
 - **HDMA:** 4 channels; 8-bit line compare (standard) / 9-bit (extended)
 - **DMA Staging:** 64-word COPY buffer
 - **Blitter Storage:** 512-word SRC/STORE RAM

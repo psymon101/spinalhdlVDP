@@ -5,7 +5,10 @@
 **Version:** v1.1 — adds WIN2/BORDER_CTRL/TRIGGER registers, blitter expansion, READ_STATUS sel 5..7, and barebones conflict note (2026-05-17)
 **Scope:** Write-path control surface for Mode0. The READ_STATUS response surface is defined by `QspiDecoder` sel mapping and is referenced here for completeness but is not part of the register bus itself.
 
-This document is the authoritative naming and semantic contract for the Mode0 write-path register bus. Tasks 33 (Copper-lite), 34 (QSPI asset upload), 35 (Host IRQ / Status Registers), and 37 (Affine Sprite Path) MUST target this contract without ad-hoc drift. Task 32b is the separate lane that will refactor the HDL so all masters reference a common bundle; 32a defines WHAT they target, 32b defines HOW.
+This document is the authoritative naming and semantic contract for the Mode0 write-path register bus.
+For high-level usage and examples, see the [**`VDP Programming Guide`**](../VDP_PROGRAMMING_GUIDE.md).
+Tasks 33 (Copper-lite), 34 (QSPI asset upload), 35 (Host IRQ / Status Registers), and 37 (Affine Sprite Path) MUST target this contract without ad-hoc drift.
+ Task 32b is the separate lane that will refactor the HDL so all masters reference a common bundle; 32a defines WHAT they target, 32b defines HOW.
 
 ---
 
@@ -72,7 +75,7 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x01E0..0x02FF` | **Reserved** — linestate expansion buffer | — | — |
 | `0x0300` | `LAYER_ENABLE` — `data[0]=L0, data[1]=L1, data[2]=sprite, data[3]=L2, data[4]=L3` | Task 13 / R5 / Task 48 | `VdpTop.scala:44,221` |
 | `0x0301..0x030F` | **Reserved** — layer-group overrides | — | — |
-| `0x0310` | `VDP_CTRL` — `data[0]=copperEnable` (R5.3) | Task R5.3 | `VdpTop.scala:172,245` |
+| `0x0310` | `VDP_CTRL` — `data[0]=copperEnable` (R5.3), `data[1]=copperSwapRequest` (R5.4) | Task R5.3 / R5.4 | `VdpTop.scala:172,245` |
 | `0x0311` | `VDP_TILE_MODE` — 2-bit packed/planar/shuffled | Task R4.1b/c/d | `VdpTop.scala:225,232` |
 | `0x0312` | `VDP_ATTR_MODE` — 1-bit linear/packed-2×2 | Task R4.1c | `VdpTop.scala:61,240` |
 | `0x0313` | `MODE_SELECT` — `[3:0]=adapter mode ID`, `[7:4]=reserved`, `[15:8]=MODE_FLAGS` | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.2 |
@@ -94,7 +97,7 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x036B..0x037F` | **Reserved** — future raster / host-surface registers | — | — |
 | `0x0380..0x03DF` | **Reserved for Task 33** — Copper-lite / HDMA control and table RAM | Task 33 | — |
 | `0x03E0..0x03FF` | **Reserved** — future expansion | — | — |
-| `0x0400..0x05FF` | Copper program RAM (512 × 16-bit instructions) | Task R5 | `VdpTop.scala:45,182` |
+| `0x0400..0x05FF` | Copper program RAM (2×512 × 16-bit instructions, double-banked) | Task R5 / R5.4 | `VdpTop.scala:45,182` |
 | `0x0600..0x07FF` | **Reserved** — Copper secondary tables (HDMA-style, Task 33) | Task 33 | — |
 | `0x0800..0x0FFF` | **Reserved for Task 37** — affine sprite descriptors | Task 37 | — |
 | `0x0A00..0x0AFF` | V-scroll table (128 entries × 2 layers × 10-bit offset) | Task 46 | `VdpTop.scala` |
