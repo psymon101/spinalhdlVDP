@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-19 (Mode2optimized Compile-Time Feature Strip DONE — bitstream produced `22afb90`; Task 10026 Barebones Simple Sprite DONE audit PASS #10117; 3b Copper Double-Buffer lane DONE closed at `01f2e91`; libvdp Mode0 helper-surface DONE `9f6b86f`, `29be453`; CoralReef audit checklist landed `4ba550e`; libvdp all-in-one sprite upload helper DONE `c9e6702`; libvdp per-platform palette LUT helpers DONE `45f0d88`; docs cleanup DONE `b10ab71`; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
+**Updated:** 2026-05-20 (R5.4 Copper Integration into gate2 DONE — commit `5a35c1b`, sim 26/26 PASS, PnR 0 violations, logic freed; Mode2optimized Compile-Time Feature Strip DONE — bitstream produced `22afb90`; Task 10026 Barebones Simple Sprite DONE audit PASS #10117; 3b Copper Double-Buffer lane DONE closed at `01f2e91`; libvdp Mode0 helper-surface DONE `9f6b86f`, `29be453`; CoralReef audit checklist landed `4ba550e`; libvdp all-in-one sprite upload helper DONE `c9e6702`; libvdp per-platform palette LUT helpers DONE `45f0d88`; docs cleanup DONE `b10ab71`; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
 **Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
 
 Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
@@ -24,10 +24,10 @@ This section tracks the active lane.
 |-------|-------|
 | **Task** | **No active critical-path lane** |
 | **Status** | **AWAITING PM AUTHORIZATION** |
-| **Latest Commit** | `3f108fd` (CyanPeak docs cleanup) |
-| **Latest Auth Mail** | BronzeGate #10295 |
-| **Summary** | Feature-strip complete (22afb90, 51% headroom). 3b Copper swap proven. libvdp Mode0 surface, sprite upload, and palette LUTs complete. Docs cleanup complete. |
-| **Next Step** | Wait for PM lane-open ruling (Atari ST, mode2optimized follow-up, or idle). |
+| **Latest Commit** | `5a35c1b` (R5.4 copper double-buffer cherry-picked onto gate2 descCount=32 line) |
+| **Latest Auth Mail** | BronzeGate #10398 |
+| **Summary** | descCount=32 sprite substrate + R5.4 copper double-buffer now coexist in one bitstream on `mode2optimized-gate2-r54copper` @ `5a35c1b`. PnR: 46% logic, 65% CLS, 57% BSRAM, 0 setup/hold violations. Favorable delta vs baseline (`b1b054b`). Unblocks TopazCliff copper bounce demo. |
+| **Next Step** | Await PM lane-open ruling for next critical-path work. |
 
 ---
 
@@ -45,6 +45,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 
 | Task | Status | Reference |
 |---|---|---|
+| R5.4 Copper Integration (gate2 descCount=32) | **DONE** | #10398 |
 | 3b Copper Double-Buffer | **DONE** | #10270 |
 | Mode2optimized Feature Strip | **DONE** | #10142 |
 | Task 10026 — Simple Sprite | **DONE** | #10117 |

@@ -1,5 +1,18 @@
 # spinalhdlVDP Changelog
 
+## 2026-05-20 — R5.4 Copper Double-Buffer Integration into descCount=32 Line (DONE)
+
+- **R5.4 Copper Integration** — DONE (BronzeGate #10398 closeout accepted)
+  - Cherry-pick `d32616d` (R5.4 copper double-buffer) onto `mode2optimized-gate2-enableL2L3` @ `b1b054b`
+  - Integration branch: `mode2optimized-gate2-r54copper` @ `5a35c1b`
+  - Sim regression: 26/26 PASS (CopperSim 12/12, CopperHdmaSim 7/7, CopperBorderIntegrationSim 2/2, BorderRegSim 5/5)
+  - PnR on Tang Nano 20K (`GW2AR-LV18QN88C8`):
+    - Logic 9462 (46%, −927 vs baseline), LUT 5800 (−160), SSRAM 468 (−128), FF 3928 (+2), CLS 6676 (65%, −446)
+    - BSRAM 26/46 (57%, +1), DSP 4/24 (17%, 0)
+    - Setup violations: **0**, Hold violations: **0**, TNS: 0.000, WSS: +0.074 ns
+  - RTL drift: zero — `git status hw/spinal/` clean on merged tree
+  - One bitstream now carries **descCount=32 sprites + R5.4 copper double-buffer**; unblocks TopazCliff copper bounce demo
+
 ## 2026-05-19 — Active Documentation Cleanup (#10303)
 
 - **Docs cleanup** — Reduced repetition and tightened verbose sections across active docs:
