@@ -1259,6 +1259,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   bitmapFetch.io.attrByte        := Mux(bitmapUseSdram, io.bitmapSdramAttrByte, testAttrByte)
   bitmapFetch.io.pixelWithinByte := hCounter(2 downto 0)
   bitmapFetch.io.bpp             := bitmapBpp
+  // RGB565 directcolor (bpp=10): the directcolor pixel-fetch path
+  // (BitmapRowFetch 2-byte/pixel fetch + drain-aligned directcolor line
+  // buffer + the maskedRgb bypass mux) is the next CP-1 step. Tie the
+  // decoder's directPixel input inert until that path lands — the
+  // 565→888 decoder is present and unit-proven (BitmapFetchSim case5/6)
+  // but unreachable, so indexed bitmap modes are bit-unaffected.
+  bitmapFetch.io.directPixel     := B(0, 16 bits)
 
   // Export coupling signals to BitmapRowFetch at top level.
   io.bitmapSdramCol        := hCounter.resize(10)

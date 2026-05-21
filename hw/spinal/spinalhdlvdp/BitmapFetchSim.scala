@@ -12,6 +12,8 @@ import spinal.core.sim._
   *     becomes pixelIndex low 2 bits.
   *   - Bit ordering: leftmost pixel is bit [7] for 1bpp and bits
   *     [7:6] for 2bpp (MSB-first).
+  *   - RGB565 directcolor (bpp=10): 565→888 expansion and the
+  *     `directColorActive` flag; indexed modes leave it low.
   */
 object BitmapFetchSim extends App {
   Config.sim.compile(BitmapFetch()).doSim { dut =>
@@ -20,6 +22,7 @@ object BitmapFetchSim extends App {
     dut.io.attrByte   #= 0
     dut.io.pixelWithinByte #= 0
     dut.io.bpp #= 0
+    dut.io.directPixel #= 0
     dut.clockDomain.waitSampling(2)
 
     // === Case 1: 1bpp, bit==0 everywhere → pixelIndex == paper ===
@@ -82,6 +85,42 @@ object BitmapFetchSim extends App {
              s"case4 px=$p pixelIndex got ${dut.io.pixelIndex.toInt} exp ${expected(p)}")
     }
     println("[sim] case4 2bpp 4-pair decode — OK")
+
+    // === Case 5: RGB565 directcolor (bpp=10) — 565→888 expansion ===
+    // Expansion is bit-replication: R5→{R5,R5[4:2]}, G6→{G6,G6[5:4]},
+    // B5→{B5,B5[4:2]}. Full-scale in → full-scale out; 0 → 0.
+    dut.io.bpp #= 2
+    val expand565 = Seq(
+      // directPixel  -> expected directRgb
+      0xF800 -> 0xFF0000,  // pure red   (R5=31)
+      0x07E0 -> 0x00FF00,  // pure green (G6=63)
+      0x001F -> 0x0000FF,  // pure blue  (B5=31)
+      0xFFFF -> 0xFFFFFF,  // white
+      0x0000 -> 0x000000,  // black
+      0x8410 -> 0x848284   // mid grey: R5=16→0x84, G6=32→0x82, B5=16→0x84
+    )
+    for ((pix, exp) <- expand565) {
+      dut.io.directPixel #= pix
+      dut.clockDomain.waitSampling(); sleep(1)
+      val got = dut.io.directRgb.toLong
+      assert(got == exp,
+             s"case5 directPixel=0x${pix.toHexString} directRgb got 0x${got.toHexString} exp 0x${exp.toHexString}")
+      assert(dut.io.directColorActive.toBoolean,
+             s"case5 directPixel=0x${pix.toHexString} directColorActive must be True for bpp=10")
+      assert(dut.io.pixelIndex.toInt == 0,
+             s"case5 directPixel=0x${pix.toHexString} pixelIndex must be 0 in directcolor mode")
+    }
+    println("[sim] case5 RGB565 directcolor 565→888 expansion — OK")
+
+    // === Case 6: directColorActive is low for every indexed/reserved bpp ===
+    dut.io.directPixel #= 0xFFFF
+    for (mode <- Seq(0, 1, 3)) {
+      dut.io.bpp #= mode
+      dut.clockDomain.waitSampling(); sleep(1)
+      assert(!dut.io.directColorActive.toBoolean,
+             s"case6 bpp=$mode directColorActive must be low (only bpp=10 is directcolor)")
+    }
+    println("[sim] case6 directColorActive low for indexed/reserved bpp — OK")
 
     println("[sim] BitmapFetchSim: PASS")
   }

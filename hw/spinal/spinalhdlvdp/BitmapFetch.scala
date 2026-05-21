@@ -24,7 +24,13 @@ import spinal.core._
   *        pair == 10 → pixelIndex = {2'b00, fg2}
   *        pair == 11 → pixelIndex = {2'b00, fg3}
   *        paletteBank = 0 (2bpp ignores bright)
-  *   other = reserved; pixelIndex = 0.
+  *   10 = RGB565 directcolor (true-color bitmap layer). The pixel is a
+  *        16-bit RGB565 value supplied on `directPixel` (assembled by the
+  *        upstream fetcher from two SDRAM bytes). The decoder bypasses the
+  *        palette entirely: it expands 565→RGB888 and raises
+  *        `directColorActive`. `pixelIndex`/`paletteBank` are 0 in this
+  *        mode (the consumer must mux on `directColorActive`).
+  *   11 = reserved; pixelIndex = 0.
   *
   * GT-022: power-of-two addressing is the caller's responsibility
   * (this is a pure combinational block with no storage).
@@ -34,14 +40,36 @@ case class BitmapFetch() extends Component {
     val bitmapByte      = in  Bits(8 bits)
     val attrByte        = in  Bits(8 bits)
     val pixelWithinByte = in  UInt(3 bits)  // 0..7 = which pixel in the byte
-    val bpp             = in  UInt(2 bits)  // 0=1bpp, 1=2bpp
+    val bpp             = in  UInt(2 bits)  // 0=1bpp, 1=2bpp, 2=RGB565 directcolor
+    // RGB565 directcolor pixel (bpp=10). {R[4:0], G[5:0], B[4:0]} — the
+    // upstream fetcher assembles this from two SDRAM bytes (hi << 8 | lo).
+    val directPixel     = in  Bits(16 bits)
 
     val pixelIndex      = out UInt(4 bits)
     val paletteBank     = out UInt(3 bits)
+    // RGB565 directcolor outputs. `directColorActive` is True only for
+    // bpp=10; `directRgb` carries the 565→888-expanded colour.
+    val directRgb         = out Bits(24 bits)
+    val directColorActive = out Bool()
   }
 
   val pi   = UInt(4 bits); pi   := 0
   val bank = UInt(3 bits); bank := 0
+
+  // RGB565 → RGB888 expansion by bit replication: the low bits of each
+  // expanded channel repeat the channel's high bits, so full-scale input
+  // (all-ones) maps to full-scale output (0xFF) and 0 maps to 0.
+  //   R5 → {R5, R5[4:2]}   G6 → {G6, G6[5:4]}   B5 → {B5, B5[4:2]}
+  val r5 = io.directPixel(15 downto 11)
+  val g6 = io.directPixel(10 downto 5)
+  val b5 = io.directPixel(4 downto 0)
+  val r8 = r5 ## r5(4 downto 2)
+  val g8 = g6 ## g6(5 downto 4)
+  val b8 = b5 ## b5(4 downto 2)
+  io.directRgb := r8 ## g8 ## b8
+
+  val dcActive = Bool(); dcActive := False
+  io.directColorActive := dcActive
 
   switch(io.bpp) {
     is(U(0, 2 bits)) {
@@ -82,6 +110,13 @@ case class BitmapFetch() extends Component {
       }
       pi   := (B(0, 2 bits) ## sel.asBits).asUInt
       bank := 0
+    }
+    is(U(2, 2 bits)) {
+      // RGB565 directcolor: pixel bypasses the palette. `directRgb` is
+      // already driven (combinational expand above); just flag it.
+      pi       := 0
+      bank     := 0
+      dcActive := True
     }
     default {
       pi   := 0
