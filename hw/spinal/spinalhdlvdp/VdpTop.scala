@@ -1255,17 +1255,20 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // signal. For Sc44d the bootstrap forces bitmapEnable=1 and live SDRAM
   // data is present after boot; the Task 44 Sc44 scenario does not wire
   // BitmapRowFetch so inputs remain zero and the test path still lights.
-  bitmapFetch.io.bitmapByte      := Mux(bitmapUseSdram, io.bitmapSdramByte,    testBitmapByte)
-  bitmapFetch.io.attrByte        := Mux(bitmapUseSdram, io.bitmapSdramAttrByte, testAttrByte)
+  val bmByteSel = Mux(bitmapUseSdram, io.bitmapSdramByte,     testBitmapByte)
+  val bmAttrSel = Mux(bitmapUseSdram, io.bitmapSdramAttrByte, testAttrByte)
+  bitmapFetch.io.bitmapByte      := bmByteSel
+  bitmapFetch.io.attrByte        := bmAttrSel
   bitmapFetch.io.pixelWithinByte := hCounter(2 downto 0)
   bitmapFetch.io.bpp             := bitmapBpp
-  // RGB565 directcolor (bpp=10): the directcolor pixel-fetch path
-  // (BitmapRowFetch 2-byte/pixel fetch + drain-aligned directcolor line
-  // buffer + the maskedRgb bypass mux) is the next CP-1 step. Tie the
-  // decoder's directPixel input inert until that path lands — the
-  // 565→888 decoder is present and unit-proven (BitmapFetchSim case5/6)
-  // but unreachable, so indexed bitmap modes are bit-unaffected.
-  bitmapFetch.io.directPixel     := B(0, 16 bits)
+  // RGB565 directcolor (bpp=10): the 16-bit directcolor pixel is the two
+  // fetched bytes packed {hi=attr, lo=bitmap}. CP-1b reuses the existing
+  // bitmap+attr fetch as the lo/hi byte pair; CP-1c will widen
+  // BitmapRowFetch to per-pixel (2-byte) addressing so each column has a
+  // distinct RGB565 value (today they repeat across the fetcher's
+  // 8-column byte span). The decoder raises directColorActive only for
+  // bpp=0b10, so indexed bitmap modes are bit-unaffected.
+  bitmapFetch.io.directPixel     := bmAttrSel ## bmByteSel
 
   // Export coupling signals to BitmapRowFetch at top level.
   io.bitmapSdramCol        := hCounter.resize(10)
@@ -1633,6 +1636,20 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   lineBuf.io.writeData   := fillPacked
   lineBuf.io.swap        := hCounter === hTotal - 1
 
+  // RGB565 directcolor (CP-1b): a parallel line buffer carrying the
+  // 24-bit directcolor RGB plus its active flag {active, rgb[23:0]}.
+  // Wired write/read/swap identically to `lineBuf` so it inherits the
+  // same double-buffering and the same fill→drain line latency — the
+  // drained directcolor pixel lands in the same cycle as `paletteRgb`.
+  // The fill-side value is the 565→888-expanded pixel from BitmapFetch,
+  // gated by bitmapEnable so non-bitmap scenes never see directcolor.
+  val dcFillActive = (bitmapEnable && bitmapFetch.io.directColorActive).simPublic()
+  val dcLineBuf = LineBuffer(pixelWidth = 25, lineWidth = hActive)
+  dcLineBuf.io.writeEnable := hCounter < hActive
+  dcLineBuf.io.writeAddr   := hCounter.resize(log2Up(hActive))
+  dcLineBuf.io.writeData   := dcFillActive ## bitmapFetch.io.directRgb
+  dcLineBuf.io.swap        := hCounter === hTotal - 1
+
   // drainAddr was forward-declared above (for SpriteRasterizer). Assign here.
   // Present 1 cycle early for readSync alignment.
   when(hCounter === hTotal - 1) {
@@ -1643,6 +1660,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     drainAddr := U(0, log2Up(hActive) bits)
   }
   lineBuf.io.readAddr := drainAddr
+  // RGB565 directcolor: drain the parallel buffer on the same address as
+  // `lineBuf` so the directcolor pixel and `paletteRgb` are co-timed.
+  dcLineBuf.io.readAddr := drainAddr
 
   // Drain — combine bg (lineBuf) + sprite (rasterizer) at output time.
   // drainWord@T = bg pixel for hCounter@T (modulo wrap).
@@ -2096,7 +2116,19 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // ColorMath. Default layerMaskReg=0 means no masking.
   val layerMaskBit    = layerMaskReg(drainMeta.layerSource(2 downto 0))
   val layerMaskActive = layerMaskBit && combinedWindowEffect
-  val maskedRgb       = Mux(layerMaskActive, B(0, 24 bits), paletteRgb)
+
+  // RGB565 directcolor bypass mux (CP-1b). The drained directcolor pixel
+  // is co-timed with `paletteRgb`. When directcolor is active for this
+  // pixel AND no sprite wins here, the 24-bit directcolor RGB replaces
+  // the palette lookup — the bitmap layer is the background, sprites
+  // still composite on top via the unchanged `drainSpriteWins` rule
+  // (in directcolor mode the indexed bg reads as idx 0 / transparent,
+  // so opaque sprites win naturally). Indexed modes: dcActive=0 → no-op.
+  val dcDrained       = dcLineBuf.io.readData
+  val dcActiveDrained = dcDrained(24).simPublic()
+  val dcRgbDrained    = dcDrained(23 downto 0).simPublic()
+  val bgOrDirectRgb   = Mux(dcActiveDrained && !drainSpriteWins, dcRgbDrained, paletteRgb).simPublic()
+  val maskedRgb       = Mux(layerMaskActive, B(0, 24 bits), bgOrDirectRgb)
 
   // CW Option 1 pipeline (CyanPeak #8649): register the new dual-window
   // / layer-mask combinational outputs before they enter ColorMath, so
