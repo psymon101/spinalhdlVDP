@@ -29,6 +29,7 @@ object BitmapRowFetchSim extends App {
     dut.io.fetchLine      #= 0
     dut.io.col            #= 0
     dut.io.enable         #= false
+    dut.io.directColor    #= false
     dut.io.tileBootDone   #= false
 
     // Use a fork for a reactive SDRAM model

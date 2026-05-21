@@ -162,6 +162,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     val bitmapSdramByte       = in  Bits(8 bits)
     val bitmapSdramAttrByte   = in  Bits(8 bits)
     val bitmapModeActive      = out Bool()   // Task 44b: BITMAP_CTRL[0]
+    val bitmapDirectColor     = out Bool()   // CP-1c: BITMAP_CTRL enable & bpp=0b10 (RGB565)
 
     // R1 Raster Trigger Unit control/status. Stable naming so a later Mode0
     // register bus can adopt these without behavior change.
@@ -1278,6 +1279,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // to settle before the next active line begins.
   io.bitmapSdramFetchGrant := hCounter === U(hActive, log2Up(hTotal) bits)
   io.bitmapModeActive      := bitmapEnable
+  // CP-1c: tell BitmapRowFetch to use the RGB565 directcolor fetch
+  // schedule (2 bytes/pixel, 320 px/row) when bpp=0b10 is selected.
+  io.bitmapDirectColor     := bitmapEnable && (bitmapBpp === U(2, 2 bits))
 
   // Task 19: when affineEnable is high, the affine-texture lookup wins over
   // every other L0 source (test-pattern / SDRAM / on-chip). Task 44

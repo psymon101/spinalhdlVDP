@@ -1450,6 +1450,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     bitmapRowFetch.io.enable     := video.io.bitmapModeActive &&
                                     (Bool(scenarioId == 45) || Bool(scenarioId == 50) ||
                                      Bool(scenarioId == 70))
+    // CP-1c: RGB565 directcolor fetch schedule (2 bytes/pixel) when
+    // BITMAP_CTRL selects bpp=0b10.
+    bitmapRowFetch.io.directColor := video.io.bitmapDirectColor
     // tileBootDone wired after `fetch` instantiation below (forward ref).
     video.io.bitmapSdramByte     := bitmapRowFetch.io.bitmapByte
     video.io.bitmapSdramAttrByte := bitmapRowFetch.io.attrByte

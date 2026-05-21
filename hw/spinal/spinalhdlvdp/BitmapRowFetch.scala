@@ -36,8 +36,15 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
   val AttrSdramBase      = 0x4000
   val BitmapBytesPerRow  = 128   // Task 44b iter 6d: power-of-two for shift-addressing
   val AttrBytesPerRow    = 128
-  val BitmapBufferDepth  = 128
-  val AttrBufferDepth    = 128
+  // RGB565 directcolor (CP-1c) needs one buffer entry per source pixel
+  // (320 source px shown at 2 HDMI columns each), so the line buffers
+  // grew 128 → 512. Indexed 1bpp/2bpp still use only the low entries.
+  val BitmapBufferDepth  = 512
+  val AttrBufferDepth    = 512
+  // Directcolor fetch: 320 source pixels per row, one byte per pixel in
+  // each of the bitmap (lo) and attr (hi) regions; 512-byte row stride.
+  val DirectColorPixels  = 320
+  val DirectRowStrideLog = 9
   // Fun-demo friendly generalization: keep the existing proof fetcher shape
   // (80 active bytes inside a 128-byte row stride), but cover a full 240-row
   // source image by repeating each fetched row for two HDMI scanlines.
@@ -62,6 +69,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val fetchLine      = in  UInt(10 bits)
     val col            = in  UInt(10 bits)
     val enable         = in  Bool()    // pixel-domain bitmap-mode enable
+    val directColor    = in  Bool()    // CP-1c: RGB565 directcolor fetch mode (2 bytes/pixel)
     val tileBootDone   = in  Bool()    // iter 6: tile-fetch init complete (safe to init our SDRAM regions)
     val bitmapByte     = out Bits(8 bits)
     val attrByte       = out Bits(8 bits)
@@ -93,10 +101,16 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
   val bitmapLineBuf = Mem(Bits(8 bits), BitmapBufferDepth)
   val attrLineBuf   = Mem(Bits(8 bits), AttrBufferDepth)
 
-  val bitmapReadAddr = io.col(log2Up(BitmapBufferDepth * 8) - 1 downto 3)
-  val attrReadAddr   = io.col(log2Up(AttrBufferDepth   * 8) - 1 downto 3)
-  io.bitmapByte := bitmapLineBuf.readAsync(bitmapReadAddr)
-  io.attrByte   := attrLineBuf.readAsync(attrReadAddr)
+  // Indexed 1bpp/2bpp pack 8 hCounter values per byte → byte = col/8.
+  // Directcolor stores one byte per source pixel; 320 source pixels are
+  // shown at 2 HDMI columns each → byte = col/2. CP-1c muxes the read
+  // address so each directcolor column gets a distinct buffer entry
+  // (CP-1b read col/8, repeating each value across an 8-column span).
+  val indexedRdAddr = io.col(9 downto 3).resize(log2Up(BitmapBufferDepth))
+  val directRdAddr  = io.col(9 downto 1).resize(log2Up(BitmapBufferDepth))
+  val lineRdAddr    = Mux(io.directColor, directRdAddr, indexedRdAddr)
+  io.bitmapByte := bitmapLineBuf.readAsync(lineRdAddr)
+  io.attrByte   := attrLineBuf.readAsync(lineRdAddr)
 
   byteFifo.io.pop.ready := True
   val popFiredSticky = RegInit(False)
@@ -122,6 +136,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val fetchGrantEdge = fetchGrantSync && !fetchGrantPrev
     val fetchLineSync  = BufferCC(io.fetchLine, U(0, 10 bits))
     val enableSync     = BufferCC(io.enable, False)
+    val directColorSync = BufferCC(io.directColor, False)
     val tileBootDoneSync = BufferCC(io.tileBootDone, False)
 
     val cmdAddr = Reg(UInt(23 bits)) init 0
@@ -133,6 +148,14 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val bootCounter = Reg(UInt(log2Up(TotalBitmapBytes + 1) bits)) init 0
     val byteIdx     = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
     val lineReg     = Reg(UInt(10 bits)) init 0
+
+    // CP-1c: per-line fetch count and SDRAM row byte-offset. Directcolor
+    // fetches 320 bytes/row (one per source pixel) on a 512-byte stride;
+    // indexed 1bpp/2bpp keep the legacy 80 bytes on a 128-byte stride.
+    val fetchCount  = Mux(directColorSync, U(DirectColorPixels, 10 bits), U(80, 10 bits))
+    val rowByteBase = Mux(directColorSync,
+                          (lineReg << DirectRowStrideLog),
+                          (lineReg << 7))
 
     // Task 44b iter 6d (CyanPeak audit correction): replace dividers with
     // counters to ensure timing closure at 64.8 MHz.
@@ -334,10 +357,10 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
-          when(byteIdx < 80) {
+          when(byteIdx < fetchCount) {
             cmdRd   := True
             cmdAddr := (U(BitmapSdramBase, 23 bits) +
-                        (lineReg.resize(23) << 7) +
+                        rowByteBase.resize(23) +
                         byteIdx.resize(23)).resized
             inflightKind := False
             inflightIdx  := byteIdx
@@ -364,10 +387,10 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
-          when(byteIdx < 80) {
+          when(byteIdx < fetchCount) {
             cmdRd   := True
             cmdAddr := (U(AttrSdramBase, 23 bits) +
-                        (lineReg.resize(23) << 7) +
+                        rowByteBase.resize(23) +
                         byteIdx.resize(23)).resized
             inflightKind := True
             inflightIdx  := byteIdx
