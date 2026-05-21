@@ -43,6 +43,12 @@ workspace mailbox for `spinalhdlVDP` work.
 
 If the canonical name is unavailable, stop and resolve the mismatch. Do not create a replacement identity.
 
+### Mail checks
+
+- Use the shared repo-root mailbox record as the source of truth.
+- Before reporting "no new mail," fetch the current inbox snapshot and check the newest mailbox-visible message id.
+- Do not rely on local cache, ad hoc queries, or last-seen timestamps alone.
+
 ## Scope
 
 - **Primary repo:** SpinalHDL implementation lane for Tang Nano 20K VDP.
