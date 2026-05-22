@@ -268,6 +268,11 @@ case class Copper() extends Component {
   // tile easily; +1 BSRAM vs the artifact's +0 line item is the only
   // resource overage and stays well under the 23-block green ceiling).
   val hdmaDataArray = Mem(Bits(16 bits), 256).initBigInt(Seq.fill(256)(BigInt(0)))
+  // CLS optimization (BronzeGate #10449): readSync + ram_style="block" so
+  // this 4 Kbit array infers a Gowin BSRAM block instead of CLS-resident
+  // distributed RAM. The 1-cycle readSync latency is absorbed by a 1-cycle
+  // pipeline on the HDMA write path (see the sweep block below).
+  hdmaDataArray.addAttribute("ram_style", "block")
   // Auto-increment data write at HDMA_DATA_WRITE (0x51).
   val hdmaDataWriteHit = io.hdmaWr && (io.hdmaCtrlAddr === U(0x51, 7 bits))
   hdmaDataArray.write(hdmaDataPtr, io.hdmaData, enable = hdmaDataWriteHit)
@@ -355,19 +360,32 @@ case class Copper() extends Component {
   val hit      = entValid && (entLine === io.vCounter(8 downto 0))
 
   // BH-4: in indirect mode, the entry's `data` field is the pointer
-  // into hdmaDataArray; the actual register value comes from a
-  // combinational async read of the array indexed by the low 8 bits
-  // of entData. Direct mode is unchanged: the entry's data field is
-  // written verbatim.
-  val hdmaIndirectVal = hdmaDataArray.readAsync(entData(7 downto 0).asUInt)
-  val hdmaWriteData   = Mux(hdmaIndirect, hdmaIndirectVal, entData)
+  // into hdmaDataArray; the actual register value is the array word at
+  // the low 8 bits of entData. Direct mode is unchanged: the entry's
+  // data field is written verbatim.
+  //
+  // CLS optimization (#10449): hdmaDataArray is now readSync (BSRAM), so
+  // its output is registered — 1 cycle after the address. The 1-cycle
+  // latency is absorbed by a 1-cycle pipeline on the HDMA write: the
+  // per-entry sweep decision {hit, channel, entData, mode} is registered
+  // and the register write is emitted the following cycle, when the
+  // readSync value for that entry is valid. The sweep FSM (sweepCh /
+  // sweepEnt advance) is unchanged; only the HDMA output is delayed one
+  // cycle — harmless, the per-line sweep has ample slack before the
+  // pixels that consume the writes.
+  val hdmaIndirectVal = hdmaDataArray.readSync(entData(7 downto 0).asUInt)
+  val hdmaHitR     = RegNext(sweepActive && masked && hit) init False
+  val hdmaIndirR   = RegNext(hdmaIndirect)
+  val hdmaEntDataR = RegNext(entData)
+  val hdmaChiR     = RegNext(chi)
+
+  when(hdmaHitR) {
+    hdmaRegAddr := chAddrSel(hdmaChiR)
+    hdmaRegData := Mux(hdmaIndirR, hdmaIndirectVal, hdmaEntDataR)
+    hdmaRegWr   := True
+  }
 
   when(sweepActive) {
-    when(masked && hit) {
-      hdmaRegAddr := chAddrSel(chi)
-      hdmaRegData := hdmaWriteData
-      hdmaRegWr   := True
-    }
     when(sweepEnt === U(NUM_ENT - 1, log2Up(NUM_ENT) bits)) {
       sweepEnt := 0
       when(sweepCh === U(NUM_CH - 1, sweepCh.getWidth bits)) {
