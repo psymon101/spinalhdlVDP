@@ -117,6 +117,9 @@ python3 scripts/assets/bin_to_c_array.py build/frame.tiles.bin \
 | `VDP_STICKY_QSPI_ERROR` | `0x0008` | QSPI error |
 | `VDP_STICKY_SPRITE_0_HIT` | `0x0010` | slot-0 hit |
 | `VDP_STICKY_SPRITE_BG_HIT` | `0x0020` | sprite/background hit |
+| `VDP_STICKY_DMA_DONE` | `0x0100` | DMA transfer complete |
+| `VDP_STICKY_BLIT_DONE` | `0x0200` | Blitter block transfer complete |
+| `VDP_STICKY_MODE_SELECT_CHANGED` | `0x0800` | Mode selection committed at V=0 |
 
 ## Mode0 Struct Types
 
@@ -133,16 +136,16 @@ python3 scripts/assets/bin_to_c_array.py build/frame.tiles.bin \
 
 | Area | Helpers | Status / Coverage |
 |---|---|---|
-| **Globals** | `vdp_mode0_set_layer_enable`, `vdp_mode0_set_vdp_ctrl`, `vdp_mode0_set_mode_select`, `vdp_mode0_read_live_mode` | Full control plane. |
-| **Window / Border** | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_border_ctrl`, `vdp_mode0_set_color_math` | 2-window + color-math. |
-| **Bitmap / Affine** | `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_base`, `vdp_mode0_set_bitmap_stride`, `vdp_mode0_set_affine` | Page-flipping and transform. |
-| **Palette** | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_rgb888` | RGB888 burst writes. |
+| **Globals** | `vdp_mode0_set_layer_enable`, `vdp_mode0_set_vdp_ctrl`, `vdp_mode0_set_vdp_ctrl_word`, `vdp_mode0_set_mode_select`, `vdp_mode0_read_live_mode` | Full control plane. |
+| **Window / Border** | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_border_ctrl`, `vdp_mode0_set_border_window`, `vdp_mode0_set_border_ctrl`, `vdp_mode0_set_color_math` | 2-window + border + color-math. |
+| **Bitmap / DirectColor** | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_ctrl`, `vdp_mode0_set_bitmap_base`, `vdp_mode0_set_attr_base`, `vdp_mode0_set_bitmap_stride`, `vdp_mode0_set_attr_stride`, `vdp_mode0_set_affine` | RGB565 DirectColor + Affine path. |
+| **Palette** | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_data`, `vdp_mode0_palette_write_rgb888` | RGB888 burst writes. |
 | **Palette LUTs** | `vdp_tms9918_load_palette`, `vdp_sms_palette_write`, `vdp_gg_palette_write`, `vdp_atarist_palette_write`, `vdp_atariste_palette_write` | Per-platform native-value → RGB888 converters. |
-| **Copper / HDMA** | `vdp_copper_upload`, `vdp_copper_swap_request`, `vdp_mode0_set_hdma_ctrl`, `vdp_mode0_hdma_done_ack` | RAM and FSM control. |
-| **DMA / Blitter** | `vdp_mode0_dma_config`, `vdp_mode0_blit_config` | Contiguous burst init. |
-| **Raster** | `vdp_mode0_set_raster_trigger` | All 3 hardware triggers. |
-| **Sprite** | `vdp_mode0_set_sprite`, `vdp_mode0_write_pattern_data`, `vdp_sprite_upload` | Descriptor, Pattern RAM, and All-in-one. |
-| **Tables** | `vdp_mode0_write_linestate`, `vdp_mode0_set_vscroll_base` | V-scroll and line-buffer init. |
+| **Copper / HDMA** | `vdp_copper_enable`, `vdp_copper_upload`, `vdp_copper_swap_request`, `vdp_copper_upload_and_swap`, `vdp_mode0_set_hdma_ctrl`, `vdp_mode0_hdma_done_ack`, `vdp_mode0_set_hdma_ch_addr`, `vdp_mode0_set_hdma_data_ptr`, `vdp_mode0_hdma_write_data`, `vdp_mode0_set_hdma_base`, `vdp_mode0_hdma_ctrl_encode` | Double-buffer RAM and FSM control. |
+| **DMA / Blitter** | `vdp_mode0_dma_config`, `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_write_staging`, `vdp_mode0_blit_config`, `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_write_src` | DMA/Blitter engine init and control. |
+| **Raster** | `vdp_mode0_set_raster_trigger`, `vdp_mode0_trigger_ctrl` | All 3 hardware triggers. |
+| **Sprite** | `vdp_mode0_set_sprite`, `vdp_sprite_upload`, `vdp_mode0_set_pattern_ptr`, `vdp_mode0_write_pattern_data` | 32-descriptor substrate + Pattern RAM. |
+| **Tables** | `vdp_mode0_write_linestate`, `vdp_mode0_set_vscroll_base`, `vdp_mode0_write_vscroll_entry` | V-scroll and line-buffer init. |
 
 ### All-in-one sprite upload (`vdp_sprite_upload`)
 

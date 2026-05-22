@@ -87,7 +87,7 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0340..0x0346` | **Task 19** — Affine Background registers (`AFFINE_A`, `AFFINE_B`, `AFFINE_C`, `AFFINE_D`, `AFFINE_X`, `AFFINE_Y`, `AFFINE_CTRL`) | Task 19 | `VdpTop.scala:297-352` |
 | `0x0347` | `BORDER_CTRL` — border enable + palette index | Task 20 / R6 | `VdpTop.scala` |
 | `0x0348..0x034F` | **Reserved** — Task 19 expansion | — | — |
-| `0x0350..0x0356` | **Task 44** — Raw Bitmap+Attribute Fetch (`BITMAP_CTRL`, `BITMAP_BASE_LO/HI`, `ATTR_BASE_LO/HI`, `BITMAP_STRIDE`, `ATTR_STRIDE`) | Task 44 | `VdpTop.scala` (bitmap-fetch block), `BitmapFetch.scala` |
+| `0x0350..0x0356` | **RGB565 DirectColor** — Bitmap+Attribute Fetch (`BITMAP_CTRL`, `BITMAP_BASE_LO/HI`, `ATTR_BASE_LO/HI`, `BITMAP_STRIDE`, `ATTR_STRIDE`) | Task 44 / CP-1a | `VdpTop.scala`, `BitmapFetch.scala` |
 | `0x0357..0x035F` | **Reserved** — Task 44 expansion / future host-surface registers | — | — |
 | `0x0360..0x0362` | **Raster** — Trigger 1 (`TRIGGER1_LINE`, `TRIGGER1_PIXEL`, `TRIGGER1_CTRL`) | Task 35 / R6 | `VdpTop.scala`, `RasterTriggerUnit.scala` |
 | `0x0363` | **Reserved** — trigger alignment | — | — |

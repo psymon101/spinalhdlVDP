@@ -366,6 +366,7 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 | 6 | Identity Retirement | Requires retirement mail + roster removal + no pending audits + 24h observation window |
 | 7 | Side-Lane Authorization | Parallel work requires TopazCliff lane-open authorization before implementation |
 | 8 | AGENTS.md Immutability | No unilateral rewrites. Requires TopazCliff authorization AND CyanPeak review AND diff review |
+| 9 | Project Owner Override | Owner may override process constraints by direct instruction. Agent records owner-directed change; diff remains reviewable; scope is limited to instruction unless broader intent stated |
 
 **Canonical QSPI contract:** 2 MHz SCK, 10 µs CS hold, 20 µs OSR drain.
 

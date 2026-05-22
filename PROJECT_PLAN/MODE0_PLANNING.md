@@ -20,8 +20,8 @@
 | Feature | Limit / Value |
 |---|---|
 | Background Layers | 2 (Strong) / 4 (Max) |
-| Sprites / Scanline | 8 (live build) |
-| Descriptor Count | 8 (live build) / 32 (approved redesign target) |
+| Sprites / Scanline | 8 |
+| Descriptor Count | 32 (baseline) |
 | Planar Depth | 4 planes |
 | Raster Compare | 1 unit |
 | Fetch Formats | Tile+Attr, Bitmap, Planar |
@@ -80,7 +80,7 @@ For high-level usage and examples, see the [**`VDP Programming Guide`**](../VDP_
 - **Source:** `MODE0_PLANNING.md` §2, `VdpTop.scala`
 
 ### 6.4 Object & Composition Limits
-- **Sprites:** 8 visible/scanline; 8 total descriptors (live build). Approved redesign target: 32 total descriptors, 8 visible/scanline — proven fit/timing on Tang Nano 20K by BrightForge (#10360).
+- **Sprites:** 8 visible/scanline; 32 total descriptors (canonical baseline).
 - **Collision:** Sprite-0-hit + Sprite-BG-hit status bits
 - **Windowing:** 1 active rectangle (standard) / 2 rectangles (extended)
 - **Source:** `MODE0_PLANNING.md` §4, `SpriteCapacitySim.scala`
@@ -102,7 +102,7 @@ For high-level usage and examples, see the [**`VDP Programming Guide`**](../VDP_
 | Affine / Mode7 | **Disabled** | Enabled | #10142 |
 | Extra Triggers | **Disabled** | Enabled | #10142 |
 | Plane Count | `4` | `5` or `6` | #10011 |
-| Sprite Density | `8/line` (live build) | `32 descriptors / 8 visible` (approved redesign target, proven #10360) | #10077 |
+| Sprite Density | `32 descriptors / 8 visible` (baseline) | — | #10077 |
 
 ---
 
