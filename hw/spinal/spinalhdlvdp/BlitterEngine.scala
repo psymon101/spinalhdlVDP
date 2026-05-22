@@ -81,9 +81,13 @@ case class BlitterEngine() extends Component {
   val modeReg      = Reg(Bits(2 bits))  init B"00"
 
   // Source/store RAM: 512 × 16, host-writable via bus, blitter-readable.
-  // 8 Kbit — small enough to map to LUT-RAM on Gowin GW2A (same precedent
-  // as Task 47's 64-word staging).
+  // CLS optimization (BronzeGate #10445): readSync + ram_style="block" so
+  // this 8 Kbit RAM infers a Gowin BSRAM block instead of CLS-resident
+  // distributed RAM (SSRAM). The blitter read is lookahead-addressed in
+  // the FSM below to hide the 1-cycle readSync latency, preserving the
+  // 1 word/cycle COPY throughput.
   val srcRam = Mem(Bits(16 bits), srcRamWords)
+  srcRam.addAttribute("ram_style", "block")
 
   // ------------------------------------------------------------------
   // Bus decode: control-register writes vs source-RAM writes.
@@ -145,8 +149,15 @@ case class BlitterEngine() extends Component {
     val dstCur = dstRowBase + colCounter.resize(15)
     val srcCur = srcRowBase + colCounter.resize(srcRamAddrBits)
 
-    // Read source RAM combinationally; used only in COPY mode.
-    val srcRead = srcRam.readAsync(srcCur)
+    // Source RAM read (COPY mode). srcRam is readSync (BSRAM-mapped), so
+    // its output is registered — 1 cycle after the address. To keep the
+    // RUN loop at 1 word/cycle, present the address the FSM will consume
+    // NEXT cycle (lookahead): then the registered `srcRead` lines up with
+    // the FSM's current column. Default holds the current address, which
+    // covers the busBusy stall, IDLE, and DONE.
+    val srcReadAddr = UInt(srcRamAddrBits bits)
+    srcReadAddr := srcCur
+    val srcRead = srcRam.readSync(srcReadAddr)
 
     // Defaults.
     io.blitWr   := False
@@ -164,6 +175,9 @@ case class BlitterEngine() extends Component {
           state      := RUN
           dstRowBase := dstAddrReg
           srcRowBase := srcAddrReg
+          // Lookahead: prime the readSync with the first column's address
+          // (col 0 of row 0) so srcRead is valid on the first RUN cycle.
+          srcReadAddr := srcAddrReg
           // LINE_FILL = mode 2: treat HEIGHT as 0 so we run exactly one row.
           effHeight  := (modeReg === MODE_LINE_FILL) ? U(0, 10 bits) | heightReg
           isCopy     := (modeReg === MODE_RECT_COPY)
@@ -181,9 +195,13 @@ case class BlitterEngine() extends Component {
               rowCounter := rowCounter + 1
               dstRowBase := dstRowBase + dstStrideReg
               srcRowBase := srcRowBase + srcStrideReg
+              // Lookahead: next column is col 0 of the next row.
+              srcReadAddr := srcRowBase + srcStrideReg
             }
           } otherwise {
             colCounter := colCounter + 1
+            // Lookahead: next column is colCounter + 1 of the same row.
+            srcReadAddr := srcRowBase + (colCounter + 1).resize(srcRamAddrBits)
           }
         }
       }

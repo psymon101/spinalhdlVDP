@@ -238,6 +238,48 @@ object BlitterEngineSim extends App {
     assert(rec7(0) == (0x0E00, 0xFEED), s"Case 7 wrong: ${rec7(0)}")
     println("[sim] Case 7 zero-size → single write + done — OK")
 
+    // --- Case 8: RECT_COPY under busBusy — exercises the readSync
+    // lookahead stall path (srcReadAddr must hold the current column
+    // while the FSM is paused, so resumed writes still read correct src).
+    for (i <- 0 until 4) writeSrcRam(i,     0xC000 | i)
+    for (i <- 0 until 4) writeSrcRam(4 + i, 0xD000 | i)
+    setWidth(3)             // cols = 4
+    setHeight(1)            // rows = 2 → 8 writes
+    setDstAddr(0x0F00)
+    setDstStride(4)
+    setSrcAddr(0)
+    setSrcStride(4)
+    armTransfer()
+    setCtrl(mode = 1, go = true)
+    var pauseSeen8 = false
+    var phase8 = 0
+    var busyRemain8 = 4
+    var cyc8 = 0
+    while (!liveDone && cyc8 < 500) {
+      val writes = liveRecords.size - xferStartIdx
+      if (phase8 == 0 && writes >= 3) {
+        dut.io.busBusy #= true
+        phase8 = 1
+      } else if (phase8 == 1) {
+        if (!dut.io.blitWr.toBoolean) pauseSeen8 = true
+        busyRemain8 -= 1
+        if (busyRemain8 <= 0) { dut.io.busBusy #= false; phase8 = 2 }
+      }
+      dut.clockDomain.waitSampling()
+      cyc8 += 1
+    }
+    val rec8 = liveRecords.slice(xferStartIdx, liveRecords.size).toSeq
+    assert(liveDone, "Case 8 did not complete")
+    assert(pauseSeen8, "Case 8 never observed a paused cycle")
+    assert(rec8.length == 8, s"Case 8 expected 8 writes, got ${rec8.length}")
+    val exp8 = (0 until 4).map(i => (0x0F00 + i, 0xC000 | i)) ++
+               (0 until 4).map(i => (0x0F04 + i, 0xD000 | i))
+    for (i <- 0 until 8) {
+      assert(rec8(i) == exp8(i),
+        f"Case 8 write $i expected (0x${exp8(i)._1}%04X, 0x${exp8(i)._2}%04X) got (0x${rec8(i)._1}%04X, 0x${rec8(i)._2}%04X)")
+    }
+    println("[sim] Case 8 RECT_COPY under busBusy: lookahead holds, 8/8 src reads correct — OK")
+
     println("[sim] BlitterEngineSim: PASS")
   }
 }
