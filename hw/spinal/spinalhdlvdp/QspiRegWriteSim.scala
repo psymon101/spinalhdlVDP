@@ -46,6 +46,7 @@ object QspiRegWriteSim extends App {
     slave.io.tx_byte := dec.io.tx_byte
     slave.io.tx_load := dec.io.tx_load
     dec.io.status_sticky := io.statusStickyIn  // Task 35: driven by tb
+    dec.io.live_mode := 0
     // Task 34: tie bridge status inputs off in this harness; the decoder
     // drives bridge outputs, which the TB does not consume (no bridge
     // instantiated here). A SdramUploadSim covers the bridge path.
@@ -208,26 +209,25 @@ object QspiRegWriteSim extends App {
     assert(r0 == Seq(0x02, 0x00, 0x56, 0x51), f"Case 4.0: got ${r0.map("0x%02X".format(_)).mkString(",")}")
     println(f"Case 4.0 PASS: bytes=${r0.map("0x%02X".format(_)).mkString(",")} — magic retained")
 
-    // sel=1: rx_cmd_cnt in byte 0. Host should see 8 after 7 prior REG_WRITE
-    // headers plus this one READ_STATUS. (cmd_valid increments on every header.)
-    println("Case 4.1: READ_STATUS sel=1 — rx_cmd_cnt")
+    // sel=1..3 are intentionally zero in the current decoder contract.
+    // They were retired from the live status surface to keep the fit clean.
+    println("Case 4.1: READ_STATUS sel=1 — retired selector should read zero")
     val r1 = captureResponse(1)
     assert(r1.length == 4, s"Case 4.1 expected 4 bytes, got ${r1.length}")
-    assert(r1(1) == 0 && r1(2) == 0 && r1(3) == 0, f"Case 4.1: upper bytes should be zero, got ${r1.map("0x%02X".format(_)).mkString(",")}")
-    assert(r1(0) >= 7, s"Case 4.1: rx_cmd_cnt=${r1(0)}, expected >= 7")
-    println(f"Case 4.1 PASS: rx_cmd_cnt=0x${r1(0)}%02X (≥ 7)")
+    assert(r1 == Seq(0x00, 0x00, 0x00, 0x00), f"Case 4.1: got ${r1.map("0x%02X".format(_)).mkString(",")}, want 0x00,0x00,0x00,0x00")
+    println(f"Case 4.1 PASS: retired selector returned zeros")
 
-    // sel=2: last_addr from Case 3.5 = 0x0300 → bytes 0x00, 0x03, 0x00, 0x00
-    println("Case 4.2: READ_STATUS sel=2 — last_addr")
+    // sel=2 is also retired and should stay zero.
+    println("Case 4.2: READ_STATUS sel=2 — retired selector should read zero")
     val r2 = captureResponse(2)
-    assert(r2 == Seq(0x00, 0x03, 0x00, 0x00), f"Case 4.2: got ${r2.map("0x%02X".format(_)).mkString(",")}")
-    println(f"Case 4.2 PASS: last_addr=0x0300 observed as ${r2.map("0x%02X".format(_)).mkString(",")}")
+    assert(r2 == Seq(0x00, 0x00, 0x00, 0x00), f"Case 4.2: got ${r2.map("0x%02X".format(_)).mkString(",")}, want zeros")
+    println(f"Case 4.2 PASS: retired selector returned zeros")
 
-    // sel=3: last_data from Case 3.5 = 0x00F3 → bytes 0xF3, 0x00, 0x00, 0x00
-    println("Case 4.3: READ_STATUS sel=3 — last_data")
+    // sel=3 is also retired and should stay zero.
+    println("Case 4.3: READ_STATUS sel=3 — retired selector should read zero")
     val r3 = captureResponse(3)
-    assert(r3 == Seq(0xF3, 0x00, 0x00, 0x00), f"Case 4.3: got ${r3.map("0x%02X".format(_)).mkString(",")}")
-    println(f"Case 4.3 PASS: last_data=0x00F3 observed as ${r3.map("0x%02X".format(_)).mkString(",")}")
+    assert(r3 == Seq(0x00, 0x00, 0x00, 0x00), f"Case 4.3: got ${r3.map("0x%02X".format(_)).mkString(",")}, want zeros")
+    println(f"Case 4.3 PASS: retired selector returned zeros")
 
     // sel=4: last_error = 0x00 (no unknown opcodes in this sim) → 0,0,0,0
     println("Case 4.4: READ_STATUS sel=4 — last_error")
@@ -236,24 +236,58 @@ object QspiRegWriteSim extends App {
     println(f"Case 4.4 PASS: last_error=0x00 observed as zeros")
 
     // ---- Case 5: snapshot behavior — internal state change mid-response
-    // must not corrupt the in-flight READ_STATUS output. Fire a READ_STATUS
-    // sel=1 then (while it's still shifting out) inject a REG_WRITE that
-    // increments rx_cmd_cnt and changes last_data. The response must still
-    // carry the values sampled at the cmd_valid edge, not the new ones.
+    // must not corrupt the in-flight READ_STATUS output. Use sel=5 because
+    // it remains in the live surface and is easy to observe.
     println("Case 5: snapshot behavior — state change mid-response does not corrupt output")
-    val before5 = r1(0)  // rx_cmd_cnt visible in sel=1 case above
-    val r5 = captureResponse(1)
-    // Each READ_STATUS also counts as a cmd_valid, so between Case 4.1 and
-    // Case 5 we expect at least 3 additional headers (4.2, 4.3, 4.4 and then
-    // this capture itself). r5(0) should therefore strictly exceed before5.
-    assert(r5(0) > before5, s"Case 5: cnt did not advance: before=${before5}, now=${r5(0)}")
-    // Structural snapshot proof: rxWord is a Reg assigned once in the
-    // when(io.cmd_valid && opcode==READ_STATUS) block (QspiDecoder.scala:139-150).
-    // The walk Load→Wait→Shift only reads rxWord; nothing re-loads it mid-
-    // response. Any mid-response change to rx_cmd_cnt / last_addr / etc. can
-    // therefore only be visible on the NEXT READ_STATUS, not the current
-    // one — which is exactly what this strict advance proves.
-    println(f"Case 5 PASS: rx_cmd_cnt advanced (${before5} → ${r5(0)}); load-time snapshot contract intact")
+    dut.io.statusStickyIn #= 0x1234
+    val snapBytes = scala.collection.mutable.ArrayBuffer[Int]()
+    val snapWatcher = fork {
+      var nibbleAccum = 0
+      var nibbleHaveHigh = false
+      var ticks = 0
+      var lastOe = false
+      var lastSck = false
+      while (ticks < 80000 && snapBytes.length < 4) {
+        dut.clockDomain.waitSampling(); ticks += 1
+        val oeNow  = dut.io.spi_io_oe.toBoolean
+        val sckNow = dut.io.spi_sck.toBoolean
+        if (oeNow && sckNow && !lastSck) {
+          val nibble = dut.io.spi_io_out.toInt & 0xF
+          if (!nibbleHaveHigh) {
+            nibbleAccum = nibble << 4
+            nibbleHaveHigh = true
+          } else {
+            snapBytes += (nibbleAccum | nibble)
+            nibbleHaveHigh = false
+          }
+        }
+        lastOe = oeNow; lastSck = sckNow
+      }
+    }
+    val stateChanger = fork {
+      var spins = 0
+      while (snapBytes.length == 0 && spins < 80000) {
+        dut.clockDomain.waitSampling()
+        spins += 1
+      }
+      dut.clockDomain.waitSampling(20)
+      dut.io.statusStickyIn #= 0xABCD
+    }
+    dut.io.spi_cs_n #= false
+    dut.clockDomain.waitSampling(5)
+    Seq(0x04, 0x05, 0x00, 0x00, 0x00, 0x00).foreach(sendByte)
+    for (_ <- 0 until (2 + 8)) {
+      dut.io.spi_io_in #= 0
+      dut.clockDomain.waitSampling(H); dut.io.spi_sck #= true
+      dut.clockDomain.waitSampling(H); dut.io.spi_sck #= false
+    }
+    dut.clockDomain.waitSampling(H * 4)
+    dut.io.spi_cs_n #= true
+    dut.clockDomain.waitSampling(80)
+    stateChanger.join()
+    snapWatcher.join()
+    assert(snapBytes == Seq(0x34, 0x12, 0x00, 0x00), f"Case 5: snapshot corrupted, got ${snapBytes.map("0x%02X".format(_)).mkString(",")}")
+    println(f"Case 5 PASS: sel=5 snapshot stayed at 0x1234 despite mid-response state change")
 
     // ---- Case 6: Task 35 — sel=5 STATUS_STICKY readback ----
     // Drive a pattern on statusStickyIn and verify the response reflects

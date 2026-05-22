@@ -8,6 +8,17 @@ This repo runs under a compact, event-driven coordination policy. Preserve
 momentum, but do not spend tokens reconstructing state that is already
 available in mail and the live-lane ledger.
 
+### Date discipline
+
+- Use the current session date in absolute form (`YYYY-MM-DD`) in task docs,
+  replies, and status packets.
+- Avoid relative dates such as "today" or "yesterday" when the exact date can
+  be written.
+- If a date is needed and the document omits it, fill in the session date
+  explicitly rather than leaving it implicit.
+- Keep lane mail and repo docs synchronized to the same session date when the
+  state change happened in that session.
+
 Fast-flow objective:
 
 - optimize for shortest trustworthy cycle time, not maximum packet volume
@@ -48,9 +59,22 @@ matches the required owner and packet type.
   - exact recipient list
 - a visible message from the wrong owner or with the wrong packet type does
   not satisfy the missing deliverable
-- if the message cannot be verified in the mailbox, require resend
+- do not rely on a single inbox poll as the only visibility check
+- if a claimed message is missing from one view, verify it in the same
+  repo-root mailbox by thread and topic before calling it absent
+- if the message still cannot be verified anywhere in the mailbox, require
+  resend
 - after repeated non-response, `BronzeGate` may reassign the lane or authorize
   a bounded fallback
+
+Mailbox reliability fallback:
+
+- prefer the shared repo-root mailbox over any individual tool surface
+- if inbox view, thread view, and topic view disagree, use the newest
+  mailbox-visible project record as the authoritative fact
+- once the message is verified anywhere in the repo-root mailbox, update the
+  live-lane ledger and continue the workflow instead of reopening a settled
+  handoff
 
 Do not restate older lane history in routine messages unless the current
 decision depends on it.
@@ -58,19 +82,25 @@ decision depends on it.
 ### Standing role split
 
 - `BrightForge`: implementation, validation, proof packets
-- `CyanPeak`: audit outcomes, explicit sign-off, and ongoing shared-memory
-  updates for authoritative mail/file/state changes worth durable recall
-- `CoralReef`: routine coordination, hardware support, ledger/doc sync, and preflight research for upcoming lanes
+- `CoralReef`: routine coordination, hardware support, ledger/doc sync,
+  preflight research for upcoming lanes, authoritative audit outcomes,
+  explicit sign-off, and ongoing shared-memory updates for authoritative
+  mail/file/state changes worth durable recall
+- `TopazCliff`: MCU firmware, host transport, platform parity, and bench-side
+  firmware execution
+- `CyanPeak`: advisory review and optional secondary audit support when
+  explicitly requested
 - `BronzeGate`: sequencing, stall intervention, scope control
 
 Routine lane mechanics stay with `CoralReef`.
 Operational routing rule:
 
-- `CyanPeak` should receive bounded audit and diagnosis asks by default
-- `CoralReef` should receive broad exploratory research, repo-wide evidence
-  gathering, and first-pass blocker decomposition by default
+- `CoralReef` should receive bounded audit asks, diagnosis asks, broad
+  exploratory research, repo-wide evidence gathering, and first-pass blocker
+  decomposition by default
 - when the work can be split into “explore broadly” then “judge narrowly,”
-  split it that way instead of asking `CyanPeak` to do both
+  split it that way inside `CoralReef`'s lane unless BronzeGate explicitly
+  asks `CyanPeak` for advisory review
 
 `BronzeGate` steps in only for drift, ambiguity, stalls, lane transitions,
 blocker decisions, or priority changes.
@@ -97,21 +127,9 @@ lane activation rules.
 
 ### Mutual Coverage Check
 
-`CoralReef` and `CyanPeak` must explicitly cross-check each other's coverage so
-planning, ledger, and validation gaps do not slip through.
-
-- `CoralReef` must flag omissions in `CyanPeak`'s audit coverage, including:
-  - missing follow-on tasks or missing scope coverage
-  - stale ledger state that was not called out
-  - planning decomposition gaps that affect execution coverage
-- `CyanPeak` must flag omissions in `CoralReef`'s planning / ledger work,
-  including:
-  - missing validation gates or proof requirements
-  - incomplete task decomposition
-  - stale or internally inconsistent task state
-
-Neither lane should assume the other already caught everything. If either sees
-a coverage gap, it must be called out explicitly in mail.
+`CoralReef` is the default owner for coordination, planning, ledger, and
+authoritative audit coverage. `CyanPeak` may still be asked to review coverage,
+but that review is advisory unless BronzeGate explicitly elevates it.
 
 ### Live-Lane Hygiene
 
@@ -143,15 +161,15 @@ nudges once the next owner is obvious.
 Default handoff chain:
 
 - `BrightForge` completion / proof / blocker / corrected-evidence packet
-  triggers `CyanPeak`
-- `CyanPeak` audit ruling triggers `CoralReef`
+  triggers `CoralReef`
 - `CoralReef` ledger sync or closeout on a converged lane opens the next
   obvious artifact automatically unless reassessment changed the order
 
 For low-risk bounded lanes:
 
 - `CoralReef` lands artifact + live-lane block
-- `CyanPeak` audits as soon as the artifact lands
+- `CoralReef` audits as soon as the artifact lands unless BronzeGate has asked
+  `CyanPeak` for advisory review
 - `BrightForge` starts immediately after audit GO
 - no extra PM message is required between those routine steps
 
@@ -170,21 +188,21 @@ Artifact fast-path rule:
   - dependency statement
   - exact validation/proof requirement
   - recommended next owner
-- `CyanPeak` should answer with one compact ruling:
+- `CoralReef` should answer with one compact ruling:
   - `PASS`
   - or `HOLD` with the exact missing requirement
-- default `CyanPeak` to bounded packet work:
+- default `CoralReef` to bounded packet work:
   one compact ruling, one exact evidence request, or one diagnosis packet
   against one blocker
 - do not route broad open-ended lane exploration to `CyanPeak` when
-  `CoralReef` can first gather and compress the evidence set
+  `CoralReef` already owns the authoritative lane flow
 - if the ruling is `PASS` and the next owner is `BrightForge`, coding starts
   immediately with no second authorization round
 - if the ruling is `HOLD`, name the single cheapest missing correction or
   clarification instead of reopening broad planning by default
 - if an approved assessment packet names a bounded implementation follow-on
   with clear scope and next owner `BrightForge`, treat that follow-on as the
-  next active coding slice by default unless `CyanPeak` or `BronzeGate`
+  next active coding slice by default unless `CoralReef` or `BronzeGate`
   explicitly places it on `HOLD`
 
 Done-shape rule:

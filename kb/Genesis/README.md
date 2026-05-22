@@ -49,10 +49,10 @@
 
 | Genesis Function | Mode0 Primitive | Adapter Responsibility |
 |---|---|---|
-| Plane A / Plane B | Tile + attribute fetch (2 layers) | Map to scrollable tilemaps |
-| Window plane | Tile + attribute fetch | Fixed or independent scroll window |
-| 80 sprites | Sprite evaluation (descCount=8) | Map SAT to sprite slots; respect 8/scanline limit |
-| Per-line scroll | Scroll tables | Use Mode0 scroll-table primitive |
+| Plane A / B | Tile fetch (L0, L1) | Map to scrollable tilemaps |
+| Window | Tile fetch (L2) | Fixed or independent scroll window |
+| Sprites | Sprite evaluation | Map 80 SAT entries to 8 available slots (v1 limit) |
+| Scroll | Scroll tables | Use Mode0 linestate/scroll-table primitive |
 | DMA | Memory-to-VRAM copy | Use host transport or Mode0 DMA if available |
 
 ## 6. Host Memory Layout

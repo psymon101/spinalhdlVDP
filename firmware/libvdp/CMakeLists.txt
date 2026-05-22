@@ -19,6 +19,11 @@ target_include_directories(libvdp PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
+# Make the Pico SDK platform branch explicit for the library sources.
+target_compile_definitions(libvdp PUBLIC
+    PICO
+)
+
 target_link_libraries(libvdp PUBLIC
     pico_stdlib
     hardware_pio

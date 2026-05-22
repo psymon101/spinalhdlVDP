@@ -70,11 +70,9 @@
 
 ## 9. Known Gaps / Gotchas
 
-- **Overscan/cropping:** Active area may intentionally not use every output pixel; document intended presentation on fixed HDMI output.
-- **Palette accuracy:** Use an NES-appropriate palette reference, not generic RGB.
-- **Attribute-table granularity:** 2×2 tile color granularity is part of the NES look and must be preserved.
-- **Sprite-per-line limits:** Max 8 sprites per scanline; overflow flag behavior may need adapter attention.
-- **Minimum readiness:** Through `R4` per `MODE0_PLANNING.md` §3 (Strategic Roadmap)
+- **Visual Fidelity:** Preservation of 2×2 tile color granularity and overscan feel is prioritized over internal PPU pipeline emulation.
+- **Sprite 0 Hit:** Requires wiring specific compositor collision events to the `RASTER_MATCH` status bit.
+- **Sprite Limit:** Mode0 substrate limit is 8 sprites/line, matching the NES limit of 8. The adapter need not clamp; the substrate is already honest.
 
 ## 10. Reference Links
 
@@ -105,4 +103,6 @@ The following reference materials are stored locally in `kb/NES/references/veril
 - `ATTRIBUTION.md`
 
 See `ATTRIBUTION.md` in that directory for source URL, author, and license.
+
+tory for source URL, author, and license.
 

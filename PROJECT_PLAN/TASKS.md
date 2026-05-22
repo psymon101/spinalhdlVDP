@@ -1,199 +1,69 @@
 # TASKS.md
 
-**Updated:** 2026-05-14 (ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
-**Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
+**Updated:** 2026-05-22 (PM reassessment: two side lanes discovered in flight since May 20 closeout; TASKS.md synced to repo reality.)
+**Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
-Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
+Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
 
 ---
 
 ## How to Use This File
 
 - Active state lives in **Live Lane State** and **Next Up / Open Queue**.
-- Closed-lane history, extended proof narratives, and phase-by-phase task detail are in \`TASKS_HISTORY.md\`.
-- Do not begin a task if any entry in its \`depends_on\` list is not \`DONE\`.
-- A task is only \`DONE\` when its \`validation\` criteria are met on hardware (or simulation, for tasks not yet at hardware stage).
+- Closed-lane history, extended proof narratives, and phase-by-phase task detail are in `TASKS_HISTORY.md`.
+- Do not begin a task if any entry in its `depends_on` list is not `DONE`.
+- A task is only `DONE` when its `validation` criteria are met on hardware (or simulation, for tasks not yet at hardware stage).
 
 ---
 
 ## Live Lane State
 
-This section tracks the single active lane.
+This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Barebones Simple Sprite over Background** |
+| **Task** | **CLS Optimization — gate2 readAsync→readSync BSRAM conversion** |
 | **Status** | **IN-PROGRESS** |
-| **Phase** | Checkpoint A authorization pending implementation plan |
-| **Latest Commit** | \`1e316a4\` (barebones Stage 2-4 landing baseline) |
-| **Commits in lane** | — |
-| **Latest Auth Mail** | BronzeGate pivot packet pending mailbox sync; feature-strip lane blocked at BrightForge #10076 |
-| **Artifact** | Branch \`mode0t20-barebones-rebuild\`; one proof-sized sprite slice on top of working L0/L1 scroll path |
-| **Next Deliverable** | BrightForge Checkpoint A implementation plan for simplest sprite slice |
-
-**Context:** The compile-time feature-strip lane on `mode2optimized` is blocked by Gowin Mem fragility per BrightForge #10076 (+5485 DFF regression from Gate #1). Critical path is pivoting back to the proven barebones branch, which already has host-controlled scrolling background and hardware proof. Next step is the smallest sprite slice that proves sprite composition on this stable substrate.
+| **Latest Commit** | `a9f4735` (CP-B: copper hdmaDataArray readSync, BrightForge #10449) |
+| **Latest Auth Mail** | BrightForge #10449 |
+| **Summary** | Staged CLS relief lane. CP-A (`bab5c5f`): blitter srcRam 512×16 readAsync→readSync BSRAM. CP-B (`a9f4735`): copper hdmaDataArray 256×16 readAsync→readSync BSRAM. Both on branches off `b1b054b` (descCount=32 baseline). Goal: reduce CLS register pressure that blocked prior V=32 and Vec(Reg) attempts. |
+| **Next Step** | BrightForge to report PnR delta for CP-A+B combined, then proceed to CP-C (remaining CLS targets) or merge if headroom is proven. |
 
 ---
 
 ## Next Up / Open Queue
 
-The following tasks are **OPEN** and await PM authorization to become active lanes.
-
-### Barebones Simple Sprite over Background
-
-| Field | Value |
-|---|---|
-| **Status** | **IN-PROGRESS** — PM pivot 2026-05-16 after feature-strip blocker |
-| **Gap** | Barebones substrate has proven host-controlled background scroll, but no proof-sized sprite primitive on that stable path. |
-| **Platforms helped** | Tang Nano 20K barebones branch; firmware host proof path |
-| **Impact** | **High** — extends the proven barebones branch with the next obvious visual primitive instead of fighting rich-top fit instability |
-| **Risk/Complexity** | Medium. Requires new visible primitive, but bounded against the already-working 2-layer background path. |
-| **Proof shape** | Sim: sprite-over-background composition / position update proof; HW: one simple sprite visible over scrolling background with unambiguous motion or position change; host proof on authoritative platform |
-| **Source assessment** | Barebones landing `1e316a4`; BrightForge #10052 / #10059; FoggyWolf #10054 |
-| **Depends on** | Barebones Stage 2-4 landing DONE audit PASS #10063 |
-| **Scope Boundary** | One simple sprite slice only. No sprite engine expansion, no SDRAM sprite path, no rich-top recovery work, no multi-sprite batching. |
-| **Checkpoints** | A: implementation plan / sprite contract; B: barebones sprite implementation + sim; C: hardware proof on proven host path; D: audit + ledger sync |
-| **Coding authorized** | YES — PM pivot 2026-05-16 |
-
-### Host Platform Fidelity Requirements (ESP8266 / ESP32 / Pico 2)
-
-| Field | Value |
-|---|---|
-| **Status** | **DONE** — CyanPeak audit PASS #9891 |
-| **Gap** | No canonical documentation of host-platform constraints affecting visual fidelity and proof trustworthiness. |
-| **Platforms helped** | All (firmware/host-transport) |
-| **Impact** | **High** — establishes which host platform to trust for visual proof and why |
-| **Risk/Complexity** | Low. Documentation-only lane; no RTL or firmware feature implementation. |
-| **Proof shape** | Doc packet: per-platform fidelity notes, preferred authoritative host, acceptable functional hosts, transport/debug expectations, stale artifact disposition |
-| **Source assessment** | `firmware/README.md`, `firmware/GOTCHAS.md`, `kb/<Adapter>/README.md` |
-| **Depends on** | ZX Spectrum Firmware Host Flow DONE (#9797) |
-| **Scope Boundary** | ESP8266, ESP32, Pico 2 host-side constraints only. No new RTL. No new firmware features. No reopening closed ZX work. |
-| **Checkpoints** | A: planning/proof packet ✅; B: documentation updates ✅ (`8afc432`); C: CyanPeak audit ruling ✅ PASS #9891 |
-| **Coding authorized** | YES — #9801 |
-
----
+### RGB565 Directcolor Lane
+- **Status:** **MERGED** into `main` at `eedf617`. Originally BronzeGate #10420, CP-1a/1b/1c.
+- **Scope:** BitmapFetch/BitmapRowFetch per-pixel RGB565 directcolor decode; VdpTop integration; sim present.
+- **Verification:** `BitmapDirectColorSim` PASS on integrated `main`.
 
 ### Atari ST Adapter Lane
-
-| Field | Value |
-|---|---|
-| **Status** | **PAUSED** — Checkpoint A accepted #9782; paused #9783 per user priority shift |
-| **Gap** | No Atari ST adapter. Bounded v1: 320×200 4-plane planar output only. |
-| **Platforms helped** | Atari ST (primary) |
-| **Impact** | **Low-Medium** — 1 platform; lowest-risk Tier 1 adapter per \`MODE0_PLANNING.md\` §6 |
-| **Risk/Complexity** | Low-Medium. Planar + raster only; no sprites needed for v1. |
-| **Proof shape** | Sim: adapter-local coherence proof; HW: static test pattern renders correctly, palette swap via raster trigger if used, 30s capture freeze=0 |
-| **Source assessment** | \`MODE0_PLANNING.md\` §6 rank 5; \`ASSESSMENT.md\` |
-| **Depends on** | Task 3 DONE |
-| **Scope Boundary** | v1: 320×200 4-plane planar only. STE blitter out of scope. No sprite expansion. No substrate rewrite. |
-| **Checkpoints** | A: adapter plan / register-mode mapping / proof shape ✅ ACCEPTED #9782; B: implementation + sim + hardware capture (PAUSED); C: CyanPeak audit ruling (pending reopen) |
-| **Coding authorized** | YES — #9776; PAUSED — #9783 |
-
----
-
-### Task 54 — Sprite-Sprite Collision Detector
-
-| Field | Value |
-|---|---|
-| **Status** | **DONE** — CyanPeak audit PASS #9672; sim-only proof per #9620 |
-| **Gap** | No pairwise sprite-sprite overlap detection. C64 \`\$D01E\` requires detecting any pair of sprites overlapping. |
-| **Platforms helped** | C64 (primary); NES/Genesis (secondary) |
-| **Impact** | **Medium** — 1 primary platform; adapter-local enhancement |
-| **Risk/Complexity** | Medium. Per-pixel collision in sequential rasterizer via "check buffer before write" — honest for descCount=8 substrate. |
-| **Proof shape** | Sim: overlapping sprites set collision bits; non-overlapping sprites do not; W1C clears mask and sticky bit; regression PASS |
-| **Source assessment** | \`ASSESSMENT.md\` §5, §Gap 4 |
-| **Checkpoints** | A: implementation shape + status surface ✅ AUDIT PASS #9620; B: implement + sim + regression ✅ PASS #9625; C: audit + ledger sync ✅ PASS #9672 |
-| **Coding authorized** | YES — #9616 |
-| **Depends on** | Task 53 DONE, Task 57 DONE |
-
----
-
-### Task 55 — Sprite Masking + Tile-Fetch Budget Counter
-
-| Field | Value |
-|---|---|
-| **Status** | **DONE** — authorized #9440 |
-| **Gap** | Genesis sprite masking and SNES 34-tiles/line fetch budget are unimplemented. |
-| **Platforms helped** | Genesis, SNES |
-| **Impact** | **Medium** — 2 platforms; edge-case features |
-| **Risk/Complexity** | Low. Masking = 1 bit + suppress logic. Budget counter = counter + comparator. |
-| **Proof shape** | Sim: masked sprite suppresses lower slots; 35-tile scene triggers overflow flag; regression PASS |
-| **Source assessment** | \`ASSESSMENT.md\` §5, §Gap 3, §Gap 5 |
-
----
-
-### Task 56 — Multi-Layer SDRAM Fetch
-
-| Field | Value |
-|---|---|
-| **Status** | **DONE** — CyanPeak audit PASS #9709 on commit \`834c71e\`. Sim-only contract fulfilled. |
-| **Gap** | No SDRAM-backed fetch for background layers beyond L0. |
-| **Platforms helped** | Amiga, Genesis, SNES |
-| **Impact** | **Medium** — 3 platforms; deferred as "future task with its own stop-line review" |
-| **Risk/Complexity** | Large. New arbiter clients, fetch FSMs, slot allocation policy, per-line budget re-analysis. |
-| **Proof shape** | Sim: L0+L1 both fetch from SDRAM concurrently; arbitration priority correct; no line-drop under max load; resource + bandwidth report |
-| **Source assessment** | \`ASSESSMENT.md\` §1, §5.1, §8.1 |
-
----
-
-### Task 57 — Substrate DFF Optimization (GW2AR-LV18 recovery)
-
-| Field | Value |
-|---|---|
-| **Status** | **DONE** — Path 5A PnR PASS #9605 |
-| **Gap** | Sprite substrate overran 18K DFF budget (111% load). **Resolved** by descCount=8 floor + cumulative Mem-refactor work (Slice 2/3). |
-| **Platforms helped** | All (sprite-dependent) |
-| **Impact** | **High** — restores hardware-readiness for sprite-enabled scenarios |
-| **Risk/Complexity** | Low (Slice 1 parametric); High (Slice 2/3 structural). Actual resolution was parametric (descCount=8) after structural work proved insufficient alone. |
-| **Proof shape** | PnR: zero \`PR0003\` errors, \`project.fs\` produced, DFF ≤ 44%. Sim: 11/11 sprite regression PASS bit-identical. |
-| **Source assessment** | #9474, #9478, #9479, #9488, #9493, #9547, #9549, #9601, #9605, #9604 |
-
-> Deep findings, slice narratives, and toolchain gotchas moved to \`ASSESSMENT.md\` §6 (Resource and Toolchain Gotchas) to keep the task ledger concise.
-
-
----
-
-## Deferred Items
-
-The following items remain intentionally coarse or out of Mode0 scope.
-
-| Item | Status | Notes |
-|------|--------|-------|
-| Additional output modes | DEFERRED | Not required for baseline bring-up |
-| Deep-angle affine tuning | DEFERRED | Only after affine base path is proven (Task 19, Task 37) |
-| Platform adapter modes | DEFERRED | Task 40 (C64) DONE; Task 50 (ZX Spectrum) DONE; Task 51 (MODE_SELECT) DONE (#9201); Task 53–56 are open gap tasks awaiting PM authorization |
-| Alternate memory strategies | DEFERRED | Only if baseline memory path becomes a blocker |
-| E3.45 bottom-band stripes | **DONE** | BrightForge #8976. Analyzer PASS. |
-| Parallel bus implementation | DEFERRED | After QSPI path is stable (Task 25) |
+- **Status:** **PAUSED** (#9783). Checkpoint A accepted (#9782).
+- **Scope:** 320×200 4-plane planar only. No sprites/blitter for v1.
 
 ---
 
 ## Closed Summary
 
-Recently closed lanes. Full history (phase detail, extended narratives, proof records) is in \`TASKS_HISTORY.md\`.
+Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 
-| Task | Status | Closeout Mail | Archive Artifact |
-|---|---|---|---|
-| Host Platform Fidelity Requirements — authoritative vs functional host, QSPI_ERROR trust, artifact stewardship | **DONE** | #9883 / audit PASS #9891 | Commits \`8afc432\`, \`4814dc2\` |
-| ESP8266 QSPI Transport Fix — pinMode restore + HALF_PERIOD_US | **DONE** | #9876 / audit PASS #9875 | Commit \`878e862\` |
-| Reference Localization — platform technical references | **DONE** | #9827 / audit PASS #9839 | Commit \`304bac0\` |
-| Standards Compression — facts-first doc templates | **DONE** | #9828 / audit PASS #9839 | Commits \`cc099a8\`, \`805d5eb\` |
-| ZX Spectrum Firmware Host Flow (v1) | **DONE** | #9797 | Commit \`13989c1\`, \`zx_final_proof_v4.png\` |
-| 320-pixel planar clipping mask | **DONE** | #9768 | Commit \`77bedae\` |
-| Task 56 — Multi-Layer SDRAM Fetch | **DONE** | #9709 | Commits \`93773d7\`, \`ee5820c\`, \`834c71e\` |
-| Task 54 — Sprite-Sprite Collision Detector | **DONE** | #9672 | Commit \`e556ff5\` |
-| Task 57 — Substrate DFF Optimization | **DONE** | #9605 | Commit \`fae0585\`, \`impl/pnr/project.fs\` |
-| Task 53 — Sprite Pattern Address Width Expansion | **DONE** | #9433 | \`archive/artifacts/TASK_53_SPRITE_PATTERN_ADDRESS_WIDTH_EXPANSION.md\` |
-| Task 2a — Sprite Capacity Substrate Pre-Hardening | **DONE** | #9252 | \`archive/tasks/TASK_2A_SPRITE_CAPACITY_SUBSTRATE_PREHARDENING.md\` |
-| Task 2c — Sprite Evaluator Hardening | **DONE** | #9279 | \`archive/tasks/TASK_2C_SPRITE_EVALUATOR_HARDENING.md\` |
-| Task 2b — Sprite Capacity Bump | **DONE** | #9294 | \`archive/tasks/TASK_2B_SPRITE_CAPACITY_BUMP.md\` |
-| Task 3 — Planar Fetch Hardening | **DONE** | #9406 | \`archive/tasks/TASK_3_PLANAR_FETCH_HARDENING.md\` |
-| Task 50 — ZX Spectrum Adapter | **DONE** | #8976 | \`archive/tasks/TASK_50_ZX_SPECTRUM_ADAPTER.md\` |
-| Task 51 — MODE_SELECT Runtime Adapter Selection | **DONE** | #9201 | See \`TASKS_HISTORY.md\` §Phase 9 |
-| Task 52 — Per-Sprite X/Y Flip Primitive | **DONE** | #9127 | See \`TASKS_HISTORY.md\` |
-| #9026 — Zero-Footprint ROM Elimination | **DONE** | #9142 | See \`TASKS_HISTORY.md\` |
+| Task | Status | Reference |
+|---|---|---|
+| R5.4 Copper Integration (gate2 descCount=32) | **DONE** | #10398 |
+| 3b Copper Double-Buffer | **DONE** | #10270 |
+| Mode2optimized Feature Strip | **DONE** | #10142 |
+| Task 10026 — Simple Sprite | **DONE** | #10117 |
+| Host Platform Fidelity | **DONE** | #9891 |
+| QSPI Transport Fix | **DONE** | #9875 |
+| Reference Localization | **DONE** | #9839 |
+| ZX Spectrum Host Flow | **DONE** | #9797 |
+| 320-pixel planar clipping | **DONE** | #9768 |
+| Task 56 — SDRAM Multi-Layer | **DONE** | #9709 |
+| Task 54 — Sprite-Sprite Collision | **DONE** | #9672 |
+| Task 57 — DFF Optimization | **DONE** | #9605 |
 
-Older closed tasks (Phase 1–8, R-Roadmap, sidecar lanes) are catalogued in \`TASKS_HISTORY.md\`.
+Older closed tasks (Phase 1–8, R-Roadmap, sidecar lanes) are catalogued in `TASKS_HISTORY.md`.
 
 ---
 
@@ -203,6 +73,10 @@ Parallel work completed outside the FPGA critical path.
 
 | Task | Status | Owner | Audit | Closeout Mail | Commit |
 |---|---|---|---|---|---|
+| libvdp Mode0 Helper-Surface Completion — pattern-RAM, VSCROLL, HDMA, bitmap base/stride, standalone control helpers | **DONE** | TopazCliff | CoralReef verified | BronzeGate #10273 | `6830b55`, `9f6b86f`, `29be453` |
+| libvdp All-in-One Sprite Upload Helper | **DONE** | TopazCliff | CoralReef verified | BronzeGate #10296 | `c9e6702` |
+| libvdp Per-Platform Palette LUT Helpers — TMS9918, SMS/GG, Atari ST/STE | **DONE** | TopazCliff | CoralReef verified | BronzeGate #10305/#10306 | `45f0d88` |
+| Docs Cleanup — concision, consistency, visual-fidelity policy sync | **DONE** | CyanPeak | CoralReef verified | BronzeGate #10303 | `b10ab71`, `1b7449c`, `3f108fd` |
 | Firmware Platform Parity — ESP32 Scenario Coverage | **DONE** | FoggyWolf | CyanPeak PASS #9727 | #9727 | \`e7c8a06\` |
 
 ---
@@ -211,10 +85,10 @@ Parallel work completed outside the FPGA critical path.
 
 | Category | Canonical Doc | Archive Location |
 |---|---|---|
-| Closed task detail | \`TASKS_HISTORY.md\` | \`archive/tasks/\` (per-task artifacts) |
-| Platform adapter specs | \`PLATFORM_ADAPTERS.md\` | \`archive/adapters/\` (full specs) |
-| Substrate assessments | \`ASSESSMENT.md\` | \`archive/assessments/\` (source files) |
-| Gap task list (v1.0) | \`TASKS.md\` §Next Up | \`archive/tasks/MODE0_GAP_TASKLIST_v1.0.md\` |
+| Closed task detail | `TASKS_HISTORY.md` | `archive/tasks/` (per-task artifacts) |
+| Platform adapter specs | `PLATFORM_ADAPTERS.md` | `archive/adapters/` (full specs) |
+| Substrate assessments | `ASSESSMENT.md` | `archive/assessments/` (source files) |
+| Gap task list (v1.0) | `TASKS.md` §Next Up | `archive/tasks/MODE0_GAP_TASKLIST_v1.0.md` |
 
 ---
 
@@ -222,17 +96,17 @@ Parallel work completed outside the FPGA critical path.
 
 | Rule | Requirement |
 |------|-------------|
-| Dependency gate | Do not begin if any \`depends_on\` is not \`DONE\` |
-| Scope boundary | Do not implement anything in \`scope_boundary\` as excluded |
-| DONE definition | \`DONE\` only when \`validation\` criteria met on hardware (or sim) |
-| Status sync | Update status field when marking \`IN-PROGRESS\` or \`DONE\` |
-| Scope immutability | Do not modify \`depends_on\` or \`scope_boundary\` without instruction |
+| Dependency gate | Do not begin if any `depends_on` is not `DONE` |
+| Scope boundary | Do not implement anything in `scope_boundary` as excluded |
+| DONE definition | `DONE` only when `validation` criteria met on hardware (or sim) |
+| Status sync | Update status field when marking `IN-PROGRESS` or `DONE` |
+| Scope immutability | Do not modify `depends_on` or `scope_boundary` without instruction |
 
 ### Deduplication Rule
-Before opening a new lane, landing code, or sending a proof packet, verify the task ID does not already appear in \`TASKS.md\` Live Lane State or project mail from the last 48 hours. If already in flight, halt and request a BronzeGate ruling.
+Before opening a new lane, landing code, or sending a proof packet, verify the task ID does not already appear in `TASKS.md` Live Lane State or project mail from the last 48 hours. If already in flight, halt and request a BronzeGate ruling.
 
 ### Audit HOLD Iteration Limit
-If CyanPeak issues \`HOLD\`, BrightForge may correct and resubmit once. A second \`HOLD\` on the same scope must escalate to BronzeGate. No third HOLD cycle without PM intervention.
+If CyanPeak issues `HOLD`, BrightForge may correct and resubmit once. A second `HOLD` on the same scope must escalate to BronzeGate. No third HOLD cycle without PM intervention.
 
 ---
 
@@ -240,9 +114,9 @@ If CyanPeak issues \`HOLD\`, BrightForge may correct and resubmit once. A second
 
 Every new implementation lane must open with one authoritative packet. Copy this template into the kick-off mail or doc update.
 
-For full pre-execution planning (primitive boundary, interfaces, data model, timing, risks, exit condition), use \`TASK_TEMPLATE.md\`.
+For full pre-execution planning (primitive boundary, interfaces, data model, timing, risks, exit condition), use `TASK_TEMPLATE.md`.
 
-\`\`\`markdown
+```markdown
 ## Lane Open: [Task Name]
 
 ### Scope Boundary
@@ -268,4 +142,4 @@ For full pre-execution planning (primitive boundary, interfaces, data model, tim
 
 ### Coding Authorized
 - YES / NO — [mail id]
-\`\`\`
+```

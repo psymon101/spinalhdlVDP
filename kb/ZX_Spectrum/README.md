@@ -32,10 +32,10 @@
 
 | ZX Spectrum Function | Mode0 Primitive | Adapter Responsibility |
 |---|---|---|
-| 256×192 bitmap | Bitmap + attribute pairing | Present as shuffled fetch with cell attributes |
-| 8-color + bright palette | Indexed palette (16 entries) | Map ink/paper + bright to palette bank |
-| Border color | Background/border fill | Drive border color from port `$FE` writes |
-| Flash attribute | Adapter/host toggle | Alternate ink/paper at ~1.5 Hz in software |
+| Bitmap | Bitmap fetch | Present as 1bpp with cell attributes (L0) |
+| Palette | Indexed palette | Map ink/paper + bright to palette banks |
+| Border | Border control | Drive border color from port `$FE` |
+| Flash | Software/Adapter toggle | Alternate ink/paper at ~1.5 Hz |
 | Attribute clash | Preserved limitation | Do not silently upgrade to per-pixel color |
 
 ## 6. Host Memory Layout

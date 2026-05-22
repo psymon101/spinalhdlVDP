@@ -26,6 +26,13 @@ extern "C" {
 #define VDP_STICKY_SPRITE_0_HIT    0x0010  /* slot-0 non-transparent over non-transparent BG */
 #define VDP_STICKY_SPRITE_BG_HIT   0x0020  /* any sprite non-transparent over non-transparent BG */
 
+/* Task 47/49 — DMA/Blitter done sticky bits */
+#define VDP_STICKY_DMA_DONE        0x0100  /* DMA transfer complete */
+#define VDP_STICKY_BLIT_DONE       0x0200  /* Blitter block transfer complete */
+
+/* Task 51 — MODE_SELECT committed */
+#define VDP_STICKY_MODE_SELECT_CHANGED 0x0800  /* MODE_SELECT latched at V=0 */
+
 /**
  * Block until `bit_mask` bits are all set in the sticky register, or
  * timeout expires. Polls sel=5 with 50 µs wait between polls.

@@ -98,7 +98,7 @@ case class ScrollWrap(mapWidth: Int) extends Component {
 
 ## 9. Platform Reuse
 
-- Foundational for all Mode0 rendering platforms (Tang20K, PYNQ, etc.).
+- Foundational for all Mode0 rendering platforms (Tang Nano 20K + ESP8266 MCU host, etc.).
 
 ---
 

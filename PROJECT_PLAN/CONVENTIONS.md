@@ -147,10 +147,14 @@ The current board-specific boundary is split between:
 
 ## Platform Adapter Fidelity Standards
 
-> Moved to per-platform README files under `kb/<Adapter>/README.md` (2026-05-10).  
-> Retired source: `archive/ADAPTER_NUANCES.md`.
-> This section previously contained the General Capability Rule, Transport Separation Rule,
-> Circuitry-Accurate Palettes, Native Platform Fonts, Display Nuances, and Gap Analysis.
+Per-platform fidelity rules moved to `kb/<Adapter>/README.md` (2026-05-10).
+
+### Visual Fidelity Rule
+
+- **Primary Goal:** Visible output equivalence.
+- **Substrate Use:** Shared `Mode0` capabilities may exceed original platform limits.
+- **Fidelity Focus:** Palette/DAC behavior, borders, raster splits, and layering.
+- **Guidance:** See `PROJECT_PLAN/PLATFORM_ADAPTERS.md` §Visual Fidelity Policy.
 
 ---
 

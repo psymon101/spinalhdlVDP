@@ -71,12 +71,30 @@ extern "C" {
 #define VDP_MODE0_REG_TRIGGER3_PIXEL    0x0369u
 #define VDP_MODE0_REG_TRIGGER3_CTRL     0x036Au
 
+/* Sprite block: 32 slots x 8 words (attr) + 32 slots x 1 word (hard) */
+#define VDP_MODE0_REG_SPRITE_ATTR_BASE  0x0800u
+#define VDP_MODE0_REG_SPRITE_HARD_BASE  0x0D20u
+
 /* HDMA / Copper / palette / tables */
 #define VDP_MODE0_REG_HDMA_BASE         0x0380u
 #define VDP_MODE0_REG_COPPER_RAM_BASE   0x0400u
 #define VDP_MODE0_REG_PALETTE_DATA      0x0600u
 #define VDP_MODE0_REG_PALETTE_PTR       0x0601u
 #define VDP_MODE0_REG_VSCROLL_BASE      0x0A00u
+
+/* Sprite pattern RAM (Task 53 / Phase 2) */
+#define VDP_MODE0_REG_PATTERN_RAM_DATA  0x0D10u
+#define VDP_MODE0_REG_PATTERN_RAM_PTR   0x0D11u
+
+/* HDMA sub-register offsets (base = 0x0380) */
+#define VDP_MODE0_HDMA_OFFSET_CTRL      0x00u
+#define VDP_MODE0_HDMA_OFFSET_DONE_ACK  0x01u
+#define VDP_MODE0_HDMA_OFFSET_CH0_ADDR  0x02u
+#define VDP_MODE0_HDMA_OFFSET_CH1_ADDR  0x04u
+#define VDP_MODE0_HDMA_OFFSET_CH2_ADDR  0x06u
+#define VDP_MODE0_HDMA_OFFSET_CH3_ADDR  0x08u
+#define VDP_MODE0_HDMA_OFFSET_DATA_PTR  0x50u
+#define VDP_MODE0_HDMA_OFFSET_DATA_WR   0x51u
 
 /* DMA / blitter */
 #define VDP_MODE0_REG_DMA_DST           0x0B00u
@@ -176,6 +194,24 @@ typedef struct {
     uint16_t fill_val;
 } vdp_mode0_blit_cfg_t;
 
+typedef struct {
+    uint16_t x;
+    uint16_t y;
+    uint16_t matrix[4]; // a, b, c, d
+    uint16_t trans_x;
+    uint16_t trans_y;
+    uint8_t  pat_idx;   // 6 bits (0..63)
+    bool     enabled;
+    bool     affine_en;
+    uint8_t  size_sel;  // 2 bits (0..3)
+    uint8_t  pal_bank;  // 3 bits (0..7)
+    uint8_t  prio;      // 2 bits (0..3)
+    bool     flip_h;
+    bool     flip_v;
+    uint8_t  bpp_sel;   // 2 bits (0..2)
+    bool     mask;
+} vdp_mode0_sprite_cfg_t;
+
 uint16_t vdp_mode0_bitmap_ctrl(bool enable, uint8_t bpp, uint8_t cell_width_log2);
 uint16_t vdp_mode0_border_ctrl(bool enable, uint8_t palette_index);
 uint16_t vdp_mode0_trigger_ctrl(bool enable, bool pixel_cmp_enable, bool clear_pulse);
@@ -187,6 +223,7 @@ void vdp_mode0_set_vdp_ctrl(bool copper_enable);
 void vdp_mode0_set_tile_mode(uint8_t mode);
 void vdp_mode0_set_attr_mode(uint8_t mode);
 void vdp_mode0_set_mode_select(uint16_t mode_select);
+void vdp_mode0_set_vdp_ctrl_word(uint16_t ctrl);
 uint8_t vdp_mode0_read_live_mode(void);
 
 void vdp_mode0_set_status_enable(uint16_t mask);
@@ -200,14 +237,56 @@ void vdp_mode0_set_window1(const vdp_mode0_rect_t *rect, uint16_t color_math_ctr
 void vdp_mode0_set_window2(const vdp_mode0_rect_t *rect, uint16_t win2_ctrl);
 void vdp_mode0_set_window_combine(uint16_t combine_ctrl, uint16_t layer_mask);
 void vdp_mode0_set_border_window(const vdp_mode0_rect_t *rect, uint16_t border_ctrl);
+void vdp_mode0_set_border_ctrl(uint16_t border_ctrl);
 
 void vdp_mode0_set_affine(const vdp_mode0_affine_t *cfg);
 void vdp_mode0_set_bitmap_cfg(const vdp_mode0_bitmap_cfg_t *cfg);
+void vdp_mode0_set_bitmap_ctrl(uint16_t ctrl);
+
+void vdp_mode0_set_bitmap_base(uint32_t base);
+void vdp_mode0_set_attr_base(uint32_t base);
+void vdp_mode0_set_bitmap_stride(uint16_t stride);
+void vdp_mode0_set_attr_stride(uint16_t stride);
 
 bool vdp_mode0_set_raster_trigger(uint8_t trigger_index, const vdp_mode0_trigger_t *cfg);
+void vdp_mode0_set_color_math(uint16_t ctrl);
+
+void vdp_mode0_set_sprite(uint8_t slot, const vdp_mode0_sprite_cfg_t *cfg);
+
+/**
+ * One-shot sprite upload: pattern RAM + optional palette + descriptor.
+ *
+ * @param slot           Sprite slot (0..31)
+ * @param pattern        4bpp pixel data, one uint16_t per pixel
+ * @param pattern_start  Pattern RAM pixel index to start writing
+ * @param pattern_pixels Number of pixels to upload
+ * @param palette        Array of 0x00RRGGBB palette entries, or NULL
+ * @param palette_start  First palette entry index (0..255)
+ * @param palette_count  Number of palette entries (0 = skip)
+ * @param cfg            Sprite descriptor config; NULL = skip descriptor write
+ * @return true on success, false if slot out of range
+ */
+bool vdp_sprite_upload(uint8_t slot,
+                       const uint16_t *pattern, uint16_t pattern_start, uint16_t pattern_pixels,
+                       const uint32_t *palette, uint8_t palette_start, uint8_t palette_count,
+                       const vdp_mode0_sprite_cfg_t *cfg);
 
 void vdp_mode0_write_copper_word(uint16_t word_index, uint16_t data);
 bool vdp_mode0_hdma_write(uint8_t offset, uint16_t data);
+void vdp_mode0_set_hdma_base(uint16_t hdma_base);
+
+uint16_t vdp_mode0_hdma_ctrl_encode(bool enable, uint8_t ch_mask, bool indirect);
+void vdp_mode0_set_hdma_ctrl(bool enable, uint8_t ch_mask, bool indirect);
+void vdp_mode0_hdma_done_ack(void);
+bool vdp_mode0_set_hdma_ch_addr(uint8_t ch, uint16_t addr);
+void vdp_mode0_set_hdma_data_ptr(uint8_t ptr);
+void vdp_mode0_hdma_write_data(uint16_t data);
+
+void vdp_mode0_set_vscroll_base(uint16_t base);
+
+void vdp_mode0_set_pattern_ptr(uint16_t ptr);
+void vdp_mode0_write_pattern_data(uint16_t data);
+
 void vdp_mode0_palette_set_ptr(uint8_t ptr);
 void vdp_mode0_palette_write_data(uint16_t data);
 void vdp_mode0_palette_write_rgb888(uint8_t entry_index, uint8_t r, uint8_t g, uint8_t b);

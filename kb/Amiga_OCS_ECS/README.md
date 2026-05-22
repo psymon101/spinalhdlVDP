@@ -12,19 +12,17 @@
 ## 2. Supported Features
 
 - 1 to 6 bitplanes (up to 32 colors standard; 64 with EHB)
-- HAM (Hold-And-Modify): 6 bitplanes, 4096 colors on screen
-- EHB (Extra-Half-Brite): 6 bitplanes, entries 32–63 are half-brightness of 0–31
-- 8 sprites, 16 pixels wide, variable height; linked in pairs for 15 colors
-- Copper co-processor for beam-synchronous register writes
-- Blitter DMA engine for fast memory moves, area fills, line drawing
+- HAM (Hold-And-Modify): 6 bitplanes, 4096 colors
+- EHB (Extra-Half-Brite): 32 standard + 32 half-brightness entries
+- 8 hardware sprites, 16px wide, variable height
+- Copper co-processor and Blitter DMA
 - Display-window placement and border timing
 
 ## 3. Unsupported / Deferred Features
 
-- **HAM/EHB decoder:** Requires a dedicated post-fetch/pre-compositor logic block in Mode0.
-- **Cycle-accurate DMA:** Agnus has a strict DMA slot cadence. Mode0 uses a more flexible but less timing-rigid arbiter.
-- **Blitter minterms:** Full 256-op Amiga minterm support is a future extension beyond Mode0 Task 49 basic copy/fill.
-- **Copper WAIT/MOVE/SKIP:** Beam-synchronous writes require Copper-lite / raster trigger support.
+- **HAM/EHB Decoder:** Requires post-fetch logic block in Mode0.
+- **Cycle-Accurate DMA:** Agnus cadencing is not emulated.
+- **Full Copper:** Mode0 Copper is optimized for register writes, not exact sub-pixel bus timing.
 
 ## 4. Adapter Register Surface
 
@@ -41,11 +39,11 @@
 
 | Amiga Function | Mode0 Primitive | Adapter Responsibility |
 |---|---|---|
-| Planar bitplanes | Planar fetch | Map BPLxPTH/BPLxPTL to planarLineFetch |
-| Sprites | Sprite evaluation (descCount=8) | Map sprite pairs to sprite slots |
-| Copper | Copper-lite / raster trigger | Beam-synchronous register writes |
-| Blitter | Blitter (Task 49) | Basic copy/fill/line operations |
-| Display window | Windowing primitive | Clamp output to DIW boundaries |
+| Bitplanes | Planar fetch | Map BPLxPTH/BPLxPTL to `vdp_mode0_write_linestate` |
+| Sprites | Sprite evaluation | Map pairs to sprite slots (8 available; multiplexing required) |
+| Copper | Copper | Translate instruction list to Copper RAM |
+| Blitter | Blitter | Basic copy/fill/line operations |
+| Window | Windowing | Clamp output to DIW boundaries (2 windows available) |
 
 ## 6. Host Memory Layout
 

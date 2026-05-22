@@ -2,90 +2,45 @@
 
 Fresh SpinalHDL-based Tang Nano 20K HDMI VDP development repository.
 
+Project identity: `spinalhdlVDP`.
+
+## Team Roles
+
+| Agent | Model | Role | Core Focus |
+|---|---|---|---|
+| `BrightForge` | Claude | FPGA RTL Engineer | Structural HDL, state machines, timing-sensitive logic, FPGA proof |
+| `BronzeGate` | Codex | MCU Firmware Engineer | Bare-metal C/C++, register manipulation, transport and hardware drivers |
+| `CyanPeak` | Gemini | Datasheet Parser & Reviewer | Large manual ingestion, code-to-spec review, hardware-accuracy checks |
+| `TopazCliff` | Kimi (Inst. 1) | Technical Project Manager | Feature tickets, HW/SW interface definition, sequencing, timelines |
+| `CoralReef` | Kimi (Inst. 2) | Compliance & Documentation | Static-ruleset audit, compliance checks, README/doc generation |
+
 ## Repository layout
 
 - `hw/spinal/spinalhdlvdp/` Scala / SpinalHDL sources
 - `hw/gen/` generated HDL output
 - `fpga/tang20k/` Tang Nano 20K HDMI build files
 - `kb/` local hardware and Gowin documentation
+- `scripts/assets/` host-side asset conversion helpers for PNG → VDP data
 - `project/` SBT project metadata
 
 The Scala package for this repository is `spinalhdlvdp`.
 
 ## Toolchain
 
-- Java 11+
-- `sbt`
-- Gowin IDE CLI `gw_sh`
-- `openFPGALoader`
+- **Scala:** Java 11+, `sbt`
+- **FPGA:** Gowin IDE CLI `gw_sh`, `openFPGALoader`
+- **Firmware:** `arduino-cli` (ESP), CMake & Pico SDK 2.2.0 (Pico 2)
+- **Assets:** Python 3.8+ (PNG → VDP)
 
-This repo currently targets:
+## Mode0 Architecture
 
-- Sipeed Tang Nano 20K
-- 27 MHz board clock
-- 640x480@60 HDMI output with SDRAM-backed Mode0 rendering: tile, planar, shuffled, bitmap, affine, sprite, color-math, window, dual-window, palette RAM, Copper, HDMA, raster triggers, and QSPI host control
-- HDMI / TMDS output path
+`Mode0` is a foundational rendering substrate providing generic primitives: raster timing, fetch, composition, palette, sprites, scrolling, Copper, and HDMA.
 
-## Common commands
+**Principles:**
+1. **Generic Core:** `Mode0` grows universal capabilities needed by multiple platforms.
+2. **Semantic Adapters:** Platform-specific modes (C64, NES, Amiga, etc.) sit on top as adapters.
+3. **Quirk Isolation:** Platform-specific registers and logic belong in adapters, not the core substrate.
 
-Generate the checker core:
-
-```sh
-sbt "runMain spinalhdlvdp.VdpTopVerilog"
-```
-
-Generate the Tang Nano 20K HDMI top-level:
-
-```sh
-sbt "runMain spinalhdlvdp.TopTang20kHdmiVerilog"
-```
-
-Run the checker-core simulation:
-
-```sh
-sbt "runMain spinalhdlvdp.VdpTopSim"
-```
-
-Build the Tang Nano 20K bitstream:
-
-```sh
-cd fpga/tang20k
-make gen
-make
-```
-
-## Current architecture
-
-`VdpTop.scala` is the fresh pattern generator. `TopTang20kHdmi.scala` is the
-fresh board-facing HDMI top that adds:
-
-- TMDS encoding
-- Gowin primitive wrappers for clocking and serialization
-- Tang Nano 20K HDMI pin and build integration
-
-## Mode0 direction
-
-`Mode0` in this repo is the foundational rendering substrate, not a clone of a
-single historical machine. The intended architecture is:
-
-- `Mode0` grows the generic primitives that platforms need: raster timing,
-  linestate, fetch, composition, palette, sprites, scrolling, and related
-  control hooks
-- platform-specific modes sit on top as semantic adapters
-- platform-specific registers and quirks belong in those adapters, not inside
-  `Mode0` itself
-
-So, for example, an Amiga-oriented adapter would model Copper-visible behavior
-using `Mode0` scanline/raster and state-commit primitives, rather than requiring
-a separate Amiga-only rendering engine beside `Mode0`.
-
-Candidate adapter targets mentioned in the repo now include platforms such as
-ZX Spectrum, Commodore 64, NES / Famicom, TMS9918-family systems, Master
-System / Game Gear, MSX1 / MSX2, PC Engine / TurboGrafx-16, Genesis / Mega
-Drive, SNES, Amiga, Atari ST, and other systems whose video behavior can be
-expressed through `Mode0` primitives.
-
-The strategic build order for those primitives now lives in
-`PROJECT_PLAN/MODE0_PLANNING.md`. That file describes the capability progression
-needed for `Mode0` to support the intended adapter platforms without baking
-platform-specific semantics into the substrate itself.
+Roadmap: [`PROJECT_PLAN/MODE0_PLANNING.md`](PROJECT_PLAN/MODE0_PLANNING.md).
+Detailed adapter specs: [`PROJECT_PLAN/PLATFORM_ADAPTERS.md`](PROJECT_PLAN/PLATFORM_ADAPTERS.md).
+User guide: [`VDP_PROGRAMMING_GUIDE.md`](VDP_PROGRAMMING_GUIDE.md).

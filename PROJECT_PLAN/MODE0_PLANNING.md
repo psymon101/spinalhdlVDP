@@ -1,6 +1,6 @@
 # MODE0_PLANNING.md
 
-**Updated:** 2026-05-15
+**Updated:** 2026-05-20
 **Purpose:** Current `Mode0-T20` profile specification for the Tang20k-targeted Mode0 build.
 
 ---
@@ -17,285 +17,99 @@
 
 ## 2. Guaranteed Feature Summary
 
-| Feature | Guaranteed |
+| Feature | Limit / Value |
 |---|---|
-| Progressive raster output | `1` |
-| Strong live background layers | `2` |
-| Architectural maximum background layers | `4` |
-| Visible sprites per scanline | `8` |
-| Guaranteed descriptor count | `8` |
-| Tile + attribute fetch | `1` |
-| Bitmap fetch | `1` |
-| Planar / bitplane fetch | `1` |
-| Raster trigger | `1` |
-| Beam-synchronous automation | `1` |
-| Windowing / clipping | `1` |
-| Basic color math | `1` |
-| Basic blitter / transfer | `1` |
+| Background Layers | 2 (Strong) / 4 (Max) |
+| Sprites / Scanline | 8 (live build) |
+| Descriptor Count | 8 (live build) / 32 (approved redesign target) |
+| Planar Depth | 4 planes |
+| Raster Compare | 1 unit |
+| Fetch Formats | Tile+Attr, Bitmap, Planar |
+| Automation | Beam-sync, Basic Blitter, HDMA, Copper |
+| Clipping | 1 Window |
+
+## 3. Optional Build Features (Build-Gated)
+
+- L2/L3 rich layers
+- Affine / Mode7 path
+- Expanded sprite count (32 descriptors, 8 visible/line) — **approved redesign target proven by BrightForge #10360; live build remains 8/8 pending merge**
+- Deeper planar support
 
 ---
 
-## 3. Guaranteed Limits
+## 4. Visual Fidelity Policy (Governing)
 
-| Parameter | Guaranteed Value |
-|---|---|
-| Scan model | Progressive |
-| Strong live BG layers | 2 |
-| Architectural max BG layers | 4 |
-| Visible sprites / scanline | 8 |
-| Descriptor count | 8 |
-| Guaranteed planar depth | 4 planes |
-| Raster compare units | 1 |
-| Per-line register update support | `1` |
+This profile operates under the **Visual Fidelity Priority** ruling (#10301).
+- **Primary Goal:** Authoritative visible output (palette, timing, layering).
+- **Secondary Goal:** Platform-native internal mechanics.
+- **Substrate Ceiling:** SNES-class sprite/layer capacity is the preferred baseline.
 
 ---
 
-## 4. Optional Build Features
+## 5. Canonical Register Map
 
-| Feature | Status |
-|---|---|
-| L2/L3 richer live use | `build-gated` |
-| Affine / Mode7 path | `build-gated` |
-| Expanded sprite count | `build-gated` |
-| Deeper planar support | `separately-proven` |
-| Advanced blitter ops | `deferred` |
-| HAM / EHB style decode | `deferred` |
-
----
-
-## 5. Unsupported Base-Profile Features
-
-| Feature | Status |
-|---|---|
-| Neo Geo-class sprite density | `0` |
-| Neo Geo-class descriptor pressure | `0` |
-| Hardware zoom/shrink as base requirement | `0` |
-| Cycle-exact legacy DMA timing | `0` |
-| Interlace as core requirement | `0` |
-| Everything-enabled-at-once default build | `0` |
+The register map is canonically defined and maintained in **`PROJECT_PLAN/MODE0_REGISTER_BUS_SPEC.md` §3**.
+For high-level usage and examples, see the [**`VDP Programming Guide`**](../VDP_PROGRAMMING_GUIDE.md).
+- **Global Control:** `0x0300..0x031F`
+- **Window/Color/Affine:** `0x0330..0x034F`
+- **Fetch/Raster:** `0x0350..0x037F`
+- **Automation/Tables:** `0x0380..0x0AFF`
+- **DMA/Blitter:** `0x0B00..0x0DFF`
+- **Adapter Pages:** `0x0E00..0x0FFF`
 
 ---
 
-## 6. Current Canonical Register Map
+## 6. Current Quantified Behavior (Mode0-T20 Baseline)
 
-### 6.1 Global / Status
+### 6.1 Clock & Output Transport
+- **Board Input:** `27 MHz`
+- **Pixel Clock:** `25.2 MHz` (Progressive 640×480)
+- **Transport:** DVI-compatible TMDS over HDMI
+- **Source:** `PLATFORM.md`, `README.md`
 
-| Address | Name |
-|---|---|
-| `0x0300` | `LAYER_ENABLE` |
-| `0x0310` | `VDP_CTRL` |
-| `0x0311` | `VDP_TILE_MODE` |
-| `0x0312` | `VDP_ATTR_MODE` |
-| `0x0313` | `MODE_SELECT` |
-| `0x0320` | `STATUS_STICKY` |
-| `0x0321` | `STATUS_ENABLE` |
-| `0x0322` | `SPRITE_COLL_MASK` |
+### 6.2 Register Bus & Timing
+- **Signal Contract:** 15-bit Addr / 16-bit Data / 1-cycle Pulse
+- **Commit Boundary:** `hCounter === 0` (standard) / `hCounter === hTotal - 1` (linestate)
+- **Master Priority:** `bootstrap > QSPI > animator`
+- **Source:** `MODE0_REGISTER_BUS_SPEC.md`
 
-### 6.2 Window / Color / Border / Affine
+### 6.3 Layer & Fetch Capabilities
+- **Guaranteed Backgrounds:** 2 Strong (L0/L1) / 4 Maximum
+- **Fetch Formats:** Tile+Attribute, Bitmap, Planar (up to 5 planes)
+- **Slot Allocation:** 8 slots total; `Planar > L0 > L1` priority
+- **Source:** `MODE0_PLANNING.md` §2, `VdpTop.scala`
 
-| Address | Name |
-|---|---|
-| `0x0330` | `WIN1_X0` |
-| `0x0331` | `WIN1_X1` |
-| `0x0332` | `WIN1_Y0` |
-| `0x0333` | `WIN1_Y1` |
-| `0x0334` | `COLOR_MATH_CTRL` |
-| `0x0335` | `WIN2_X0` |
-| `0x0336` | `WIN2_X1` |
-| `0x0337` | `WIN2_Y0` |
-| `0x0338` | `WIN2_Y1` |
-| `0x0339` | `WIN2_CTRL` |
-| `0x033A` | `WIN_COMBINE` |
-| `0x033B` | `LAYER_MASK` |
-| `0x033C` | `BORDER_X0` |
-| `0x033D` | `BORDER_X1` |
-| `0x033E` | `BORDER_Y0` |
-| `0x033F` | `BORDER_Y1` |
-| `0x0340` | `AFFINE_A` |
-| `0x0341` | `AFFINE_B` |
-| `0x0342` | `AFFINE_C` |
-| `0x0343` | `AFFINE_D` |
-| `0x0344` | `AFFINE_X` |
-| `0x0345` | `AFFINE_Y` |
-| `0x0346` | `AFFINE_CTRL` |
-| `0x0347` | `BORDER_CTRL` |
+### 6.4 Object & Composition Limits
+- **Sprites:** 8 visible/scanline; 8 total descriptors (live build). Approved redesign target: 32 total descriptors, 8 visible/scanline — proven fit/timing on Tang Nano 20K by BrightForge (#10360).
+- **Collision:** Sprite-0-hit + Sprite-BG-hit status bits
+- **Windowing:** 1 active rectangle (standard) / 2 rectangles (extended)
+- **Source:** `MODE0_PLANNING.md` §4, `SpriteCapacitySim.scala`
 
-### 6.3 Bitmap Fetch
-
-| Address | Name |
-|---|---|
-| `0x0350` | `BITMAP_CTRL` |
-| `0x0351` | `BITMAP_BASE_LO` |
-| `0x0352` | `BITMAP_BASE_HI` |
-| `0x0353` | `ATTR_BASE_LO` |
-| `0x0354` | `ATTR_BASE_HI` |
-| `0x0355` | `BITMAP_STRIDE` |
-| `0x0356` | `ATTR_STRIDE` |
-
-### 6.4 Raster Triggers
-
-| Address | Name |
-|---|---|
-| `0x0360` | `TRIGGER1_LINE` |
-| `0x0361` | `TRIGGER1_PIXEL` |
-| `0x0362` | `TRIGGER1_CTRL` |
-| `0x0364` | `TRIGGER2_LINE` |
-| `0x0365` | `TRIGGER2_PIXEL` |
-| `0x0366` | `TRIGGER2_CTRL` |
-| `0x0368` | `TRIGGER3_LINE` |
-| `0x0369` | `TRIGGER3_PIXEL` |
-| `0x036A` | `TRIGGER3_CTRL` |
-
-### 6.5 HDMA / Copper / Palette / Tables
-
-| Address | Name |
-|---|---|
-| `0x0380` | `HDMA_BASE` |
-| `0x0400` | `COPPER_RAM_BASE` |
-| `0x0600` | `PALETTE_DATA` |
-| `0x0601` | `PALETTE_PTR` |
-| `0x0A00` | `VSCROLL_BASE` |
-
-### 6.6 DMA / Blitter
-
-| Address | Name |
-|---|---|
-| `0x0B00` | `DMA_DST` |
-| `0x0B01` | `DMA_LEN` |
-| `0x0B02` | `DMA_FILL` |
-| `0x0B03` | `DMA_CTRL` |
-| `0x0B10` | `DMA_STAGING_BASE` |
-| `0x0C00` | `BLIT_CTRL` |
-| `0x0C01` | `BLIT_WIDTH` |
-| `0x0C02` | `BLIT_HEIGHT` |
-| `0x0C03` | `BLIT_DST_ADDR` |
-| `0x0C04` | `BLIT_DST_STRIDE` |
-| `0x0C05` | `BLIT_SRC_ADDR` |
-| `0x0C06` | `BLIT_SRC_STRIDE` |
-| `0x0C07` | `BLIT_FILL_VAL` |
-| `0x0C10` | `BLIT_SRC_RAM_BASE` |
-
-### 6.7 Linestate / Adapter Pages
-
-| Address | Name |
-|---|---|
-| `0x0000` | `LINESTATE_BASE` |
-| `0x0E00..0x0EFF` | `ADAPTER_PAGE_1` |
-| `0x0F00..0x0FFF` | `ADAPTER_PAGE_2` |
+### 6.5 Automation & DMA Performance
+- **Copper:** 1024-word dual-bank program RAM (2×512); line-paced drain
+- **HDMA:** 4 channels; 8-bit line compare (standard) / 9-bit (extended)
+- **DMA Staging:** 64-word COPY buffer
+- **Blitter Storage:** 512-word SRC/STORE RAM
+- **Source:** `MODE0_REGISTER_BUS_SPEC.md` §3.1
 
 ---
 
-## 7. Status Selectors
+## 7. Build-Gated Feature Status
 
-| Selector | Meaning |
-|---|---|
-| `0` | magic |
-| `1` | `rx_cmd_cnt` |
-| `2` | `last_addr` |
-| `3` | `last_data` |
-| `4` | `last_error` |
-| `5` | sticky bits |
-| `6` | upload status |
-| `7` | committed live mode |
+| Feature | Default Build | Build-Gated (Optional) | Reference |
+|---|---|---|---|
+| L2/L3 Layers | **Disabled** | Enabled | #10142 |
+| Affine / Mode7 | **Disabled** | Enabled | #10142 |
+| Extra Triggers | **Disabled** | Enabled | #10142 |
+| Plane Count | `4` | `5` or `6` | #10011 |
+| Sprite Density | `8/line` (live build) | `32 descriptors / 8 visible` (approved redesign target, proven #10360) | #10077 |
 
 ---
 
-## 8. Conformance Rules
-
-| Rule | Meaning |
-|---|---|
-| Required feature missing | `non-conforming` |
-| Optional feature absent | `conforming` |
-| Numeric limit exceeded | `out-of-profile` |
-| Unsupported behavior requested | `reject-or-defer` |
-
----
-
-## 9. Current Quantified Behavior
-
-### 10.1 Clock / Output
-
-| Parameter | Current Value | Source |
-|---|---|---|
-| Board input clock | `27 MHz` | `PLATFORM.md` |
-| Pixel clock | `25.2 MHz` | `PLATFORM.md` |
-| Serializer clock | `5x pixel clock` | `PLATFORM.md` |
-| Scan model | Progressive | `MODE0_PLANNING.md` §4, `PLATFORM.md` |
-| Active visible raster | `640x480` | `README.md`, `PLATFORM.md` |
-| Output transport | DVI-compatible TMDS over HDMI connector | `PLATFORM.md` |
-
-### 10.2 Register Bus
-
-| Parameter | Current Value | Source |
-|---|---|---|
-| Address width | `15 bits` | `MODE0_REGISTER_BUS_SPEC.md` §1 |
-| Data width | `16 bits` | `MODE0_REGISTER_BUS_SPEC.md` §1 |
-| Write enable shape | `1 pixel-clock cycle pulse` | `MODE0_REGISTER_BUS_SPEC.md` §1 |
-| Ack path | None | `MODE0_REGISTER_BUS_SPEC.md` §4.3 |
-| Standard register commit boundary | `hCounter === 0` | `MODE0_REGISTER_BUS_SPEC.md` §4.1 |
-| Linestate commit exception | `hCounter === hTotal - 1` | `MODE0_REGISTER_BUS_SPEC.md` §4.1 |
-| Current master priority | `bootstrap > QSPI > animator` | `MODE0_REGISTER_BUS_SPEC.md` §2.2 |
-| Same-cycle lower-priority write result | Dropped | `MODE0_REGISTER_BUS_SPEC.md` §4.2 |
-
-### 10.3 Host-Write Visible Effect Boundary
-
-| Parameter | Current Value | Source |
-|---|---|---|
-| Earliest visible effect for standard global register writes | Start of next scanline after `hCounter === 0` commit | `MODE0_REGISTER_BUS_SPEC.md` §4.1 |
-| Mid-line visible effect from host register write | Not supported by current write-path contract | `MODE0_REGISTER_BUS_SPEC.md` §4.1 |
-
-### 10.4 Layer Service Model
-
-| Parameter | Current Value | Source |
-|---|---|---|
-| Guaranteed strong live background layers | `2` | `MODE0_PLANNING.md` §4 |
-| Architectural maximum background layers | `4` | `MODE0_PLANNING.md` §4 |
-| Guaranteed core fetch formats | `tile+attribute`, `bitmap`, `planar/bitplane` | `MODE0_PLANNING.md` §3 |
-| Richer L2/L3 live use | Optional / build-gated | `MODE0_PLANNING.md` §5 |
-
-### 10.5 Current Fetch-Slot Priority
-
-| Parameter | Current Value | Source |
-|---|---|---|
-| Scheduler slot count | `8` | `VdpTop.scala` |
-| Current overlap resolution rule | Lowest slot index wins | `VdpTop.scala` comment at Task 56 scheduler block |
-| Current effective fetch priority under overlap | `Planar (slot 2) > L0 (slots 0/1) > L1 (slots 3/4)` | `VdpTop.scala` comment at Task 56 scheduler block |
-
-### 10.6 Sprite Capacity / Overflow
-
-| Parameter | Current Value | Source |
-|---|---|---|
-| Guaranteed visible sprites per scanline | `8` | `MODE0_PLANNING.md` §4 |
-| Guaranteed descriptor count | `8` | `MODE0_PLANNING.md` §4 |
-| Overflow status surface | `STATUS_STICKY[1] = SPRITE_OVERFLOW` | `MODE0_REGISTER_BUS_SPEC.md` §3.1.1 |
-| Current selection rule when over capacity | Lowest descriptor indices retained first | `SpriteCapacitySim.scala` comments / assertions |
-
-### 10.7 DMA / Blitter Surfaces
-
-| Parameter | Current Value | Source |
-|---|---|---|
-| DMA done sticky bit | `STATUS_STICKY[8]` | `MODE0_REGISTER_BUS_SPEC.md` §3.1.1 |
-| Blitter done sticky bit | `STATUS_STICKY[9]` | `MODE0_REGISTER_BUS_SPEC.md` §3.1.1 |
-| Blitter busy live status bit | `STATUS bit 10`, read-only, not sticky | `MODE0_REGISTER_BUS_SPEC.md` §3.1.1 |
-| DMA staging buffer size | `64 x 16-bit words` | `MODE0_REGISTER_BUS_SPEC.md` §3.1 |
-| Blitter source/store RAM size | `512 x 16-bit words` | `MODE0_REGISTER_BUS_SPEC.md` §3.1 |
-
-### 10.8 QSPI / Host Transport
-
-| Parameter | Current Value | Source |
-|---|---|---|
-| Header format | `6 bytes` = `[CMD:1][ADDR:3][LEN:2]` | `PLATFORM.md` |
-| Commands | `0x01 REG_WRITE`, `0x02 SDRAM_WRITE`, `0x04 READ_STATUS` | `PLATFORM.md` |
-| Proven SCK | `2 MHz` | `PLATFORM.md` |
-| Unverified ceiling | `5 MHz` | `PLATFORM.md` |
-
-### 10.9 Current CDC Facts
-
-| Parameter | Current Value | Source |
-|---|---|---|
-| Validated separate `clkSys` domain in active use | None | `PLATFORM.md` |
-| Register-bus clock domain | Pixel clock | `MODE0_REGISTER_BUS_SPEC.md` §1 |
-| Documented host-side queue crossing model | QSPI-side queue / FIFO into pixel-domain parser | `TECH_SPEC_HOST_INTERFACE_AND_COPPER.md` |
-| Example explicit CDC primitive in fetch path | `BufferCC` used on planar base-address sampling | `BitplaneRowFetch.scala` |
+## 8. Development Constraints & Risk Profile
+- **Mem Fragility:** High risk of Mem→FF promotion on GW2AR-LV18.
+- **FF/LUT Ratio:** Maximum 0.75 per CLS. Regional density is the primary bottleneck.
+- **Inference Policy:** Avoid `initialContent` for BSRAM; use readSync for high-fanout Mems.
+- **Stop Rule:** Revert immediately on LUT/DFF regression without verified logic elision.
 
 ---

@@ -2,7 +2,7 @@
 
 Local rules for the `firmware/` subtree.
 
-**For FoggyWolf:** This file governs your work inside `firmware/`. It
+**For BronzeGate:** This file governs your work inside `firmware/`. It
 overrides any conflicting rules in the root `AGENTS.md` for operations
 within this directory. You may still read the root `AGENTS.md` for general
 project identity, mail registration, and cross-agent coordination context,
@@ -21,10 +21,19 @@ When joining this project, register in the mail system with:
 - **program:** your client name (e.g. `codex-cli`, `claude-code`)
 - **model:** your actual model name
 
-The mail system will auto-generate an adjective+noun name (e.g., `FoggyWolf`).
-**Accept it.** Your mail handle is your server-assigned name; your operational
-identity is FoggyWolf. Sign messages as "FoggyWolf" so the team knows who
-you are.
+Use the same repo-root mail project for all firmware work. BronzeGate must send
+lane packets, replies, acknowledgements, and coordination mail through
+`/home/itadmin/github/spinalhdlVDP`, not through a `firmware/` mailbox, a
+subdirectory mailbox, or any external workspace mailbox.
+
+BronzeGate is the canonical firmware identity for this repository by PM
+override. Sign firmware messages as "BronzeGate" so the team knows who owns
+the lane.
+
+BronzeGate does not edit FPGA / HDL / `hw/spinal/` sources from this subtree
+unless TopazCliff explicitly reassigns that lane in mail or task docs. If a
+firmware task would require crossing into FPGA code, stop and hand it to
+BrightForge instead of bridging the gap yourself.
 
 ## Toolchain
 
@@ -50,7 +59,7 @@ Reference layout: `AGENTS_EXAMPLES.md`
 
 ## QSPI Contract — Immutable
 
-The 6-byte header QSPI framing is **proven and locked**. FoggyWolf does not modify it.
+The 6-byte header QSPI framing is **proven and locked**. TopazCliff does not modify it.
 
 | Field | Size | Value |
 |-------|------|-------|
@@ -81,6 +90,13 @@ Do not:
 - Inline `digitalWrite()` loops that replace `vdp_reg_write()`
 - Hardcode pin numbers in a sketch when `vdp_platform.h` already defines them
 
+Mode0 rule:
+- When a new Mode0 register block or control path is added in FPGA, add the
+  matching `vdp_mode0_*` helper(s) and update `kb/libvdp/README.md` in the
+  same change unless TopazCliff explicitly approves a raw-only exception.
+- Do not leave new Mode0 functionality reachable only through ad hoc
+  `vdp_reg_write(...)` calls in sketches.
+
 ---
 
 ## Arduino Sketch Template
@@ -89,7 +105,7 @@ Every scenario sketch must contain, in order:
 
 1. **Header comment** with:
    - Scenario ID and task reference
-   - Pin map table (BronzeGate-approved mapping)
+   - Pin map table (TopazCliff-approved mapping)
    - Boot sequence numbered list
    - Expected on-screen result
 2. `#include <Arduino.h>`
@@ -118,7 +134,7 @@ When adding a new scenario sketch:
 - [ ] Pico sketch builds and produces **identical** output (or documented delta)
 - [ ] `firmware/GOTCHAS.md` updated if a new pitfall is found
 - [ ] Register writes match `MODE0_REGISTER_BUS_SPEC.md`
-- [ ] Pin map approved by BronzeGate (or reuses existing approved map)
+- [ ] Pin map approved by TopazCliff (or reuses existing approved map)
 
 A scenario is **not firmware-done** until all checked platforms are proven or the gap is explicitly task-tracked.
 
@@ -132,14 +148,18 @@ Do not change pin maps without FPGA-side verification that the new GPIOs are non
 
 ---
 
-## Coordination Handoff
+## Coordination
 
-Before starting a firmware lane:
-
-1. Read `PROJECT_PLAN/TASKS.md` Live Lane State
-2. Confirm register contract / scenario definition with **BrightForge**
-3. Confirm lane authorization with **BronzeGate**
-4. Open firmware work as a **background lane** — it must not block the FPGA critical path
+- Use the repo-root MCP mail project key `/home/itadmin/github/spinalhdlVDP`
+  for firmware packets, replies, acknowledgements, and closeout.
+- Before asking another agent a question, search MCP memory / workspace memory
+  first for an existing answer. If you learn a durable firmware fact, write it
+  back to MCP memory with a short summary and commit/mail tie-back.
+- Before starting a firmware lane, read `PROJECT_PLAN/TASKS.md`, confirm the
+  register contract with BrightForge, and confirm lane authorization with
+  TopazCliff.
+- Keep firmware work as a background lane and keep mail replies factual:
+  verified result, action taken, proof status, next step.
 
 ## Artifact Match Rule
 
@@ -155,14 +175,21 @@ Bench testing must use artifacts verified to match the intended source state.
 
 ---
 
+## Audit / Doc-Sync Checklist
+
+When closing a lane, submitting a pull request, or performing an audit:
+
+- [ ] **libvdp sync:** If this lane touched libvdp API surface (`.h`), semantics (`.c`), RTL registers, or programming patterns, verify that `kb/libvdp/README.md` is current.
+
+---
+
 ## Preventive Rules (firmware-specific)
 
 ### QSPI Contract Deviation Documentation
 
-The canonical QSPI contract is locked at: **2 MHz SCK, 10 µs CS hold, 20 µs OSR drain**.
-Any host-side implementation that deviates from these values by more than 25 %
-must be documented in `firmware/GOTCHAS.md` before the associated sketch or
-library change is considered complete.
+The canonical QSPI contract is locked at **2 MHz SCK, 10 µs CS hold, 20 µs OSR drain**.
+Any host-side deviation above 25% must be documented in `firmware/GOTCHAS.md`
+before the sketch or library change is considered complete.
 
 Current documented deviation:
 - **ESP32 / ESP8266 bit-bang:** ~500 kHz SCK (4× slower than 2 MHz contract)
@@ -175,15 +202,15 @@ Current documented deviation:
 
 ### Signoff Consistency
 
-FoggyWolf signs all firmware mail as `— FoggyWolf`. Do not use retired aliases
-(e.g., "SignalWire") or mixed signatures.
+BronzeGate signs all firmware mail as `— BronzeGate`. Do not use mixed
+signatures.
 
 ### AGENTS.md Immutability Rule
 
 `AGENTS.md` files contain binding project policy. No agent may unilaterally
 rewrite, truncate, remove, or materially alter rules in any `AGENTS.md` without:
 
-- BronzeGate PM authorization, AND
+- TopazCliff PM authorization, AND
 - CyanPeak audit review, AND
 - A diff review showing exactly what changed and why
 
@@ -191,7 +218,7 @@ Cosmetic edits (spelling, formatting) are allowed. Removing rules, adding
 self-serving exceptions, or truncating sections to strip policy you disagree
 with is **not** allowed and will be treated as a roster violation.
 
-If you believe a rule is wrong, escalate to BronzeGate with a specific
+If you believe a rule is wrong, escalate to TopazCliff with a specific
 amendment proposal. Do not edit the file directly.
 
 ## Memory Curation (firmware tags)

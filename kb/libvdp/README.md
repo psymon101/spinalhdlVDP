@@ -7,7 +7,7 @@ Canonical API reference for `firmware/libvdp/`.
 | Item | Value |
 |---|---|
 | Library path | `firmware/libvdp/` |
-| Platforms | Pico 2, ESP32, ESP8266 |
+| Platforms | Pico 2 (Authoritative), ESP32, ESP8266 |
 | Contract style | blocking C API |
 | Source of truth | public headers in `firmware/libvdp/*.h` |
 
@@ -19,6 +19,7 @@ Canonical API reference for `firmware/libvdp/`.
 | Status | `vdp_status.h`, `vdp_status.c` | sticky-bit polling and vblank waits |
 | Upload | `vdp_upload.h`, `vdp_upload.c` | vblank-paced SDRAM asset upload |
 | Mode0 | `vdp_mode0.h`, `vdp_mode0.c` | generic Mode0 helper layer |
+| Copper | `vdp_copper.h`, `vdp_copper.c` | Copper opcode encoding + program upload |
 | Platform | `vdp_platform.h` | board pin maps and transport constants |
 
 ## Initialization
@@ -34,7 +35,8 @@ Canonical API reference for `firmware/libvdp/`.
 | Function | Signature | Purpose | Inputs | Output |
 |---|---|---|---|---|
 | `vdp_reg_write` | `void vdp_reg_write(uint32_t addr, uint16_t data)` | write one 16-bit VDP register word | 15-bit register address, 16-bit payload | none |
-| `vdp_read_status` | `uint32_t vdp_read_status(uint8_t sel)` | read one 32-bit status selector | selector `0..6` | 32-bit little-endian response |
+| `vdp_reg_write_burst` | `void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)` | write a contiguous block of register words | start address, little-endian word array, word count (1..253) | none |
+| `vdp_read_status` | `uint32_t vdp_read_status(uint8_t sel)` | read one 32-bit status selector | selector `0..7` | 32-bit little-endian response |
 
 ### `vdp_read_status` selectors
 
@@ -56,6 +58,35 @@ Canonical API reference for `firmware/libvdp/`.
 | `vdp_sdram_write` | `void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words)` | stream 16-bit words into SDRAM | low-level burst write; does not vblank-pace itself |
 | `vdp_upload_asset` | `bool vdp_upload_asset(uint32_t sdram_addr, const uint16_t *words, uint16_t num_words, vdp_upload_cb cb)` | paced SDRAM upload across vblank windows | preferred high-level upload helper |
 
+### Asset Pipeline
+
+Host-side PNG conversion lives in [`scripts/assets/png_to_vdp_assets.py`](/home/itadmin/github/spinalhdlVDP/scripts/assets/png_to_vdp_assets.py).
+Use it to generate raw `.bin` outputs plus optional `--header` metadata for
+sketches or test harnesses.
+
+If you want the raw payload embedded directly into a C header, use
+[`scripts/assets/bin_to_c_array.py`](/home/itadmin/github/spinalhdlVDP/scripts/assets/bin_to_c_array.py)
+on the generated `.bin` file.
+[`firmware/esp8266_asset_upload/`](/home/itadmin/github/spinalhdlVDP/firmware/esp8266_asset_upload/)
+shows the corresponding ESP8266 sketch template.
+
+Typical flow:
+
+1. Convert the source image into raw data and a generated header.
+2. Include the generated header from a sketch or test harness.
+3. Pass the exported SDRAM base address to `vdp_upload_asset()` or
+   `vdp_sdram_write()`.
+
+Example:
+
+```sh
+python3 scripts/assets/png_to_vdp_assets.py background frame.png build/frame \
+  --bpp 4 --header build/frame.h --sdram-base 0x6000
+
+python3 scripts/assets/bin_to_c_array.py build/frame.tiles.bin \
+  build/frame_tiles.h --symbol frame_tiles
+```
+
 ### Upload callback
 
 | Type | Signature | Purpose |
@@ -66,7 +97,7 @@ Canonical API reference for `firmware/libvdp/`.
 
 | Constant | Value | Meaning |
 |---|---|---|
-| `VDP_UPLOAD_WORDS_PER_VBLANK` | `8` | default chunk size per vblank burst |
+| `VDP_UPLOAD_WORDS_PER_VBLANK` | `16` | default chunk size per vblank burst |
 
 ## Sticky Status Helpers
 
@@ -87,27 +118,77 @@ Canonical API reference for `firmware/libvdp/`.
 | `VDP_STICKY_SPRITE_0_HIT` | `0x0010` | slot-0 hit |
 | `VDP_STICKY_SPRITE_BG_HIT` | `0x0020` | sprite/background hit |
 
-## Mode0 Helpers
+## Mode0 Struct Types
 
-| Area | Helpers |
-|---|---|
-| globals | `vdp_mode0_set_layer_enable`, `vdp_mode0_set_vdp_ctrl`, `vdp_mode0_set_tile_mode`, `vdp_mode0_set_attr_mode`, `vdp_mode0_set_mode_select`, `vdp_mode0_read_live_mode` |
-| status | `vdp_mode0_set_status_enable`, `vdp_mode0_clear_status`, `vdp_mode0_clear_sprite_coll_mask` |
-| windows / border | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_set_border_window` |
-| affine | `vdp_mode0_set_affine` |
-| bitmap | `vdp_mode0_bitmap_ctrl`, `vdp_mode0_set_bitmap_cfg` |
-| raster | `vdp_mode0_trigger_ctrl`, `vdp_mode0_set_raster_trigger` |
-| palette | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_data`, `vdp_mode0_palette_write_rgb888` |
-| copper / hdma | `vdp_mode0_write_copper_word`, `vdp_mode0_hdma_write` |
-| tables | `vdp_mode0_write_linestate`, `vdp_mode0_write_vscroll_entry` |
-| dma | `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_write_staging`, `vdp_mode0_dma_config` |
-| blitter | `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_write_src`, `vdp_mode0_blit_config` |
-
-## Platform Constants
-
-| Constant | Value | Meaning |
+| Type | Fields | Purpose |
 |---|---|---|
-| `VDP_QSPI_SCK_HZ` | `2000000u` | proven transport clock |
+| `vdp_mode0_rect_t` | `x0, x1, y0, y1` (all `uint16_t`) | Axis-aligned rectangle for windows / borders |
+| `vdp_mode0_affine_t` | `a, b, c, d, x, y, ctrl` (all `uint16_t`) | Affine transform matrix + control |
+| `vdp_mode0_bitmap_cfg_t` | `ctrl`, `bitmap_base`, `attr_base`, `bitmap_stride`, `attr_stride` | Bitmap+attribute fetch configuration |
+| `vdp_mode0_trigger_t` | `line`, `pixel`, `ctrl` (all `uint16_t`) | Raster trigger line/pixel + control |
+| `vdp_mode0_dma_cfg_t` | `dst`, `len_m1`, `fill`, `mode` | DMA engine configuration (FILL or COPY) |
+| `vdp_mode0_blit_cfg_t` | `ctrl`, `width_m1`, `height_m1`, `dst_addr`, `dst_stride`, `src_addr`, `src_stride`, `fill_val` | Blitter engine configuration |
+
+## Mode0 Helper Coverage
+
+| Area | Helpers | Status / Coverage |
+|---|---|---|
+| **Globals** | `vdp_mode0_set_layer_enable`, `vdp_mode0_set_vdp_ctrl`, `vdp_mode0_set_mode_select`, `vdp_mode0_read_live_mode` | Full control plane. |
+| **Window / Border** | `vdp_mode0_set_window1`, `vdp_mode0_set_window2`, `vdp_mode0_set_window_combine`, `vdp_mode0_border_ctrl`, `vdp_mode0_set_color_math` | 2-window + color-math. |
+| **Bitmap / Affine** | `vdp_mode0_set_bitmap_cfg`, `vdp_mode0_set_bitmap_base`, `vdp_mode0_set_bitmap_stride`, `vdp_mode0_set_affine` | Page-flipping and transform. |
+| **Palette** | `vdp_mode0_palette_set_ptr`, `vdp_mode0_palette_write_rgb888` | RGB888 burst writes. |
+| **Palette LUTs** | `vdp_tms9918_load_palette`, `vdp_sms_palette_write`, `vdp_gg_palette_write`, `vdp_atarist_palette_write`, `vdp_atariste_palette_write` | Per-platform native-value → RGB888 converters. |
+| **Copper / HDMA** | `vdp_copper_upload`, `vdp_copper_swap_request`, `vdp_mode0_set_hdma_ctrl`, `vdp_mode0_hdma_done_ack` | RAM and FSM control. |
+| **DMA / Blitter** | `vdp_mode0_dma_config`, `vdp_mode0_blit_config` | Contiguous burst init. |
+| **Raster** | `vdp_mode0_set_raster_trigger` | All 3 hardware triggers. |
+| **Sprite** | `vdp_mode0_set_sprite`, `vdp_mode0_write_pattern_data`, `vdp_sprite_upload` | Descriptor, Pattern RAM, and All-in-one. |
+| **Tables** | `vdp_mode0_write_linestate`, `vdp_mode0_set_vscroll_base` | V-scroll and line-buffer init. |
+
+### All-in-one sprite upload (`vdp_sprite_upload`)
+
+```c
+bool vdp_sprite_upload(uint8_t slot,
+                       const uint16_t *pattern, uint16_t pattern_start, uint16_t pattern_pixels,
+                       const uint32_t *palette, uint8_t palette_start, uint8_t palette_count,
+                       const vdp_mode0_sprite_cfg_t *cfg);
+```
+
+One-call palette + pattern + descriptor upload. Any step can be skipped with `NULL` / `0`:
+
+1. **Palette** — uploads `palette_count` RGB888 entries from `palette` to `palette_start`.
+2. **Pattern RAM** — streams `pattern_pixels` 4bpp pixels from `pattern` to `pattern_start`.
+3. **Descriptor** — writes the sprite descriptor via `vdp_mode0_set_sprite()` when `cfg != NULL`.
+
+## Sprite API Surface
+
+| Sub-area | Helpers / Constants | Status | Notes |
+|---|---|---|---|
+| **Status (Sticky)** | `VDP_STICKY_SPRITE_OVERFLOW` | **DONE** | Set when line-buffer limit reached. |
+| **Status (Sticky)** | `VDP_STICKY_SPRITE_0_HIT` | **DONE** | Slot-0 opaque-on-opaque hit. |
+| **Status (Sticky)** | `VDP_STICKY_SPRITE_BG_HIT` | **DONE** | Any-sprite opaque-on-opaque hit. |
+| **Control** | `vdp_mode0_clear_sprite_coll_mask` | **DONE** | Clears sticky collision bits in `0x0322`. |
+| **Programming** | `vdp_mode0_set_sprite` | **DONE** | High-level API for sprite attribute table (SDRAM/Reg-backed) and hardening extension. |
+| **Pattern RAM** | `vdp_mode0_set_pattern_ptr`, `vdp_mode0_write_pattern_data` | **DONE** | Upload 4bpp pixels into sprite pattern RAM at `0x0D10/0x0D11` (Task 53). Pointer auto-increments on data write. |
+| **All-in-one** | `vdp_sprite_upload` | **DONE** | One-call palette + pattern + descriptor upload for the common 4bpp sprite path. |
+
+## Migration & Naming Plan
+
+| Rule | Detail |
+|---|---|
+| Barebones separation | Registers `0x0000..0x0005` (barebones) conflict with Mode0 `LINESTATE` (`0x0000`). Do not mix `vdp_mode0_*` helpers with barebones builds. |
+| Naming convention | `vdp_barebones_*` = barebones-only registers; `vdp_mode0_*` = rich-top control plane. |
+| Refactoring freeze | No renaming of existing `vdp_mode0_*` symbols or new `vdp_barebones_*` symbols until this document is audited. |
+| Transition path | When a barebones feature moves to rich-top, retire its `vdp_barebones_*` wrapper for the equivalent `vdp_mode0_*` helper. |
+
+## Critical Implementation Facts
+
+| Fact | Implication |
+|---|---|
+| **HostInterface is ABSENT** | QSPI writes directly to the internal register bus. No host-side entry FIFO; bursts are not silently dropped by transport. |
+| **Copper Upload is Unbuffered** | Writes to `0x0400..0x05FF` hit Copper Program RAM directly. Chunking and inter-chunk delays are unnecessary and removed. |
+| **Copper Drain Latency** | `copperFifo` (64 words) drains at most once per scanline at `hCounter == 0`. Effects via Copper have ~1-line vertical lag. |
+| **Copper Double-Buffer** | Two 512-word banks. Upload while copper is **enabled** routes to the inactive bank. `vdp_copper_swap_request()` swaps at the next `vSyncStart`. Upload *before* requesting swap. |
+| **Mode0 Coverage** | `vdp_mode0_*` mirrors the rich-top register map block-by-block. New Mode0 blocks land with matching helpers and doc updates; the only intentional gap is high-level sprite programming. |
 
 ## Minimal Usage Order
 
@@ -116,7 +197,7 @@ Canonical API reference for `firmware/libvdp/`.
 | 1 | `vdp_qspi_init()` |
 | 2 | `vdp_reg_write(...)` and/or `vdp_read_status(...)` |
 | 3 | `vdp_wait_vblank(...)` for paced visible updates |
-| 4 | `vdp_upload_asset(...)` for bulk SDRAM upload |
+| 4 | `vdp_reg_write_burst(...)` for contiguous register blocks, `vdp_upload_asset(...)` for bulk SDRAM upload |
 | 5 | `vdp_wait_sticky(...)` / `vdp_clear_sticky(...)` for proof/status checks |
 
 ## Proof Notes
