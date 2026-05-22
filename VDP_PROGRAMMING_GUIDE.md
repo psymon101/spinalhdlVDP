@@ -157,7 +157,7 @@ vdp_mode0_blit_config(&blit_cfg); // Rectangular or line operations
 Automation for per-line register updates and precise raster-line interrupts.
 ```c
 vdp_mode0_set_hdma_ctrl(true, 0x0F, false); // Enable HDMA for 4 channels
-vdp_mode0_set_raster_trigger(0, &trigger_cfg); // Configure Trigger 1
+vdp_mode0_set_raster_trigger(1, &trigger_cfg); // Configure Trigger 1
 ```
 
 ## 7. Timing and Synchronization
