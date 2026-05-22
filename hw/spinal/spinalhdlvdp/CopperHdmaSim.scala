@@ -25,6 +25,7 @@ object CopperHdmaSim extends App {
     dut.io.progAddr #= 0
     dut.io.progData #= 0
     dut.io.progWr   #= false
+    dut.io.bankSwapNow #= false
     dut.io.hdmaCtrlAddr #= 0
     dut.io.hdmaData     #= 0
     dut.io.hdmaWr       #= false

@@ -280,10 +280,20 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val copperCtrlReg     = Reg(Bits(1 bits)) init B(0, 1 bits)
   val copperCtrlPend    = Reg(Bits(1 bits)) init B(0, 1 bits)
   val copperCtrlPendHit = Reg(Bool()) init False
+  // R5.4: Copper double-buffered live-update. Host writes VDP_CTRL bit[1]=1
+  // to request an atomic bank swap; HW commits the swap at vSyncStart && hCounter==0
+  // (frame-atomic, matches MODE_SELECT cadence) and auto-clears the pending bit.
+  // Requests while copper is disabled are dropped (a swap can only happen while
+  // copper is running). Disable also clears any in-flight pending request.
+  val copperSwapPending = Reg(Bool()) init False
   val copper = Copper()
   copper.io.hCounter := hCounter.resize(10)
   copper.io.vCounter := vCounter.resize(10)
   copper.io.enabled  := copperCtrlReg(0)
+  val copperSwapNowPulse = copperSwapPending && copperCtrlReg(0) &&
+    (vCounter === U(vSyncStart, log2Up(vTotal) bits)) &&
+    (hCounter === U(0, log2Up(hTotal) bits))
+  copper.io.bankSwapNow := copperSwapNowPulse
   // BH-2: feed Copper's SKIP comparator from the legacy TR0 raster
   // trigger config so SKIP shares the same (line, pixel) targets the
   // IRQ subsystem already exposes. Wired below the rasterTrigger
@@ -418,10 +428,19 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     attributeModePendHit := True
   }
   // R5.3: VDP_CTRL @ 0x0310, safe-boundary shadow + commit for copper enable.
+  // R5.4: bit[1] = COPPER_SWAP_REQUEST (latch-on-write). HW auto-clears at
+  // commit. Last-write-wins precedence below: swap-commit and disable-clear
+  // both override the host set, so a request that lands the same cycle as
+  // disable or the commit pulse resolves cleanly.
   when(effWrite && effAddr === U(0x0310, 15 bits)) {
     copperCtrlPend    := effData(0 downto 0)
     copperCtrlPendHit := True
+    when(effData(1)) { copperSwapPending := True }
   }
+  // R5.4: auto-clear on commit, and clear if copper is disabled (pending
+  // swap is dropped because requests are only honored while enabled).
+  when(copperSwapNowPulse)   { copperSwapPending := False }
+  when(!copperCtrlReg(0))    { copperSwapPending := False }
 
   // Task 1 (MODE_SELECT, #9154) per MODE_SELECT_ARCHITECTURE.md v1.1 §4.2:
   // 16-bit register at 0x0313 — [3:0] = MODE_SELECT, [7:4] = reserved,

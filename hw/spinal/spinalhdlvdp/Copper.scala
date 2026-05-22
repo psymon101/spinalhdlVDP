@@ -55,10 +55,20 @@ case class Copper() extends Component {
     val vCounter = in UInt(10 bits)
     val enabled  = in Bool()
 
-    // Program RAM host-write interface (only valid when enabled == False)
+    // Program RAM host-write interface.
+    // R5.4 (double-buffered live update): while `enabled == False`, writes
+    // land in the active bank (back-compat with the pre-DB single-bank
+    // workflow). While `enabled == True`, writes land in the inactive bank
+    // for atomic swap at vSyncStart via `bankSwapNow`.
     val progAddr = in UInt(9 bits)
     val progData = in Bits(16 bits)
     val progWr   = in Bool()
+
+    // R5.4: VdpTop pulses this 1 cycle at vSyncStart when the host has
+    // requested a bank swap (VDP_CTRL bit[1]) and copper is enabled.
+    // Atomically toggles `activeBank`, resets `pc` to 0, clears `seqCount`,
+    // and (defensively) returns FSM to `sFetch` from any non-`sHalt` state.
+    val bankSwapNow = in Bool()
 
     // Task 33: HDMA host-control write port (offset within 0x0380 block).
     val hdmaCtrlAddr = in UInt(7 bits)
@@ -77,15 +87,50 @@ case class Copper() extends Component {
     val regWr    = out Bool()
   }
 
-  val prog = Mem(Bits(16 bits), 512)
-  when(io.progWr && !io.enabled) {
-    prog.write(io.progAddr, io.progData)
+  // R5.4: doubled to 1024 words (= 2 × 512-word banks). The MSB of any
+  // address is the bank select; the low 9 bits are the in-bank offset.
+  // Layout: bank 0 = addrs 0x000..0x1FF, bank 1 = addrs 0x200..0x3FF.
+  //
+  // CP-C: explicit `ram_style="block"` hint + `readSync` below so Gowin
+  // infers this as a single BSRAM block instead of distributed (LUTRAM/
+  // SSRAM). The pre-R5.4 (single 512×16) and post-R5.4 (1024×16) shape
+  // would both blow ~128–256 SSRAM cells via the readAsync path; BSRAM
+  // inference removes that cost entirely.
+  val prog = Mem(Bits(16 bits), 1024)
+  prog.addAttribute("ram_style", "block")
+
+  // R5.4: live-update bank machinery. `activeBank` selects which bank the
+  // FSM fetches from. Host writes target the active bank while copper is
+  // disabled (back-compat) or the inactive bank while copper is enabled
+  // (so a swap can flip atomically without disturbing the running program).
+  //
+  // CP-C: `activeBank`/`pc` get split into Reg + combinational "Next" wires
+  // so the readSync port below can be addressed with the value pc/activeBank
+  // WILL take next cycle. That keeps fetchWord aligned with the current pc
+  // in the FSM (preserving the pre-CP-C readAsync semantics) instead of
+  // lagging by one cycle as a naïve readSync conversion would.
+  val activeBank     = Reg(Bool()) init False
+  val activeBankNext = Bool()
+  activeBankNext := activeBank
+  activeBank     := activeBankNext
+
+  val writeBank  = Mux(io.enabled, !activeBank, activeBank)
+  val writeAddr  = writeBank.asUInt @@ io.progAddr      // UInt(10 bits)
+
+  when(io.progWr) {
+    prog.write(writeAddr, io.progData)
   }
 
-  val pc        = Reg(UInt(9 bits)) init 0
-  val readAddr  = UInt(9 bits)
-  readAddr := pc
-  val fetchWord = prog.readAsync(readAddr)
+  val pc      = Reg(UInt(9 bits)) init 0
+  val pcNext  = UInt(9 bits)
+  pcNext := pc
+  pc     := pcNext
+
+  // CP-C: read port addressed with the NEXT-cycle pc/bank so fetchWord
+  // (one cycle of readSync latency later) lines up with pc when sFetch
+  // dispatches. Same observable timing as the pre-CP-C readAsync path.
+  val readAddr  = activeBankNext.asUInt @@ pcNext       // UInt(10 bits)
+  val fetchWord = prog.readSync(readAddr)
 
   // Latched operand registers for multi-word instructions
   val opAddr    = Reg(UInt(15 bits)) init 0
@@ -104,6 +149,19 @@ case class Copper() extends Component {
 
   val opcode = fetchWord(15 downto 14)
 
+  // R5.4: top-level bank-swap commit. Top-level updates pc/activeBank/
+  // seqCount; the FSM defensively returns to sFetch from any non-sHalt
+  // state in the same cycle so we never decode a stale fetchWord against
+  // a bank that just flipped underneath us.
+  // CP-C: writes target the combinational *Next wires so the readSync port
+  // addresses the post-swap bank+pc in the current cycle; fetchWord at
+  // next cycle = prog[new bank ## 0] as the FSM expects.
+  when(io.bankSwapNow) {
+    activeBankNext := !activeBank
+    pcNext         := 0
+    seqCount       := 0
+  }
+
   val fsm = new StateMachine {
     val sHalt      = new State with EntryPoint
     val sFetch     = new State
@@ -113,13 +171,16 @@ case class Copper() extends Component {
 
     sHalt.whenIsActive {
       when(io.enabled) {
-        pc := 0
+        pcNext := 0
         goto(sFetch)
       }
     }
 
     sFetch.whenIsActive {
-      when(!io.enabled) { goto(sHalt) }.otherwise {
+      // R5.4: bankSwapNow precedence — top-level already reset pc to 0;
+      // fall through to next-cycle re-fetch of the new bank's prog[0].
+      when(io.bankSwapNow) { /* pc=0 from top-level; stay in sFetch */ }
+      .elsewhen(!io.enabled) { goto(sHalt) }.otherwise {
         switch(opcode) {
           is(B"00") {
             // WAIT — bit[13] selects legacy 1-word vs BH-1 extended 2-word.
@@ -128,7 +189,7 @@ case class Copper() extends Component {
               // the next sWaitStall fetch reads Y from word 1.
               opXLatch   := fetchWord(9 downto 0).asUInt
               opWaitIsPx := True
-              pc := pc + 1
+              pcNext := pc + 1
             }.otherwise {
               // Legacy 1-word WAIT Y: stay on this word; sWaitStall reads
               // Y directly from fetchWord and matches hCounter==0.
@@ -139,21 +200,21 @@ case class Copper() extends Component {
           is(B"01") {
             // WRITE (2 words): latch addr, advance to read data word
             opAddr := fetchWord(13 downto 0).resize(15).asUInt
-            pc := pc + 1
+            pcNext := pc + 1
             goto(sWriteData)
           }
           is(B"10") {
             // WRITE_SEQ: latch count-1 + base addr, advance to read first data
             seqCount := fetchWord(13 downto 11).asUInt
             opAddr   := fetchWord(10 downto 0).resize(15).asUInt
-            pc := pc + 1
+            pcNext := pc + 1
             goto(sSeqData)
           }
           is(B"11") {
             // JUMP (bit[13]=0) or SKIP (bit[13]=1) — BH-2.
             when(!fetchWord(13)) {
               // Legacy unconditional JUMP
-              pc := fetchWord(8 downto 0).asUInt
+              pcNext := fetchWord(8 downto 0).asUInt
             }.otherwise {
               // SKIP cond,offset
               val cond   = fetchWord(7 downto 5)
@@ -168,9 +229,9 @@ case class Copper() extends Component {
                 default -> False    // 110, 111 reserved → never skip
               )
               when(condTrue) {
-                pc := pc + 1 + offset.resize(pc.getWidth)
+                pcNext := pc + 1 + offset.resize(pc.getWidth)
               }.otherwise {
-                pc := pc + 1
+                pcNext := pc + 1
               }
             }
           }
@@ -179,7 +240,11 @@ case class Copper() extends Component {
     }
 
     sWaitStall.whenIsActive {
-      when(!io.enabled) { goto(sHalt) }
+      // R5.4: bankSwapNow precedence — top-level reset pc to 0, return to
+      // dispatch so we decode the new bank's prog[0] rather than matching
+      // a stale fetchWord Y against vCounter.
+      when(io.bankSwapNow) { goto(sFetch) }
+      .elsewhen(!io.enabled) { goto(sHalt) }
       .otherwise {
         // Y always comes from the current fetchWord (word 0 for legacy,
         // word 1 for extended after the sFetch pc bump).
@@ -188,34 +253,39 @@ case class Copper() extends Component {
                          io.hCounter === opXLatch,
                          io.hCounter === U(0, 10 bits))
         when(matchY && matchX) {
-          pc := pc + 1
+          pcNext := pc + 1
           goto(sFetch)
         }
       }
     }
 
     sWriteData.whenIsActive {
-      when(!io.enabled) { goto(sHalt) }.otherwise {
+      // R5.4: bankSwapNow precedence — suppress the stale WRITE and
+      // return to dispatch on the new bank.
+      when(io.bankSwapNow) { goto(sFetch) }
+      .elsewhen(!io.enabled) { goto(sHalt) }.otherwise {
         regAddrR := opAddr
         regDataR := fetchWord
         regWrR   := True
-        pc := pc + 1
+        pcNext := pc + 1
         goto(sFetch)
       }
     }
 
     sSeqData.whenIsActive {
-      when(!io.enabled) { goto(sHalt) }.otherwise {
+      // R5.4: bankSwapNow precedence — same as sWriteData.
+      when(io.bankSwapNow) { goto(sFetch) }
+      .elsewhen(!io.enabled) { goto(sHalt) }.otherwise {
         regAddrR := opAddr
         regDataR := fetchWord
         regWrR   := True
         opAddr   := opAddr + 1
         when(seqCount === 0) {
-          pc := pc + 1
+          pcNext := pc + 1
           goto(sFetch)
         }.otherwise {
           seqCount := seqCount - 1
-          pc := pc + 1
+          pcNext := pc + 1
         }
       }
     }
