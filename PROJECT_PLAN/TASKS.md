@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-20 (R5.4 Copper Integration into gate2 DONE — commit `5a35c1b`, sim 26/26 PASS, PnR 0 violations, logic freed; Mode2optimized Compile-Time Feature Strip DONE — bitstream produced `22afb90`; Task 10026 Barebones Simple Sprite DONE audit PASS #10117; 3b Copper Double-Buffer lane DONE closed at `01f2e91`; libvdp Mode0 helper-surface DONE `9f6b86f`, `29be453`; CoralReef audit checklist landed `4ba550e`; libvdp all-in-one sprite upload helper DONE `c9e6702`; libvdp per-platform palette LUT helpers DONE `45f0d88`; docs cleanup DONE `b10ab71`; ESP8266 QSPI Transport Fix DONE #9876 audit PASS #9875; Host Platform Fidelity opened #9801; Reference Localization DONE #9827 audit PASS #9839; Standards Compression DONE #9828 audit PASS #9839; ZX Spectrum Firmware Host Flow DONE #9797; Atari ST paused #9783; 320-pixel planar clipping mask DONE #9768.)
+**Updated:** 2026-05-22 (PM reassessment: two side lanes discovered in flight since May 20 closeout; TASKS.md synced to repo reality.)
 **Purpose:** Authoritative active task ledger for \`spinalhdlVDP\`. Optimized for fast operational reading. Deep historical detail is in \`TASKS_HISTORY.md\`.
 
 Status values: \`TODO\`, \`IN-PROGRESS\`, \`DEFERRED\`, \`DONE\`
@@ -22,16 +22,21 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **No active critical-path lane** |
-| **Status** | **AWAITING PM AUTHORIZATION** |
-| **Latest Commit** | `5a35c1b` (R5.4 copper double-buffer cherry-picked onto gate2 descCount=32 line) |
-| **Latest Auth Mail** | BronzeGate #10398 |
-| **Summary** | descCount=32 sprite substrate + R5.4 copper double-buffer now coexist in one bitstream on `mode2optimized-gate2-r54copper` @ `5a35c1b`. PnR: 46% logic, 65% CLS, 57% BSRAM, 0 setup/hold violations. Favorable delta vs baseline (`b1b054b`). Unblocks TopazCliff copper bounce demo. |
-| **Next Step** | Await PM lane-open ruling for next critical-path work. |
+| **Task** | **CLS Optimization — gate2 readAsync→readSync BSRAM conversion** |
+| **Status** | **IN-PROGRESS** |
+| **Latest Commit** | `a9f4735` (CP-B: copper hdmaDataArray readSync, BrightForge #10449) |
+| **Latest Auth Mail** | BrightForge #10449 |
+| **Summary** | Staged CLS relief lane. CP-A (`bab5c5f`): blitter srcRam 512×16 readAsync→readSync BSRAM. CP-B (`a9f4735`): copper hdmaDataArray 256×16 readAsync→readSync BSRAM. Both on branches off `b1b054b` (descCount=32 baseline). Goal: reduce CLS register pressure that blocked prior V=32 and Vec(Reg) attempts. |
+| **Next Step** | BrightForge to report PnR delta for CP-A+B combined, then proceed to CP-C (remaining CLS targets) or merge if headroom is proven. |
 
 ---
 
 ## Next Up / Open Queue
+
+### RGB565 Directcolor Lane
+- **Status:** **IN-PROGRESS** (#10420). CP-1a/1b/1c complete on branch `mode2optimized-gate2-rgb565directcolor`.
+- **Scope:** BitmapFetch/BitmapRowFetch per-pixel RGB565 directcolor decode; VdpTop integration; sim present.
+- **Next Step:** BrightForge to run VdpTop simulation proof and PnR check before merge authorization.
 
 ### Atari ST Adapter Lane
 - **Status:** **PAUSED** (#9783). Checkpoint A accepted (#9782).

@@ -2,7 +2,7 @@
 
 Local rules for the `firmware/` subtree.
 
-**For TopazCliff:** This file governs your work inside `firmware/`. It
+**For BronzeGate:** This file governs your work inside `firmware/`. It
 overrides any conflicting rules in the root `AGENTS.md` for operations
 within this directory. You may still read the root `AGENTS.md` for general
 project identity, mail registration, and cross-agent coordination context,
@@ -21,17 +21,17 @@ When joining this project, register in the mail system with:
 - **program:** your client name (e.g. `codex-cli`, `claude-code`)
 - **model:** your actual model name
 
-Use the same repo-root mail project for all firmware work. TopazCliff must send
+Use the same repo-root mail project for all firmware work. BronzeGate must send
 lane packets, replies, acknowledgements, and coordination mail through
 `/home/itadmin/github/spinalhdlVDP`, not through a `firmware/` mailbox, a
 subdirectory mailbox, or any external workspace mailbox.
 
-TopazCliff is the canonical firmware identity for this repository by PM
-override. Sign firmware messages as "TopazCliff" so the team knows who owns
+BronzeGate is the canonical firmware identity for this repository by PM
+override. Sign firmware messages as "BronzeGate" so the team knows who owns
 the lane.
 
-TopazCliff does not edit FPGA / HDL / `hw/spinal/` sources from this subtree
-unless BronzeGate explicitly reassigns that lane in mail or task docs. If a
+BronzeGate does not edit FPGA / HDL / `hw/spinal/` sources from this subtree
+unless TopazCliff explicitly reassigns that lane in mail or task docs. If a
 firmware task would require crossing into FPGA code, stop and hand it to
 BrightForge instead of bridging the gap yourself.
 
@@ -93,7 +93,7 @@ Do not:
 Mode0 rule:
 - When a new Mode0 register block or control path is added in FPGA, add the
   matching `vdp_mode0_*` helper(s) and update `kb/libvdp/README.md` in the
-  same change unless BronzeGate explicitly approves a raw-only exception.
+  same change unless TopazCliff explicitly approves a raw-only exception.
 - Do not leave new Mode0 functionality reachable only through ad hoc
   `vdp_reg_write(...)` calls in sketches.
 
@@ -105,7 +105,7 @@ Every scenario sketch must contain, in order:
 
 1. **Header comment** with:
    - Scenario ID and task reference
-   - Pin map table (BronzeGate-approved mapping)
+   - Pin map table (TopazCliff-approved mapping)
    - Boot sequence numbered list
    - Expected on-screen result
 2. `#include <Arduino.h>`
@@ -134,7 +134,7 @@ When adding a new scenario sketch:
 - [ ] Pico sketch builds and produces **identical** output (or documented delta)
 - [ ] `firmware/GOTCHAS.md` updated if a new pitfall is found
 - [ ] Register writes match `MODE0_REGISTER_BUS_SPEC.md`
-- [ ] Pin map approved by BronzeGate (or reuses existing approved map)
+- [ ] Pin map approved by TopazCliff (or reuses existing approved map)
 
 A scenario is **not firmware-done** until all checked platforms are proven or the gap is explicitly task-tracked.
 
@@ -157,7 +157,7 @@ Do not change pin maps without FPGA-side verification that the new GPIOs are non
   back to MCP memory with a short summary and commit/mail tie-back.
 - Before starting a firmware lane, read `PROJECT_PLAN/TASKS.md`, confirm the
   register contract with BrightForge, and confirm lane authorization with
-  BronzeGate.
+  TopazCliff.
 - Keep firmware work as a background lane and keep mail replies factual:
   verified result, action taken, proof status, next step.
 
@@ -202,7 +202,7 @@ Current documented deviation:
 
 ### Signoff Consistency
 
-TopazCliff signs all firmware mail as `— TopazCliff`. Do not use mixed
+BronzeGate signs all firmware mail as `— BronzeGate`. Do not use mixed
 signatures.
 
 ### AGENTS.md Immutability Rule
@@ -210,7 +210,7 @@ signatures.
 `AGENTS.md` files contain binding project policy. No agent may unilaterally
 rewrite, truncate, remove, or materially alter rules in any `AGENTS.md` without:
 
-- BronzeGate PM authorization, AND
+- TopazCliff PM authorization, AND
 - CyanPeak audit review, AND
 - A diff review showing exactly what changed and why
 
@@ -218,7 +218,7 @@ Cosmetic edits (spelling, formatting) are allowed. Removing rules, adding
 self-serving exceptions, or truncating sections to strip policy you disagree
 with is **not** allowed and will be treated as a roster violation.
 
-If you believe a rule is wrong, escalate to BronzeGate with a specific
+If you believe a rule is wrong, escalate to TopazCliff with a specific
 amendment proposal. Do not edit the file directly.
 
 ## Memory Curation (firmware tags)

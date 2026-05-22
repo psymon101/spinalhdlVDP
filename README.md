@@ -2,7 +2,17 @@
 
 Fresh SpinalHDL-based Tang Nano 20K HDMI VDP development repository.
 
-Project identity: `spinalhdlVDP`. Any CyanPeak bitstream work referenced in mail or notes is a build lane for this repository, including the Tang Nano 20K + ESP8266 MCU host bitstream effort.
+Project identity: `spinalhdlVDP`.
+
+## Team Roles
+
+| Agent | Model | Role | Core Focus |
+|---|---|---|---|
+| `BrightForge` | Claude | FPGA RTL Engineer | Structural HDL, state machines, timing-sensitive logic, FPGA proof |
+| `BronzeGate` | Codex | MCU Firmware Engineer | Bare-metal C/C++, register manipulation, transport and hardware drivers |
+| `CyanPeak` | Gemini | Datasheet Parser & Reviewer | Large manual ingestion, code-to-spec review, hardware-accuracy checks |
+| `TopazCliff` | Kimi (Inst. 1) | Technical Project Manager | Feature tickets, HW/SW interface definition, sequencing, timelines |
+| `CoralReef` | Kimi (Inst. 2) | Compliance & Documentation | Static-ruleset audit, compliance checks, README/doc generation |
 
 ## Repository layout
 

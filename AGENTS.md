@@ -13,15 +13,15 @@ Examples and command snippets: `AGENTS_EXAMPLES.md`
 
 | Canonical Name | Role | Model |
 |----------------|------|-------|
-| `BronzeGate` | PM / sequencing | Codex |
-| `BrightForge` | FPGA implementation | Claude |
-| `CoralReef` | Coordination / ledger | Kimi |
-| `CyanPeak` | Audit / sign-off | Gemini |
-| `TopazCliff` | MCU / host-transport | external advisory / firmware execution |
+| `BrightForge` | FPGA RTL engineer | Claude |
+| `BronzeGate` | MCU firmware engineer | Codex |
+| `CyanPeak` | Datasheet parser / reviewer | Gemini |
+| `TopazCliff` | Technical project manager | Kimi (Inst. 2) |
+| `CoralReef` | Compliance / documentation | *unassigned* |
 
-**User override (2026-05-16):**
-- `TopazCliff` now owns MCU / host-transport responsibilities for `spinalhdlVDP`
-- `FoggyWolf` is no longer the canonical firmware owner for this repository
+**Current roster rule (2026-05-22):**
+- `BronzeGate` owns MCU firmware responsibilities for `spinalhdlVDP`
+- `TopazCliff` owns PM sequencing and interface-definition work for this repository
 
 ## Mail Registration
 
@@ -128,11 +128,11 @@ After running simulation:
 
 | Role | Responsibility |
 |------|----------------|
-| `BrightForge` | FPGA implementation, validation, proof |
-| `CoralReef` | Coordination, ledger/doc sync, preflight research, audit, sign-off, memory curation |
-| `CyanPeak` | Advisory review / optional secondary audit support when explicitly requested |
-| `BronzeGate` | Sequencing, scope control, stall intervention |
-| `TopazCliff` | MCU firmware, host transport, platform parity, scenario bootstrap |
+| `BrightForge` | FPGA implementation, validation, proof, board flashing |
+| `BronzeGate` | MCU firmware, host transport, platform parity, scenario bootstrap |
+| `CyanPeak` | Datasheet/manual review, code-to-spec checking, hardware-accuracy review |
+| `TopazCliff` | Sequencing, scope control, HW/SW interface definition, stall intervention |
+| `CoralReef` | Compliance, documentation, static-ruleset audit support, memory/doc curation |
 
 **Rules:**
 - One active engineering lane at a time on the critical path.
@@ -140,9 +140,12 @@ After running simulation:
 - Fast-flow: shortest trustworthy cycle, smallest proof-sized batches, earlier discriminators.
 - Ledger sync is part of closeout, not cleanup.
 
-**User override (2026-05-16):**
-- `CoralReef` is the authoritative audit / sign-off / memory-curation owner for this repo.
-- `CyanPeak` is non-authoritative advisory support unless `BronzeGate` explicitly assigns otherwise.
+**Current operating split (2026-05-22):**
+- `TopazCliff` is the authoritative PM owner for this repo.
+- `BronzeGate` is the authoritative MCU firmware owner for this repo.
+- `BrightForge` is the authoritative FPGA owner for this repo.
+- `CyanPeak` is the authoritative datasheet/spec review owner for this repo.
+- `CoralReef` is currently unassigned.
 
 ### Deliverable Verification Rule
 
@@ -153,13 +156,13 @@ required owner and packet type.
 - the visible message must match the required lane owner and packet type
   (`planning`, `completion`, `audit`, `blocker`, or `ETA`)
 - a different agent's message or a different packet type does not satisfy the
-  missing deliverable unless `BronzeGate` explicitly reassigns the lane
+  missing deliverable unless `TopazCliff` explicitly reassigns the lane
 - mailbox verification must not rely on a single inbox poll alone; if a
   claimed message is not visible there, verify via the same repo-root project
   mailbox using the message thread and topic before treating it as missing
 - if the claimed message still cannot be verified anywhere in the project
   mailbox, treat it as not received and require resend
-- after repeated non-response, `BronzeGate` may reassign the lane without
+- after repeated non-response, `TopazCliff` may reassign the lane without
   waiting further
 
 Mailbox reliability rule:
@@ -173,9 +176,9 @@ Mailbox reliability rule:
 Detailed templates, checklists, and escalation policy: `PROJECT_PLAN/archive/AGENTS_WORKFLOW_RULES.md`.
 Examples and command snippets: `AGENTS_EXAMPLES.md`.
 
-## TopazCliff Scope and Rules
+## BronzeGate Scope and Rules
 
-`TopazCliff` — MCU / host-transport agent.
+`BronzeGate` — MCU firmware / host-transport agent.
 
 | Attribute | Value |
 |-----------|-------|
@@ -199,14 +202,14 @@ Examples and command snippets: `AGENTS_EXAMPLES.md`.
 | # | Rule | One-line requirement |
 |---|------|----------------------|
 | 1 | Inside-repo only | Work from this repo; external workspaces not permitted |
-| 2 | Register contract is read-only | Consume register map / QSPI spec from `BrightForge` / `CoralReef`; do not invent new commands or addresses |
+| 2 | Register contract is read-only | Consume register map / QSPI spec from `BrightForge` / `TopazCliff`; do not invent new commands or addresses |
 | 3 | Scenario parity is mandatory | Every ESP8266 sketch needs a plan for ESP32 + Pico parity |
 | 4 | Host-side proof standard | Build clean → same HDMI output as canonical → update `GOTCHAS.md` if new pitfall found |
 | 5 | Library-first preference | Reusable logic belongs in `libvdp/`; sketches are thin wrappers |
-| 6 | Coordination handoff | Check `TASKS.md` Live Lane State → confirm contract with `BrightForge` → confirm authorization with `BronzeGate` |
+| 6 | Coordination handoff | Check `TASKS.md` Live Lane State → confirm contract with `BrightForge` → confirm authorization with `TopazCliff` |
 | 7 | Platform identity | Part of canonical roster; same mail project, git repo, and task ledger as FPGA agents |
 
-### MCP Servers Relevant to TopazCliff
+### MCP Servers Relevant to BronzeGate
 
 | Server | Purpose |
 |--------|---------|
@@ -276,8 +279,8 @@ The `memory` MCP is a **queryable cache**, not the authoritative log. Backing st
 
 | Owner | Responsibility |
 |-------|----------------|
-| `CoralReef` | Initial curated memory pass |
-| `CoralReef` | Ongoing updates: audits, bug fixes, hardware findings, Tang/Gowin constraints; also keep memory current for new mail, commits, and state deltas |
+| `CoralReef` | Initial curated compliance/doc memory pass |
+| `CoralReef` | Ongoing updates: compliance findings, documentation deltas, static-rule gotchas, and reusable process constraints |
 
 **Workflow:** check `memory` first → use mail/docs as authority → add back only short, reusable findings.
 
@@ -355,22 +358,22 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 
 | # | Rule | One-line Requirement |
 |---|------|----------------------|
-| 1 | Role Transfer | No self-declared role absorption. Requires BronzeGate authorization + transition mail + `AGENTS.md` update |
-| 2 | Audit Singleton | Only CoralReef issues PASS/HOLD/FAIL. Outgoing owner must confirm retirement before transfer |
+| 1 | Role Transfer | No self-declared role absorption. Requires TopazCliff authorization + transition mail + `AGENTS.md` update |
+| 2 | Review Singleton | CyanPeak owns spec-accuracy review; CoralReef owns compliance/doc review. Outgoing owner must confirm retirement before transfer |
 | 3 | Commit-Within-Cycle | Audit PASS work must be committed before next PM review. Audit owner may withhold PASS until commit hash is in packet |
 | 4 | Contract Deviation | >25% deviation from locked hardware contract must be documented in `GOTCHAS.md` with quantitative analysis |
 | 5 | Signoff Consistency | One canonical signoff per agent. No mixed aliases mid-thread |
 | 6 | Identity Retirement | Requires retirement mail + roster removal + no pending audits + 24h observation window |
-| 7 | Side-Lane Authorization | Parallel work requires BronzeGate lane-open authorization before implementation |
-| 8 | AGENTS.md Immutability | No unilateral rewrites. Requires BronzeGate authorization AND CyanPeak audit AND diff review |
+| 7 | Side-Lane Authorization | Parallel work requires TopazCliff lane-open authorization before implementation |
+| 8 | AGENTS.md Immutability | No unilateral rewrites. Requires TopazCliff authorization AND CyanPeak review AND diff review |
 
 **Canonical QSPI contract:** 2 MHz SCK, 10 µs CS hold, 20 µs OSR drain.
 
 **Signoff strings:**
-- `— TopazCliff`
-- `— CyanPeak`
-- `— CoralReef`
-- `— BrightForge`
 - `— BronzeGate`
+- `— BrightForge`
+- `— CyanPeak`
+- `— TopazCliff`
+- `— CoralReef`
 
-If you believe a rule is wrong, escalate to BronzeGate with a specific amendment proposal. Do not edit the file directly.
+If you believe a rule is wrong, escalate to TopazCliff with a specific amendment proposal. Do not edit the file directly.
