@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-22 (RGB565 directcolor RTL lane closed per BrightForge #10503; new hardware-integration lane opened for bench-framing investigation; BitmapCtrlCommitSim.scala landing pending BrightForge #10504.)
+**Updated:** 2026-05-22 (RGB565 directcolor and CLS Optimization lanes closed; bench-framing investigation open; baseline locked at `9e3c252`.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -23,11 +23,11 @@ This section tracks the active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | **CLS Optimization — gate2 readAsync→readSync BSRAM conversion** |
-| **Status** | **IN-PROGRESS** |
+| **Status** | **DONE** |
 | **Latest Commit** | `a9f4735` (CP-B: copper hdmaDataArray readSync, BrightForge #10449) |
-| **Latest Auth Mail** | BrightForge #10449 |
-| **Summary** | Staged CLS relief lane. CP-A (`bab5c5f`): blitter srcRam 512×16 readAsync→readSync BSRAM. CP-B (`a9f4735`): copper hdmaDataArray 256×16 readAsync→readSync BSRAM. Both on branches off `b1b054b` (descCount=32 baseline). Goal: reduce CLS register pressure that blocked prior V=32 and Vec(Reg) attempts. |
-| **Next Step** | BrightForge to report PnR delta for CP-A+B combined, then proceed to CP-C (remaining CLS targets) or merge if headroom is proven. |
+| **Latest Auth Mail** | BrightForge #10497 (PnR delta reported) |
+| **Summary** | Staged CLS relief lane. CP-A (`bab5c5f`): blitter srcRam 512×16 readAsync→readSync BSRAM. CP-B (`a9f4735`): copper hdmaDataArray 256×16 readAsync→readSync BSRAM. Both merged into `main` at `eedf617`. CP-B yielded null PnR payoff (`hdmaDataArray` stayed distributed). Actual CLS relief came from R5.4 copper `prog`-to-BSRAM shift (down 4 pts). No CP-C scoped. Lane complete. |
+| **Next Step** | Closeout. |
 
 ---
 
