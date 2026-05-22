@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-22 (PM reassessment: two side lanes discovered in flight since May 20 closeout; TASKS.md synced to repo reality.)
+**Updated:** 2026-05-22 (RGB565 directcolor RTL lane closed per BrightForge #10503; new hardware-integration lane opened for bench-framing investigation; BitmapCtrlCommitSim.scala landing pending BrightForge #10504.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -33,10 +33,10 @@ This section tracks the active lane.
 
 ## Next Up / Open Queue
 
-### RGB565 Directcolor Lane
-- **Status:** **MERGED** into `main` at `eedf617`. Originally BronzeGate #10420, CP-1a/1b/1c.
-- **Scope:** BitmapFetch/BitmapRowFetch per-pixel RGB565 directcolor decode; VdpTop integration; sim present.
-- **Verification:** `BitmapDirectColorSim` PASS on integrated `main`.
+### RGB565 Hardware Bench Framing Investigation
+- **Status:** **OPEN** (#10503 follow-up). RTL feature proven; hardware-bench setup does not reliably exercise it.
+- **Scope:** Identify why the ESP8266 → FPGA bench path shows 1bpp-test-pattern output despite clean firmware trace (#10501) and symmetric RTL (#10500/#10502). Suspects: QspiSlave byte-level pipeline, TopTang20kHdmiScenario45HostVerilog wiring divergence, or signal-integrity/CDC hardware-only issue.
+- **Next Step:** BrightForge to extend harness to full QSPI byte-stream integration sim (option 1) and re-walk `TopTang20kHdmi` wiring (option 3). Blocked until `BitmapCtrlCommitSim.scala` landed.
 
 ### Atari ST Adapter Lane
 - **Status:** **PAUSED** (#9783). Checkpoint A accepted (#9782).
@@ -62,6 +62,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 | Task 56 — SDRAM Multi-Layer | **DONE** | #9709 |
 | Task 54 — Sprite-Sprite Collision | **DONE** | #9672 |
 | Task 57 — DFF Optimization | **DONE** | #9605 |
+| RGB565 Directcolor (CP-1a..1c + BitmapCtrlCommitSim) | **DONE** | #10503 |
 
 Older closed tasks (Phase 1–8, R-Roadmap, sidecar lanes) are catalogued in `TASKS_HISTORY.md`.
 
