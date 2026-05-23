@@ -76,7 +76,7 @@ static inline uint16_t vdp_copper_skip_op(uint8_t cond, uint8_t offset)
  * Upload a copper program into FPGA copper RAM starting at 0x0400.
  * Uses vdp_reg_write_burst() for efficient contiguous writes.
  * @param prog     pointer to little-endian 16-bit opcode array
- * @param nwords   number of words (max 512)
+ * @param nwords   number of words (max 1024)
  */
 void vdp_copper_upload(const uint16_t *prog, uint16_t nwords);
 

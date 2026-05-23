@@ -23,7 +23,7 @@ static inline void vdp_copper_delay_us(uint32_t us)
 
 void vdp_copper_upload(const uint16_t *prog, uint16_t nwords)
 {
-    if (!prog || nwords == 0 || nwords > 512u) return;
+    if (!prog || nwords == 0 || nwords > 1024u) return;
 
     /* Program RAM is only writable while copper is disabled.
      * Issue the disable first.
@@ -37,9 +37,21 @@ void vdp_copper_upload(const uint16_t *prog, uint16_t nwords)
 
     /* Direct upload: HostInterface is absent in the current top, so the QSPI
      * transport writes directly to the Copper Program RAM without buffering.
-     * Burst writes do not need chunking or inter-chunk delays.
+     * Chunk only because the host-side vdp_reg_write_burst caps at 253 words
+     * (frame buffer is 512 bytes = 6 header + 506 payload). The FPGA's
+     * QspiDecoder auto-increments writeAddr (see writeAddr := writeAddr + 1
+     * in QspiDecoder.scala), so consecutive bursts to base + offset are
+     * equivalent to one logical upload. No inter-chunk delay needed.
      */
-    vdp_reg_write_burst(COPPER_RAM_BASE, prog, nwords);
+    const uint16_t CHUNK = 253u;
+    uint16_t offset = 0;
+    while (offset < nwords) {
+        const uint16_t remaining = (uint16_t)(nwords - offset);
+        const uint16_t chunk = (remaining > CHUNK) ? CHUNK : remaining;
+        vdp_reg_write_burst((uint32_t)(COPPER_RAM_BASE + offset),
+                            prog + offset, chunk);
+        offset = (uint16_t)(offset + chunk);
+    }
 }
 
 void vdp_copper_enable(bool en)
@@ -65,11 +77,19 @@ void vdp_copper_swap_request(void)
 
 void vdp_copper_upload_and_swap(const uint16_t *prog, uint16_t nwords)
 {
-    if (!prog || nwords == 0 || nwords > 512u) return;
+    if (!prog || nwords == 0 || nwords > 1024u) return;
 
     /* Precondition: copper must be enabled so burst writes to 0x0400
      * route to the inactive bank rather than corrupting the active one.
-     */
-    vdp_reg_write_burst(COPPER_RAM_BASE, prog, nwords);
+     * Chunk in 253-word pieces; host-side burst cap (see vdp_copper_upload). */
+    const uint16_t CHUNK = 253u;
+    uint16_t offset = 0;
+    while (offset < nwords) {
+        const uint16_t remaining = (uint16_t)(nwords - offset);
+        const uint16_t chunk = (remaining > CHUNK) ? CHUNK : remaining;
+        vdp_reg_write_burst((uint32_t)(COPPER_RAM_BASE + offset),
+                            prog + offset, chunk);
+        offset = (uint16_t)(offset + chunk);
+    }
     vdp_copper_swap_request();
 }

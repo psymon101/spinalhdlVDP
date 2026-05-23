@@ -25,6 +25,30 @@
 #define VDP_QSPI_PIO       pio0
 #define VDP_QSPI_SM_TX     0
 
+#elif defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV) || defined(ARDUINO_ESP32S3_DEV_KIT_C_1)
+#include <Arduino.h>
+
+/* ESP32-S3-DevKitC-1 (WROOM-1) native FSPI group → Tang Nano 20K
+ * (rewired 2026-05-23). Prefer the dedicated FSPI pins over a GPIO-matrix
+ * mapping for the lowest-ambiguity quad-SPI test path.
+ *
+ *   GPIO10 -> CS#   -> Tang pin 42
+ *   GPIO12 -> SCK   -> Tang pin 41
+ *   GPIO11 -> IO0   -> Tang pin 48
+ *   GPIO13 -> IO1   -> Tang pin 49
+ *   GPIO14 -> IO2   -> Tang pin 51
+ *   GPIO9  -> IO3   -> Tang pin 54
+ */
+#define VDP_PIN_QSPI_CS_N  10
+#define VDP_PIN_QSPI_SCK   12
+#define VDP_PIN_QSPI_IO0   11
+#define VDP_PIN_QSPI_IO1   13
+#define VDP_PIN_QSPI_IO2   14
+#define VDP_PIN_QSPI_IO3    9
+
+/* Use hardware SPI2 (quad mode, DMA) instead of bit-bang. */
+#define VDP_QSPI_BACKEND_SPI2  1
+
 #elif defined(ESP32)
 #include <Arduino.h>
 
@@ -51,8 +75,14 @@
 #error "Unsupported platform for libvdp"
 #endif
 
-/* SCK frequency — 2 MHz matches the proven Task 34/35/38 cadence.
- * Higher rates require re-validating PIO OSR drain + SDRAM CDC margin. */
+/* SCK frequency — 2 MHz matches the proven Task 34/35/38 cadence on the
+ * bit-bang platforms. Higher rates require re-validating PIO OSR drain +
+ * SDRAM CDC margin. S3 uses the native FSPI pin group here, but we still
+ * hold the test path at the canonical 2 MHz until writes are proven clean. */
+#if defined(VDP_QSPI_BACKEND_SPI2)
+#define VDP_QSPI_SCK_HZ    1000000u
+#else
 #define VDP_QSPI_SCK_HZ    2000000u
+#endif
 
 #endif /* VDP_PLATFORM_H */
