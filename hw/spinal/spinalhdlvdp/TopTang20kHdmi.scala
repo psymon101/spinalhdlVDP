@@ -766,8 +766,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
         // Task 55 Checkpoint C — Sprite Masking + Tile-Fetch Budget Counter
         // hardware proof. Bitstream provides:
         //   - L0 + sprite layer enabled (`layerData` case 55 = 0x0005)
-        //   - sc55Canary (top-right 40×40 RED) wired to STATUS_STICKY[1]
-        //     per CyanPeak DECISION #9470
+
+
+
         //   - copper does nothing — host (ESP8266) programs both proof
         //     scenes (Genesis mask + 35-tile-overflow) over QSPI per
         //     CoralReef #9466 claim.
@@ -1576,183 +1577,21 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     // for ~80 ms at 25.2 MHz pixel clock so HDMI receivers (especially
     // the Guermok USB2 capture card) see a clean no-signal → signal
     // transition on every bitstream reflash. Pure top-level; no VdpTop
-    // changes. Outputs of the mute feed the rest of the canary/overlay
-    // mux chain unchanged via wires below.
+    // changes. Outputs of the mute feed the TMDS serializer directly.
     val hdmiCleanStart = HdmiCleanStart(muteCycles = 2_000_000)
     hdmiCleanStart.io.inHsync := video.io.hsync
     hdmiCleanStart.io.inVsync := video.io.vsync
     hdmiCleanStart.io.inDe    := video.io.de
-    // RGB pass-throughs are wired further down after the canary/overlay
-    // mux resolves muxedRed/Green/Blue; tap them in there.
     // Task 44b iter 6f: registered hsync/vsync/de at the TMDS boundary.
     hdmiTx.hsync := RegNext(hdmiCleanStart.io.outHsync) init True
     hdmiTx.vsync := RegNext(hdmiCleanStart.io.outVsync) init True
     hdmiTx.de    := RegNext(hdmiCleanStart.io.outDe)    init False
-    // Task 29 Sc29 canary: top-left 40×40 corner shows a green block
-    // iff STATUS_STICKY bit 4 (SPRITE_0_HIT) is latched. This gives a
-    // firmware-free hardware confirmation that the collision flag
-    // fires on Gowin silicon. Disabled for all other scenarios so
-    // production renders are unaffected.
-    val sc29Canary = Bool()
-    if (scenarioId == 29) {
-      val inCanary = video.io.x < U(40, 10 bits) && video.io.y < U(40, 10 bits)
-      sc29Canary := inCanary && video.io.statusSticky(4)
-    } else {
-      sc29Canary := False
-    }
-
-    // Task 55 Checkpoint C — sc55 SPRITE_OVERFLOW canary per CyanPeak
-    // DECISION #9470. Top-right 40×40 corner shows a RED block iff
-    // STATUS_STICKY[1] (SPRITE_OVERFLOW) is latched. Mirrors the
-    // Sc29 SPRITE_0_HIT canary pattern; gives a firmware-free visual
-    // confirmation that the SNES tile-fetch budget overflow path
-    // fires on Gowin silicon. Disabled for all other scenarios.
-    val sc55Canary = Bool()
-    if (scenarioId == 55) {
-      val inCanary = video.io.x >= U(600, 10 bits) && video.io.y < U(40, 10 bits)
-      sc55Canary := inCanary && video.io.statusSticky(1)
-    } else {
-      sc55Canary := False
-    }
-
-    // Task 44b CP-B silicon debug canaries (CyanPeak #8028). Three
-    // stripes in the top band (y < 40) prove:
-    //   x <  40        : RED when !enableSync   (BITMAP_CTRL bit 0 not reaching sdramCd)
-    //   40..80         : GREEN when bootDoneR   (SDRAM init complete)
-    //   80..120        : BLUE when FIFO pop has fired at least once (CDC alive)
-    // Sc45 debug canaries — top row, 6 stripes of 40 px each.
-    //   stripe 0 (x<40)      RED     when !enableSeen
-    //   stripe 1 (40..80)    GREEN   when bootDoneR
-    //   stripe 2 (80..120)   BLUE    when FIFO ever popped
-    //   stripe 3 (120..160)  PURPLE  when dataReady seen while our sdramActive (iter 4)
-    //   stripe 4 (160..200)  YELLOW  when pushPending ever                    (iter 4)
-    //   stripe 5 (200..240)  ORANGE  when FIFO pop.fire ever                  (iter 4)
-    val sc45RedCanary    = Bool()
-    val sc45GreenCanary  = Bool()
-    val sc45BlueCanary   = Bool()
-    val sc45PurpleCanary = Bool()
-    val sc45YellowCanary = Bool()
-    val sc45OrangeCanary = Bool()
-    if (scenarioId == 45) {
-      val enableSeen   = video.io.bitmapModeActive
-      val bootDoneSeen = bitmapRowFetch.io.bootDone
-      val fifoActive   = bitmapRowFetch.io.fifoActiveEver
-      val busyDropped  = bitmapRowFetch.io.dbgBusyDroppedEver
-      val dataReady    = bitmapRowFetch.io.dbgDataReadyEver
-      val wrAsserted   = bitmapRowFetch.io.dbgWrAssertedEver
-      // BronzeGate #8392 discriminator: sticky "bitmap byte ever non-zero".
-      // Repurpose sc45RedCanary slot (previously !enableSeen, always dark
-      // under normal Sc45) so its lit-state directly answers "does the
-      // SDRAM read path return non-zero bitmap bytes?"
-      val dataNonZero  = bitmapRowFetch.io.dbgDataNonZeroEver
-      val inTop = video.io.y < U(40, 10 bits)
-      val in0 = video.io.x < U(40, 10 bits)
-      val in1 = video.io.x >= U(40,  10 bits) && video.io.x < U(80,  10 bits)
-      val in2 = video.io.x >= U(80,  10 bits) && video.io.x < U(120, 10 bits)
-      val in3 = video.io.x >= U(120, 10 bits) && video.io.x < U(160, 10 bits)
-      val in4 = video.io.x >= U(160, 10 bits) && video.io.x < U(200, 10 bits)
-      val in5 = video.io.x >= U(200, 10 bits) && video.io.x < U(240, 10 bits)
-      // BronzeGate #8395 follow-on bounded discriminator: two additional
-      // sticky-latched probes downstream of io.bitmapByte. Computed at the
-      // scenario level (no VdpTop touch). Repurposes purple (was
-      // dbgBusyDroppedEver) and orange (was dbgWrAssertedEver) — both
-      // already proven lit and redundant per #8394.
-      //
-      // Purple = "attribute byte ever non-zero" — tells us whether the
-      // attribute read path also returns data. If it stays dark while red
-      // lights, BitmapFetch's 1bpp decode resolves to ink=0/paper=0 and
-      // every pixel renders as palette index 0 / black regardless of
-      // bitmap content.
-      //
-      // Orange = "BitmapFetch-equivalent pixel index ever non-zero" —
-      // mirrors the BitmapFetch 1bpp decode locally:
-      //   bit  = bitmapByte[7 - x[2:0]]
-      //   ink  = attrByte[2:0]; paper = attrByte[5:3]
-      //   pi   = bit ? ink : paper
-      // Sticky-latches if pi ever != 0. If this stays dark while red+purple
-      // are lit, BitmapFetch's decode collapses to zero on the actual
-      // (line, col, bit) tuples even with both bytes carrying data — points
-      // to attribute layout / pairing alignment downstream.
-      val attrNonZeroR = RegInit(False)
-      when(bitmapRowFetch.io.attrByte =/= B(0, 8 bits)) { attrNonZeroR := True }
-
-      // BronzeGate #8403 B3 discriminator: sticky "bitmap byte ever == 0xFF".
-      // Synth-init writes bytes `(lineReg + col) & 0xFF` where lineReg<=239 and
-      // col<=127; max possible byte value is 0xEF (=239+0... actually 239+127=
-      // 0x16E -> 0x6E mod 256). Therefore synth-init can never produce 0xFF,
-      // and 0xFF is uniquely present in Pico-uploaded Bad Apple bitmap runs
-      // (`0xFFFF` words). Repurposes blue canary slot (was `fifoActiveEver`,
-      // now redundantly proven by red + yellow + orange).
-      val ffSeenR = RegInit(False)
-      when(bitmapRowFetch.io.bitmapByte === B(0xFF, 8 bits)) { ffSeenR := True }
-
-      val sc45PwByte = video.io.x(2 downto 0)
-      val sc45BitIdx = U(7, 3 bits) - sc45PwByte
-      val sc45Bit    = bitmapRowFetch.io.bitmapByte(sc45BitIdx)
-      val sc45Ink    = bitmapRowFetch.io.attrByte(2 downto 0).asUInt
-      val sc45Paper  = bitmapRowFetch.io.attrByte(5 downto 3).asUInt
-      val sc45PiMir  = Mux(sc45Bit, sc45Ink, sc45Paper)
-      val pixelNonZeroR = RegInit(False)
-      when(sc45PiMir =/= U(0, 3 bits)) { pixelNonZeroR := True }
-
-      sc45RedCanary    := inTop && in0 && dataNonZero
-      sc45GreenCanary  := inTop && in1 && bootDoneSeen
-      sc45BlueCanary   := inTop && in2 && ffSeenR
-      sc45PurpleCanary := inTop && in3 && attrNonZeroR
-      sc45YellowCanary := inTop && in4 && dataReady
-      sc45OrangeCanary := inTop && in5 && pixelNonZeroR
-    } else {
-      sc45RedCanary    := False
-      sc45GreenCanary  := False
-      sc45BlueCanary   := False
-      sc45PurpleCanary := False
-      sc45YellowCanary := False
-      sc45OrangeCanary := False
-    }
-
-    val canaryR = Bits(8 bits)
-    val canaryG = Bits(8 bits)
-    val canaryB = Bits(8 bits)
-    canaryR := B(0, 8 bits); canaryG := B(0, 8 bits); canaryB := B(0, 8 bits)
-    when(sc45RedCanary)    { canaryR := B(0xFF, 8 bits) }
-    when(sc45GreenCanary)  { canaryG := B(0xFF, 8 bits) }
-    when(sc45BlueCanary)   { canaryB := B(0xFF, 8 bits) }
-    when(sc45PurpleCanary) { canaryR := B(0x80, 8 bits); canaryB := B(0xFF, 8 bits) }
-    when(sc45YellowCanary) { canaryR := B(0xFF, 8 bits); canaryG := B(0xFF, 8 bits) }
-    when(sc45OrangeCanary) { canaryR := B(0xFF, 8 bits); canaryG := B(0x80, 8 bits) }
-    val anyCanary = sc45RedCanary || sc45GreenCanary || sc45BlueCanary ||
-                    sc45PurpleCanary || sc45YellowCanary || sc45OrangeCanary
-
-    // Task 44b #8080/#8081 forced-overlay diagnostic: scenario-45 only, constant-True
-    // white block at x=280..320, y=0..40. Independent of bitmapRowFetch,
-    // video.io.bitmapModeActive, and all existing canary predicates. If visible,
-    // the HDMI overlay mux path is alive on Sc45.
-    val sc45ForcedOverlay = Bool()
-    if (scenarioId == 45) {
-      sc45ForcedOverlay := (video.io.y < U(40, 10 bits)) &&
-                           (video.io.x >= U(280, 10 bits)) &&
-                           (video.io.x <  U(320, 10 bits))
-    } else {
-      sc45ForcedOverlay := False
-    }
-
-    val muxedRed   = Mux(sc55Canary, B(0xFF, 8 bits), Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryR, video.io.red))))
-    val muxedGreen = Mux(sc55Canary, B(0x00, 8 bits), Mux(sc29Canary, B(0xFF, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryG, video.io.green))))
-    val muxedBlue  = Mux(sc55Canary, B(0x00, 8 bits), Mux(sc29Canary, B(0x00, 8 bits), Mux(sc45ForcedOverlay, B(0xFF, 8 bits), Mux(anyCanary, canaryB, video.io.blue))))
-
-    // Task 44b iter 6f (CyanPeak #8123 proposal): register the final HDMI
-    // outputs after the canary/overlay muxes, immediately before the TMDS
-    // serializer. Removes combinational glitches on hsync/vsync/de/RGB that
-    // strict HDMI receivers (Guermok USB2 capture card) reject.
-    //
-    // Slice-A clean-start mute: feed the canary/overlay-muxed RGB through
-    // hdmiCleanStart so the same window that holds hsync/vsync inactive
-    // also forces RGB to 0. Avoids any coloured-pixel emission during the
-    // post-reset blanking window even if the mux tree resolves to a non-
-    // black value first.
-    hdmiCleanStart.io.inRed   := muxedRed
-    hdmiCleanStart.io.inGreen := muxedGreen
-    hdmiCleanStart.io.inBlue  := muxedBlue
+    // Slice-A clean-start mute: feed RGB through hdmiCleanStart so the same
+    // window that holds hsync/vsync inactive also forces RGB to 0. Avoids
+    // any coloured-pixel emission during the post-reset blanking window.
+    hdmiCleanStart.io.inRed   := video.io.red
+    hdmiCleanStart.io.inGreen := video.io.green
+    hdmiCleanStart.io.inBlue  := video.io.blue
     hdmiTx.red   := RegNext(hdmiCleanStart.io.outRed)   init 0
     hdmiTx.green := RegNext(hdmiCleanStart.io.outGreen) init 0
     hdmiTx.blue  := RegNext(hdmiCleanStart.io.outBlue)  init 0
@@ -1777,16 +1616,6 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     O_led(4) := False
     O_led(5) := False
 
-    // Task 44b #8097/#8098 Sc45-only pixel-domain register-activity probe.
-    // Free-running 24-bit counter in pixelClockDomain; MSB drives LED3 at
-    // ~1.5 Hz when clk_pixel is actually clocking registers. Overrides the
-    // production LED3 mapping only when scenarioId==45 so Sc44 production
-    // behaviour is unchanged.
-    if (scenarioId == 45) {
-      val sc45PixelDiagCounter = Reg(UInt(24 bits)) init 0
-      sc45PixelDiagCounter := sc45PixelDiagCounter + 1
-      O_led(3) := !sc45PixelDiagCounter.msb
-    }
   }
 
   // Task 34 CDC hardening (CyanPeak #7689 / BronzeGate #7690 path β).
@@ -2004,7 +1833,7 @@ object TopTang20kHdmiScenario62Verilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 62))   // Task 52 — Per-Sprite X/Y Flip primitive HW proof (sc62)
 }
 object TopTang20kHdmiScenario55Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 55))   // Task 55 Checkpoint C — sprite mask + tile-fetch budget HW proof (sc55Canary in top-right per #9470)
+  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 55))   // Task 55 Checkpoint C — sprite mask + tile-fetch budget HW proof
 }
 object TopTang20kHdmiScenario45HostVerilog extends App {
   Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 45, useHostInit = true))   // #9026 zero-footprint sc45-host proof — bootstrap bypass + skipSdramInit on both fetchers
