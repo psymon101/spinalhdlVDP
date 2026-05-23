@@ -2,7 +2,7 @@
 
 **Status:** Stable contract — locked by Task 32a (commit landing this file), extended to v1.1 by post-Task 32a register additions
 **Governing task:** Task 32a — Mode0 Register Bus: Spec & Naming Lock
-**Version:** v1.1 — adds WIN2/BORDER_CTRL/TRIGGER registers, blitter expansion, READ_STATUS sel 5..7, and barebones conflict note (2026-05-17)
+**Version:** v1.2 — deprecates RGB565 bitmap registers 0x0351..0x0356 and BITMAP_CTRL[7] per RTL cleanup `8b61a2e` (2026-05-23)
 **Scope:** Write-path control surface for Mode0. The READ_STATUS response surface is defined by `QspiDecoder` sel mapping and is referenced here for completeness but is not part of the register bus itself.
 
 This document is the authoritative naming and semantic contract for the Mode0 write-path register bus.
@@ -87,7 +87,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0340..0x0346` | **Task 19** — Affine Background registers (`AFFINE_A`, `AFFINE_B`, `AFFINE_C`, `AFFINE_D`, `AFFINE_X`, `AFFINE_Y`, `AFFINE_CTRL`) | Task 19 | `VdpTop.scala:297-352` |
 | `0x0347` | `BORDER_CTRL` — border enable + palette index | Task 20 / R6 | `VdpTop.scala` |
 | `0x0348..0x034F` | **Reserved** — Task 19 expansion | — | — |
-| `0x0350..0x0356` | **RGB565 DirectColor** — Bitmap+Attribute Fetch (`BITMAP_CTRL`, `BITMAP_BASE_LO/HI`, `ATTR_BASE_LO/HI`, `BITMAP_STRIDE`, `ATTR_STRIDE`) | Task 44 / CP-1a | `VdpTop.scala`, `BitmapFetch.scala` |
+| `0x0350` | `BITMAP_CTRL` — `bit 7` is **deprecated** (no-op) | Task 44 / CP-1a | `VdpTop.scala`, `BitmapFetch.scala` |
+| `0x0351..0x0356` | **Reserved** — deprecated (formerly RGB565 base/stride registers) | — | — |
 | `0x0357..0x035F` | **Reserved** — Task 44 expansion / future host-surface registers | — | — |
 | `0x0360..0x0362` | **Raster** — Trigger 1 (`TRIGGER1_LINE`, `TRIGGER1_PIXEL`, `TRIGGER1_CTRL`) | Task 35 / R6 | `VdpTop.scala`, `RasterTriggerUnit.scala` |
 | `0x0363` | **Reserved** — trigger alignment | — | — |

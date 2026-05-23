@@ -169,3 +169,13 @@ the VDP side ever adds high-Z states.
 - The `libvdp` documentation in `kb/libvdp/README.md` is the source of truth for these classifications.
 
 **Transition:** As features migrate from barebones to rich-top, the barebones-specific wrappers will be replaced by standard Mode0 equivalents. No renaming of existing code is authorized until the documentation update is complete and reviewed.
+
+---
+
+### GOTCHA-10: Disabled-layer Backdrop Bank Fallthrough
+
+**Fact:** When all layers and sprites are disabled (`LAYER_ENABLE = 0`), the VDP compositor falls through to a default color. However, it still uses the current **Layer 0 Palette Bank** for this lookup.
+
+**Implication:** If you disable all layers to see a "pure" `palette[0]` backdrop, you may see **Black** or another color if Layer 0's bank is currently non-zero. At POR, Layer 0's bank is often **Bank 4** (Grayscale/Black) due to uninitialized SDRAM Attribute memory.
+
+**Fix:** Either pre-initialize the SDRAM Attribute Map to Bank 0, or write your intended backdrop color to the first index of all 8 palette banks (`0, 16, 32, 48, 64, 80, 96, 112`).

@@ -1,18 +1,27 @@
 # VDP Programming Guide
 
-**Version:** 1.1 (Draft)  
-**Date:** 2026-05-22  
+**Version:** 1.3 (Draft)  
+**Date:** 2026-05-23  
 **Target Platform:** Tang Nano 20K (Mode0)  
 **Host Libraries:** `libvdp` (C/C++)
 
 This guide provides a practical, example-driven introduction to programming the `spinalhdlVDP`. It is divided into two parts: a high-level API guide for application developers using `libvdp`, and a low-level register map reference for system-level integration.
 
-**Note on Scope:** This guide covers the most common programming patterns. For a complete, exhaustive reference of every function, constant, and struct field, always consult the [**`libvdp` API Reference**](kb/libvdp/README.md).
+## Documentation Template
+When adding new functions or features to this guide, use the following structure to maintain consistency:
 
-**Canonical References:**
-- **`libvdp` API:** [`kb/libvdp/README.md`](kb/libvdp/README.md)
-- **Register Map:** [`PROJECT_PLAN/MODE0_REGISTER_BUS_SPEC.md`](PROJECT_PLAN/MODE0_REGISTER_BUS_SPEC.md)
-- **Architecture Overview:** [`PROJECT_PLAN/MODE0_PLANNING.md`](PROJECT_PLAN/MODE0_PLANNING.md)
+```markdown
+### `function_name`
+**Description**: [Deep architectural explanation of how the function interacts with the hardware, including timing constraints, register shadowing, or memory bus behavior.]
+
+**Real World Use**: [A concrete scenario explaining why and when a developer would call this function in a real application or game.]
+
+**Example**:
+\```c
+// Implementation snippet
+function_name(args);
+\```
+```
 
 ---
 
@@ -22,236 +31,270 @@ The `libvdp` library is the authoritative host-side coordination layer. It handl
 
 ## 1. Initialization and Basic I/O
 
-Every VDP application must start by initializing the transport layer.
+### `vdp_qspi_init`
+**Description**: Initializes the host microcontroller's QSPI hardware. On the **Pico 2**, it configures the PIO (Programmable I/O) state machines and state; on **ESP32/ESP8266**, it initializes the GPIO pins for a custom high-speed nibble-wide protocol. This must be the first VDP-related function called in your `setup()` or `main()`.
+
+**Real World Use**: Use this at the very top of your program to "unlock" communication with the FPGA.
 
 ```c
 #include "vdp_qspi.h"
-#include "vdp_mode0.h"
 
 void setup() {
-    // Initialize QSPI pins and transport
-    vdp_qspi_init();
+    vdp_qspi_init(); // Establish the 2MHz QSPI link
+}
+```
 
-    // Optional: Verify communication by reading the magic status value
+### `vdp_read_status`
+**Description**: Performs a synchronous read from the VDP status registers. It takes a `selector` (0-255) to choose which internal data word to return. 
+- `sel 0`: Magic Value (`0x51560002`).
+- `sel 5`: `STATUS_STICKY` bits (Raster Match, DMA Done, etc.).
+
+**Real World Use**: Use this to check if the FPGA is "alive" before starting a complex graphics sequence.
+
+```c
+void check_vdp_status() {
     uint32_t magic = vdp_read_status(0);
     if (magic != 0x51560002) {
-        // Handle transport error
+        // Serial.println("Error: VDP not found or wrong bitstream!");
+        while(1); // Halt
     }
 }
 ```
 
-### Writing Registers
-Registers are 16-bit. Writes pulse directly into the VDP's internal register bus. Most writes land in a shadow register and are committed at the start of the next scanline (`hCounter == 0`) to prevent mid-frame tearing.
+### `vdp_reg_write`
+**Description**: Encapsulates a 6-byte QSPI command to write a single 16-bit value into the VDP register bus. It automatically handles the 15-bit address framing and little-endian data ordering.
+
+**Real World Use**: Use for one-off configuration changes, such as enabling a specific display layer.
 
 ```c
-// Write a single register
-vdp_reg_write(VDP_MODE0_REG_LAYER_ENABLE, 0x0007); // Enable L0, L1, and Sprites
+#include "vdp_mode0.h"
 
-// Write a contiguous block (burst write)
-uint16_t window_cfg[] = { 10, 310, 20, 220, 0x0001 };
-vdp_reg_write_burst(VDP_MODE0_REG_WIN1_X0, window_cfg, 5); // Setup WIN1 X/Y and Color Math
-```
-
-## 2. Display Setup (Layers and Modes)
-
-The VDP supports multiple background layers and specific platform "adapter" modes.
-
-```c
-// Select a platform adapter (e.g., ZX Spectrum mode)
-vdp_mode0_set_mode_select(VDP_MODE_ID_SPECTRUM);
-
-// Enable layers: L0 (bit 0), L1 (bit 1), Sprites (bit 2)
-vdp_mode0_set_layer_enable(0x07);
-```
-
-## 3. Asset Management
-
-Assets (tiles, bitmaps, patterns) are typically stored in the VDP's external SDRAM.
-
-### Paced Asset Upload
-For large assets, use the vblank-paced helper to avoid starving the display engine of memory bandwidth.
-
-```c
-#include "vdp_upload.h"
-
-extern const uint16_t my_tiles_bin[];
-extern const uint16_t my_tiles_len;
-
-void upload_graphics() {
-    // Upload tiles to SDRAM address 0x4000
-    // This helper automatically waits for vblank windows to perform bursts
-    vdp_upload_asset(0x4000, my_tiles_bin, my_tiles_len, NULL);
+void hide_sprites() {
+    // Write 0x0001 to LAYER_ENABLE (0x0300) to keep L0 visible but hide L1 and sprites.
+    vdp_reg_write(VDP_MODE0_REG_LAYER_ENABLE, 0x0001); 
 }
 ```
 
-## 4. Palette and Color
+### `vdp_reg_write_burst`
+**Description**: The most efficient way to update multiple contiguous registers. It sends a single QSPI header followed by a stream of data words. The VDP's internal address counter automatically increments after each word.
 
-Mode0 uses an RGB888 (24-bit) internal palette, but writes are performed as 16-bit words to the palette data register.
-
-### Generic Palette Write
-```c
-// Set palette index 1 to full red using convenience helper
-vdp_mode0_palette_write_rgb888(1, 0xFF, 0x00, 0x00);
-```
-
-### Platform-Specific LUTs
-Fidelity-focused helpers map native platform color values to the best RGB888 representation.
+**Real World Use**: Use this to setup a "Window" or a "Color Math" block in one high-speed transaction.
 
 ```c
-// Load the canonical TMS9918 (MSX/Coleco) 16-color palette
-vdp_tms9918_load_palette();
-
-// Write an Atari ST native color (12-bit) to index 1
-vdp_atarist_palette_write(1, 0x700); // ST 'Red' -> Mode0 RGB888
-```
-
-## 5. Sprites
-
-The `main` substrate supports **32 total descriptors** (slots) and **8 visible sprites per scanline**.
-
-### Manual Configuration
-```c
-vdp_mode0_sprite_cfg_t my_sprite = {
-    .x = 100,
-    .y = 50,
-    .pat_idx = 4,    // Pattern index in Pattern RAM
-    .pal_bank = 0,   // 3-bit palette bank
-    .prio = 0,       // 2-bit priority
-    .enabled = true,
-    .bpp_sel = 2,    // 4bpp
-    .flip_h = false,
-    .flip_v = false
-};
-vdp_mode0_set_sprite(0, &my_sprite); // Update slot 0
-```
-
-### All-in-One Upload
-A convenience helper for updating pattern data, optional palette, and descriptor in one call.
-```c
-vdp_sprite_upload(0, 
-    pattern_data, 0, 64,   // Pattern RAM: upload 64 pixels starting at index 0
-    palette_data, 16, 16,  // Palette: 16 colors starting at index 16
-    &my_sprite             // Descriptor update (NULL to skip)
-);
-```
-
-## 6. Automation and Engines
-
-Beyond static registers, the VDP includes several specialized engines for high-performance updates.
-
-### Copper Coprocessor
-The Copper executes a program from its 1024-word (2x512) dual-banked RAM, synchronized to the beam.
-```c
-vdp_copper_enable(true);
-vdp_copper_upload_and_swap(my_copper_prog, prog_len);
-```
-
-### DMA and Blitter
-High-speed memory operations for clearing or copying blocks of data.
-```c
-vdp_mode0_dma_config(&dma_cfg);   // Fast fill or copy
-vdp_mode0_blit_config(&blit_cfg); // Rectangular or line operations
-```
-
-### HDMA and Raster Triggers
-Automation for per-line register updates and precise raster-line interrupts.
-```c
-vdp_mode0_set_hdma_ctrl(true, 0x0F, false); // Enable HDMA for 4 channels
-vdp_mode0_set_raster_trigger(1, &trigger_cfg); // Configure Trigger 1
-```
-
-## 7. Timing and Synchronization
-
-### Waiting for VBlank
-To avoid "tearing" and ensure smooth animation, synchronize your logic with the vertical blanking interval.
-
-```c
-while (app_running) {
-    // Wait for the start of the next VBlank
-    if (vdp_wait_vblank(1000000)) { // 1s timeout
-        update_game_logic();
-        draw_frame();
-    }
-}
-```
-
-### Sticky Status Bits
-Hardware events set "sticky" bits that stay set until explicitly cleared by the host.
-
-```c
-// Wait for a specific raster line trigger
-if (vdp_wait_sticky(VDP_STICKY_RASTER_MATCH, 50000)) {
-    // Line matched!
-    vdp_clear_sticky(VDP_STICKY_RASTER_MATCH);
+void setup_ui_window() {
+    // We want to set WIN1 X0, X1, Y0, Y1 (0x0330..0x0333)
+    uint16_t bounds[] = { 40, 600, 30, 450 };
+    vdp_reg_write_burst(VDP_MODE0_REG_WIN1_X0, bounds, 4);
 }
 ```
 
 ---
 
-# Part II: Register Map and Bus Guide
+## 2. Display Setup (Layers and Modes)
 
-This section defines the internal control surface. Developers building new host interfaces or copper programs should reference these addresses.
+### `vdp_mode0_set_mode_select`
+**Description**: Selects the runtime "Adapter Mode" for the VDP. This function updates the `0x0313` register, which triggers a structural reconfiguration of the pixel pipeline at the next VSync. Valid IDs include `VDP_MODE_ID_SPECTRUM`, `VDP_MODE_ID_NES`, etc.
 
-## 1. Internal Address Space (15-bit)
+**Real World Use**: Use this when your application transitions from a custom splash screen to a specific console emulation or legacy graphics mode.
 
-| Range | Purpose | Description |
+```c
+void start_nes_game() {
+    // Transition the VDP into NES-compatible background and sprite logic.
+    vdp_mode0_set_mode_select(VDP_MODE_ID_NES);
+}
+```
+
+### `vdp_mode0_set_layer_enable`
+**Description**: A high-level helper for the `LAYER_ENABLE` register. It uses a bitmask where:
+- `bit 0`: Layer 0 (Bottom)
+- `bit 1`: Layer 1 (Top)
+- `bit 2`: Sprites
+
+**Real World Use**: Use this to toggle UI overlays or to create "fading" effects by disabling layers during a transition.
+
+```c
+void toggle_ui(bool show) {
+    if (show) {
+        vdp_mode0_set_layer_enable(0x07); // Enable L0, L1, and Sprites
+    } else {
+        vdp_mode0_set_layer_enable(0x05); // Disable L1 (UI layer), keep L0 and Sprites
+    }
+}
+```
+
+---
+
+## 3. Asset Management (SDRAM)
+
+### `vdp_upload_asset`
+**Description**: The VDP shares external SDRAM with the display engine. Writing to SDRAM while the screen is drawing can cause "snow" or glitches. This helper chunks your data and only performs writes during the ~1.4ms **Vertical Blanking (VBlank)** window when the memory bus is idle.
+
+**Real World Use**: Use this for loading new character textures or level tiles *while the game is running* to ensure the player doesn't see any flickering.
+
+```c
+#include "vdp_upload.h"
+
+void load_player_tiles(const uint16_t *gfx, uint16_t words) {
+    // Upload tiles to SDRAM 0x8000. Helper will wait for VBlank automatically.
+    vdp_upload_asset(0x8000, gfx, words, NULL);
+}
+```
+
+---
+
+## 4. Palette and Color
+
+### `vdp_mode0_palette_write_rgb888`
+**Description**: Mode0 supports 256 colors chosen from a 16.7-million color space. This function takes an 8-bit index and three 8-bit R/G/B components, maps them to the internal palette format, and writes them to the FPGA's Palette RAM.
+
+**Real World Use**: Use this for dynamic color effects, like changing the world's lighting from day to night.
+
+```c
+void set_sunset_lighting() {
+    // Change palette index 0 (background) to a deep orange
+    vdp_mode0_palette_write_rgb888(0, 0xFF, 0x45, 0x00);
+}
+```
+
+---
+
+## 5. Sprites
+
+### `vdp_mode0_set_sprite`
+**Description**: Directly updates a single **Sprite Descriptor**. This control word determines the sprite's X/Y coordinate, its pattern index in memory, flipping flags, and palette bank selection. The VDP `main` baseline supports 32 of these descriptors.
+
+**Real World Use**: Call this every frame to move your player or enemy objects across the screen.
+
+```c
+void update_player_pos(int x, int y) {
+    vdp_mode0_sprite_cfg_t player = {
+        .x = x, .y = y,
+        .pat_idx = 0,    // Use pattern 0
+        .pal_bank = 0,
+        .enabled = true,
+        .bpp_sel = 2     // 4bpp
+    };
+    vdp_mode0_set_sprite(0, &player); // Descriptor 0 is the player
+}
+```
+
+### `vdp_sprite_upload`
+**Description**: A powerful "macro" helper. It can simultaneously upload new pixel data to the Sprite Pattern RAM, new colors to the Palette RAM, and update the Sprite Descriptor in one operation. If any pointer is `NULL`, that part of the update is skipped.
+
+**Real World Use**: Use this for "one-shot" sprite initialization, such as spawning a new projectile.
+
+```c
+void fire_bullet(int x, int y, const uint16_t *bullet_gfx) {
+    vdp_mode0_sprite_cfg_t bullet_cfg = { .x = x, .y = y, .enabled = true };
+    // Update slot 10 with new pixels and new position
+    vdp_sprite_upload(10, bullet_gfx, 0, 32, NULL, 0, 0, &bullet_cfg);
+}
+```
+
+---
+
+## 6. Automation Engines
+
+### `vdp_copper_upload_and_swap`
+**Description**: The **Copper** is a dedicated "beam coprocessor" that can change VDP registers at specific raster lines without host CPU intervention. This helper writes your Copper program into the inactive RAM bank and signals the hardware to swap to the new program at the next VBlank.
+
+**Real World Use**: Use the Copper to create "Split-Screen" effects where the top half of the screen has a different scroll position or background color than the bottom half.
+
+```c
+#include "vdp_copper.h"
+
+void create_water_reflection() {
+    uint16_t water_fx[] = {
+        vdp_copper_wait(160),           // At scanline 160 (waterline)...
+        vdp_copper_write_op(0x0347), 4, // Change Border to 'water' color
+        vdp_copper_jump(0)              // Loop
+    };
+    vdp_copper_upload_and_swap(water_fx, 3);
+}
+```
+
+### `vdp_mode0_dma_config`
+**Description**: Triggers the FPGA's **Direct Memory Access** engine. It can rapidly fill a block of VDP RAM with a constant value or copy data from a host-supplied staging buffer. This is significantly faster than using `vdp_reg_write` in a loop.
+
+**Real World Use**: Use this to instantly clear the entire Tile Map or Palette RAM to zeroes.
+
+```c
+void clear_tile_map() {
+    vdp_mode0_dma_cfg_t clear_cfg = {
+        .dst_addr = 0x0000,
+        .len_m1 = 1199,     // 1200 tiles
+        .fill_val = 0x0000, // Blank tile
+        .mode = 0           // FILL mode
+    };
+    vdp_mode0_dma_config(&clear_cfg);
+}
+```
+
+---
+
+## 7. Timing and Synchronization
+
+### `vdp_wait_vblank`
+**Description**: A blocking synchronization primitive. It polls the VDP's raster status and returns `true` only when the vertical blanking period begins. This ensures your CPU doesn't try to update graphics while the VDP is actively scanning the screen.
+
+**Real World Use**: This is the "Heartbeat" of your game engine. Put it at the top of your main loop.
+
+```c
+void main_loop() {
+    while (1) {
+        // 1. Wait for safe update window
+        if (vdp_wait_vblank(1000000)) {
+            // 2. Perform ALL register/sprite writes here
+            move_sprites();
+            update_scroll();
+            // 3. Game logic can happen while screen draws
+            process_input();
+        }
+    }
+}
+```
+
+### `vdp_mode0_set_raster_trigger`
+**Description**: Configures a hardware comparison unit that watches the current `hCounter` and `vCounter`. When they match your target, a bit is set in the `STATUS_STICKY` register. 
+
+**Real World Use**: Use this to time a CPU action to a precise line, such as triggering a "Wavy" screen effect precisely when the player's character is drawn.
+
+```c
+void setup_line_interrupt() {
+    vdp_mode0_trigger_t irq = { .line = 100, .enable = true };
+    vdp_mode0_set_raster_trigger(1, &irq); // Trigger 1 @ Line 100
+}
+```
+
+---
+
+## 8. Hardware Behavior Notes
+
+### Disabled-Layer Backdrop
+**Behavior**: When all layers and sprites are disabled via `LAYER_ENABLE` (0x0300 = 0), the VDP compositor falls through to a default "backdrop" color. 
+
+**Important**: This backdrop is NOT guaranteed to be `palette[0]`. The compositor continues to use the current **Layer 0 Palette Bank** even when Layer 0 is disabled. At Power-On Reset (POR), if SDRAM has not been initialized, the Layer 0 bank is sourced from uninitialized SDRAM Attribute memory, which often defaults to **Bank 4** (Grayscale). 
+
+**Recommended Action**: To ensure a consistent backdrop color (e.g., Red) when layers are off:
+1. Initialize the Layer 0 Attribute memory in SDRAM to Bank 0.
+2. OR, write your backdrop color to the first index of ALL 8 palette banks (`palette[0]`, `palette[16]`, `palette[32]`, etc.).
+
+---
+
+# Part II: Internal Register Reference
+
+| Address | Name | Description |
 |---|---|---|
-| `0x0000..0x01DF` | Linestate Table | 480 words: per-line scroll and enable. |
-| `0x0300..0x031F` | Globals | `LAYER_ENABLE`, `VDP_CTRL`, `MODE_SELECT`. |
-| `0x0320..0x032F` | Status | `STATUS_STICKY` (W1C), `STATUS_ENABLE` (IRQ mask). |
-| `0x0330..0x033F` | Windows | Config for WIN1, WIN2, BORDER, and Color Math. |
-| `0x0340..0x034F` | Affine BG | Transform matrix (A, B, C, D) and pivot (X, Y). |
-| `0x0350..0x035F` | DirectColor | RGB565 Bitmap and Attribute base/stride. |
-| `0x0360..0x037F` | Raster | Config for 3 independent hardware triggers. |
-| `0x0380..0x03DF` | HDMA | HDMA channel pointers and control. |
-| `0x0400..0x05FF` | Copper RAM | 1024-word dual-banked program space. |
-| `0x0A00..0x0AFF` | V-Scroll | Vertical scroll table (128 entries). |
-| `0x0B00..0x0B4F` | DMA | DMA engine control and 64-word staging buffer. |
-| `0x0C00..0x0D0F` | Blitter | Blitter control and 512-word source/store RAM. |
-| `0x0F00..0x15FF` | Adapters | Shadow register pages for Spectrum, NES, SMS, etc. |
-
-## 2. Core Registers Reference
-
-### `LAYER_ENABLE` (0x0300)
-- `bit 0`: Layer 0 Enable
-- `bit 1`: Layer 1 Enable
-- `bit 2`: Sprite Enable
-- `bit 3`: Layer 2 Enable (Optional)
-- `bit 4`: Layer 3 Enable (Optional)
-
-### `STATUS_STICKY` (0x0320)
-*Write-1-to-Clear (W1C)*
-- `bit 0`: `RASTER_MATCH` — Fires at raster trigger line
-- `bit 1`: `SPRITE_OVERFLOW` — Set if scanline sprite limit exceeded
-- `bit 2`: `QSPI_READY` — Pulse on accepted command
-- `bit 3`: `QSPI_ERROR` — Set if last QSPI transaction failed
-- `bit 4`: `SPRITE_0_HIT` — Sprite slot 0 collision with BG
-- `bit 5`: `SPRITE_BG_HIT` — Any sprite collision with BG
-- `bit 8`: `DMA_DONE` — DMA transfer complete
-- `bit 9`: `BLIT_DONE` — Blitter block transfer complete
-- `bit 11`: `MODE_SELECT_CHANGED` — Mode selection committed at V=0
-
-## 3. Copper Coprocessor Instructions
-
-The Copper executes mid-frame from its dual-banked RAM. Instructions are 16-bit.
-
-| Binary Prefix | Opcode | Description |
-|---|---|---|
-| `000` | `WAIT` | Block until raster matches target Y. |
-| `001` | `WAIT_XY` | Block until raster matches target X and Y (2 words). |
-| `01` | `WRITE` | Single 16-bit write to a VDP register. |
-| `10` | `WRITE_SEQ` | Burst write N+1 words from Copper RAM to a register. |
-| `110` | `JUMP` | Branch to a new program address. |
-| `111` | `SKIP` | Conditionally skip the next instruction. |
-
-## 4. Host Interface Protocol (QSPI)
-
-The `spinalhdlVDP` uses a **Direct Register Bus** model via a 6-byte header QSPI contract.
-
-1. **Direct Access**: QSPI writes pulse directly into the internal 15-bit address space. There are no host-side "address" or "data" shadow registers.
-2. **Helpers**: Use `vdp_reg_write()` for single registers and `vdp_reg_write_burst()` for contiguous blocks.
-3. **Pacing**: SDRAM uploads (`vdp_sdram_write`) should be paced to vblank using `vdp_upload_asset()` to prevent visible artifacts.
-4. **Error Discipline**: Always verify `VDP_STICKY_QSPI_ERROR` is clear or check `vdp_last_error()` after critical sequences.
+| `0x0300` | `LAYER_ENABLE` | bit0:L0, bit1:L1, bit2:Sprite, bit3:L2, bit4:L3 |
+| `0x0310` | `VDP_CTRL` | bit0:Copper Enable, bit1:Copper Swap Request |
+| `0x0320` | `STATUS_STICKY` | bit0:Raster Match, bit8:DMA Done, bit9:Blit Done |
+| `0x0330` | `WIN1_X0` | Window 1 Left Boundary |
+| `0x0347` | `BORDER_CTRL` | bit0:Enable, bits[15:8]:Palette Index |
+| `0x0350` | `BITMAP_CTRL` | *Deprecated* (no-op since `8b61a2e`) |
+| `0x0351..0x0356` | `BITMAP_BASE / STRIDE` | *Deprecated* (no-op since `8b61a2e`) |
+| `0x0360` | `TRIGGER1_LINE` | Target scanline for Raster Trigger 1 |
+| `0x0B00` | `DMA_DST` | Destination address for DMA operation |
+| `0x0C00` | `BLIT_CTRL` | bit0:Go, bits[2:1]:Mode, bit3:Done Ack |
 
 ---
 *End of Guide.*
