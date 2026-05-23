@@ -710,54 +710,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     bitmapCtrlPend    := effData
     bitmapCtrlPendHit := True
   }
-  val bitmapBaseLoReg     = Reg(Bits(16 bits)) init 0
-  val bitmapBaseLoPend    = Reg(Bits(16 bits)) init 0
-  val bitmapBaseLoPendHit = Reg(Bool()) init False
-  when(effWrite && effAddr === U(0x0351, 15 bits)) {
-    bitmapBaseLoPend    := effData
-    bitmapBaseLoPendHit := True
-  }
-  val bitmapBaseHiReg     = Reg(Bits(16 bits)) init 0
-  val bitmapBaseHiPend    = Reg(Bits(16 bits)) init 0
-  val bitmapBaseHiPendHit = Reg(Bool()) init False
-  when(effWrite && effAddr === U(0x0352, 15 bits)) {
-    bitmapBaseHiPend    := effData
-    bitmapBaseHiPendHit := True
-  }
-  val attrBaseLoReg     = Reg(Bits(16 bits)) init 0
-  val attrBaseLoPend    = Reg(Bits(16 bits)) init 0
-  val attrBaseLoPendHit = Reg(Bool()) init False
-  when(effWrite && effAddr === U(0x0353, 15 bits)) {
-    attrBaseLoPend    := effData
-    attrBaseLoPendHit := True
-  }
-  val attrBaseHiReg     = Reg(Bits(16 bits)) init 0
-  val attrBaseHiPend    = Reg(Bits(16 bits)) init 0
-  val attrBaseHiPendHit = Reg(Bool()) init False
-  when(effWrite && effAddr === U(0x0354, 15 bits)) {
-    attrBaseHiPend    := effData
-    attrBaseHiPendHit := True
-  }
-  val bitmapStrideReg     = Reg(Bits(16 bits)) init 0
-  val bitmapStridePend    = Reg(Bits(16 bits)) init 0
-  val bitmapStridePendHit = Reg(Bool()) init False
-  when(effWrite && effAddr === U(0x0355, 15 bits)) {
-    bitmapStridePend    := effData
-    bitmapStridePendHit := True
-  }
-  val attrStrideReg     = Reg(Bits(16 bits)) init 0
-  val attrStridePend    = Reg(Bits(16 bits)) init 0
-  val attrStridePendHit = Reg(Bool()) init False
-  when(effWrite && effAddr === U(0x0356, 15 bits)) {
-    attrStridePend    := effData
-    attrStridePendHit := True
-  }
   val bitmapEnable    = bitmapCtrlReg(0)
   val bitmapBpp       = bitmapCtrlReg(2 downto 1).asUInt
-  // Task 44b: bit[7] selects SDRAM-backed source (1) vs CP-A
-  // deterministic test generator (0). Sc44 (Task 44 CP-B) leaves
-  // bit[7]=0; Sc44d (Task 44b CP-B) sets bit[7]=1.
-  val bitmapUseSdram  = bitmapCtrlReg(7)
 
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {
@@ -807,12 +761,6 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     when(affineCtrlPendHit) { affineCtrlReg := affineCtrlPend; affineCtrlPendHit := False }
     // Task 44 bitmap-fetch register commits.
     when(bitmapCtrlPendHit)    { bitmapCtrlReg    := bitmapCtrlPend;    bitmapCtrlPendHit    := False }
-    when(bitmapBaseLoPendHit)  { bitmapBaseLoReg  := bitmapBaseLoPend;  bitmapBaseLoPendHit  := False }
-    when(bitmapBaseHiPendHit)  { bitmapBaseHiReg  := bitmapBaseHiPend;  bitmapBaseHiPendHit  := False }
-    when(attrBaseLoPendHit)    { attrBaseLoReg    := attrBaseLoPend;    attrBaseLoPendHit    := False }
-    when(attrBaseHiPendHit)    { attrBaseHiReg    := attrBaseHiPend;    attrBaseHiPendHit    := False }
-    when(bitmapStridePendHit)  { bitmapStrideReg  := bitmapStridePend;  bitmapStridePendHit  := False }
-    when(attrStridePendHit)    { attrStrideReg    := attrStridePend;    attrStridePendHit    := False }
   }
   io.layer0TileDecodeMode := tileDecodeModeReg
   io.layer0AttributeMode  := attributeModeReg
@@ -1252,31 +1200,11 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val onChipIdx4   = layer0.io.pixelIndex.resize(4)
   // Task 44 — bitmap fetch pixel decoder.
   //
-  // CP-B note: the full SDRAM-backed row-buffer fetch is a follow-on
-  // lane. For initial hardware proof we feed the decoder with a
-  // deterministic pixel-domain test-pattern generator so the decoder
-  // and the mux path render visibly on silicon. Inputs are stable
-  // across their respective byte windows (bitmapByte for 8 pixel
-  // columns in 1bpp, attrByte for 8 pixel columns × 8 rows).
-  val bitmapByteIdx = hCounter(9 downto 3)                 // 0..127
-  val bitmapRowIdx  = fillLine(7 downto 0)                 // 0..255 mod
-  val bitmapAttrIdx = hCounter(9 downto 6)                 // 8-pixel attr cells
-  val bitmapAttrRow = fillLine(8 downto 3)                 // 8-pixel-row attr cells
   val bitmapFetch = BitmapFetch()
-  // Task 44b: source from `io.bitmapSdram*` (SDRAM-backed). Falls back
-  // to the Task 44 CP-B deterministic test pattern when the top-level
-  // does not drive those ports (e.g. older scenarios).
-  val testBitmapByte = (bitmapByteIdx.resize(8).asBits ^ bitmapRowIdx.asBits)
-  val testAttrByte   = (B(0, 2 bits) ## bitmapAttrRow(2 downto 0).asBits ##
-                        bitmapAttrIdx(2 downto 0).asBits)
-  // Enable the SDRAM-backed path iff the top-level actually drives it —
-  // a scenario wires bitmapSdram* to meaningful values; unwired inputs
-  // stay at 0. Use `io.bitmapSdramByte =/= 0` as a crude OR presence
-  // signal. For Sc44d the bootstrap forces bitmapEnable=1 and live SDRAM
-  // data is present after boot; the Task 44 Sc44 scenario does not wire
-  // BitmapRowFetch so inputs remain zero and the test path still lights.
-  val bmByteSel = Mux(bitmapUseSdram, io.bitmapSdramByte,     testBitmapByte)
-  val bmAttrSel = Mux(bitmapUseSdram, io.bitmapSdramAttrByte, testAttrByte)
+  // Bitmap + attribute byte are sourced directly from the SDRAM-backed
+  // BitmapRowFetch line buffers via the top-level wiring.
+  val bmByteSel = io.bitmapSdramByte
+  val bmAttrSel = io.bitmapSdramAttrByte
   bitmapFetch.io.bitmapByte      := bmByteSel
   bitmapFetch.io.attrByte        := bmAttrSel
   bitmapFetch.io.pixelWithinByte := hCounter(2 downto 0)

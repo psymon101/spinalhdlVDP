@@ -75,15 +75,6 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val attrByte       = out Bits(8 bits)
     val bootDone       = out Bool()
     val sdramActive    = out Bool()    // pulses whenever SDRAM FSM wants the bus
-    val fifoActiveEver = out Bool()    // CP-B canary: sticky-high once FIFO pop has fired at least once
-    // CP-B debug iteration 2 (CyanPeak #8032) — all sticky-latched in pixelCd.
-    val dbgBusyDroppedEver   = out Bool()  // sticky: !sdramBusy observed by FSM at least once
-    val dbgDataReadyEver     = out Bool()  // sticky: sdramDataReady observed at least once
-    val dbgWrAssertedEver    = out Bool()  // sticky: cmdWr asserted at least once
-    // Fun-demo data-path discriminator (BronzeGate #8392): sticky-high once
-    // any read bitmap byte observed in pixel-domain has been non-zero.
-    // Distinguishes "SDRAM returns valid data" from "SDRAM returns zeros".
-    val dbgDataNonZeroEver   = out Bool()
   }
 
   case class RowByte() extends Bundle {
@@ -113,9 +104,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
   io.attrByte   := attrLineBuf.readAsync(lineRdAddr)
 
   byteFifo.io.pop.ready := True
-  val popFiredSticky = RegInit(False)
   when(byteFifo.io.pop.fire) {
-    popFiredSticky := True
     when(byteFifo.io.pop.payload.kind) {
       attrLineBuf.write(
         address = byteFifo.io.pop.payload.idx,
@@ -128,7 +117,6 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         enable  = True)
     }
   }
-  io.fifoActiveEver := popFiredSticky
 
   val sd = new ClockingArea(sdramCd) {
     val fetchGrantSync = BufferCC(io.fetchGrant, False)
@@ -206,9 +194,6 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
       pendingData := io.sdramDout
       pushPending := True
     }
-
-    val dbgPushPendingEver = RegInit(False)
-    when(pushPending) { dbgPushPendingEver := True }
 
     val fsm = new StateMachine {
       val sWaitEnable      = new State with EntryPoint
@@ -422,32 +407,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     // set when enable first sees high, stays high until fetch loop
     // quiesces in sIdle (with no new grant). Declared earlier now
     // so iter-5 always-on latch can reference it.
-
-    // CP-B iter 4 sticky debug latches (sdramCd-resident). Per
-    // BronzeGate #8039 evidence requirement: dataReady observed while
-    // OUR sdramActive is high (filters out tile-fetch traffic);
-    // pushPending ever; FIFO pop.fire ever.
-    val dbgDataReadyOursR     = RegInit(False)
-    val dbgBusyDroppedEver    = RegInit(False)
-    val dbgWrAssertedEver     = RegInit(False)
-    when(io.sdramDataReady && sdramActiveR) { dbgDataReadyOursR   := True }
-    when(!io.sdramBusy)                     { dbgBusyDroppedEver  := True }
-    when(cmdWr)                             { dbgWrAssertedEver   := True }
   }
-
-  // Iter 4 canaries: dataReady-ours, pushPending-ever, pop-fire-ever.
-  io.dbgBusyDroppedEver := BufferCC(sd.dbgBusyDroppedEver, False)
-  io.dbgDataReadyEver   := BufferCC(sd.dbgDataReadyOursR, False)
-  io.dbgWrAssertedEver  := BufferCC(sd.dbgWrAssertedEver, False)
-
-  // BronzeGate #8392 fun-demo data-path discriminator: pixel-domain sticky
-  // that latches True the first time io.bitmapByte (the fetcher's output to
-  // BitmapFetch) is observed non-zero. Drives a Sc45 canary so black vs.
-  // bright on that canary answers "does SDRAM read return non-zero data?"
-  // without having to decode the whole pipeline.
-  val dbgDataNonZeroR = RegInit(False)
-  when(io.bitmapByte =/= B(0, 8 bits)) { dbgDataNonZeroR := True }
-  io.dbgDataNonZeroEver := dbgDataNonZeroR
 
   io.bootDone    := BufferCC(sd.bootDoneR, False)
   io.sdramActive := BufferCC(sd.sdramActiveR, False)
