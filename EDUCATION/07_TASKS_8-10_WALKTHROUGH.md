@@ -2,6 +2,8 @@
 
 **Document Purpose**: Explain the next phase of the spinalhdlVDP project covering wraparound/scrolling, line buffering, and palette-based color lookup.
 
+> **Note (2026-05-24):** This walkthrough describes the historical development of the VDP. As of the **RTL Platform-Agnosticism Purge (#10567)**, all platform-specific code and adapters mentioned in later tasks have been removed from the RTL. The VDP is now a purely generic graphics IP.
+
 ---
 
 ## Table of Contents
