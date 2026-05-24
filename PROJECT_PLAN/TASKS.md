@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-24 (RTL Platform-Agnosticism Purge active #10567; ESP32-S3 host bring-up #10539 and scanline-start transient fix #10550 closed; baseline locked at `9e3c252`.)
+**Updated:** 2026-05-24 (Lane #10590 open — Integer Pixel-Repetition Scaler; RTL Platform-Agnosticism Purge #10567 DONE; ESP32-S3 host bring-up #10539 and scanline-start transient fix #10550 closed; baseline `9c0b161`.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,21 +22,23 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **RTL Platform-Agnosticism Purge** |
-| **Status** | **DONE** |
-| **Latest Commit** | `26ae196` (BACKDROP_INDEX + boot defaults + purge) |
-| **Latest Auth Mail** | BrightForge #10589 (BACKDROP_INDEX closed), CyanPeak #10587 (Audit PASS) |
-| **Summary** | Strip per-scenario / per-platform RTL. 10 files deleted. TopTang20kHdmi.scala scrubbed (-848 lines). Boot defaults fixed (layerEnableReg + LinestateStore all-off). BACKDROP_INDEX @ 0x0348 added for deterministic backdrop. Gowin PnR PASS (Setup 0, Hold 0). Bench: solid black on Tang. CyanPeak audit PASS. |
-| **Next Step** | Merge `brightforge/rtl-agnosticism-purge` → `main`. |
+| **Task** | **Integer Pixel-Repetition Scaler + Auto-Center Borders** |
+| **Status** | **IN-PROGRESS** |
+| **Task ID** | #10590 |
+| **Owner** | BrightForge (RTL), BronzeGate (libvdp) |
+| **Baseline Commit** | `9c0b161` (main, post-agnosticism-purge) |
+| **Latest Auth Mail** | TopazCliff #10590 (lane open) to BrightForge, BronzeGate, CyanPeak |
+| **Summary** | Add integer pixel-repetition scaling to VdpTop output path. libvdp specifies logical resolutions (e.g. 320x240, 256x192) that render as pixel-perfect integer-scale blocks centered on 640x480 physical panel, with auto-computed border window. Owner chose Option 1: integer-only, no fractional scaling. |
+| **Next Step** | BrightForge Checkpoint A: register contract + scaler skeleton. |
 
 ---
 
 ## Next Up / Open Queue
 
-### Deterministic Backdrop (BACKDROP_INDEX Register)
-- **Status:** **TODO** (#10584 follow-up).
-- **Scope:** Add a new host-writable register to set the backdrop color directly, bypassing SDRAM-bank transients.
-- **Next Step:** Open lane after #10567 closeout.
+### Integer Pixel-Repetition Scaler + Auto-Center Borders
+- **Status:** **IN-PROGRESS** (#10590).
+- **Scope:** Add integer pixel-repetition scaling to VdpTop output path + libvdp resolution APIs.
+- **Next Step:** BrightForge Checkpoint A (register contract + scaler skeleton).
 
 ### RGB565 Hardware Bench Framing Investigation
 - **Status:** **DEFERRED** (#10503 follow-up). 
@@ -69,6 +71,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 | Task 56 — SDRAM Multi-Layer | **DONE** | #9709 |
 | Task 54 — Sprite-Sprite Collision | **DONE** | #9672 |
 | Task 57 — DFF Optimization | **DONE** | #9605 |
+| RTL Platform-Agnosticism Purge | **DONE** | #10567 |
 | RGB565 Directcolor (CP-1a..1c + BitmapCtrlCommitSim) | **DONE** | #10503 |
 
 Older closed tasks (Phase 1–8, R-Roadmap, sidecar lanes) are catalogued in `TASKS_HISTORY.md`.
