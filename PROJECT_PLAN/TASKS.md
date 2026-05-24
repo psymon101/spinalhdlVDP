@@ -27,10 +27,10 @@ This section tracks the active lane.
 | **Task ID** | #10590 |
 | **Owner** | BrightForge (RTL), BronzeGate (libvdp) |
 | **Baseline Commit** | `9c0b161` (main, post-agnosticism-purge) |
-| **Latest Auth Mail** | BrightForge #10605 (Checkpoint B done), CyanPeak #10606 (Checkpoint C audit PASS), TopazCliff #10613 (BronzeGate GO) |
-| **Summary** | Add integer pixel-repetition scaling to VdpTop output path. libvdp specifies logical resolutions (e.g. 320x240, 256x192) that render as pixel-perfect integer-scale blocks centered on 640x480 physical panel, with auto-computed border window. Owner chose Option 1: integer-only, no fractional scaling. |
-| **Checkpoints** | A: DONE (233132a) — register contract + scaler skeleton. B: DONE (653adc9) — line buffer body + counters + wiring + ScaleRepeatSim 6/6 PASS + PnR PASS (Setup 0, Hold 0) + bench cold-boot black. C: DONE — CyanPeak audit PASS #10606. |
-| **Next Step** | BronzeGate libvdp API implementation + host sketch validation. Merge to main pending BronzeGate confirmation. |
+| **Latest Auth Mail** | CyanPeak #10621 (pipeline misalignment found), TopazCliff #10625 (fix authorized), #10626 (Option B architecture confirmed) |
+| **Summary** | Add integer pixel-repetition scaling to VdpTop output path. CyanPeak found scaler +1 cycle not fully rebalanced — sync/DE pipeline at N+2, scaler data at N+3, causing backdrop/black-screen bug. Fix authorized: add missing RegNext to rebalance to N+3. Backdrop architecture: Option B (explicit BACKDROP_INDEX register) confirmed by all team members. |
+| **Checkpoints** | A: DONE (233132a) — register contract + scaler skeleton. B: DONE (653adc9) — line buffer body + counters + wiring + ScaleRepeatSim 6/6 PASS + PnR PASS (Setup 0, Hold 0) + bench cold-boot black. C: DONE — CyanPeak audit PASS #10606. **BUG FOUND:** CyanPeak #10621 — scaler pipeline misalignment. **FIX:** Add RegNext to sync/DE to align with scaler N+3. |
+| **Next Step** | BrightForge: implement pipeline rebalance on brightforge/pixel-repeat-scaler, re-run sims + PnR + bench with backdropIndexReg init=5 (expected yellow). BronzeGate: hold libvdp until hardware path confirmed. |
 
 ---
 
