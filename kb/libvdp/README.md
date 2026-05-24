@@ -29,6 +29,28 @@ Canonical API reference for `firmware/libvdp/`.
 | `vdp_qspi_init` | `void vdp_qspi_init(void)` | initialize QSPI pins and transport | call once before any other `libvdp` API |
 | `vdp_pio_wait_sm_idle` | `void vdp_pio_wait_sm_idle(void)` | drain Pico PIO TX path before CS/pin changes | Pico-only effect; no-op on Arduino targets |
 | `vdp_last_error` | `int vdp_last_error(void)` | read sticky host-library error state | library-side state only; FPGA-side errors come from status reads |
+| `vdp_qspi_set_speed_hz` | `void vdp_qspi_set_speed_hz(uint32_t hz)` | change QSPI SCK frequency at runtime | only effective on ESP32-S3 hardware SPI2 backend; no-op elsewhere |
+
+## QSPI Speed Policy
+
+On platforms with hardware SPI support (currently ESP32-S3), the transport supports a "two-speed" policy to maximize throughput while maintaining read reliability.
+
+| Direction | Recommended Speed | Rationale |
+|---|---|---|
+| **Reads** | **3 MHz** (`VDP_QSPI_SCK_HZ`) | FPGA response FSM caps at 3 MHz; higher rates cause read failure. |
+| **Writes** | **60 MHz** (`VDP_QSPI_SCK_WRITE_HZ`) | Maximizes bulk-write throughput (up to ~6.8 MB/s) with SI margin. |
+
+### Usage Example
+
+```c
+// Perform bulk upload at high speed
+vdp_qspi_set_speed_hz(VDP_QSPI_SCK_WRITE_HZ);
+vdp_sdram_write(addr, big_buffer, 253);
+
+// Switch back to safe speed for status polling
+vdp_qspi_set_speed_hz(VDP_QSPI_SCK_HZ);
+uint32_t magic = vdp_read_status(0);
+```
 
 ## Register / Status I/O
 
@@ -191,6 +213,7 @@ One-call palette + pattern + descriptor upload. Any step can be skipped with `NU
 | **Copper Upload is Unbuffered** | Writes to `0x0400..0x05FF` hit Copper Program RAM directly. Chunking and inter-chunk delays are unnecessary and removed. |
 | **Copper Drain Latency** | `copperFifo` (64 words) drains at most once per scanline at `hCounter == 0`. Effects via Copper have ~1-line vertical lag. |
 | **Copper Double-Buffer** | Two 512-word banks. Upload while copper is **enabled** routes to the inactive bank. `vdp_copper_swap_request()` swaps at the next `vSyncStart`. Upload *before* requesting swap. |
+| **Disabled-layer Backdrop** | When all layers are disabled, the compositor falls through to a color indexed by `palette[layer0Bank*16+0]`. At POR, `layer0Bank` is often **Bank 4** (Black) due to uninitialized SDRAM. |
 | **Mode0 Coverage** | `vdp_mode0_*` mirrors the rich-top register map block-by-block. New Mode0 blocks land with matching helpers and doc updates; the only intentional gap is high-level sprite programming. |
 
 ## Minimal Usage Order

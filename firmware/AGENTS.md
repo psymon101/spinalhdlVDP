@@ -41,6 +41,7 @@ BrightForge instead of bridging the gap yourself.
 |----------|----------|------------|------------|
 | ESP8266 | Arduino C++ | Arduino CLI (`arduino-cli`) | `esptool.py` via `arduino-cli upload` |
 | ESP32 | Arduino C++ | Arduino CLI | `esptool.py` via `arduino-cli upload` |
+| ESP32-S3 | Arduino C++ | ESP-IDF / Arduino CLI | `esptool.py` (FSPI 60 MHz path) |
 | Pico | C11 | CMake + `pico-sdk` | `picotool load` or UF2 drag-drop |
 
 Do not introduce new platforms without BronzeGate authorization.

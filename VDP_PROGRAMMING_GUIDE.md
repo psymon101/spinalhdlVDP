@@ -151,8 +151,9 @@ void load_player_tiles(const uint16_t *gfx, uint16_t words) {
 
 ```c
 void set_sunset_lighting() {
-    // Change palette index 0 (background) to a deep orange
-    vdp_mode0_palette_write_rgb888(0, 0xFF, 0x45, 0x00);
+    // Change palette index 0 (backdrop) to a deep orange.
+    // NOTE: See Section 8 for bank-fallthrough behavior.
+    vdp_mode0_palette_write_rgb888(0, 255, 128, 0);
 }
 ```
 

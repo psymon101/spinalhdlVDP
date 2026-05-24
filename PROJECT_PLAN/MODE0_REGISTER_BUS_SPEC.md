@@ -50,7 +50,18 @@ qspiActive         : next — bootDoneR && qspiDec.regWriteEnable
 animWriteActive    : lowest — in-FPGA animator
 ```
 
-### 2.3 Rules for new masters
+### 2.3 QSPI Transport Performance (Bench-validated 2026-05-23)
+The QSPI transport performance varies by host platform and direction:
+
+| Platform | Direction | Production SCK | Effective Throughput |
+|---|---|---|---|
+| ESP8266 / ESP32 | Bi-di | ~500 kHz (bit-bang) | ~15 KB/s |
+| **ESP32-S3** | Writes | **60 MHz** (hardware) | **~6.8 MB/s** |
+| **ESP32-S3** | Reads | **3 MHz** (hardware) | ~10k reads/s (~40 KB/s) |
+
+Note: Reads are capped at 3 MHz by the FPGA response FSM; writes support higher rates with SI limits. See `firmware/GOTCHAS.md` and `kb/libvdp/README.md` for platform-specific policies.
+
+### 2.4 Rules for new masters
 
 Any new master added by Task 33 (Copper-lite), Task 34 (asset upload side-writes), or Task 37 (affine sprite registers) MUST:
 

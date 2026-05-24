@@ -75,12 +75,31 @@
 #error "Unsupported platform for libvdp"
 #endif
 
-/* SCK frequency — 2 MHz matches the proven Task 34/35/38 cadence on the
- * bit-bang platforms. Higher rates require re-validating PIO OSR drain +
- * SDRAM CDC margin. S3 uses the native FSPI pin group here, but we still
- * hold the test path at the canonical 2 MHz until writes are proven clean. */
+/* SCK frequency policy on the ESP32-S3 hardware SPI2 backend (bench-validated
+ * 2026-05-23 via the throughput sweep sketch on FSPI IOMUX pins 9..14):
+ *
+ *   - Reads (READ_STATUS, sticky status, etc.): FPGA QspiSlave response FSM
+ *     caps cleanly at 3 MHz. Above 3 MHz, reads fail 100% binary (likely
+ *     pixel-clock bound on the FPGA side). Read throughput is CPU-overhead-
+ *     bound anyway (~103 µs per call) so SCK rate doesn't matter for reads.
+ *
+ *   - Writes (REG_WRITE, SDRAM_WRITE): bench-clean at 80 MHz (IOMUX max).
+ *     Per-burst is overhead-bound (~74 µs at 80 MHz of which only ~13 µs is
+ *     actually on the wire) so headroom above 60 MHz is small. Holding 60
+ *     MHz as the production write speed gives a comfortable SI margin.
+ *
+ * Default = 3 MHz so first-call READ_STATUS magic works out of the box.
+ * Sketches doing bulk uploads should call:
+ *
+ *     vdp_qspi_set_speed_hz(60000000u);   // before write-heavy section
+ *     ...
+ *     vdp_qspi_set_speed_hz( 3000000u);   // before next read
+ *
+ * Bit-bang platforms (ESP8266 / legacy ESP32) keep their canonical 2 MHz
+ * cadence — the set_speed_hz call is a no-op there. */
 #if defined(VDP_QSPI_BACKEND_SPI2)
-#define VDP_QSPI_SCK_HZ    1000000u
+#define VDP_QSPI_SCK_HZ    3000000u    /* boot/read default */
+#define VDP_QSPI_SCK_WRITE_HZ 60000000u /* recommended bulk-write speed */
 #else
 #define VDP_QSPI_SCK_HZ    2000000u
 #endif

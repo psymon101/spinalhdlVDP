@@ -69,6 +69,8 @@ void vdp_pio_wait_sm_idle(void)
     sleep_us(20);
 }
 
+void vdp_qspi_set_speed_hz(uint32_t hz) { (void)hz; /* no-op on Pico PIO */ }
+
 static inline void vdp_tx_word(uint32_t w)
 {
     pio_sm_put_blocking(VDP_QSPI_PIO, VDP_QSPI_SM_TX, w);
@@ -146,137 +148,118 @@ uint32_t vdp_read_status(uint8_t sel)
     return (uint32_t)b0 | ((uint32_t)b1 << 8) | ((uint32_t)b2 << 16) | ((uint32_t)b3 << 24);
 }
 
-// ---- ESP32-S3 GPIO Bit-bang Implementation ----------------------------------
+// ---- ESP32-S3 Hardware SPI2 (Quad, DMA) Implementation ----------------------
 #elif defined(VDP_QSPI_BACKEND_SPI2)
-/* Despite the flag name, this is now a GPIO bit-bang path — the hardware
- * SPI2 + DMA path correctly framed READ_STATUS reads but silently dropped
- * REG_WRITE payload data regardless of cmd/addr/data phase mapping (BronzeGate
- * #10529 series). Bit-bang mirrors the proven ESP8266/ESP32 paths in this
- * file and keeps the wire protocol identical so the FPGA QspiSlave needs no
- * changes. All S3 pins (9..14) are in GPIO 0..31, so the lower GPIO_OUT_*
- * register set works (no GPIO_OUT1_* needed). */
+/* Restored 2026-05-23 — earlier "writes silently no-op" symptom was actually
+ * the compositor bank-fallthrough quirk (palette[64] vs palette[0], see #10539).
+ * The hardware path's READ_STATUS magic was clean at 2 MHz back then, and
+ * with palette[64] as the proper write verifier we can now retest writes
+ * against the same path. Manual CS via digitalWrite; data-only QIO frame
+ * (no cmd/addr phase split — simplest path that gave clean reads). */
 #include <Arduino.h>
-#include <soc/gpio_reg.h>
+#include <driver/spi_master.h>
 
-#define MASK_SCK    (1u << VDP_PIN_QSPI_SCK)
-#define MASK_IO0    (1u << VDP_PIN_QSPI_IO0)
-#define MASK_IO1    (1u << VDP_PIN_QSPI_IO1)
-#define MASK_IO2    (1u << VDP_PIN_QSPI_IO2)
-#define MASK_IO3    (1u << VDP_PIN_QSPI_IO3)
-#define MASK_IO_ALL (MASK_IO0 | MASK_IO1 | MASK_IO2 | MASK_IO3)
+static spi_device_handle_t s_spi = NULL;
 
 static inline void vdp_cs_assert(void)   { digitalWrite(VDP_PIN_QSPI_CS_N, LOW); }
 static inline void vdp_cs_deassert(void) { digitalWrite(VDP_PIN_QSPI_CS_N, HIGH); }
 
-static inline void vdp_drive_nibble(uint8_t n)
-{
-    uint32_t set = 0;
-    if (n & 0x1) set |= MASK_IO0;
-    if (n & 0x2) set |= MASK_IO1;
-    if (n & 0x4) set |= MASK_IO2;
-    if (n & 0x8) set |= MASK_IO3;
-    REG_WRITE(GPIO_OUT_W1TC_REG, MASK_IO_ALL);
-    if (set) REG_WRITE(GPIO_OUT_W1TS_REG, set);
-}
-
-static inline void vdp_set_sck(bool high)
-{
-    REG_WRITE(high ? GPIO_OUT_W1TS_REG : GPIO_OUT_W1TC_REG, MASK_SCK);
-}
-
-static inline uint8_t vdp_read_nibble(void)
-{
-    uint32_t pins = REG_READ(GPIO_IN_REG);
-    uint8_t n = 0;
-    if (pins & MASK_IO0) n |= 0x1;
-    if (pins & MASK_IO1) n |= 0x2;
-    if (pins & MASK_IO2) n |= 0x4;
-    if (pins & MASK_IO3) n |= 0x8;
-    return n;
-}
-
-/* Half-period: matches ESP8266 cadence for max breadboard SI margin while
- * we validate the write path. Can drop to 1µs once it works. */
-#define HALF_PERIOD_US 8
-
-static inline void vdp_send_nibble(uint8_t n)
-{
-    vdp_drive_nibble(n);
-    vdp_set_sck(false);
-    delayMicroseconds(HALF_PERIOD_US);
-    vdp_set_sck(true);
-    delayMicroseconds(HALF_PERIOD_US);
-}
-
-static inline void vdp_send_byte(uint8_t b)
-{
-    vdp_send_nibble((b >> 4) & 0x0F);
-    vdp_send_nibble( b       & 0x0F);
-}
-
 void vdp_qspi_init(void)
 {
     if (s_initialized) return;
-    pinMode(VDP_PIN_QSPI_SCK,  OUTPUT);
+
     pinMode(VDP_PIN_QSPI_CS_N, OUTPUT);
-    pinMode(VDP_PIN_QSPI_IO0,  OUTPUT);
-    pinMode(VDP_PIN_QSPI_IO1,  OUTPUT);
-    pinMode(VDP_PIN_QSPI_IO2,  OUTPUT);
-    pinMode(VDP_PIN_QSPI_IO3,  OUTPUT);
     vdp_cs_deassert();
-    vdp_set_sck(false);
+
+    spi_bus_config_t buscfg = {0};
+    buscfg.mosi_io_num    = VDP_PIN_QSPI_IO0;
+    buscfg.miso_io_num    = VDP_PIN_QSPI_IO1;
+    buscfg.sclk_io_num    = VDP_PIN_QSPI_SCK;
+    buscfg.quadwp_io_num  = VDP_PIN_QSPI_IO2;
+    buscfg.quadhd_io_num  = VDP_PIN_QSPI_IO3;
+    buscfg.max_transfer_sz = 4096;
+    buscfg.flags          = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_QUAD;
+
+    if (spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO) != ESP_OK) {
+        s_last_error = 3;
+        return;
+    }
+
+    spi_device_interface_config_t devcfg = {0};
+    devcfg.clock_speed_hz = VDP_QSPI_SCK_HZ;
+    devcfg.mode           = 0;
+    devcfg.spics_io_num   = -1;       /* manual CS */
+    devcfg.queue_size     = 4;
+    devcfg.flags          = SPI_DEVICE_HALFDUPLEX;
+
+    if (spi_bus_add_device(SPI2_HOST, &devcfg, &s_spi) != ESP_OK) {
+        s_last_error = 4;
+        return;
+    }
+
     s_last_error = 0;
     s_initialized = true;
 }
 
-void vdp_pio_wait_sm_idle(void) { /* no-op */ }
+void vdp_pio_wait_sm_idle(void) { /* no-op on S3 */ }
+
+void vdp_qspi_set_speed_hz(uint32_t hz)
+{
+    if (!s_initialized) return;
+    if (s_spi) {
+        spi_bus_remove_device(s_spi);
+        s_spi = NULL;
+    }
+    spi_device_interface_config_t devcfg = {0};
+    devcfg.clock_speed_hz = (int)hz;
+    devcfg.mode           = 0;
+    devcfg.spics_io_num   = -1;
+    devcfg.queue_size     = 4;
+    devcfg.flags          = SPI_DEVICE_HALFDUPLEX;
+    spi_bus_add_device(SPI2_HOST, &devcfg, &s_spi);
+}
 
 static void vdp_tx_bytes(const uint8_t *buf, size_t n)
 {
-    for (size_t i = 0; i < n; ++i) vdp_send_byte(buf[i]);
+    if (n == 0) return;
+    spi_transaction_t t = {0};
+    t.flags     = SPI_TRANS_MODE_QIO;
+    t.length    = n * 8u;
+    t.tx_buffer = buf;
+    spi_device_transmit(s_spi, &t);
 }
 
 uint32_t vdp_read_status(uint8_t sel)
 {
-    vdp_set_sck(false);
-    pinMode(VDP_PIN_QSPI_IO0, OUTPUT);
-    pinMode(VDP_PIN_QSPI_IO1, OUTPUT);
-    pinMode(VDP_PIN_QSPI_IO2, OUTPUT);
-    pinMode(VDP_PIN_QSPI_IO3, OUTPUT);
-
-    vdp_cs_assert();
     uint8_t hdr[6] = { 0x04, sel, 0x00, 0x00, 0x00, 0x00 };
-    vdp_tx_bytes(hdr, 6);
+    uint8_t rx[4]  = { 0, 0, 0, 0 };
 
-    /* 2-edge turnaround */
-    pinMode(VDP_PIN_QSPI_IO0, INPUT);
-    pinMode(VDP_PIN_QSPI_IO1, INPUT);
-    pinMode(VDP_PIN_QSPI_IO2, INPUT);
-    pinMode(VDP_PIN_QSPI_IO3, INPUT);
-    for (int i = 0; i < 2; i++) {
-        vdp_set_sck(false); delayMicroseconds(HALF_PERIOD_US);
-        vdp_set_sck(true);  delayMicroseconds(HALF_PERIOD_US);
-    }
+    /* Split into two transactions (TX-only then RX-only) across one CS
+     * assertion — ESP-IDF half-duplex rejects mixed TX+RX. dummy_bits=2
+     * matches the FPGA's 2-edge turnaround (cycles, not bits). */
+    vdp_cs_assert();
 
-    uint8_t bytes[4];
-    for (int i = 0; i < 4; i++) {
-        vdp_set_sck(false); delayMicroseconds(HALF_PERIOD_US);
-        vdp_set_sck(true);  uint8_t hi = vdp_read_nibble(); delayMicroseconds(HALF_PERIOD_US);
-        vdp_set_sck(false); delayMicroseconds(HALF_PERIOD_US);
-        vdp_set_sck(true);  uint8_t lo = vdp_read_nibble(); delayMicroseconds(HALF_PERIOD_US);
-        bytes[i] = (hi << 4) | lo;
-    }
+    spi_transaction_t tx = {0};
+    tx.flags     = SPI_TRANS_MODE_QIO;
+    tx.length    = 6u * 8u;
+    tx.tx_buffer = hdr;
+    esp_err_t err = spi_device_transmit(s_spi, &tx);
+    if (err != ESP_OK) { vdp_cs_deassert(); s_last_error = 5; return 0; }
 
-    vdp_set_sck(false);
+    spi_transaction_ext_t rd = {0};
+    rd.base.flags    = SPI_TRANS_MODE_QIO | SPI_TRANS_VARIABLE_DUMMY;
+    rd.base.rxlength = 4u * 8u;
+    rd.base.rx_buffer = rx;
+    rd.dummy_bits    = 2;
+    err = spi_device_transmit(s_spi, (spi_transaction_t *)&rd);
+
     vdp_cs_deassert();
-    pinMode(VDP_PIN_QSPI_IO0, OUTPUT);
-    pinMode(VDP_PIN_QSPI_IO1, OUTPUT);
-    pinMode(VDP_PIN_QSPI_IO2, OUTPUT);
-    pinMode(VDP_PIN_QSPI_IO3, OUTPUT);
-    delayMicroseconds(10);
+    if (err != ESP_OK) { s_last_error = 6; return 0; }
 
-    return (uint32_t)bytes[0] | ((uint32_t)bytes[1] << 8) |
-           ((uint32_t)bytes[2] << 16) | ((uint32_t)bytes[3] << 24);
+    return (uint32_t)rx[0]
+         | ((uint32_t)rx[1] <<  8)
+         | ((uint32_t)rx[2] << 16)
+         | ((uint32_t)rx[3] << 24);
 }
 
 // ---- ESP32 / ESP8266 Arduino Bit-bang Implementation -------------------------
@@ -390,6 +373,8 @@ void vdp_qspi_init(void)
 }
 
 void vdp_pio_wait_sm_idle(void) { /* no-op on Arduino */ }
+
+void vdp_qspi_set_speed_hz(uint32_t hz) { (void)hz; /* no-op on bit-bang */ }
 
 static void vdp_tx_bytes(const uint8_t *buf, size_t n)
 {

@@ -79,6 +79,16 @@ void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words);
 int vdp_last_error(void);
 
 /**
+ * Change the QSPI SCK frequency at runtime. Currently only effective on
+ * the ESP32-S3 hardware SPI2 backend (VDP_QSPI_BACKEND_SPI2); on other
+ * platforms this is a no-op. Pass a frequency in Hz; the actual rate
+ * may be rounded to the nearest divisor of the bus clock.
+ *
+ * Safe to call between transactions; do not call mid-transaction.
+ */
+void vdp_qspi_set_speed_hz(uint32_t hz);
+
+/**
  * Wait for the PIO TX FIFO to drain + a proven 20 µs OSR margin.
  *
  * MUST be called after any PIO TX burst before:

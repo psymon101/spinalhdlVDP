@@ -179,3 +179,11 @@ the VDP side ever adds high-Z states.
 **Implication:** If you disable all layers to see a "pure" `palette[0]` backdrop, you may see **Black** or another color if Layer 0's bank is currently non-zero. At POR, Layer 0's bank is often **Bank 4** (Grayscale/Black) due to uninitialized SDRAM Attribute memory.
 
 **Fix:** Either pre-initialize the SDRAM Attribute Map to Bank 0, or write your intended backdrop color to the first index of all 8 palette banks (`0, 16, 32, 48, 64, 80, 96, 112`).
+
+### GOTCHA-11: ESP32-S3 QSPI SI Ceiling at 80 MHz
+
+**Fact:** The ESP32-S3 hardware SPI2 peripheral supports up to 80 MHz when using the dedicated FSPI IOMUX pin group (GPIO 9..14).
+
+**Implication:** At 80 MHz, signal integrity on breadboards or long unshielded wires is poor. Reflections can cause bit-flips in bulk register writes, leading to corrupted palette or SDRAM data.
+
+**Fix:** Use **60 MHz** (`VDP_QSPI_SCK_WRITE_HZ`) as the production bulk-write speed. It provides nearly the same throughput (~6.8 MB/s) with significantly more SI margin. Interleaving data lines with multiple Ground wires on the ribbon cable is also recommended.

@@ -33,6 +33,23 @@ arduino-cli compile --fqbn esp32:esp32:esp32 --library libvdp <sketch_dir>
 arduino-cli upload   --fqbn esp32:esp32:esp32 -p /dev/ttyUSB0 <sketch_dir>
 ```
 
+ESP32-S3 variant:
+
+```sh
+arduino-cli compile --fqbn esp32:esp32:esp32s3 --library libvdp <sketch_dir>
+arduino-cli upload   --fqbn esp32:esp32:esp32s3 -p /dev/ttyACM0 <sketch_dir>
+```
+
+## ESP32-S3 Production Sketches
+
+| Sketch | Purpose |
+|---|---|
+| `esp32s3_qspi_smoke` | Minimal READ_STATUS magic loop; verifies basic transport integrity. |
+| `esp32s3_red_screen` | Verification of bit-perfect palette writes using `palette[64]` as a canary. |
+| `esp32s3_throughput` | Sweeps 1-80 MHz to characterize transport bandwidth and error floor. |
+| `esp32s3_stress` | High-load mixed read/write stress test with error accounting. |
+| `esp32s3_scope_fodder` | Continuous toggling on GPIO 12 for scope signal-integrity analysis. |
+
 ## PNG Asset Conversion
 
 ```sh
@@ -89,6 +106,17 @@ vdp_upload_asset(FRAME_SDRAM_BASE, frame_tiles, FRAME_TILES_WORD_COUNT, NULL);
 | IO1  | 22   |
 | IO2  | 25   |
 | IO3  | 27   |
+
+### ESP32-S3 (FSPI IOMUX)
+
+| QSPI | GPIO | Tang Nano pin |
+|------|------|---------------|
+| SCK  | 12   | 41            |
+| CS_N | 10   | 42            |
+| IO0  | 11   | 48            |
+| IO1  | 13   | 49            |
+| IO2  | 14   | 51            |
+| IO3  | 9    | 54            |
 
 ### Pico (RP2350)
 
