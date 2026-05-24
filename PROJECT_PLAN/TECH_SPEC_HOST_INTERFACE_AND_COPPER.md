@@ -137,8 +137,8 @@ Copper instructions are 16 bits.
 
 ### 4.3 Copper Program RAM
 
-- Size: 1 kB (512 × 16-bit words)
-- Mapped to host address space at 0x3000–0x3FFF
+- Size: 2 kB (**1024** × 16-bit words)
+- Mapped to host address space at 0x0400–0x07FF
 - Host writes programs when `copper_enable = 0`
 - Copper reads programs when `copper_enable = 1`
 

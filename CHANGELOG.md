@@ -1,5 +1,33 @@
 # spinalhdlVDP Changelog
 
+## 2026-05-24 — RTL Platform-Agnosticism Purge & 1-Pixel Fix (IN-PROGRESS)
+
+- **Scanline-start 1-pixel Transient Fix** — DONE (#10550)
+  - RTL pre-advance `(hCounter + 1)` logic implemented in `VdpTop.scala` to align fetch latency.
+  - Eliminated the vertical green/artifact strip at the leftmost edge of the screen.
+  - Bench-verified on ESP32-S3 and ESP8266.
+- **RTL Platform-Agnosticism Purge** — ACTIVE (#10567)
+  - Scope: Remove all Tier 1/2/3 platform-specific code from `hw/spinal/`.
+  - Scenarios 20 (C64), 50 (ZX), and 70 (Mode-Select) targeted for removal.
+  - Mandate: Platform personality moves to `libvdp`.
+- **Project Documentation Hardening** — DONE (#10578)
+  - `CONVENTIONS.md`, `REPO_STRUCTURE.md`, and `MODE0_PLANNING.md` updated to reflect generic RTL mandate.
+
+## 2026-05-23 — ESP32-S3 Host Bring-up & RTL Cleanup (DONE)
+
+- **ESP32-S3 Host Bring-up** — DONE (#10539 / #10541)
+  - Hardware SPI2 + DMA implementation landed in `libvdp`.
+  - Supports 60 MHz writes (~6.8 MB/s) and 3 MHz reads.
+  - FSPI IOMUX pin group (GPIO 9..14) validated for high-speed signal integrity.
+  - `vdp_qspi_set_speed_hz()` API added for runtime frequency selection.
+- **RTL Diagnostic Cleanup** — DONE (#10519)
+  - All scenario-45 era diagnostic overlays and HDMI mux overrides stripped from `main`.
+  - Dead RGB565 base/stride registers deprecated.
+  - Register savings: -30 FFs.
+- **Copper Program RAM Expansion** — DONE (#10525)
+  - Doubled capacity from 512 to **1024 words**.
+  - `libvdp` updated to support larger program uploads.
+
 ## 2026-05-20 — R5.4 Copper Double-Buffer Integration into descCount=32 Line (DONE)
 
 - **R5.4 Copper Integration** — DONE (BronzeGate #10398 closeout accepted)

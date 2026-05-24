@@ -1,10 +1,7 @@
 # MODE_SELECT Architecture — Runtime Platform Adapter Selection
 
-**Version:** 1.1
-**Author:** CoralReef
-**Date:** 2026-04-28
-**Status:** Revised per PM #8687 (BronzeGate) + BrightForge #8685 + CyanPeak #8684. Awaiting audit of corrected spec.
-**Governing directive:** BronzeGate #8679 / #8680 / #8687 / #8688
+**Status:** **HISTORICAL / DEPRECATED** (2026-05-24)  
+**Reason:** The runtime adapter-selection mux has been superseded by the **RTL Platform-Agnosticism Purge (#10567)**. Platform-specific adapters have been removed from the RTL tree; platform personality is now managed entirely in `libvdp`. This document remains for architectural archaeology only.
 
 ---
 

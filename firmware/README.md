@@ -8,6 +8,7 @@ platforms over a full 6-wire quad QSPI transport.
 | Platform | MCU | Toolchain | Target Board |
 |----------|-----|-----------|--------------|
 | Pico 2 | RP2350 | Pico SDK 2.2.0 | Raspberry Pi Pico 2 |
+| **ESP32-S3** | ESP32-S3 | ESP-IDF / Arduino CLI | ESP32-S3-DevKitC-1 |
 | ESP32 | ESP32 | Arduino CLI | ESP32 Dev1 |
 | ESP8266 | ESP8266 | Arduino CLI | NodeMCU 1.0 (ESP-12E) |
 
