@@ -270,18 +270,33 @@ void setup_line_interrupt() {
 ---
 
 ## 8. Hardware Behavior Notes
-
 ### Disabled-Layer Backdrop
 **Behavior**: When all layers and sprites are disabled via `LAYER_ENABLE` (0x0300 = 0), the VDP compositor falls through to a default "backdrop" color. 
 
-**Determinism Warning (2026-05-24)**: This backdrop uses the current **Layer 0 Palette Bank**. While the hardware pipeline is aligned to prevent transients, at Power-On Reset (POR), Layer 0's bank is sourced from uninitialized SDRAM Attribute memory (typically defaulting to **Bank 4** / Black). This color is currently **non-deterministic** across reflash-vs-cold-boot paths due to SDRAM state carry-over. A dedicated `BACKDROP_INDEX` register is planned to resolve this.
+**Implementation Note**: This backdrop is deterministic and is controlled by the `BACKDROP_INDEX` register (`0x0348`). It defaults to 0 (black) at power-on.
 
-**Recommended Action**: To ensure a consistent backdrop color (e.g., Red) when layers are off:
-1. Initialize the Layer 0 Attribute memory in SDRAM to Bank 0.
-2. OR, write your backdrop color to the first index of ALL 8 palette banks (`palette[0]`, `palette[16]`, `palette[32]`, etc.).
+**Recommended Action**: To change the background color when all layers are off, write a 7-bit palette index (0..127) to `BACKDROP_INDEX`.
+
+```c
+// Set backdrop to entry 10 (e.g. Blue)
+vdp_reg_write(0x0348, 10);
+```
+
+### Scaling and Logical Resolution
+**Behavior**: The VDP includes an integer pixel-repetition scaler that can repeat logical pixels (1x to 6x) to fill the 640x480 physical panel. This allows for lower logical resolutions (like 320x240 or 256x192) while maintaining a high-quality HDMI signal.
+
+**Implementation Note**: Use the `SCALE_CTRL` register (`0x0349`) to set the X and Y repeat factors. Setting `autoCenter` (bit 7) automatically centers the logical canvas on the screen using the `LOGIC_WIDTH` and `LOGIC_HEIGHT` registers.
+
+**Recommended Action**: Use the `libvdp` helper `vdp_mode0_set_logical_resolution(w, h)` to configure scaling. It automatically computes the best integer scale and centers the image.
+
+```c
+// Configure a 320x240 logical canvas with auto-centering
+vdp_mode0_set_logical_resolution(320, 240);
+```
 
 ---
 
+## 9. Verification Guidelines
 # Part II: Internal Register Reference
 
 | Address | Name | Description |
@@ -291,6 +306,10 @@ void setup_line_interrupt() {
 | `0x0320` | `STATUS_STICKY` | bit0:Raster Match, bit8:DMA Done, bit9:Blit Done |
 | `0x0330` | `WIN1_X0` | Window 1 Left Boundary |
 | `0x0347` | `BORDER_CTRL` | bit0:Enable, bits[15:8]:Palette Index |
+| `0x0348` | `BACKDROP_INDEX` | 7-bit palette index for background fallthrough |
+| `0x0349` | `SCALE_CTRL` | bit[2:0]:scaleX, bit[6:4]:scaleY, bit[7]:autoCenter |
+| `0x034A` | `LOGIC_WIDTH` | 11-bit logical canvas width (1..640) |
+| `0x034B` | `LOGIC_HEIGHT` | 11-bit logical canvas height (1..480) |
 | `0x0350` | `BITMAP_CTRL` | *Deprecated* (no-op since `8b61a2e`) |
 | `0x0351..0x0356` | `BITMAP_BASE / STRIDE` | *Deprecated* (no-op since `8b61a2e`) |
 | `0x0360` | `TRIGGER1_LINE` | Target scanline for Raster Trigger 1 |

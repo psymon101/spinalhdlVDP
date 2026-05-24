@@ -97,7 +97,11 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x033C..0x033F` | **Task 20** — Border window (`BORDER_X0`, `BORDER_X1`, `BORDER_Y0`, `BORDER_Y1`) | Task 20 / R6 | `VdpTop.scala` |
 | `0x0340..0x0346` | **Task 19** — Affine Background registers (`AFFINE_A`, `AFFINE_B`, `AFFINE_C`, `AFFINE_D`, `AFFINE_X`, `AFFINE_Y`, `AFFINE_CTRL`) | Task 19 | `VdpTop.scala:297-352` |
 | `0x0347` | `BORDER_CTRL` — border enable + palette index | Task 20 / R6 | `VdpTop.scala` |
-| `0x0348..0x034F` | **Reserved** — Task 19 expansion | — | — |
+| `0x0348` | `BACKDROP_INDEX` — 7-bit palette index for background fallthrough | Lane #10567 | `VdpTop.scala` |
+| `0x0349` | `SCALE_CTRL` — [2:0]=scaleX, [6:4]=scaleY, [7]=autoCenter | Lane #10590 | `PixelRepeatScaler.scala` |
+| `0x034A` | `LOGIC_WIDTH` — 11-bit logical canvas width (1..640) | Lane #10590 | `VdpTop.scala` |
+| `0x034B` | `LOGIC_HEIGHT` — 11-bit logical canvas height (1..480) | Lane #10590 | `VdpTop.scala` |
+| `0x034C..0x034F` | **Reserved** — future expansion | — | — |
 | `0x0350` | `BITMAP_CTRL` — `bit 7` is **deprecated** (no-op) | Task 44 / CP-1a | `VdpTop.scala`, `BitmapFetch.scala` |
 | `0x0351..0x0356` | **Reserved** — deprecated (formerly RGB565 base/stride registers) | — | — |
 | `0x0357..0x035F` | **Reserved** — Task 44 expansion / future host-surface registers | — | — |
