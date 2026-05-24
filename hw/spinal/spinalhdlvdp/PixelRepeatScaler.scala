@@ -113,8 +113,74 @@ case class PixelRepeatScaler() extends Component {
   io.acBorderY1     := (offY + visibleH.resize(10)).resize(10)
   io.acBorderActive := io.autoCenter
 
-  // --- Checkpoint A skeleton: bypass-only output path. Checkpoint B fills
-  //     the line buffer + horizontal/vertical repeat counters. ---
-  // TODO(#10590 Checkpoint B): replace with scaled path under !bypass.
-  io.outRgb := io.inRgb
+  // --- Checkpoint B body: line buffer + horizontal/vertical repeat counters ---
+  //
+  // The scaler adds 1 cycle of latency to its output, uniformly across bypass
+  // and scaled modes (both paths go through `outRgbReg`). VdpTop's sync/DE
+  // pipeline absorbs the matching `RegNext` so the HDMI TX sees aligned
+  // hsync/vsync/de/RGB.
+
+  // X repeat counter — advances every cycle, wraps at scaleXEff-1.
+  // Resets on hsync rising so each line starts at the boundary.
+  val xRep = Reg(UInt(3 bits)) init 0
+  when(io.hsyncRising) {
+    xRep := 0
+  } otherwise {
+    when(xRep === (scaleXEff - U(1, 3 bits)).resize(3)) {
+      xRep := 0
+    } otherwise {
+      xRep := xRep + U(1, 3 bits)
+    }
+  }
+
+  // Y repeat counter — advances per hsync, wraps at scaleYEff-1.
+  // Resets on vsync rising so each frame starts at the boundary.
+  val yRep = Reg(UInt(3 bits)) init 0
+  when(io.vsyncRising) {
+    yRep := 0
+  } elsewhen(io.hsyncRising) {
+    when(yRep === (scaleYEff - U(1, 3 bits)).resize(3)) {
+      yRep := 0
+    } otherwise {
+      yRep := yRep + U(1, 3 bits)
+    }
+  }
+  val onFreshLine = yRep === U(0, 3 bits)
+
+  // Latched pixel — captured at each xRep===0 boundary on fresh lines.
+  // The combinational `freshOut` selects between live input (at boundary)
+  // and the latched value (during the scaleX-1 hold cycles after the
+  // boundary), so fresh-line output runs at zero latency from `inRgb`.
+  val freshLatch = Reg(Bits(24 bits)) init B(0, 24 bits)
+  when(onFreshLine && xRep === U(0, 3 bits)) {
+    freshLatch := io.inRgb
+  }
+  val freshOut = Mux(xRep === U(0, 3 bits), io.inRgb, freshLatch)
+
+  // Line buffer — captures the fresh-line output stream so replay-Y lines
+  // can re-emit the same pixels without re-rendering. Mapped to one SDPB
+  // BSRAM on Gowin via readSync + ram_style attribute.
+  val lineBuf = Mem(Bits(24 bits), 640)
+  lineBuf.addAttribute("ram_style", "block")
+  when(onFreshLine) {
+    lineBuf.write(address = io.hCounter, data = freshOut)
+  }
+
+  // Replay-Y read — readSync has 1-cycle latency, so request hCounter+1
+  // and the result lands aligned with the current physical column.
+  val replayAddr = Mux(io.hCounter < (io.hActive.resize(11) - U(1, 11 bits)).resize(10),
+                       (io.hCounter + U(1, 10 bits)).resize(10),
+                       U(0, 10 bits))
+  val replayOut = lineBuf.readSync(replayAddr)
+
+  // Final 1-cycle output register, common to bypass + scaled paths so the
+  // downstream sync/DE pipeline only needs a single additional RegNext to
+  // re-align.
+  val outRgbReg = Reg(Bits(24 bits)) init B(0, 24 bits)
+  when(bypass) {
+    outRgbReg := io.inRgb
+  } otherwise {
+    outRgbReg := Mux(onFreshLine, freshOut, replayOut)
+  }
+  io.outRgb := outRgbReg
 }
