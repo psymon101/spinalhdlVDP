@@ -120,6 +120,13 @@ For full pre-execution planning (primitive boundary, interfaces, data model, tim
 ```markdown
 ## Lane Open: [Task Name]
 
+### Prior Art Search
+- [ ] Searched `TASKS_HISTORY.md` for same symptom / module / signal
+- [ ] Searched `PROJECT_PLAN/archive/artifacts/` for related closed investigations
+- [ ] Searched `firmware/GOTCHAS.md` for known pitfalls matching the symptom
+- [ ] Searched `memory` MCP for reusable findings
+- [ ] Prior art found (reference): ... / No prior art found
+
 ### Scope Boundary
 - in scope: ...
 - in scope: ...

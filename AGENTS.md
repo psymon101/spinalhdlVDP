@@ -15,13 +15,13 @@ Examples and command snippets: `AGENTS_EXAMPLES.md`
 |----------------|------|-------|
 | `BrightForge` | FPGA RTL engineer | Claude |
 | `BronzeGate` | MCU firmware engineer | Codex |
-| `CyanPeak` | Datasheet parser / reviewer | Gemini |
+| `CyanPeak` | Datasheet / compliance / documentation reviewer | Gemini |
 | `TopazCliff` | Technical project manager | Kimi (Inst. 2) |
-| `CoralReef` | Compliance / documentation | *unassigned* |
 
-**Current roster rule (2026-05-22):**
+**Role ownership:**
 - `BronzeGate` owns MCU firmware responsibilities for `spinalhdlVDP`
 - `TopazCliff` owns PM sequencing and interface-definition work for this repository
+- `CyanPeak` owns datasheet/spec review plus compliance/documentation review for this repository
 
 ## Mail Registration
 
@@ -130,9 +130,8 @@ After running simulation:
 |------|----------------|
 | `BrightForge` | FPGA implementation, validation, proof, board flashing |
 | `BronzeGate` | MCU firmware, host transport, platform parity, scenario bootstrap |
-| `CyanPeak` | Datasheet/manual review, code-to-spec checking, hardware-accuracy review |
+| `CyanPeak` | Datasheet/manual review, code-to-spec checking, hardware-accuracy review, compliance/documentation review, static-ruleset audit support, memory/doc curation |
 | `TopazCliff` | Sequencing, scope control, HW/SW interface definition, stall intervention |
-| `CoralReef` | Compliance, documentation, static-ruleset audit support, memory/doc curation |
 
 **Rules:**
 - One active engineering lane at a time on the critical path.
@@ -140,12 +139,12 @@ After running simulation:
 - Fast-flow: shortest trustworthy cycle, smallest proof-sized batches, earlier discriminators.
 - Ledger sync is part of closeout, not cleanup.
 
-**Current operating split (2026-05-22):**
+**Authoritative operating split:**
 - `TopazCliff` is the authoritative PM owner for this repo.
 - `BronzeGate` is the authoritative MCU firmware owner for this repo.
 - `BrightForge` is the authoritative FPGA owner for this repo.
 - `CyanPeak` is the authoritative datasheet/spec review owner for this repo.
-- `CoralReef` is currently unassigned.
+- `CyanPeak` is the authoritative compliance/documentation review owner for this repo.
 
 ### Deliverable Verification Rule
 
@@ -279,8 +278,8 @@ The `memory` MCP is a **queryable cache**, not the authoritative log. Backing st
 
 | Owner | Responsibility |
 |-------|----------------|
-| `CoralReef` | Initial curated compliance/doc memory pass |
-| `CoralReef` | Ongoing updates: compliance findings, documentation deltas, static-rule gotchas, and reusable process constraints |
+| `CyanPeak` | Initial curated compliance/doc memory pass |
+| `CyanPeak` | Ongoing updates: compliance findings, documentation deltas, static-rule gotchas, and reusable process constraints |
 
 **Workflow:** check `memory` first → use mail/docs as authority → add back only short, reusable findings.
 
@@ -352,6 +351,22 @@ Do not treat `memory` as a full-document store for PDFs.
 
 Do not dump raw mail or long logs into memory. Store short, query-friendly summaries with mail/doc tie-back.
 
+## Prior Art Search Rule (Mandatory)
+
+Before declaring a bug root-cause **novel**, proposing a **new fix pattern**, or opening a lane for a symptom that has already been investigated, every agent must search the following sources in order:
+
+1. `PROJECT_PLAN/TASKS_HISTORY.md` — grep for the symptom, signal name, or module
+2. `PROJECT_PLAN/archive/artifacts/` — grep for related task artifacts and closed investigations
+3. `firmware/GOTCHAS.md` — check for known pitfalls that match the symptom
+4. `kb/` adapter docs and `memory` MCP — check for reusable findings
+
+**Working rule:**
+- If a prior artifact documents the same root-cause class (e.g. `readSync` 1-pixel latency, bootstrap FSM ordering, QSPI byte-stream misframe), the agent must **reference the prior artifact** in their root-cause packet and explain why the previous fix was not applicable or why it was missed.
+- Do not claim a fix is "new" or "novel" without completing the search above.
+- If the search reveals a prior fix that was never propagated to the current path, the agent must **note the propagation gap** and treat the fix as a known-good pattern, not an invention.
+
+**Escalation:** If the search is inconclusive after 10 minutes, proceed with investigation but flag the uncertainty in the first status mail so CyanPeak or TopazCliff can direct you to the right artifact.
+
 ## Preventive Rules
 
 Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity, authorization, and contract drift.
@@ -359,7 +374,7 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 | # | Rule | One-line Requirement |
 |---|------|----------------------|
 | 1 | Role Transfer | No self-declared role absorption. Requires TopazCliff authorization + transition mail + `AGENTS.md` update |
-| 2 | Review Singleton | CyanPeak owns spec-accuracy review; CoralReef owns compliance/doc review. Outgoing owner must confirm retirement before transfer |
+| 2 | Review Singleton | CyanPeak owns spec-accuracy review and compliance/doc review. Any future transfer requires TopazCliff authorization and explicit role reassignment |
 | 3 | Commit-Within-Cycle | Audit PASS work must be committed before next PM review. Audit owner may withhold PASS until commit hash is in packet |
 | 4 | Contract Deviation | >25% deviation from locked hardware contract must be documented in `GOTCHAS.md` with quantitative analysis |
 | 5 | Signoff Consistency | One canonical signoff per agent. No mixed aliases mid-thread |
@@ -367,6 +382,7 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 | 7 | Side-Lane Authorization | Parallel work requires TopazCliff lane-open authorization before implementation |
 | 8 | AGENTS.md Immutability | No unilateral rewrites. Requires TopazCliff authorization AND CyanPeak review AND diff review |
 | 9 | Project Owner Override | Owner may override process constraints by direct instruction. Agent records owner-directed change; diff remains reviewable; scope is limited to instruction unless broader intent stated |
+| 10 | Prior Art Search | See §Prior Art Search Rule above. No novel-root-cause claims without searching `TASKS_HISTORY.md`, `archive/artifacts/`, `GOTCHAS.md`, and `memory` first |
 
 **Canonical QSPI contract:** 2 MHz SCK, 10 µs CS hold, 20 µs OSR drain.
 
@@ -375,6 +391,5 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 - `— BrightForge`
 - `— CyanPeak`
 - `— TopazCliff`
-- `— CoralReef`
 
 If you believe a rule is wrong, escalate to TopazCliff with a specific amendment proposal. Do not edit the file directly.
