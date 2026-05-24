@@ -1,9 +1,35 @@
 # TASKS_HISTORY.md
 
-**Version:** 1.0-draft  
-**Author:** CoralReef  
-**Date:** 2026-05-10 (Task 54 closure added)  
+**Version:** 1.1-draft  
+**Author:** CyanPeak (audit update)  
+**Date:** 2026-05-24 (Lane #10567 closure added)  
 **Purpose:** Deep historical record for closed lanes, extended task writeups, and archived execution detail. `TASKS.md` remains the sole active task authority; this file is reference only.
+
+---
+
+### RTL Platform-Agnosticism Purge (CLOSED)
+
+| Field | Value |
+|---|---|
+| **Task** | RTL Platform-Agnosticism Purge (#10567) |
+| **Status** | **DONE** — CyanPeak audit PASS #10587 |
+| **Phase** | closed |
+| **Owner** | BrightForge (deletion), CyanPeak (audit), TopazCliff (coordination) |
+| **Baseline Commit** | `8b61a2e` (RTL Cleanup) |
+| **Commits in lane** | `66dc25f` (RTL purge) |
+| **Latest Auth Mail** | #10567 (Lane Open), #10576 (Scope Change), #10581 (Audit GO), #10587 (Audit PASS) |
+| **Proof** | Generic sims PASS: \`TileAttributeFetchSim\`, \`SdramTileFetchSim\`, \`SpriteSpriteCollisionSim\`. Recursive grep returns zero behavioral matches in \`hw/spinal/\`. |
+| **Next Deliverable** | N/A — Lane #10567 closed |
+
+**Scope:** Strip all platform-specific RTL (adapters, shims, hardcoded assets, and scenarioId parameterization) to enforce the **RTL Agnosticism** principle. Personality moves to \`libvdp\`.
+
+**Implementation:**
+- Deleted 10 files covering Tier 1/2 platform IP (C64, ZX, Mode-Select).
+- Scrubbed \`TopTang20kHdmi.scala\`: dropped \`scenarioId\` and \`useHostInit\` parameters. Folded all per-scenario logic into a single generic 'Pure Host' path.
+- Removed hardcoded palettes from \`TileAttributeAssets.scala\`.
+- Cleaned up stale platform-specific comments in core VDP logic.
+
+**Orphan Retentions:** \`C64CharRom.scala\` and \`peptoPalette\` retained for future firmware-side backfill.
 
 ---
 

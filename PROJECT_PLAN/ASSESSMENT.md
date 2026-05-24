@@ -1,7 +1,7 @@
 # Mode0 Substrate Assessment Compilation
 
-**Updated:** 2026-05-10
-**Purpose:** Single canonical assessment document for the `spinalhdlVDP` Mode0 substrate. Consolidates all active assessment content into one indexed file.
+**Updated:** 2026-05-24
+**Purpose:** Single canonical assessment document for the `spinalhdlVDP` Mode0 substrate. Consolidates all active assessment content into one indexed file. (RTL Platform-Agnosticism Purge #10567 active).
 
 This document replaces the following previously-scattered assessment files (now archived in `PROJECT_PLAN/archive/assessments/`):
 - `MODE0_FETCH_ENVELOPE_ASSESSMENT.md` → §1 Fetch Envelope
@@ -22,6 +22,7 @@ If any assessment disagrees with `TASKS.md` on execution priority, `TASKS.md` wi
 - [§4 — Platform Coverage Audit](#4-platform-coverage-audit)
 - [§5 — Universal Sprite Engine Gaps](#5-universal-sprite-engine-gaps)
 - [§6 — Resource and Toolchain Gotchas](#6-resource-and-toolchain-gotchas)
+- [§7 — RTL Agnosticism Audit (2026-05-24)](#7-rtl-agnosticism-audit-2026-05-24)
 
 ---
 
@@ -31,7 +32,7 @@ If any assessment disagrees with `TASKS.md` on execution priority, `TASKS.md` wi
 
 # §1 — Fetch Envelope Assessment
 
-> Verdict: Tile+attribute and bitmap+attribute are **Strong**; planar is **Usable but limited** (needs 5–6 planes for Amiga/ST); shuffled is honest with adapter-local address calc.
+> Verdict: Tile+attribute and bitmap+attribute are **Strong**; planar is **Usable but limited** (needs 5–6 planes for Amiga/ST); shuffled is honest with adapter-local address calc. **(*) Relocating to libvdp.**
 
 
 **Assessment version:** 1.0  
@@ -862,7 +863,7 @@ If the result is accepted, the next step is to open a bounded **Color/Window Har
 
 # §4 — Platform Coverage Audit
 
-> Verdict: C64/NES/ZX Spectrum **Ready**; Genesis/Atari ST **Usable with gaps**; SNES **Usable with significant gaps**; Amiga **Gap — architectural mismatch**.
+> Verdict: C64/NES/ZX Spectrum **Ready**; Genesis/Atari ST **Usable with gaps**; SNES **Usable with significant gaps**; Amiga **Gap — architectural mismatch**. **(*) Relocating to libvdp.**
 
 
 **Audit version:** 1.0  
@@ -1464,3 +1465,28 @@ This assessment is successful because it:
 - `syn_ramstyle="distributed"` is **invalid** in Gowin V1.9.12.01 (EX0200 warning). SpinalHDL auto-generates `ram_style="distributed"` which is the correct and sufficient attribute.
 - `Mem.init()` / `initialContent` emits Verilog `initial $readmemb(...)`. Gowin cannot initialize SSRAM/BSRAM from `$readmemb`, so it **silently infers DFFs** instead. Removing init is the only way to force SSRAM inference, but it breaks host-assumed zero-init.
 - descCount=16 still fails PnR even at 92% total DFF utilization. The GW2AR-LV18 placement bottleneck is **regional density**, not just total count.
+
+# §7 — RTL Agnosticism Audit (2026-05-24)
+
+> Verdict: **PASS**. All Tier 1 (IP), Tier 2 (Infrastructure), and Tier 3 (Pollution) platform-specific artifacts have been identified for removal or relocation.
+
+## Audit Inventory
+
+### Tier 1: Platform-IP (DELETED)
+- C64: `C64Adapter.scala`, `C64CharRom.scala`, `C64DemoAnimator.scala`.
+- ZX Spectrum: `ZXSpectrumAdapter.scala`, `ZXSpectrumDemo.scala`.
+
+### Tier 2: Infrastructure (DEPRECATED)
+- `AdapterBusMux.scala`, `AdapterRegRouter.scala`.
+- `Sc70RuntimeAdapterSim.scala`.
+
+### Tier 3: Core Pollution (SCRUBBED)
+- `TopTang20kHdmi.scala`: `scenarioId` and `useHostInit` branches removed.
+- `TileAttributeAssets.scala`: Hardcoded platform palettes removed (retained as orphans for future libvdp backfill).
+- `VdpTop.scala`: Platform-specific logic shims and comments scrubbed.
+
+## Exit Conditions for Checkpoint C
+1. `grep -rn` for platform keywords in `hw/spinal/` returns zero behavioral matches.
+2. One generic bitstream builds for all non-platform tests.
+3. `libvdp` provides necessary sequences to reproduce legacy scenes. (Deferred)
+

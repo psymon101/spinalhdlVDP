@@ -233,3 +233,16 @@ One-call palette + pattern + descriptor upload. Any step can be skipped with `NU
 | Trustworthy upload proof | verify `VDP_STICKY_QSPI_ERROR` is clear |
 | Visible update pacing | use `vdp_wait_vblank` or equivalent |
 | Reuse | keep common transport logic in `libvdp`, not per-sketch code |
+
+## Platform Personality (2026-05-24)
+
+As part of the **RTL Platform-Agnosticism Purge (#10567)**, all platform-specific initialization and register shims have moved from the FPGA into `libvdp`.
+
+The following high-level helpers provide functional parity for legacy scenes:
+
+| Function | Signature | Purpose | Notes |
+|---|---|---|---|
+| `vdp_mode_c64_init` | `void vdp_mode_c64_init(void)` | setup C64-accurate registers/palette | replaces Scenario 20 |
+| `vdp_mode_zx_init` | `void vdp_mode_zx_init(void)` | setup Spectrum-accurate registers/palette | replaces Scenario 50 |
+
+These helpers perform the necessary `vdp_reg_write` and `vdp_palette_write` sequences previously hardcoded in the RTL bootstrap.

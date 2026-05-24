@@ -1,30 +1,21 @@
-# Platform Adapter Compilation
+# Platform Adapter Compilation (HISTORICAL)
 
-**Version:** 1.1-draft  
-**Author:** CoralReef / TopazCliff (consolidation update)  
-**Date:** 2026-05-12  
-**Status:** Canonical active adapter document  
-**Governing directive:** BronzeGate #9421, BronzeGate #9777
-
-This document is the **central summary/index** for all platform adapters. The **live adapter contract** for each platform lives in its canonical knowledge file under `kb/<Adapter>/README.md`.
-
-If any adapter spec disagrees with `TASKS.md` on execution priority, `TASKS.md` wins.
-
-## Visual Fidelity Policy
-
-Platform-adapter work prioritizes **visual output over internal mechanics**.
-
-**Rules:**
-1. **Capability Envelope:** Shared `Mode0` primitives may exceed original hardware limits if the visible output is identical.
-2. **Visible Nuance:** Palette behavior, resistor/DAC-aware color, border/backdrop effects, raster timing, and visible priority are **first-class concerns**.
-3. **Internal Mechanics:** Exact reproduction of original logic is **not required** unless it materially changes the displayed result.
-4. **Selective Clamping:** Adapters should only enforce platform limits (e.g., sprite counts) where they affect the visible scene.
-
-The honesty matrix below serves as a capability audit; execution decisions follow the visual-equivalence policy.
+**Status:** **HISTORICAL / SUPERSEDED** (2026-05-24)  
+**Reason:** RTL-side platform adapters have been removed in the **Platform-Agnosticism Purge (#10567)**. All platform "personality" (register shims, initialization, and assets) now resides in `libvdp`. This document is preserved for reference during firmware-side implementation of the adapter sequences.
 
 ---
 
-## 1. Adapter Index
+## 1. Executive Summary
+
+The VDP IP has transitioned to a purely generic graphics IP. Previously, platform-specific adapters (C64, ZX Spectrum) were implemented as hardware shims. These have been stripped to recover logic budget and enforce a cleaner hardware/firmware boundary.
+
+**New Model:**
+- **RTL**: Generic Mode0 (registers, fetch, compositor).
+- **Firmware (`libvdp`)**: Translates legacy platform writes into generic Mode0 register writes.
+
+---
+
+## 2. Relocation Matrix
 
 | # | Platform | Tier | Status | Canonical kb File | Notes |
 |---|---|---|---|---|---|

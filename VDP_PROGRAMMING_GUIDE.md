@@ -274,7 +274,7 @@ void setup_line_interrupt() {
 ### Disabled-Layer Backdrop
 **Behavior**: When all layers and sprites are disabled via `LAYER_ENABLE` (0x0300 = 0), the VDP compositor falls through to a default "backdrop" color. 
 
-**Important**: This backdrop is NOT guaranteed to be `palette[0]`. The compositor continues to use the current **Layer 0 Palette Bank** even when Layer 0 is disabled. At Power-On Reset (POR), if SDRAM has not been initialized, the Layer 0 bank is sourced from uninitialized SDRAM Attribute memory, which often defaults to **Bank 4** (Grayscale). 
+**Determinism Warning (2026-05-24)**: This backdrop uses the current **Layer 0 Palette Bank**. While the hardware pipeline is aligned to prevent transients, at Power-On Reset (POR), Layer 0's bank is sourced from uninitialized SDRAM Attribute memory (typically defaulting to **Bank 4** / Black). This color is currently **non-deterministic** across reflash-vs-cold-boot paths due to SDRAM state carry-over. A dedicated `BACKDROP_INDEX` register is planned to resolve this.
 
 **Recommended Action**: To ensure a consistent backdrop color (e.g., Red) when layers are off:
 1. Initialize the Layer 0 Attribute memory in SDRAM to Bank 0.
