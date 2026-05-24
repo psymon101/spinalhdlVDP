@@ -27,10 +27,10 @@ This section tracks the active lane.
 | **Task ID** | #10590 |
 | **Owner** | BrightForge (RTL), BronzeGate (libvdp) |
 | **Baseline Commit** | `9c0b161` (main, post-agnosticism-purge) |
-| **Latest Auth Mail** | CyanPeak #10621 (pipeline misalignment found), TopazCliff #10625 (fix authorized), #10626 (Option B architecture confirmed) |
-| **Summary** | Add integer pixel-repetition scaling to VdpTop output path. CyanPeak found scaler +1 cycle not fully rebalanced — sync/DE pipeline at N+2, scaler data at N+3, causing backdrop/black-screen bug. Fix authorized: add missing RegNext to rebalance to N+3. Backdrop architecture: Option B (explicit BACKDROP_INDEX register) confirmed by all team members. |
-| **Checkpoints** | A: DONE (233132a) — register contract + scaler skeleton. B: DONE (653adc9) — line buffer body + counters + wiring + ScaleRepeatSim 6/6 PASS + PnR PASS (Setup 0, Hold 0) + bench cold-boot black. C: DONE — CyanPeak audit PASS #10606. **BUG FOUND:** CyanPeak #10621 — scaler pipeline misalignment. **FIX:** Add RegNext to sync/DE to align with scaler N+3. |
-| **Next Step** | BrightForge: implement pipeline rebalance on brightforge/pixel-repeat-scaler, re-run sims + PnR + bench with backdropIndexReg init=5 (expected yellow). BronzeGate: hold libvdp until hardware path confirmed. |
+| **Latest Auth Mail** | CyanPeak #10633 (Gate of Death + lineBuf OOB findings), TopazCliff #10634 (discriminator endorsed) |
+| **Summary** | Add integer pixel-repetition scaling to VdpTop output path. Pipeline rebalance committed (a007ddf) but black screen persists. Investigation active: CyanPeak found `primedRRR` may never assert ("Gate of Death") AND scaler `lineBuf.write` uses hCounter 0..799 into 640-entry buffer (OOB wrap). BrightForge running 2-line discriminator to isolate root cause. |
+| **Checkpoints** | A: DONE (233132a). B: DONE (653adc9) + rebalance (a007ddf). C: DONE #10606. **INVESTIGATION ACTIVE:** #10630-10634 — black screen root cause hunt. |
+| **Next Step** | BrightForge: run CyanPeak's primed discriminator (2-line hack: `when(deRRR)` + `primed init True`). If image returns → Gate of Death confirmed. If still black → data path debug. |
 
 ---
 
