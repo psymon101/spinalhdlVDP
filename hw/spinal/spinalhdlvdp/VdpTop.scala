@@ -419,6 +419,19 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     attributeModePend    := effData(0 downto 0)
     attributeModePendHit := True
   }
+  // BACKDROP_INDEX @ 0x0348 — host-writable 7-bit absolute palette index used
+  // by the compositor `.otherwise` fallthrough as the displayed pixel when no
+  // layer is opaque. Decouples the backdrop color from layer0Bank (which is
+  // SDRAM-sourced and non-deterministic across reboots). POR=0 → palette[0].
+  // Standard safe-boundary shadow+commit pattern.
+  val backdropIndexReg     = (Reg(UInt(7 bits)) init U(0, 7 bits)).simPublic()
+  val backdropIndexPend    = Reg(UInt(7 bits)) init U(0, 7 bits)
+  val backdropIndexPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0348, 15 bits)) {
+    backdropIndexPend    := effData(6 downto 0).asUInt
+    backdropIndexPendHit := True
+  }
+
   // R5.3: VDP_CTRL @ 0x0310, safe-boundary shadow + commit for copper enable.
   // R5.4: bit[1] = COPPER_SWAP_REQUEST (latch-on-write). HW auto-clears at
   // commit. Last-write-wins precedence below: swap-commit and disable-clear
@@ -713,6 +726,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     when(attributeModePendHit) {
       attributeModeReg     := attributeModePend
       attributeModePendHit := False
+    }
+    when(backdropIndexPendHit) {
+      backdropIndexReg     := backdropIndexPend
+      backdropIndexPendHit := False
     }
     when(copperCtrlPendHit) {
       copperCtrlReg     := copperCtrlPend
@@ -1345,8 +1362,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     composedBgBank   := layer1Bank
     composedBgSource := U(PixelMetadata.SourceBG1, 3 bits)
   }.otherwise {
-    composedBgIdx    := layer0Pixel
-    composedBgBank   := layer0Bank
+    // Backdrop: no layer is opaque (or all layers disabled). Display the
+    // host-programmed BACKDROP_INDEX as an absolute 7-bit palette index.
+    // Splitting it into bank[6:4] + idx[3:0] makes the downstream
+    // `palette[bank*16+idx]` lookup map to palette[BACKDROP_INDEX] linearly.
+    composedBgIdx    := backdropIndexReg(3 downto 0).asBits
+    composedBgBank   := backdropIndexReg(6 downto 4)
     composedBgSource := U(PixelMetadata.SourceBG0, 3 bits)
   }
   val composedBg = composedBgIdx
