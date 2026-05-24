@@ -23,11 +23,11 @@ This section tracks the active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | **RTL Platform-Agnosticism Purge** |
-| **Status** | **IN-PROGRESS** |
-| **Latest Commit** | `66dc25f` (RTL purge, BrightForge #10579) |
-| **Latest Auth Mail** | TopazCliff #10576 (Scope Change) |
-| **Summary** | Strip per-scenario / per-platform RTL. VDP RTL becomes generic Mode0 IP; platform personality moves to libvdp. CP-B (Deletion) in progress. CP-C (Audit) pending. |
-| **Next Step** | Checkpoint B completion (PnR proof) → Checkpoint C Audit. |
+| **Status** | **DONE** |
+| **Latest Commit** | `26ae196` (BACKDROP_INDEX + boot defaults + purge) |
+| **Latest Auth Mail** | BrightForge #10589 (BACKDROP_INDEX closed), CyanPeak #10587 (Audit PASS) |
+| **Summary** | Strip per-scenario / per-platform RTL. 10 files deleted. TopTang20kHdmi.scala scrubbed (-848 lines). Boot defaults fixed (layerEnableReg + LinestateStore all-off). BACKDROP_INDEX @ 0x0348 added for deterministic backdrop. Gowin PnR PASS (Setup 0, Hold 0). Bench: solid black on Tang. CyanPeak audit PASS. |
+| **Next Step** | Merge `brightforge/rtl-agnosticism-purge` → `main`. |
 
 ---
 
