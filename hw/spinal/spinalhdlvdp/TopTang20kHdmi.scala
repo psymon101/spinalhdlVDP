@@ -5,35 +5,13 @@ import spinal.lib.BufferCC   // Task 34 CDC — toggle-based crossing for upload
 
 /** Tang Nano 20K top.
   *
-  * `scenarioId` selects the bootstrap configuration:
-  *   0 = default (Task 20 + R4.1d Checkpoint C: shuffled diagnostic + shadow window)
-  *   1 = Wave 1 Scenario 1 — static L1 background, no sprites, no scroll, color math passthrough
-  *   2 = Wave 1 Scenario 2 — Scenario 1 + per-frame layer1ScrollX +1 px/frame
-  *   3 = Wave 1 Scenario 3 — Scenario 1 + per-frame layer1ScrollX +8 px/frame (frequent wrap)
-  *   4 = Wave 1 Scenario 4 — Scenario 1 + sprite 0 enabled at fixed (320, 240)
-  *   5 = Wave 1 Scenario 5 — Scenario 1 + 4 sprites enabled, bouncing motion
-  *   6..11 = Wave 2 scenarios (see `PROJECT_PLAN/scenarios/SCENARIO_*.md`)
-  *  12 = Task 19 Checkpoint C — affine background with sprite. L0 driven by
-  *       AffineStepper + 128×128 diagnostic texture. Per-frame matrix animator
-  *       rotates the texture ~2°/frame around the screen center at scale 0.9×.
-  *       One sprite moves horizontally across the rotating background.
-  *  13 = Palette animation during motion — L0 packed-mode rich tiles + L1
-  *       1 px/frame scroll + copper-driven `VDP_ATTR_MODE` toggle across 7 bands
-  *       (linear ↔ packed 2×2). Palette is ROM-only, so this proves
-  *       palette-cycle-like color animation via attribute-mode switching rather
-  *       than literal palette rewrites. See `SCENARIO_13.md`.
-  *  15 = Task 21 Mixed-Scene Integration — three horizontal L0 bands (tile /
-  *       planar / shuffled) driven by copper-commanded `VDP_TILE_MODE`
-  *       switches at y=160 and y=320, concurrent L0 scroll, and two
-  *       horizontally-bouncing sprites crossing the mode boundaries. Pure
-  *       integration, no new primitives/registers. See `SCENARIO_15.md`.
-  *  16 = Task 22 Long-Soak baseline — identical to Sc15 integration scene.
-  *  17 = Task 23 Stress-Scene — maximum concurrent load: L0 mixed-mode
-  *       bands + L0 scroll 2 px/frame + L1 packed scroll 4 px/frame +
-  *       4 sprites bouncing 4 px/frame + copper 3 triggers/frame.
-  *       No new primitives. See `SCENARIO_17.md`.
+  * Pure generic Mode0 IP: boots blank, accepts host writes via QSPI, runs no
+  * bootstrap copper. All platform-specific personality is implemented by
+  * libvdp at runtime through register-write sequences (lane #10567).
   */
-case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false, enableL2L3: Boolean = false) extends Component {
+case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false, enableL2L3: Boolean = false) extends Component {
+  private val useHostInit: Boolean = true
+
   setDefinitionName("top_tang20k")
   noIoPrefix()
 
@@ -157,54 +135,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     val vsyncPrev = RegNext(video.io.vsync) init True
     val vsyncRising = video.io.vsync && !vsyncPrev
 
-    // Task 40 — Scenario 20: instantiate the C64 demo animator only when
-    // selected. It owns C64Adapter and drives VdpTop's rasterTrigger* and
-    // sprite 0/1 legacy IO pins directly; its bus output feeds a
-    // RegBusArbiter master slot further below.
-    val c64Demo: Option[C64DemoAnimator] =
-      if (scenarioId == 20) {
-        val d = C64DemoAnimator()
-        d.io.vsyncRising        := vsyncRising
-        d.io.rasterTriggerPulse := video.io.rasterTriggerPulse
-        // Task 40 v1.1 (Path D): feed the adapter the current L0 fetch
-        // coordinates so it can produce a C64-font / Pepto-palette pixel.
-        d.io.fetchLine          := video.io.layer0FetchLine
-        d.io.fetchPixelAddr     := video.io.layer0FetchPixelAddr
-        Some(d)
-      } else None
-
-    // Task 50 v2 Slice B — Scenario 50: instantiate the ZX Spectrum demo
-    // animator only when selected. Owns ZXSpectrumAdapter; drives it
-    // through a small startup sequence (ZX_CTRL=1 once → LAYER_ENABLE
-    // emit) plus a per-vsync ZX_BORDER cycler. Its bus output is
-    // routed to the same RegBusArbiter animator slot as c64Demo (only
-    // one of the two scenarios runs at a time).
-    val zxDemo: Option[ZXSpectrumDemo] =
-      if (scenarioId == 50) {
-        val d = ZXSpectrumDemo()
-        d.io.vsyncRising := vsyncRising
-        Some(d)
-      } else None
-
-    // Task 1 (#9154) Phase 5a — Sc70 dual-adapter pilot.
-    //
-    // Per BronzeGate #9184 + arch §4.8(b): always-instantiate runtime
-    // C64 + ZX adapters at top scope (NOT inside demo wrappers). The
-    // adapters receive `regAddr/regData/regWr` from `AdapterRegRouter`
-    // (Phase 4) and their `busAddr/busData/busWr` outputs feed
-    // `AdapterBusMux` (Phase 3). Both adapters are mode-gated by
-    // `video.io.modeSelect` (post-V=0 commit), so only one is active
-    // at a time.
-    //
-    // Wiring is applied below where AdapterBusMux inputs and the
-    // direct-output assignments are placed. This Option holds the
-    // adapter handles for those scoped uses.
-    val sc70Adapters: Option[(C64Adapter, ZXSpectrumAdapter)] =
-      if (scenarioId == 70) {
-        val c = C64Adapter()
-        val z = ZXSpectrumAdapter()
-        Some((c, z))
-      } else None
+    /* Platform-agnosticism purge (lane #10567): per-scenario adapter/demo
+     * instantiations removed. Platform semantics live in libvdp; the FPGA
+     * is pure generic Mode0 IP. */
 
     val frameCounter = Reg(UInt(10 bits)) init 0
     when(vsyncRising) {
@@ -223,31 +156,8 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     // primitive's generated wrap-tree.
     val l0MapWidth   = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640
     val l1MapWidth   = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640
-    // Scroll step rates differ per scenario:
-    //   scenarioId 0 = R4.1d Checkpoint C / Task 20 default (existing rates)
-    //   1 = static (no scroll)
-    //   2 = +1 px/frame on L1 (Scenario 2 single-axis scroll)
-    //   3 = +8 px/frame on L1 (Scenario 3 frequent wrap)
-    //   4 = static (single sprite)
-    //   5 = static (4 bouncing sprites, motion is on sprite X/Y not on scroll)
-    val l0StepFrames = scenarioId match {
-      case 0 => 1
-      case 8 => 1     // Sc8 parallax: L0 slow
-      case 15 => 1    // Sc15 mixed-scene integration: L0 @ 1 px/frame
-      case 16 => 1    // Sc16 long-soak baseline: same L0 scroll as Sc15
-      case 17 => 2    // Sc17 stress: L0 @ 2 px/frame
-      case _ => 0
-    }
-    val l1StepFrames = scenarioId match {
-      case 0 => 2
-      case 2 => 1
-      case 3 => 8
-      case 6 => 1     // Sc6 sprites over scrolling bg
-      case 8 => 3     // Sc8 parallax: L1 fast (3× L0)
-      case 13 => 1    // Sc13 palette-animation-during-motion: L1 @ 1 px/frame
-      case 17 => 4    // Sc17 stress: L1 @ 4 px/frame (parallax 2× L0)
-      case _ => 0
-    }
+    val l0StepFrames = 1
+    val l1StepFrames = 2
     val scrollL0 = Reg(UInt(log2Up(l0MapWidth) bits)) init 0
     val scrollL1 = Reg(UInt(log2Up(l1MapWidth) bits)) init 0
     val l0NextWrap = ScrollWrap(l0MapWidth)
@@ -287,506 +197,15 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     //   WAIT:  [15:14]=00, [9:0]=Y
     //   WRITE: [15:14]=01, [13:0]=addr, next word = data
     //   JUMP:  [15:14]=11, [8:0]=target PC
-    val copperProgram: Seq[Int] = scenarioId match {
-      case 13 =>
-        // Sc13: toggle VDP_ATTR_MODE @ 0x0312 every 60 lines across 7 bands.
-        // Safe-boundary commit (hCounter===0) already handled in VdpTop.scala
-        // so each toggle lands cleanly at line start.
-        Seq(
-          (0 << 14) |  60, (1 << 14) | 0x0312, 0x0001,
-          (0 << 14) | 120, (1 << 14) | 0x0312, 0x0000,
-          (0 << 14) | 180, (1 << 14) | 0x0312, 0x0001,
-          (0 << 14) | 240, (1 << 14) | 0x0312, 0x0000,
-          (0 << 14) | 300, (1 << 14) | 0x0312, 0x0001,
-          (0 << 14) | 360, (1 << 14) | 0x0312, 0x0000,
-          (0 << 14) | 420, (1 << 14) | 0x0312, 0x0001,
-          (3 << 14) | 0
-        )
-      case 15 | 16 | 17 =>
-        // Sc15 (Task 21): switch L0 VDP_TILE_MODE from packed (0) → planar (1)
-        // at y=160, then planar → shuffled (2) at y=320. Three horizontal L0
-        // bands of distinct fetch modes. Safe-boundary commit guarantees clean
-        // band edges.
-        // Fix: add WAIT y=0 reset to packed so frame start is deterministic.
-        // Sc16 (Task 22) reuses the identical bootstrap for the 1-hour soak test.
-        // Sc17 (Task 23) also reuses this copper cadence under maximum load.
-        Seq(
-          (0 << 14) |   0, (1 << 14) | 0x0311, 0x0000,
-          (0 << 14) | 160, (1 << 14) | 0x0311, 0x0001,
-          (0 << 14) | 320, (1 << 14) | 0x0311, 0x0002,
-          (3 << 14) | 0
-        )
-      case 28 =>
-        // Task 28 CP-C — probe confirmed regEnabled(0) LATCHES on
-        // hardware (CyanPeak #7888 verdict: green corner observed).
-        // Restoring the full 4-descriptor program (slots 4..7) at y=250.
-        // Green-corner probe retained as a live indicator that slot 4
-        // remains enabled throughout the capture.
-        Seq(
-          (0 << 14) | 0,                                     // WAIT y=0
-          // Task 37 bus layout: 8 words per slot. slot N word W = 0x0800+N*8+W.
-          (1 << 14) | 0x0820, 0x8000 | 250,                  // slot 4 word0: en, y=250
-          (1 << 14) | 0x0821, 60,                            // slot 4 x=60
-          (1 << 14) | 0x0828, 0x8000 | (1 << 11) | 250,      // slot 5 word0: en, patIdx=1, y=250
-          (1 << 14) | 0x0829, 140,                           // slot 5 x=140
-          (1 << 14) | 0x0830, 0x8000 | 250,                  // slot 6 word0
-          (1 << 14) | 0x0831, 220,                           // slot 6 x=220
-          (1 << 14) | 0x0838, 0x8000 | (1 << 11) | 250,      // slot 7 word0
-          (1 << 14) | 0x0839, 300,                           // slot 7 x=300
-          (3 << 14) | 0                                      // JUMP 0
-        )
-      case 50 =>
-        // Task 50 — ZX Spectrum Adapter HW proof (v1 minimal).
-        //
-        // Reuses sc45's SDRAM-backed bitmap + attribute fetch path
-        // (BitmapRowFetch synth-init writes a diagonal-stripe 1bpp
-        // bitmap + Spectrum-format attribute cells into SDRAM at
-        // 0x3000 / 0x4000 at boot; on each line's fetchGrant the
-        // 1bpp+attr decode runs through BitmapFetch).
-        //
-        // Sc50's contribution on top of sc45:
-        // copper bootstrap loads the canonical 16-entry ZX Spectrum
-        // palette into the runtime palette RAM (CW-1) so the same
-        // bitmap+attribute pattern is repainted in authentic
-        // Spectrum colors (8 normal + 8 bright variants per artifact
-        // §8). The adapter Scala component itself (ZXSpectrumAdapter)
-        // is sim-verified at unit scope (ZXSpectrumAdapterSim 5/5);
-        // its scenario-wrapper integration (driving a bus master
-        // peer on RegBusArbiter) is a follow-on slice — for v1 the
-        // bitmap path proof is sufficient.
-        //
-        // Palette write protocol (CW-1, see VdpTop):
-        //   0x0601 PALETTE_PTR  = entry*2 + half (8 bits)
-        //   0x0600 PALETTE_DATA = half=0: low 16 bits = G:B
-        //                        half=1: low 8 bits = R, commits
-        //
-        // v2 Slice C: also load palette entries 16..23 with bright
-        // Spectrum variants. BitmapFetch addresses these slots when
-        // the per-cell `bright` attribute bit is set:
-        //   paletteAddr = {paletteBank, ink/paper}
-        //                 paletteBank = {2'b00, bright}
-        //   bright=0 → paletteAddr in 0..7 (entries 0..7)
-        //   bright=1 → paletteAddr in 16..23 (entries 16..23)
-        // The pre-Slice-C v1 mapping wrote 8..15 thinking those were
-        // "bright" — those slots are actually never addressed by
-        // 1bpp+attr and were dead. Entries 8..15 stay loaded as
-        // harmless leftovers.
-        //
-        // 24 entries × 3 writes = 72 program words; fits easily in
-        // the 512-word copper program RAM.
-        //
-        // Spectrum color set per artifact §8:
-        //   0..7   : black, blue, red, magenta, green, cyan, yellow, white  (0xCD level, normal)
-        //   8..15  : duplicate of 0..7 at 0xFF (legacy v1 — slot is
-        //            never addressed by BitmapFetch in 1bpp+attr mode)
-        //   16..23 : actual `bright=1` variants at 0xFF level
-        def zxPalEntry(idx: Int, r: Int, g: Int, b: Int): Seq[Int] = Seq(
-          (1 << 14) | 0x0601, idx * 2,                          // ptr = entry idx, low half
-          (1 << 14) | 0x0600, ((g & 0xFF) << 8) | (b & 0xFF),    // low half = G:B
-          (1 << 14) | 0x0600, r & 0xFF                           // high half = R, commits
-        )
-        val zxPalette: Seq[Int] =
-          // Normal Spectrum palette (entries 0..7) at 0xCD level.
-          zxPalEntry( 0,  0x00, 0x00, 0x00) ++                  // black
-          zxPalEntry( 1,  0x00, 0x00, 0xCD) ++                  // blue
-          zxPalEntry( 2,  0xCD, 0x00, 0x00) ++                  // red
-          zxPalEntry( 3,  0xCD, 0x00, 0xCD) ++                  // magenta
-          zxPalEntry( 4,  0x00, 0xCD, 0x00) ++                  // green
-          zxPalEntry( 5,  0x00, 0xCD, 0xCD) ++                  // cyan
-          zxPalEntry( 6,  0xCD, 0xCD, 0x00) ++                  // yellow
-          zxPalEntry( 7,  0xCD, 0xCD, 0xCD) ++                  // white
-          // (Skipping entries 8..15: BitmapFetch never addresses those
-          // slots in 1bpp+attr mode, so writing them was dead work.
-          // The v1 sc50 wrote them by mistake; v2 Slice C drops the
-          // dead writes to keep the copper program small and fit
-          // within the existing 7-bit bootstrap counter.)
-          // v2 Slice C: ACTUAL bright Spectrum variants at the slots
-          // BitmapFetch addresses for `bright=1` cells.
-          zxPalEntry(16,  0x00, 0x00, 0x00) ++                  // bright black (= 8)
-          zxPalEntry(17,  0x00, 0x00, 0xFF) ++                  // bright blue
-          zxPalEntry(18,  0xFF, 0x00, 0x00) ++                  // bright red
-          zxPalEntry(19,  0xFF, 0x00, 0xFF) ++                  // bright magenta
-          zxPalEntry(20,  0x00, 0xFF, 0x00) ++                  // bright green
-          zxPalEntry(21,  0x00, 0xFF, 0xFF) ++                  // bright cyan
-          zxPalEntry(22,  0xFF, 0xFF, 0x00) ++                  // bright yellow
-          zxPalEntry(23,  0xFF, 0xFF, 0xFF)                     // bright white
-        // Task 50 v3 — visible-border window. Center the 256×192 active
-        // area in the 640×480 output: x=[192, 448), y=[144, 336).
-        // BORDER_CTRL = 0x1801 → enable + palette index 24 (the slot
-        // the ZX adapter writes from ZX_BORDER updates).
-        // v3.2: canonical ordering restored. copperFifo bumped 32→128 in
-        // VdpTop.scala so sc50's full burst (palette load + border ctrl)
-        // now fits without overflow. BORDER_* / BITMAP_CTRL again live
-        // at the END (mirrors sc45 / pre-v3.1 sc50).
-        Seq((0 << 14) | 0) ++                                    // WAIT y=0
-          zxPalette ++
-          Seq(
-            (1 << 14) | 0x0350, 0x0081,                          // BITMAP_CTRL = en|1bpp|useSdram
-            (1 << 14) | 0x033C, 192,                             // BORDER_X0
-            (1 << 14) | 0x033D, 448,                             // BORDER_X1
-            (1 << 14) | 0x033E, 144,                             // BORDER_Y0
-            (1 << 14) | 0x033F, 336,                             // BORDER_Y1
-            (1 << 14) | 0x0347, 0x1801,                          // BORDER_CTRL = en | idx=24
-            (3 << 14) | 0                                        // JUMP 0
-          )
-      case 60 =>
-        // Beam Hardening BH-1 HW proof: pixel-precise Copper WAIT.
-        // Single frame demonstrates sub-scanline scheduling — copper
-        // stalls until the exact (x=320, y=200) beam position, then
-        // writes COLOR_MATH=op=01 (shadow). The result is a sharp
-        // shadow boundary mid-line at x=320 of line 200, with shadow
-        // applied to every subsequent line until the next vsync wraps
-        // around to the WAIT y=0 reset.
-        //
-        // Expected 640x480 visual:
-        //   y=0..199                : full BRIGHT (passthrough)
-        //   y=200, x=0..319         : still bright (copper hasn't fired)
-        //   y=200, x>=320 onwards   : SHADOWED
-        //   y=201..479              : full SHADOW
-        //   wraps next frame.
-        //
-        // The sharp x=320 mid-line transition is the unambiguous BH-1
-        // signature; pre-BH-1 (line-only WAIT) would only have produced
-        // a clean horizontal boundary at line 200, never a vertical
-        // mid-line column boundary.
-        Seq(
-          (0 << 14) | 0,                                     // WAIT y=0 (sync)
-          // Full-screen window so COLOR_MATH applies globally on hit.
-          (1 << 14) | 0x0330, 0,                             // WIN1_X0 = 0
-          (1 << 14) | 0x0331, 640,                           // WIN1_X1 = 640
-          (1 << 14) | 0x0332, 0,                             // WIN1_Y0 = 0
-          (1 << 14) | 0x0333, 480,                           // WIN1_Y1 = 480
-          // Reset COLOR_MATH to passthrough at the start of every frame.
-          (1 << 14) | 0x0334, 0x0000,
-          // BH-1 pixel-precise WAIT (X=320, Y=200) — bit[13]=1 + X in
-          // word 0 bits[9:0], Y in word 1 bits[9:0].
-          (0 << 14) | (1 << 13) | 320,
-          200,
-          // Enable shadow op (op=01, no invert, no constant).
-          (1 << 14) | 0x0334, 0x4000,
-          (3 << 14) | 0                                      // JUMP 0
-        )
-      case 62 =>
-        // Task 52 — Per-Sprite X/Y Flip primitive HW proof (converged
-        // packet #9105, CyanPeak audit PASS #9107, BronzeGate GO #9109,
-        // BronzeGate trim ruling #9113).
-        //
-        // Programs four bus-resident sprites (slots 4..7) at the same
-        // y, all sharing patIdx=0, in a horizontal row. The four word-8
-        // attribute writes select all four flipH/flipV combinations:
-        //
-        //   slot 4 @ x= 80 : flipH=0, flipV=0  (reference)
-        //   slot 5 @ x=200 : flipH=1, flipV=0  (horizontal mirror)
-        //   slot 6 @ x=320 : flipH=0, flipV=1  (vertical mirror)
-        //   slot 7 @ x=440 : flipH=1, flipV=1  (both)
-        //
-        // The MCU sketch (`firmware/esp32_sc62_sprite_flip/`) is
-        // responsible for uploading an asymmetric 16×16 4bpp pattern
-        // into pattern slot 0 via 0x0D11 (pointer set) + 0x0D10 (pixel
-        // write, auto-increment) BEFORE the copper program runs.
-        //
-        // Word 8 layout (per 0x0D20 + slot decode):
-        //   {sizeSel[15:14], paletteBank[13:11], priority[10:9],
-        //    flipH[8], flipV[7], bppSel[6:5], _[4:0]}
-        // sizeSel=01 → 16×16 (matches pattern), priority=0,
-        // paletteBank=0, bppSel=00 (4bpp), flipH/V per slot.
-        //
-        // RTSP capture + 30s OpenCV analysis asserts a 4-quadrant
-        // pixel-perfect mirror grid — the unambiguous Task 52 proof.
-        Seq(
-          (0 << 14) | 0,                                     // WAIT y=0 (sync)
-          // Slot 4 — reference (no flip).
-          (1 << 14) | 0x0820, 0x8000 | 200,                  // word 0: enabled, patIdx=0, y=200
-          (1 << 14) | 0x0821, 80,                            // word 1: x=80
-          (1 << 14) | 0x0D24, (1 << 14) | (0 << 9),          // word 8: sizeSel=01, priority=0, flip=00
-          // Slot 5 — flipH only.
-          (1 << 14) | 0x0828, 0x8000 | 200,
-          (1 << 14) | 0x0829, 200,
-          (1 << 14) | 0x0D25, (1 << 14) | (0 << 9) | (1 << 8),
-          // Slot 6 — flipV only.
-          (1 << 14) | 0x0830, 0x8000 | 200,
-          (1 << 14) | 0x0831, 320,
-          (1 << 14) | 0x0D26, (1 << 14) | (0 << 9) | (1 << 7),
-          // Slot 7 — flipH and flipV.
-          (1 << 14) | 0x0838, 0x8000 | 200,
-          (1 << 14) | 0x0839, 440,
-          (1 << 14) | 0x0D27, (1 << 14) | (0 << 9) | (1 << 8) | (1 << 7),
-          (3 << 14) | 0                                      // JUMP 0 (idempotent loop)
-        )
-      case 52 =>
-        // Color/Window Hardening HW proof — CW-6 sprite-mask companion to
-        // sc51 (CyanPeak audit PASS #8629). Same copper-driven palette /
-        // window / mask / highlight setup as sc51, plus an explicit
-        // 64×64 bus-programmed sprite straddling the TL/TR quadrant
-        // boundary so the per-layer mask has something visible to mask.
-        //
-        // Sprite slot 4: x=288, y=80, sizeSel=11 (64×64), patIdx=0
-        // (diamond), paletteBank=0, priority=2 (always-above). Spans
-        // 288..352 horizontally so the LEFT 32px land in TL (effect=
-        // False ⇒ visible) and the RIGHT 32px land in TR (effect=True
-        // ⇒ masked-to-black). The visible-in-TL / masked-in-TR split
-        // is the unambiguous proof that LAYER_MASK[4] gates SourceSprite
-        // under combinedWindowEffect.
-        //
-        // Word 8 layout per sc50 / Phase 2 bus-map:
-        //   {sizeSel[15:14], paletteBank[13:11], priority[10:9],
-        //    flipH[8], flipV[7], bppSel[6:5], _[4:0]}
-        Seq(
-          (0 << 14) | 0,                                     // WAIT y=0 (sync)
-          // ---- CW-1: rewrite bank-0 palette entries 1..3 (same as sc51) ----
-          (1 << 14) | 0x0601, 2,
-          (1 << 14) | 0x0600, 0x0000,
-          (1 << 14) | 0x0600, 0x00FF,
-          (1 << 14) | 0x0600, 0xFF00,
-          (1 << 14) | 0x0600, 0x0000,
-          (1 << 14) | 0x0600, 0x00FF,
-          (1 << 14) | 0x0600, 0x0000,
-          // ---- CW-5: dual windows + XOR (same as sc51) --------------------
-          (1 << 14) | 0x0330, 0,
-          (1 << 14) | 0x0331, 640,
-          (1 << 14) | 0x0332, 0,
-          (1 << 14) | 0x0333, 240,
-          (1 << 14) | 0x0335, 0,
-          (1 << 14) | 0x0336, 320,
-          (1 << 14) | 0x0337, 0,
-          (1 << 14) | 0x0338, 480,
-          (1 << 14) | 0x0339, 0x0000,
-          (1 << 14) | 0x033A, 0x0003,
-          // ---- CW-6: mask sprite in window region (same as sc51) ----------
-          (1 << 14) | 0x033B, 0x0010,
-          // ---- CW-4: highlight mode (same as sc51) ------------------------
-          (1 << 14) | 0x0334, 0x8000,
-          // ---- Sprite slot 4 — 64×64 diamond straddling x=288..352 --------
-          (1 << 14) | 0x0820, 0x8000 | 80,                   // word 0: enabled, patIdx=0, y=80
-          (1 << 14) | 0x0821, 288,                           // word 1: x=288
-          (1 << 14) | 0x0D24, (3 << 14) | (2 << 9),          // word 8: sizeSel=11, priority=2
-          (3 << 14) | 0                                      // JUMP 0 (idempotent loop)
-        )
-      case 51 =>
-        // Color/Window Hardening HW proof (CyanPeak audit PASS #8629).
-        // Single frame demonstrates four CW sub-features at once via the
-        // copper program's idempotent-writes-then-JUMP loop:
-        //
-        //   CW-1 runtime palette RAM   — bank-0 entries 1..3 rewritten
-        //                                 to RED/GREEN/BLUE sentinels.
-        //   CW-4 highlight mode        — ColorMath op=10 (channel<<1
-        //                                 clamp 0xFF), enabled by the
-        //                                 combined window effect.
-        //   CW-5 dual window + XOR     — win1 = top half (0..640 ×
-        //                                 0..240); win2 = left half
-        //                                 (0..320 × 0..480); combMode
-        //                                 = XOR ⇒ effect=True in TR
-        //                                 and BL quadrants only.
-        //   CW-6 per-layer mask        — LAYER_MASK bit[4]=1 masks the
-        //                                 sprite source in the window
-        //                                 region (TR + BL).
-        //
-        // Expected visual on the 640×480 capture:
-        //   TL quadrant : normal scene  (effect=False, sprite visible)
-        //   TR quadrant : sprite gone + BG highlighted (palette<<1)
-        //   BL quadrant : sprite gone + BG highlighted (palette<<1)
-        //   BR quadrant : normal scene  (effect=False, sprite visible)
-        // The diagonal-pair contrast is unambiguous to OpenCV motion
-        // detectors and direct visual comparison.
-        Seq(
-          (0 << 14) | 0,                                     // WAIT y=0 (sync)
-          // ---- CW-1: rewrite bank-0 palette entries 1..3 -------------------
-          // Auto-incrementing pointer protocol (see VdpTop CW-1 wiring).
-          // Each entry takes 2 data writes (low half = G:B, high half = R).
-          (1 << 14) | 0x0601, 2,                             // PALETTE_PTR = 2 (entry 1, low)
-          (1 << 14) | 0x0600, 0x0000,                        // entry 1 G:B = 00:00
-          (1 << 14) | 0x0600, 0x00FF,                        // entry 1 R    = FF (commits 0xFF0000 RED)
-          (1 << 14) | 0x0600, 0xFF00,                        // entry 2 G:B = FF:00
-          (1 << 14) | 0x0600, 0x0000,                        // entry 2 R    = 00 (commits 0x00FF00 GREEN)
-          (1 << 14) | 0x0600, 0x00FF,                        // entry 3 G:B = 00:FF
-          (1 << 14) | 0x0600, 0x0000,                        // entry 3 R    = 00 (commits 0x0000FF BLUE)
-          // ---- CW-5: window 1 = top half, window 2 = left half -------------
-          (1 << 14) | 0x0330, 0,                             // WIN1_X0 = 0
-          (1 << 14) | 0x0331, 640,                           // WIN1_X1 = 640 (full width)
-          (1 << 14) | 0x0332, 0,                             // WIN1_Y0 = 0
-          (1 << 14) | 0x0333, 240,                           // WIN1_Y1 = 240 (top half)
-          (1 << 14) | 0x0335, 0,                             // WIN2_X0 = 0
-          (1 << 14) | 0x0336, 320,                           // WIN2_X1 = 320 (left half)
-          (1 << 14) | 0x0337, 0,                             // WIN2_Y0 = 0
-          (1 << 14) | 0x0338, 480,                           // WIN2_Y1 = 480 (full height)
-          (1 << 14) | 0x0339, 0x0000,                        // WIN2_CTRL invert2=0
-          (1 << 14) | 0x033A, 0x0003,                        // WIN_COMB = 011 (XOR)
-          // ---- CW-6: mask sprite in window region --------------------------
-          (1 << 14) | 0x033B, 0x0010,                        // LAYER_MASK bit[4] = mask Sprite
-          // ---- CW-4: highlight mode, enabled by window effect --------------
-          (1 << 14) | 0x0334, 0x8000,                        // op=10 highlight, invert1=0, k=0
-          (3 << 14) | 0                                      // JUMP 0 (idempotent loop)
-        )
-      // Note: the legacy Phase 2 sprite hardening HW proof previously
-      // occupied scenario 50. The team repurposed scenario 50 for the
-      // ZX Spectrum adapter (Task 50, mail #8666/#8667/#8669). The
-      // Phase 2 historical proof is preserved at commit `39a7242` and
-      // captures/sprite_phase2_sc50/ — its bitstream is no longer
-      // rebuildable from this tree. See the new `case 50 =>` block
-      // earlier in this match for the active ZX Spectrum scenario.
-      case 45 =>
-        // Task 44b CP-B hardware proof: SDRAM-backed bitmap + attribute
-        // fetch. Bootstrap writes BITMAP_CTRL = 0x0081 (enable | 1bpp
-        // | useSdram). `BitmapRowFetch` runs its synth-init phase
-        // at boot (writes a diagonal-stripe bitmap + Spectrum-format
-        // attributes into SDRAM at 0x3000 / 0x4000), then on each
-        // line's fetchGrant pulse reads the row into its pixel-domain
-        // line buffer which feeds `BitmapFetch`.
-        Seq(
-          (0 << 14) | 0,                                   // WAIT y=0
-          (1 << 14) | 0x0350, 0x0081,                      // BITMAP_CTRL = en|1bpp|useSdram
-          (3 << 14) | 0                                    // JUMP 0
-        )
-      case 44 =>
-        // Task 44 CP-B hardware proof: raw bitmap + attribute decoder.
-        // Bootstrap enables BITMAP_CTRL[0]=1 (bitmap mode, 1bpp). The
-        // decoder is fed from the VdpTop-internal test-pattern
-        // generator (SDRAM row-buffer wiring deferred to follow-on);
-        // screen displays a deterministic XOR-pattern bitmap with
-        // cell-varying ink/paper attributes. Proves:
-        //   - BITMAP_CTRL register decode on hardware
-        //   - layer0 source mux routes BitmapFetch output into L0
-        //   - 1bpp decode renders a non-tile pattern on HDMI
-        Seq(
-          (0 << 14) | 0,                                   // WAIT y=0
-          (1 << 14) | 0x0350, 0x0001,                      // BITMAP_CTRL = enable|1bpp
-          (3 << 14) | 0                                    // JUMP 0
-        )
-      case 29 =>
-        // Task 29 hardware proof: sprite-background collision sticky
-        // flags. Copper bootstrap enables sprite slot 4 at (100, 100)
-        // pattern 0 so it sits over the on-chip BasicPatternSource
-        // background (non-transparent in most tiles). The ever-present
-        // overlap causes STATUS_STICKY bit 4 (SPRITE_0_HIT) and bit 5
-        // (SPRITE_BG_HIT) to latch. An on-screen canary in the top-
-        // left corner (driven at top-level from video.io.statusSticky)
-        // visualises bit 4 for hardware confirmation without
-        // requiring a firmware polling loop.
-        //
-        // slot 4 is descCount=8's lowest bus-programmable descriptor;
-        // with slots 0..3 (legacy IO) disabled it becomes the Pass-1
-        // active slot 0, so SPRITE_0_HIT applies.
-        Seq(
-          (0 << 14) | 0,                                 // WAIT y=0
-          (1 << 14) | 0x0820, 0x8000 | 100,              // slot 4 w0: en|pat=0|y=100
-          (1 << 14) | 0x0821, 100,                       // slot 4 w1: x=100
-          (3 << 14) | 0                                  // JUMP 0
-        )
-      case 31 =>
-        // Task 31 hardware proof: per-column scroll table.
-        // Program L0 scroll-table entries so the right half of the
-        // screen scrolls +16 px relative to the left half. Entries
-        // 0..39 cover hCounter 0..319 (left half) and default to 0;
-        // entries 40..79 cover hCounter 320..639 (right half) and get
-        // an offset of +16. Bands are 8 pixels each (hCounter bits
-        // [9:3] index the 128-entry table).
-        //   address = 0x0900 + entry  (L0 block)
-        val shearBase = Seq(
-          (0 << 14) | 0                                   // WAIT y=0
-        )
-        val shearEntries: Seq[Int] = (40 until 80).flatMap { e =>
-          Seq((1 << 14) | (0x0900 + e), 8)
-        }
-        val shearJump = Seq((3 << 14) | 0)                // JUMP 0
-        shearBase ++ shearEntries ++ shearJump
-      case 37 =>
-        // Task 37 hardware proof: per-sprite affine transforms.
-        // Copper bootstrap programs three extended slots:
-        //   - slot 4 @ (200,200) patIdx=0, 45° rotation around center
-        //   - slot 5 @ (400,200) patIdx=1, 2× scale (texture sampled
-        //     half-rate; middle scanlines of a 32×32 screen-bbox visible
-        //     within the 16-line Pass-1 y-bbox)
-        //   - slot 6 @ (100,400) patIdx=0, flat reference (affineEnable=0)
-        //
-        // Inverse-transform matrices (host computes "screen → texture"):
-        //   45°:    A=cos=0x00B5, B=sin=0x00B5, C=-sin=0xFF4B, D=cos=0x00B5
-        //           transX = (2048 - (A*cx + B*cy))/4; cx=cy=208
-        //                  = (2048 - 75296)/4 = -18312 = 0xB878
-        //           transY = (2048 - (C*cx + D*cy))/4 = 512 = 0x0200
-        //   2×:     A=0x0080, D=0x0080, B=C=0;   cx=408, cy=208
-        //           transX = (2048 - 128*408)/4 = -12544 = 0xCF00
-        //           transY = (2048 - 128*208)/4 =  -6144 = 0xE800
-        // Reuses the Task 19 AffineStepper Q8.8 / Q10.6 contract.
-        Seq(
-          (0 << 14) | 0,                                             // WAIT y=0
-          // Slot 4 — 45° rotation sprite at (200, 200), patIdx=0
-          (1 << 14) | 0x0820, 0x8400 | 200,                          // w0 en|aff|pat=0|y=200
-          (1 << 14) | 0x0821, 200,                                   // w1 x=200
-          (1 << 14) | 0x0822, 0x00B5,                                // matrixA = cos 45
-          (1 << 14) | 0x0823, 0x00B5,                                // matrixB = sin 45
-          (1 << 14) | 0x0824, 0xFF4B,                                // matrixC = -sin 45
-          (1 << 14) | 0x0825, 0x00B5,                                // matrixD = cos 45
-          (1 << 14) | 0x0826, 0xB878,                                // transX
-          (1 << 14) | 0x0827, 0x0200,                                // transY
-          // Slot 5 — 2× scale sprite at (400, 200), patIdx=1
-          (1 << 14) | 0x0828, 0x8C00 | 200,                          // w0 en|aff|pat=1|y=200
-          (1 << 14) | 0x0829, 400,                                   // w1 x=400
-          (1 << 14) | 0x082A, 0x0080,                                // matrixA = 0.5
-          (1 << 14) | 0x082B, 0x0000,
-          (1 << 14) | 0x082C, 0x0000,
-          (1 << 14) | 0x082D, 0x0080,                                // matrixD = 0.5
-          (1 << 14) | 0x082E, 0xCF00,                                // transX
-          (1 << 14) | 0x082F, 0xE800,                                // transY
-          // Slot 6 — flat reference sprite at (100, 400), patIdx=0
-          (1 << 14) | 0x0830, 0x8000 | 400,                          // w0 en|pat=0|y=400
-          (1 << 14) | 0x0831, 100,                                   // w1 x=100
-          (3 << 14) | 0                                              // JUMP 0
-        )
-      case 33 =>
-        // Task 33 HW proof (per CyanPeak #7767 / BronzeGate #7766 direction):
-        // HDMA drives COLOR_MATH_CTRL (0x0334) at 4 vertical positions,
-        // producing 4 full-screen tint bands independent of layer content.
-        //
-        // COLOR_MATH_CTRL bit layout (see VdpTop.scala:825-831, ColorMath.scala):
-        //   bits[15:14] = op (00=pass, 01=shadow, 10=highlight, 11=add const)
-        //                 NOTE: encoding changed in CW-4 to put add-const at
-        //                 11; this scenario was updated from 0xA080 → 0xC080
-        //                 to keep the same visual band plan.
-        //   bit[13]     = windowUnit.invert — with scenario's zero-sized
-        //                 window this is equivalent to "effect=True
-        //                 everywhere," so ColorMath runs full-screen.
-        //   bits[7:0]   = add-op constant
-        //
-        // Band plan (4 visually distinct tints):
-        //   line 0   : 0x2000 invert+pass     → passthrough band (baseline bright)
-        //   line 120 : 0x6000 invert+shadow   → dim band (>>1)
-        //   line 240 : 0xC080 invert+add 0x80 → bright saturated band (op=11)
-        //   line 360 : 0x6000 invert+shadow   → dim band again
-        Seq(
-          (0 << 14) | 0,                                              // WAIT y=0 (paces once/frame)
-          (1 << 14) | 0x0382, 0x0334,                                 // chAddr0 = COLOR_MATH_CTRL
-          (1 << 14) | 0x038A, 0x8000 | 0,    (1 << 14) | 0x038B, 0x2000,
-          (1 << 14) | 0x038C, 0x8000 | 120,  (1 << 14) | 0x038D, 0x6000,
-          (1 << 14) | 0x038E, 0x8000 | 240,  (1 << 14) | 0x038F, 0xC080,
-          (1 << 14) | 0x0390, 0x8000 | 360,  (1 << 14) | 0x0391, 0x6000,
-          (1 << 14) | 0x0380, 0x0003,                                 // HDMA_CTRL = enable + ch0 mask
-          (3 << 14) | 0                                               // JUMP 0 (back to WAIT)
-        )
-      case 55 =>
-        // Task 55 Checkpoint C — Sprite Masking + Tile-Fetch Budget Counter
-        // hardware proof. Bitstream provides:
-        //   - L0 + sprite layer enabled (`layerData` case 55 = 0x0005)
-
-
-
-        //   - copper does nothing — host (ESP8266) programs both proof
-        //     scenes (Genesis mask + 35-tile-overflow) over QSPI per
-        //     CoralReef #9466 claim.
-        Seq(
-          (0 << 14) | 0,           // WAIT y=0 (sync)
-          (3 << 14) | 0            // JUMP 0 (idle loop; host owns scene)
-        )
-      case _ =>
-        Seq(
-          (0 << 14) | 160,              // WAIT y=160
-          (1 << 14) | 0x0300,           // WRITE addr=0x0300
-          0x0001,                       // data (L0 only)
-          (0 << 14) | 320,              // WAIT y=320
-          (1 << 14) | 0x0300,           // WRITE addr=0x0300
-          0x0003,                       // data (L0 + L1)
-          (3 << 14) | 0                 // JUMP 0
-        )
-    }
+    val copperProgram: Seq[Int] = Seq(
+      (0 << 14) | 160,              // WAIT y=160
+      (1 << 14) | 0x0300,           // WRITE addr=0x0300
+      0x0001,                       // data (L0 only)
+      (0 << 14) | 320,              // WAIT y=320
+      (1 << 14) | 0x0300,           // WRITE addr=0x0300
+      0x0003,                       // data (L0 + L1)
+      (3 << 14) | 0                 // JUMP 0
+    )
 
     // Bootstrap FSM phases:
     //   0..copperLen-1 : upload copper program to 0x0400+idx
@@ -810,14 +229,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     val winY0Idx      = U(copperLen + 6, 7 bits)
     val winY1Idx      = U(copperLen + 7, 7 bits)
     val colorMathIdx  = U(copperLen + 8, 7 bits)
-    // Sc 11 only: 60 additional linestate writes (every 8th line, lines 0..472).
     val LinestateCount = 60
     val linestateBase  = colorMathIdx + 1   // first linestate step
-    val lastStepIdx    = scenarioId match {
-      case 11 => U(copperLen + 8 + LinestateCount, 7 bits)   // = 75
-      case 12 => U(copperLen + 9, 7 bits)                    // + AFFINE_CTRL step
-      case _  => colorMathIdx
-    }
+    val lastStepIdx    = colorMathIdx
     val bootIdx     = Reg(UInt(7 bits)) init 0
     // #9026 (BronzeGate #9133): when useHostInit=true, bootDoneR initializes
     // True so the bootstrap copper FSM is bypassed entirely (bootWrite =
@@ -853,81 +267,33 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     // with uniform-pixel-value tiles produces a clean bitplane-checkerboard
     // exposing all four dual-plane sub-fields {plane1[bit], plane0[bit]}.
     val tileModeAddr = U(0x0311, 15 bits)
-    val tileModeData = B(scenarioId match {
-      case 0      => 0x0002    // R4.1d Checkpoint C: shuffled
-      case 9      => 0x0001    // Sc9: planar
-      case 10     => 0x0002    // Sc10: shuffled
-      case _      => 0x0000    // packed default (Sc16 also takes this)
-    }, 16 bits)
+    val tileModeData = B(0x0002, 16 bits)    // shuffled tile mode default
     val attrModeAddr = U(0x0312, 15 bits)
-    val attrModeData = B(scenarioId match {
-      case 8 | 11 => 0x0001    // Sc8/Sc11: packed 2×2 attr for L0 visual richness
-      case _      => 0x0000    // linear (all other scenarios)
-    }, 16 bits)
+    val attrModeData = B(0x0000, 16 bits)    // linear attribute mode
     val ctrlAddr     = U(0x0310, 15 bits)
-    // Copper enabled ONLY for Sc13 (copper drives ATTR_MODE toggle animation).
-    // All other scenarios leave copper disabled even though the program is
-    // uploaded to 0x0400+.
-    val ctrlData     = B(
-      if (scenarioId == 13 || scenarioId == 15 || scenarioId == 16 || scenarioId == 17 || scenarioId == 33 || scenarioId == 28 || scenarioId == 37 || scenarioId == 31 || scenarioId == 29 || scenarioId == 44 || scenarioId == 45 || scenarioId == 50 || scenarioId == 51 || scenarioId == 52 || scenarioId == 55 || scenarioId == 60 || scenarioId == 62) 0x0001
-      else 0x0000, 16 bits)
+    val ctrlData     = B(0x0000, 16 bits)    // copper disabled at boot; host owns enable
     val layerAddr    = U(0x0300, 15 bits)
-    val layerData    = B(scenarioId match {
-      case 0           => 0x0001  // R4.1d Checkpoint C: L0 only
-      case 1 | 2 | 3   => 0x0002  // L1 only
-      case 4 | 5 | 28  => 0x0006  // L1 + sprite layer (Sc28 reuses Sc5 pattern)
-      case 6 | 7       => 0x0006  // L1 + sprite layer (sprites over bg)
-      case 8           => 0x0003  // L0 + L1 (parallax, no sprites)
-      case 9 | 10      => 0x0001  // L0 only (planar/shuffled bitmap)
-      case 11          => 0x0003  // L0 + L1 default; per-line linestate overrides
-      case 12          => 0x0005  // L0 + sprite (affine background under sprite)
-      case 13          => 0x0003  // L0 + L1 (palette-animation-during-motion)
-      case 15          => 0x0005  // L0 + sprite (mixed-scene integration)
-      case 16          => 0x0005  // Sc16 long-soak baseline: same layer config as Sc15
-      case 17          => 0x0007  // Sc17 stress: L0 + L1 + sprite (maximum load)
-      case 29          => 0x0005  // Sc29: L0 + sprite (collision flag proof)
-      case 44          => 0x0001  // Sc44: L0 only (Task 44 test-gen bitmap proof)
-      case 45          => 0x0001  // Sc45: L0 only (Task 44b SDRAM-backed bitmap proof)
-      case 31          => 0x0001  // Sc31: L0 only — on-chip BasicPatternSource for per-column scroll shear
-      case 37          => 0x0005  // Sc37: L0 background + sprite (affine proof)
-      case 20          => 0x0005  // Sc20 (Task 40): L0 + sprite; adapter toggles DEN
-      case 51          => 0x0005  // Sc51 (CW HW proof): L0 + sprite (sprite is masked in window region)
-      case 52          => 0x0005  // Sc52 (CW-6 sprite proof): L0 + sprite, programmed sprite at x=288/y=80
-      case 55          => 0x0004  // Sc55 (Task 55 Checkpoint C): sprite layer only over default backdrop (no SDRAM dependency, mirrors Sc62)
-      case 60          => 0x0001  // Sc60 (BH-1 pixel-precise WAIT proof): L0 only
-      case 62          => 0x0004  // Sc62 (Task 52 sprite-flip proof): sprite layer only over default backdrop
-      case 50          => 0x0001  // Sc50 (Task 50 ZX Spectrum): L0 only — bitmap+attr fetch
-      case _           => 0x0001
-    }, 16 bits)
+    val layerData    = B(0x0001, 16 bits)    // L0 only default
     // R6 Task 20: window centred at (160..480) × (120..360) — 320×240 region
     // covering the middle of the 640×480 screen. Color-math op=01 (shadow,
     // RGB>>1) applies inside the window; outside renders unchanged. This
     // gives an unambiguous OpenCV intensity ratio across the boundary.
     val winX0Addr     = U(0x0330, 15 bits)
-    // Scenarios 1-5: window all-zero + color math passthrough so the new
-    // R6 stage doesn't accidentally mask scenario validation.
-    val scWindow = scenarioId != 0
-    val winX0Data     = B(if (scWindow) 0   else 160, 16 bits)
+    val winX0Data     = B(160, 16 bits)
     val winX1Addr     = U(0x0331, 15 bits)
-    val winX1Data     = B(if (scWindow) 0   else 480, 16 bits)
+    val winX1Data     = B(480, 16 bits)
     val winY0Addr     = U(0x0332, 15 bits)
-    val winY0Data     = B(if (scWindow) 0   else 120, 16 bits)
+    val winY0Data     = B(120, 16 bits)
     val winY1Addr     = U(0x0333, 15 bits)
-    val winY1Data     = B(if (scWindow) 0   else 360, 16 bits)
+    val winY1Data     = B(360, 16 bits)
     val colorMathAddr = U(0x0334, 15 bits)
-    val colorMathData = B(if (scWindow) 0x0000 else 0x4000, 16 bits)
+    val colorMathData = B(0x4000, 16 bits)
 
-    // Sc12 only: last bootstrap step writes AFFINE_CTRL = 1 to enable affine.
-    // The matrix regs (0x0340..0x0345) stay at their zero init until the first
-    // vsync kicks off the animator below; between affineEnable rising and the
-    // first animator write there's a sub-frame window where L0 sees u=v=0
-    // (solid texel (0,0)) — harmless under the 100-frame capture warmup skip.
     val affineCtrlAddrReg = U(0x0346, 15 bits)
     val affineCtrlDataReg = B(0x0001, 16 bits)
-    val isAffineCtrlStep  =
-      if (scenarioId == 12) bootIdx === U(copperLen + 9, 7 bits) else False
+    val isAffineCtrlStep  = False
 
-    // Sc 11 linestate write computation (only used when scenarioId == 11):
+    // Linestate write computation:
     // bootIdx in [colorMathIdx+1 .. lastStepIdx], k = bootIdx - linestateBase.
     // address = k * 8 (line index 0..472).
     // Per LinestateStore: bit[11]=l0en, bit[10]=l1en, bit[9:0]=l0scrollX.
@@ -971,85 +337,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
       }
     }
 
-    // Task 19 Checkpoint C — Sc12 affine matrix animator. Compute a 180-entry
-    // LUT of (A, B, C, D, X, Y) at 2°/frame rotation around screen center
-    // (320, 240) mapped to texture center (64, 64), scale 0.9×. After the
-    // bootstrap finishes, each vsyncRising kicks off a 6-cycle sequence that
-    // rewrites the affine matrix registers via the regWriteBus.
-    // Per BronzeGate #7340 / CyanPeak #7341: proof-scene zoom so ONE texture
-    // tile spans the 640-px screen width (128 texel / 640 px ≈ 0.2). This is
-    // a local proof-scene parameter change — the AffineStepper contract,
-    // register map, and modulo-128 wrap logic are untouched.
-    val sc12Lut: Seq[(Int, Int, Int, Int, Int, Int)] = (0 until 180).map { i =>
-      val theta = i.toDouble * 2.0 * math.Pi / 180.0
-      val cos = math.cos(theta)
-      val sin = math.sin(theta)
-      val scale = 0.2
-      val A = scale * cos
-      val B = -scale * sin
-      val C = scale * sin
-      val D = scale * cos
-      val cx = 320.0; val cy = 240.0
-      val tcx = 64.0; val tcy = 64.0
-      val X = tcx - cx * A - cy * B
-      val Y = tcy - cx * C - cy * D
-      val aFix = (A * 256.0).round.toInt & 0xFFFF
-      val bFix = (B * 256.0).round.toInt & 0xFFFF
-      val cFix = (C * 256.0).round.toInt & 0xFFFF
-      val dFix = (D * 256.0).round.toInt & 0xFFFF
-      val xFix = (X * 64.0).round.toInt & 0xFFFF
-      val yFix = (Y * 64.0).round.toInt & 0xFFFF
-      (aFix, bFix, cFix, dFix, xFix, yFix)
-    }
-
+    // Platform-agnosticism purge: bootstrap affine animator removed.
+    // Host owns matrix/affine register writes at runtime.
     val (animWriteAddr, animWriteData, animWriteActive): (UInt, Bits, Bool) =
-      if (scenarioId == 12) {
-        val frameIdx     = Reg(UInt(8 bits)) init 0
-        val animWriteIdx = Reg(UInt(3 bits)) init 7   // 7 = idle, 0..5 = writing
-        when(bootDoneR && vsyncRising) {
-          frameIdx := Mux(frameIdx === U(179, 8 bits), U(0, 8 bits), frameIdx + 1)
-          animWriteIdx := 0
-        }
-        when(animWriteIdx < U(6, 3 bits)) {
-          animWriteIdx := animWriteIdx + 1
-        }
-
-        def seqToBits(extract: ((Int, Int, Int, Int, Int, Int)) => Int): Seq[Bits] =
-          sc12Lut.map(t => B(extract(t), 16 bits))
-        val matA = Mem(Bits(16 bits), 180).init(seqToBits(_._1))
-        val matB = Mem(Bits(16 bits), 180).init(seqToBits(_._2))
-        val matC = Mem(Bits(16 bits), 180).init(seqToBits(_._3))
-        val matD = Mem(Bits(16 bits), 180).init(seqToBits(_._4))
-        val matX = Mem(Bits(16 bits), 180).init(seqToBits(_._5))
-        val matY = Mem(Bits(16 bits), 180).init(seqToBits(_._6))
-
-        val a = UInt(15 bits)
-        val d = Bits(16 bits)
-        a := U(0, 15 bits)
-        d := B(0, 16 bits)
-        switch(animWriteIdx) {
-          is(U(0, 3 bits)) { a := U(0x0340, 15 bits); d := matA.readAsync(frameIdx) }
-          is(U(1, 3 bits)) { a := U(0x0341, 15 bits); d := matB.readAsync(frameIdx) }
-          is(U(2, 3 bits)) { a := U(0x0342, 15 bits); d := matC.readAsync(frameIdx) }
-          is(U(3, 3 bits)) { a := U(0x0343, 15 bits); d := matD.readAsync(frameIdx) }
-          is(U(4, 3 bits)) { a := U(0x0344, 15 bits); d := matX.readAsync(frameIdx) }
-          is(U(5, 3 bits)) { a := U(0x0345, 15 bits); d := matY.readAsync(frameIdx) }
-          default          { a := U(0, 15 bits);      d := B(0, 16 bits) }
-        }
-        val active = animWriteIdx < U(6, 3 bits)
-        (a, d, active)
-      } else if (scenarioId == 20) {
-        // Task 40 Sc20: animator bus slot is driven by C64Adapter output.
-        (c64Demo.get.io.busAddr, c64Demo.get.io.busData, c64Demo.get.io.busWr)
-      } else if (scenarioId == 50) {
-        // Task 50 v2 Sc50: animator bus slot is driven by ZX Spectrum
-        // adapter output. Demo wrapper drives ZX_CTRL once + cycles
-        // ZX_BORDER per ~30 vsyncs so the adapter's emitter is
-        // exercised at runtime through RegBusArbiter master 2.
-        (zxDemo.get.io.busAddr, zxDemo.get.io.busData, zxDemo.get.io.busWr)
-      } else {
-        (U(0, 15 bits), B(0, 16 bits), False)
-      }
+      (U(0, 15 bits), B(0, 16 bits), False)
 
     // QSPI host-control frontend (phase 1 — Checkpoint A control contract).
     // The QspiSlave lives in the pixel clock domain and oversamples the async
@@ -1131,67 +422,14 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     regBusArbiter.io.masters(1).data   := qspiDec.io.regBus.data
     regBusArbiter.io.masters(1).enable := qspiActive
 
-    // Task 1 (#9154) Phase 3 — AdapterBusMux always-instantiated.
-    // Sc70 (Phase 5a pilot) wires runtime adapters here; all other
-    // scenarios tie inputs off to 0/False so the mux output stays
-    // quiescent (matching modeSelect=0x0 Native Mode0 default).
-    val adapterBusMux = AdapterBusMux(Seq(0x1, 0x2))
-    adapterBusMux.io.modeSelect := video.io.modeSelect
-    sc70Adapters match {
-      case Some((c64, zx)) =>
-        adapterBusMux.io.adapters(0).addr   := c64.io.busAddr
-        adapterBusMux.io.adapters(0).data   := c64.io.busData
-        adapterBusMux.io.adapters(0).enable := c64.io.busWr
-        adapterBusMux.io.adapters(1).addr   := zx.io.busAddr
-        adapterBusMux.io.adapters(1).data   := zx.io.busData
-        adapterBusMux.io.adapters(1).enable := zx.io.busWr
-      case None =>
-        for (i <- 0 until adapterBusMux.io.adapters.length) {
-          adapterBusMux.io.adapters(i).addr   := U(0, 15 bits)
-          adapterBusMux.io.adapters(i).data   := B(0, 16 bits)
-          adapterBusMux.io.adapters(i).enable := False
-        }
-    }
+    // Master 2 is reserved for an on-chip animator slot. With no animator
+    // instantiated on this generic top, the slot stays quiescent.
+    regBusArbiter.io.masters(2).addr   := animWriteAddr
+    regBusArbiter.io.masters(2).data   := animWriteData
+    regBusArbiter.io.masters(2).enable := animWriteActive
 
-    // Master 2 = adapter-mux output OR'd with existing animator path.
-    // Adapter mux wins on simultaneous assertion (priority safe because
-    // legacy animator scenarios run with modeSelect=0, where the mux is
-    // quiescent). Once Phase 5 retires the scenario-conditional animator
-    // path, this OR collapses to just the adapter mux.
-    regBusArbiter.io.masters(2).addr   :=
-      Mux(adapterBusMux.io.mixed.enable, adapterBusMux.io.mixed.addr, animWriteAddr)
-    regBusArbiter.io.masters(2).data   :=
-      Mux(adapterBusMux.io.mixed.enable, adapterBusMux.io.mixed.data, animWriteData)
-    regBusArbiter.io.masters(2).enable := adapterBusMux.io.mixed.enable || animWriteActive
-
-    // Task 1 (#9154) Phase 4 — AdapterRegRouter on the unified
-    // post-arbitration bus per arch §4.1 critical correction. Decodes
-    // adapter address ranges (C64=0x0E00, ZX=0x0F00) and:
-    //   - emits per-adapter regAddr/regData/regWr pulses (consumed by
-    //     runtime-instantiated adapters in Phase 5; outputs left
-    //     unconsumed in Packet A and pruned at synthesis)
-    //   - suppresses passThru.enable for any adapter-range address so
-    //     the Mode0 substrate (VdpTop) never sees them
-    // Mode0 global writes (incl. MODE_SELECT @ 0x0313) pass through.
-    val adapterRegRouter = AdapterRegRouter(Seq((0x1, 0x0E00), (0x2, 0x0F00)))
-    adapterRegRouter.io.modeSelect := video.io.modeSelect
-    adapterRegRouter.io.mixedIn    <> regBusArbiter.io.mixed
-    video.io.regBus                <> adapterRegRouter.io.passThru
-
-    // Task 1 (#9154) Phase 5a — drive Sc70 runtime adapters from the
-    // router pulse outputs and connect their modeSelect to the live
-    // committed value. For non-Sc70 scenarios, the router pulse
-    // outputs are dangling (pruned at synthesis).
-    sc70Adapters.foreach { case (c64, zx) =>
-      c64.io.modeSelect := video.io.modeSelect
-      c64.io.regAddr    := adapterRegRouter.io.adapters(0).regAddr
-      c64.io.regData    := adapterRegRouter.io.adapters(0).regData
-      c64.io.regWr      := adapterRegRouter.io.adapters(0).regWr
-      zx.io.modeSelect  := video.io.modeSelect
-      zx.io.regAddr     := adapterRegRouter.io.adapters(1).regAddr
-      zx.io.regData     := adapterRegRouter.io.adapters(1).regData
-      zx.io.regWr       := adapterRegRouter.io.adapters(1).regWr
-    }
+    // Mode0 register bus is driven straight from the arbitrator's mixed output.
+    video.io.regBus <> regBusArbiter.io.mixed
 
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100
@@ -1203,19 +441,12 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     // Sc28 reuses Sc5's legacy sprite configuration so the scene has
     // content to render over; the 5 bus-programmed sprites are the
     // NEW visible proof at y=250.
-    val scSprite0 = Set(4, 5, 6, 7, 12, 15, 16, 17, 28).contains(scenarioId)
-    val scSprite1 = Set(5, 6, 7, 15, 16, 17, 28).contains(scenarioId)
-    val scSprite23 = Set(5, 6, 17, 28).contains(scenarioId)
-    // Task 40 Sc20: sprite 0/1 enable comes dynamically from the C64Adapter.
-    video.io.sprite0Enabled    :=
-      (if (scenarioId == 20) c64Demo.get.io.sprite0Enabled
-       else if (scenarioId == 70) sc70Adapters.get._1.io.sprite0Enabled
-       else Bool(scSprite0))
+    val scSprite0 = false
+    val scSprite1 = false
+    val scSprite23 = false
+    video.io.sprite0Enabled    := Bool(scSprite0)
     video.io.sprite0PatternIdx := U(0, 1 bit)
-    video.io.sprite1Enabled    :=
-      (if (scenarioId == 20) c64Demo.get.io.sprite1Enabled
-       else if (scenarioId == 70) sc70Adapters.get._1.io.sprite1Enabled
-       else Bool(scSprite1))
+    video.io.sprite1Enabled    := Bool(scSprite1)
     video.io.sprite1PatternIdx := U(1, 1 bit)
 
     // R2 proof scene — deliberately forces the 2-per-line selection limit.
@@ -1234,203 +465,15 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     // Sprite positions: scenario 4 pins sprite 0 at (320,240); scenario 5
     // bounces all 4 sprites with simple counters. Scenarios 0-3 use the
     // legacy R2 proof positions (sprites off in Checkpoint C anyway).
-    if (scenarioId == 4) {
-      video.io.sprite0X := U(320, 10 bits)
-      video.io.sprite0Y := U(240, 10 bits)
-      video.io.sprite1X := U(0, 10 bits)
-      video.io.sprite1Y := U(0, 10 bits)
-      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
-      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
-      video.io.sprite2Enabled := False
-      video.io.sprite3Enabled := False
-      video.io.sprite2PatternIdx := U(0, 1 bit)
-      video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (scenarioId == 7) {
-      // Sc7 priority overlap: BOTH sprites at the SAME (320,240). Slot-1
-      // (sprite 1) wins everywhere — the entire visible footprint should
-      // show pattern 1, not pattern 0. Cleanest test of slot-priority.
-      video.io.sprite0X := U(320, 10 bits)
-      video.io.sprite0Y := U(240, 10 bits)
-      video.io.sprite1X := U(320, 10 bits)
-      video.io.sprite1Y := U(240, 10 bits)
-      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
-      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
-      video.io.sprite2Enabled := False
-      video.io.sprite3Enabled := False
-      video.io.sprite2PatternIdx := U(0, 1 bit)
-      video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (Set(15, 16, 18).contains(scenarioId)) {
-      // Sc15 (Task 21 Mixed-Scene Integration): two sprites bouncing
-      // horizontally at 2 px/frame at y=100 (top band / tile mode) and
-      // y=300 (middle band / planar mode), opposite phase so they sweep
-      // the screen asynchronously. Sprites cross mode boundaries when
-      // the copper triggers fire.
-      val xMin = 16; val xMax = 624
-      val s0x = Reg(UInt(10 bits)) init xMin
-      val s1x = Reg(UInt(10 bits)) init xMax   // opposite phase
-      val s0dir = Reg(Bool()) init False       // false = +2
-      val s1dir = Reg(Bool()) init True        // true  = -2 (mirrors s0)
-      when(vsyncRising) {
-        when(s0dir) {
-          when(s0x <= U(xMin + 2, 10 bits)) { s0dir := False; s0x := U(xMin, 10 bits) }
-            .otherwise                        { s0x := s0x - 2 }
-        }.otherwise {
-          when(s0x >= U(xMax - 2, 10 bits)) { s0dir := True;  s0x := U(xMax, 10 bits) }
-            .otherwise                        { s0x := s0x + 2 }
-        }
-        when(s1dir) {
-          when(s1x <= U(xMin + 2, 10 bits)) { s1dir := False; s1x := U(xMin, 10 bits) }
-            .otherwise                        { s1x := s1x - 2 }
-        }.otherwise {
-          when(s1x >= U(xMax - 2, 10 bits)) { s1dir := True;  s1x := U(xMax, 10 bits) }
-            .otherwise                        { s1x := s1x + 2 }
-        }
-      }
-      video.io.sprite0X := s0x
-      video.io.sprite0Y := U(100, 10 bits)
-      video.io.sprite1X := s1x
-      video.io.sprite1Y := U(300, 10 bits)
-      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
-      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
-      video.io.sprite2Enabled := False
-      video.io.sprite3Enabled := False
-      video.io.sprite2PatternIdx := U(0, 1 bit)
-      video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (scenarioId == 17) {
-      // Sc17 (Task 23 Stress-Scene Validation): all 4 sprites bouncing
-      // horizontally at 4 px/frame between x=16..624, at y=80, 200, 320, 400.
-      // Alternating phase so the per-line evaluator sees overlap often.
-      val xMin = 16; val xMax = 624
-      def bouncer(initX: Int, reverse: Boolean) = {
-        val rx  = Reg(UInt(10 bits)) init (if (reverse) xMax else initX)
-        val dir = Reg(Bool()) init (if (reverse) True else False)  // false = +4
-        when(vsyncRising) {
-          when(dir) {
-            when(rx <= U(xMin + 4, 10 bits)) { dir := False; rx := U(xMin, 10 bits) }
-              .otherwise                      { rx := rx - 4 }
-          }.otherwise {
-            when(rx >= U(xMax - 4, 10 bits)) { dir := True;  rx := U(xMax, 10 bits) }
-              .otherwise                      { rx := rx + 4 }
-          }
-        }
-        rx
-      }
-      val s0x = bouncer(xMin,        reverse = false)
-      val s1x = bouncer(xMax,        reverse = true)
-      val s2x = bouncer(xMin + 200,  reverse = false)
-      val s3x = bouncer(xMax - 200,  reverse = true)
-      video.io.sprite0X := s0x; video.io.sprite0Y := U( 80, 10 bits)
-      video.io.sprite1X := s1x; video.io.sprite1Y := U(200, 10 bits)
-      video.io.sprite2X := s2x; video.io.sprite2Y := U(320, 10 bits)
-      video.io.sprite3X := s3x; video.io.sprite3Y := U(400, 10 bits)
-      video.io.sprite2Enabled := True
-      video.io.sprite3Enabled := True
-      video.io.sprite2PatternIdx := U(0, 1 bit)
-      video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (scenarioId == 12) {
-      // Sc12: one sprite moves horizontally across the affine background at
-      // 2 px/frame, pinned at Y=200. Other sprites disabled.
-      val xMin = 16; val xMax = 624
-      val s0x = Reg(UInt(10 bits)) init xMin
-      val s0dir = Reg(Bool()) init False  // false = +2
-      when(vsyncRising) {
-        when(s0dir) {
-          when(s0x <= U(xMin + 2, 10 bits)) { s0dir := False; s0x := U(xMin, 10 bits) }
-            .otherwise                        { s0x := s0x - 2 }
-        }.otherwise {
-          when(s0x >= U(xMax - 2, 10 bits)) { s0dir := True;  s0x := U(xMax, 10 bits) }
-            .otherwise                        { s0x := s0x + 2 }
-        }
-      }
-      video.io.sprite0X := s0x
-      video.io.sprite0Y := U(200, 10 bits)
-      video.io.sprite1X := U(0, 10 bits); video.io.sprite1Y := U(0, 10 bits)
-      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
-      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
-      video.io.sprite2Enabled := False
-      video.io.sprite3Enabled := False
-      video.io.sprite2PatternIdx := U(0, 1 bit)
-      video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (scenarioId == 5 || scenarioId == 6 || scenarioId == 28) {
-      // Per-sprite bounce: each sprite has its own X/Y reg + sign bit. Step
-      // sizes spread out so the 4 sprites move at different rates.
-      val xMin = 16; val xMax = 624     // 16 ≤ x ≤ 624 keeps 16×16 sprite on-screen
-      val yMin = 16; val yMax = 464
-      def bouncer(initX: Int, initY: Int, stepX: Int, stepY: Int) = {
-        val rx = Reg(UInt(10 bits)) init initX
-        val ry = Reg(UInt(10 bits)) init initY
-        val dx = Reg(Bool()) init False     // false = +stepX
-        val dy = Reg(Bool()) init False
-        when(vsyncRising) {
-          when(dx) {
-            when(rx <= U(xMin + stepX, 10 bits)) { dx := False; rx := U(xMin, 10 bits) }
-              .otherwise                            { rx := rx - U(stepX, 10 bits) }
-          }.otherwise {
-            when(rx >= U(xMax - stepX, 10 bits)) { dx := True;  rx := U(xMax, 10 bits) }
-              .otherwise                            { rx := rx + U(stepX, 10 bits) }
-          }
-          when(dy) {
-            when(ry <= U(yMin + stepY, 10 bits)) { dy := False; ry := U(yMin, 10 bits) }
-              .otherwise                            { ry := ry - U(stepY, 10 bits) }
-          }.otherwise {
-            when(ry >= U(yMax - stepY, 10 bits)) { dy := True;  ry := U(yMax, 10 bits) }
-              .otherwise                            { ry := ry + U(stepY, 10 bits) }
-          }
-        }
-        (rx, ry)
-      }
-      val (s0x, s0y) = bouncer(120, 100, 1, 1)
-      val (s1x, s1y) = bouncer(400, 100, 2, 1)
-      val (s2x, s2y) = bouncer(120, 300, 1, 2)
-      val (s3x, s3y) = bouncer(400, 300, 2, 2)
-      video.io.sprite0X := s0x; video.io.sprite0Y := s0y
-      video.io.sprite1X := s1x; video.io.sprite1Y := s1y
-      video.io.sprite2X := s2x; video.io.sprite2Y := s2y
-      video.io.sprite3X := s3x; video.io.sprite3Y := s3y
-      video.io.sprite2Enabled := True
-      video.io.sprite3Enabled := True
-      video.io.sprite2PatternIdx := U(0, 1 bit)
-      video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (scenarioId == 20) {
-      // Sc20 (Task 40): sprite 0/1 driven by C64Adapter direct outputs;
-      // slots 2/3 disabled.
-      video.io.sprite0X := c64Demo.get.io.sprite0X
-      video.io.sprite0Y := c64Demo.get.io.sprite0Y
-      video.io.sprite1X := c64Demo.get.io.sprite1X
-      video.io.sprite1Y := c64Demo.get.io.sprite1Y
-      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
-      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
-      video.io.sprite2Enabled := False
-      video.io.sprite3Enabled := False
-      video.io.sprite2PatternIdx := U(0, 1 bit)
-      video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else if (scenarioId == 70) {
-      // Sc70 (Task 1 Phase 5a): runtime C64Adapter drives sprite 0/1.
-      // Outputs are mode-gated inside the adapter — when MODE_SELECT
-      // is not 0x1 the adapter outputs default to 0/False, leaving
-      // sprite 0/1 quiescent. ZX adapter does not own sprite signals.
-      val (c64, _) = sc70Adapters.get
-      video.io.sprite0X := c64.io.sprite0X
-      video.io.sprite0Y := c64.io.sprite0Y
-      video.io.sprite1X := c64.io.sprite1X
-      video.io.sprite1Y := c64.io.sprite1Y
-      video.io.sprite2X := U(0, 10 bits); video.io.sprite2Y := U(0, 10 bits)
-      video.io.sprite3X := U(0, 10 bits); video.io.sprite3Y := U(0, 10 bits)
-      video.io.sprite2Enabled := False
-      video.io.sprite3Enabled := False
-      video.io.sprite2PatternIdx := U(0, 1 bit)
-      video.io.sprite3PatternIdx := U(1, 1 bit)
-    } else {
-      // scenarios 0/1/2/3: legacy R2 proof positions; sprites disabled
-      video.io.sprite0X := U(120, 10 bits); video.io.sprite0Y := U(120, 10 bits)
-      video.io.sprite1X := U(240, 10 bits); video.io.sprite1Y := U(120, 10 bits)
-      video.io.sprite2X := U(360, 10 bits); video.io.sprite2Y := U(120, 10 bits)
-      video.io.sprite3X := U(300, 10 bits); video.io.sprite3Y := U(360, 10 bits)
-      video.io.sprite2Enabled := False
-      video.io.sprite3Enabled := False
-      video.io.sprite2PatternIdx := U(0, 1 bit)
-      video.io.sprite3PatternIdx := U(1, 1 bit)
-    }
+    // Sprites disabled by default; host can enable via QSPI register writes.
+    video.io.sprite0X := U(120, 10 bits); video.io.sprite0Y := U(120, 10 bits)
+    video.io.sprite1X := U(240, 10 bits); video.io.sprite1Y := U(120, 10 bits)
+    video.io.sprite2X := U(360, 10 bits); video.io.sprite2Y := U(120, 10 bits)
+    video.io.sprite3X := U(300, 10 bits); video.io.sprite3Y := U(360, 10 bits)
+    video.io.sprite2Enabled := False
+    video.io.sprite3Enabled := False
+    video.io.sprite2PatternIdx := U(0, 1 bit)
+    video.io.sprite3PatternIdx := U(1, 1 bit)
 
     // R4: SDRAM tile+attribute fetch. Replaces the retired SdramTileFetch.
     // Scheduler now gates SDRAM reads via slotValid; grant pulses start a
@@ -1443,14 +486,9 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     bitmapRowFetch.io.fetchGrant := video.io.bitmapSdramFetchGrant
     bitmapRowFetch.io.fetchLine  := video.io.bitmapSdramFetchLine
     bitmapRowFetch.io.col        := video.io.bitmapSdramCol
-    // Task 44b iter 6h (CyanPeak #8141 / BronzeGate #8143): gate BitmapRowFetch
-    // to scenarios that require SDRAM-backed bitmap. Sc44 uses on-chip
-    // bitmap pattern and does not consume BitmapRowFetch output
-    // (useSdram=0); gating isolates SDRAM row-fetch switching noise for
-    // capture-card troubleshooting.
-    bitmapRowFetch.io.enable     := video.io.bitmapModeActive &&
-                                    (Bool(scenarioId == 45) || Bool(scenarioId == 50) ||
-                                     Bool(scenarioId == 70))
+    // BitmapRowFetch engages whenever VdpTop reports bitmap mode active;
+    // host enables bitmap mode via BITMAP_CTRL writes at runtime.
+    bitmapRowFetch.io.enable     := video.io.bitmapModeActive
     // CP-1c: RGB565 directcolor fetch schedule (2 bytes/pixel) when
     // BITMAP_CTRL selects bpp=0b10.
     bitmapRowFetch.io.directColor := video.io.bitmapDirectColor
@@ -1472,21 +510,10 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     fetch.io.pixelAddr        := video.io.layer0FetchPixelAddr
 
     // Route R4 pixel+bank+priority into VdpTop's L0 interface.
-    // Task 40 v1.1 Sc20 (Path D per CyanPeak #8294): the C64 demo animator
-    // overrides the SDRAM-fetch path to render authentic C64 glyphs with
-    // Pepto palette (Bank 7). Other scenarios keep the SDRAM-backed fetch.
-    if (scenarioId == 20) {
-      video.io.layer0SdramPixel    := c64Demo.get.io.pixelIndex
-      video.io.layer0SdramBank     := c64Demo.get.io.pixelBank
-    } else {
-      video.io.layer0SdramPixel    := fetch.io.pixelIndex
-      video.io.layer0SdramBank     := fetch.io.pixelPaletteBank
-    }
+    video.io.layer0SdramPixel    := fetch.io.pixelIndex
+    video.io.layer0SdramBank     := fetch.io.pixelPaletteBank
     video.io.layer0SdramPriority := fetch.io.pixelPriority
-    // Sc31 uses on-chip BasicPatternSource so per-column scroll-table
-    // offsets are visible (SDRAM fetch latches scroll once per line,
-    // hiding column-band variation).
-    video.io.layer0UseSdram      := Bool(scenarioId != 31 && scenarioId != 29)
+    video.io.layer0UseSdram      := True
 
     // Test pattern override: default disabled so normal SDRAM-backed rendering
     // continues. Set enable=True and select a pattern (1..7) for validation.
@@ -1536,35 +563,11 @@ case class TopTang20kHdmi(scenarioId: Int = 0, useHostInit: Boolean = false, ena
     // each vblank. Cleared at start-of-frame so it re-fires every frame.
     // Per Task 34 §4.4 artifact: this is the firmware-side hook for
     // vblank-paced SDRAM_WRITE streaming (BronzeGate #7683 Option B).
-    // Task 40 Sc20: raster trigger controlled by C64Adapter via $D012 /
-    // $D011[7] (line), $D01A (enable), $D019 (ack-clear). Other scenarios
-    // keep the default "trigger at line 480" wiring for compatibility.
-    if (scenarioId == 20) {
-      video.io.rasterTriggerLine     := c64Demo.get.io.rasterTriggerLine
-      video.io.rasterTriggerPixel    := U(0, 10 bits)
-      video.io.rasterTriggerPxEnable := False
-      video.io.rasterTriggerEnable   := c64Demo.get.io.rasterTriggerEnable
-      // vsync always re-arms the trigger; ack-write merges via OR.
-      video.io.rasterTriggerClear    := vsyncRising || c64Demo.get.io.rasterTriggerClear
-    } else if (scenarioId == 70) {
-      // Sc70 (Task 1 Phase 5a): runtime C64Adapter owns the raster
-      // trigger when MODE_SELECT=0x1. Mode-gating inside the adapter
-      // forces line=0 / enable=False / clear pulse=False when
-      // MODE_SELECT is not 0x1, so the trigger stays quiescent in
-      // ZX mode (ZX has no equivalent raster IRQ).
-      val (c64, _) = sc70Adapters.get
-      video.io.rasterTriggerLine     := c64.io.rasterTriggerLine
-      video.io.rasterTriggerPixel    := U(0, 10 bits)
-      video.io.rasterTriggerPxEnable := False
-      video.io.rasterTriggerEnable   := c64.io.rasterTriggerEnable
-      video.io.rasterTriggerClear    := vsyncRising || c64.io.rasterTriggerClear
-    } else {
-      video.io.rasterTriggerLine     := U(480, 10 bits)
-      video.io.rasterTriggerPixel    := U(0, 10 bits)
-      video.io.rasterTriggerPxEnable := False
-      video.io.rasterTriggerEnable   := True
-      video.io.rasterTriggerClear    := vsyncRising
-    }
+    video.io.rasterTriggerLine     := U(480, 10 bits)
+    video.io.rasterTriggerPixel    := U(0, 10 bits)
+    video.io.rasterTriggerPxEnable := False
+    video.io.rasterTriggerEnable   := True
+    video.io.rasterTriggerClear    := vsyncRising
 
     // HDMI TX pipeline
     val hdmiTx = Tang20kHdmiTx()
@@ -1736,111 +739,4 @@ object TopTang20kHdmiVerilog extends App {
   // gated off so the synthesis/PnR resource delta can be measured against
   // Step 1 baseline (commit 6737bc0, 20943 logic).
   Config.spinal.generateVerilog(TopTang20kHdmi(enableL1Fetch = false))
-}
-
-// Wave 1 scenario top-level objects. Each generates its own top_tang20k_scN.v.
-object TopTang20kHdmiScenario1Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 1))
-}
-object TopTang20kHdmiScenario2Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 2))
-}
-object TopTang20kHdmiScenario3Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 3))
-}
-object TopTang20kHdmiScenario4Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 4))
-}
-object TopTang20kHdmiScenario5Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 5))
-}
-// Wave 2 scenarios.
-object TopTang20kHdmiScenario6Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 6))
-}
-object TopTang20kHdmiScenario7Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 7))
-}
-object TopTang20kHdmiScenario8Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 8))
-}
-object TopTang20kHdmiScenario9Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 9))
-}
-object TopTang20kHdmiScenario10Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 10))
-}
-object TopTang20kHdmiScenario11Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 11))
-}
-// Task 19 Checkpoint C — affine background with sprite.
-object TopTang20kHdmiScenario12Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 12))
-}
-// Task 21 Mixed-Scene Integration.
-object TopTang20kHdmiScenario15Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 15))
-}
-// Task 22 Long Soak baseline (Sc16) + Task 23 Stress-Scene Validation (Sc17).
-object TopTang20kHdmiScenario16Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 16))   // long-soak baseline
-}
-object TopTang20kHdmiScenario17Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 17))   // stress scene
-}
-// Task 26 QSPI wire-test diagnostic (BronzeGate #7508, throwaway).
-object TopTang20kHdmiScenario99Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 99))
-}
-// Wave 3 scenario.
-object TopTang20kHdmiScenario13Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 13))
-}
-object TopTang20kHdmiScenario33Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 33))   // Task 33 HDMA HW proof
-}
-object TopTang20kHdmiScenario28Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 28))   // Task 28 sprite-evaluator HW proof
-}
-object TopTang20kHdmiScenario37Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 37))   // Task 37 affine sprite HW proof
-}
-object TopTang20kHdmiScenario31Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 31))   // Task 31 scroll-table HW proof
-}
-object TopTang20kHdmiScenario29Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 29))   // Task 29 sprite-collision HW proof
-}
-object TopTang20kHdmiScenario44Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 44))   // Task 44 bitmap-fetch HW proof
-}
-object TopTang20kHdmiScenario45Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 45))   // Task 44b SDRAM-backed bitmap HW proof
-}
-object TopTang20kHdmiScenario20Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 20))   // Task 40 first platform adapter (C64 raster+sprite smoke)
-}
-object TopTang20kHdmiScenario51Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 51))   // Color/Window Hardening HW proof (CW-1/4/5/6 in one frame)
-}
-object TopTang20kHdmiScenario52Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 52))   // Color/Window CW-6 sprite-mask companion to sc51
-}
-object TopTang20kHdmiScenario60Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 60))   // Beam Hardening BH-1 pixel-precise Copper WAIT proof
-}
-object TopTang20kHdmiScenario62Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 62))   // Task 52 — Per-Sprite X/Y Flip primitive HW proof (sc62)
-}
-object TopTang20kHdmiScenario55Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 55))   // Task 55 Checkpoint C — sprite mask + tile-fetch budget HW proof
-}
-object TopTang20kHdmiScenario45HostVerilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 45, useHostInit = true))   // #9026 zero-footprint sc45-host proof — bootstrap bypass + skipSdramInit on both fetchers
-}
-object TopTang20kHdmiScenario50Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 50))   // Task 50 ZX Spectrum Adapter HW proof
-}
-object TopTang20kHdmiScenario70Verilog extends App {
-  Config.spinal.generateVerilog(TopTang20kHdmi(scenarioId = 70))   // Task 1 Phase 5a MODE_SELECT runtime dual-adapter pilot
 }

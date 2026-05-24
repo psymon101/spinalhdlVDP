@@ -193,14 +193,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     // resolution above descriptor 7 is shown (#10363).
     val spriteCollMask     = out Bits(8 bits)
 
-    // Task 1 (MODE_SELECT, #9154) — runtime adapter selection per
-    // MODE_SELECT_ARCHITECTURE.md v1.1 §4.2. Live-mode 4-bit field exported
-    // for adapters' output gating (§4.4) and for host READ_STATUS LIVE_MODE
-    // observability (§4.2 / open-question Q6 ruling: place in READ_STATUS).
-    //   0x0 = Native Mode0 (no adapter)
-    //   0x1 = C64 adapter
-    //   0x2 = ZX Spectrum adapter
-    //   0x3..0xF reserved
+    // MODE_SELECT live-mode field (4-bit) — exported for host READ_STATUS
+    // LIVE_MODE observability. 0x0 = native Mode0; non-zero values are
+    // reserved for runtime adapter selection driven by libvdp.
     val modeSelect         = out UInt(4 bits)
 
     // Task 3 — Planar Fetch Hardening: SDRAM master interface for
@@ -442,10 +437,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   when(copperSwapNowPulse)   { copperSwapPending := False }
   when(!copperCtrlReg(0))    { copperSwapPending := False }
 
-  // Task 1 (MODE_SELECT, #9154) per MODE_SELECT_ARCHITECTURE.md v1.1 §4.2:
-  // 16-bit register at 0x0313 — [3:0] = MODE_SELECT, [7:4] = reserved,
-  // [15:8] = MODE_FLAGS. Write authority: host/QSPI only for v1; the
-  // AdapterRegRouter (Phase 4) silently drops Copper/HDMA writes to 0x0313.
+  // MODE_SELECT @ 0x0313: 16-bit register — [3:0] = MODE_SELECT,
+  // [7:4] = reserved, [15:8] = MODE_FLAGS. Host/QSPI-write only.
   // Frame-atomic commit at V=0 (vsync start) — NOT the per-line hCounter===0
   // boundary used by other safe-boundary regs, since mode switch must not
   // produce split-frame artifacts.
@@ -580,12 +573,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   //
   // Defines a dedicated rectangular window at display coordinates. When
   // BORDER_CTRL[0] is set, pixels OUTSIDE the rectangle are replaced at
-  // the final display stage with palette[BORDER_CTRL[12:8]] (typically
-  // slot 24, written by the ZX Spectrum adapter's border emitter — see
-  // ZXSpectrumAdapter.scala). The rectangle is independent from the
-  // CW-5 WIN1/WIN2 windows so existing scenarios using those for
-  // ColorMath effects are unaffected. Defaults are all-zero so v3-OFF
-  // scenarios continue to render bit-identically.
+  // the final display stage with palette[BORDER_CTRL[12:8]]. The rectangle
+  // is independent from the CW-5 WIN1/WIN2 windows so existing scenes using
+  // those for ColorMath effects are unaffected. Defaults are all-zero so
+  // v3-OFF scenes continue to render bit-identically.
   //
   //   0x033C BORDER_X0   (10 bits, inclusive)
   //   0x033D BORDER_X1   (10 bits, exclusive)
@@ -2007,7 +1998,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   //     `spriteSpriteHitDescB` (existing sprite) bits are set in the
   //     mask. Reverse-iter draw order makes this OR-accumulation
   //     produce the canonical "every participating sprite has its bit
-  //     set" semantic (matches C64 $D01E MIB-MIB collision).
+  //     set" semantic.
   //
   // Clear semantics:
   //   - Same write-1-to-clear pattern as STATUS_STICKY @ 0x0320: bits
