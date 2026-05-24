@@ -71,23 +71,30 @@ Integrated SDR SDRAM SiP (64 Mbit, 32-bit bus, 4 banks).
 
 ## QSPI Host Control
 
-4-wire quad-mode lane. Host: Pi Pico 2 (Authoritative).
+4-wire quad-mode lane. 
+
+| Host Platform | Status | Implementation | Production SCK |
+|---|---|---|---|
+| **Pi Pico 2** | Authoritative | PIO | 2 MHz |
+| **ESP32-S3** | Validated | Hardware SPI2 + DMA | 60 MHz (Write) / 3 MHz (Read) |
+| **ESP8266** | Functional | Bit-bang | ~500 kHz |
+
 - **Protocol:** 6-byte header `[CMD:1][ADDR:3][LEN:2]`.
-- **SCK:** 2 MHz (Proven).
-- **Proof:** Tasks 26, 38, 34, 36.
+- **Proof:** Tasks 26, 38, 34, 36, ESP32-S3 Bring-up (#10539).
+- **Two-Speed Policy:** ESP32-S3 uses 60 MHz for writes to maximize throughput (~6.8 MB/s) and 3 MHz for reads to ensure FPGA response reliability.
 
 ## Pin Assignments
 
 Validated in `fpga/tang20k/tang20k_hdmi.cst`:
 
-| Signal | Tang Pin | Pico (Host) |
-|--------|----------|-------------|
-| SCK    | 41       | GP8         |
-| CS_N   | 42       | GP9         |
-| IO0    | 48       | GP10        |
-| IO1    | 49       | GP11        |
-| IO2    | 51       | GP12        |
-| IO3    | 54       | GP13        |
+| Signal | Tang Pin | Pico (GP) | ESP32-S3 (FSPI) |
+|--------|----------|-----------|-----------------|
+| SCK    | 41       | 8         | 12              |
+| CS_N   | 42       | 9         | 10              |
+| IO0    | 48       | 10        | 11              |
+| IO1    | 49       | 11        | 13              |
+| IO2    | 51       | 12        | 14              |
+| IO3    | 54       | 13        | 9               |
 
 ## Toolchain & Programming
 

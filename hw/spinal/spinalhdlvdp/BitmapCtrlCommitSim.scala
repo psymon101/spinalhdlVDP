@@ -10,7 +10,7 @@ import spinal.core.sim._
   * BronzeGate proved (#10501) the ESP8266 emits `0x0350 ← 0x0085`
   * cleanly on the wire and the FPGA latches no QSPI error, yet
   * RGB565 directcolor does not engage on hardware (#10475). The
-  * full upstream path (QspiDecoder, RegBusArbiter, AdapterRegRouter)
+  * full upstream path (QspiDecoder, RegBusArbiter)
   * has been audited and is symmetric for `0x031x` (BORDER, working)
   * and `0x035x` (BITMAP_CTRL, broken). The VdpTop-internal `0x0350`
   * decode → `bitmapCtrlPend` → `bitmapCtrlReg` commit chain has

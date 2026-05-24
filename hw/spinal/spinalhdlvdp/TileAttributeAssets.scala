@@ -254,7 +254,6 @@ object TileAttributeAssets {
       case 4 => rgb(t, t, t)             // grayscale
       case 5 => rgb(t, t, 0)             // yellows
       case 6 => rgb(t, 0, t)             // magentas
-      case 7 => peptoPalette(i)          // Task 40 v1.1: Pepto-2001 palette
       case _ => BigInt(0)
     }
   }

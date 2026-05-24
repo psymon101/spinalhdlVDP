@@ -18,7 +18,7 @@ import spinal.core._
   *     blitter, DMA, raster triggers, planar fetch, tile-attribute fetch,
   *     bitmap fetch, scroll tables, color math, window unit, test pattern
   *     source, debug LEDs/probes)
-  *   - HostInterface / RegBusArbiter / AdapterBusMux / AdapterRegRouter
+  *   - HostInterface / RegBusArbiter
   *   - HdmiCleanStart mute window
   *
   * Register bus surface: NONE in this slice — the shell boots into a

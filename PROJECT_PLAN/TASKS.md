@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-22 (RGB565 directcolor and CLS Optimization lanes closed; bench-framing investigation open; baseline locked at `9e3c252`.)
+**Updated:** 2026-05-24 (RTL Platform-Agnosticism Purge active #10567; ESP32-S3 host bring-up #10539 and scanline-start transient fix #10550 closed; baseline locked at `9e3c252`.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,25 +22,29 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **CLS Optimization — gate2 readAsync→readSync BSRAM conversion** |
+| **Task** | **RTL Platform-Agnosticism Purge** |
 | **Status** | **DONE** |
-| **Latest Commit** | `a9f4735` (CP-B: copper hdmaDataArray readSync, BrightForge #10449) |
-| **Latest Auth Mail** | BrightForge #10497 (PnR delta reported) |
-| **Summary** | Staged CLS relief lane. CP-A (`bab5c5f`): blitter srcRam 512×16 readAsync→readSync BSRAM. CP-B (`a9f4735`): copper hdmaDataArray 256×16 readAsync→readSync BSRAM. Both merged into `main` at `eedf617`. CP-B yielded null PnR payoff (`hdmaDataArray` stayed distributed). Actual CLS relief came from R5.4 copper `prog`-to-BSRAM shift (down 4 pts). No CP-C scoped. Lane complete. |
-| **Next Step** | Closeout. |
+| **Latest Commit** | `26ae196` (BACKDROP_INDEX + boot defaults + purge) |
+| **Latest Auth Mail** | BrightForge #10589 (BACKDROP_INDEX closed), CyanPeak #10587 (Audit PASS) |
+| **Summary** | Strip per-scenario / per-platform RTL. 10 files deleted. TopTang20kHdmi.scala scrubbed (-848 lines). Boot defaults fixed (layerEnableReg + LinestateStore all-off). BACKDROP_INDEX @ 0x0348 added for deterministic backdrop. Gowin PnR PASS (Setup 0, Hold 0). Bench: solid black on Tang. CyanPeak audit PASS. |
+| **Next Step** | Merge `brightforge/rtl-agnosticism-purge` → `main`. |
 
 ---
 
 ## Next Up / Open Queue
 
+### Deterministic Backdrop (BACKDROP_INDEX Register)
+- **Status:** **TODO** (#10584 follow-up).
+- **Scope:** Add a new host-writable register to set the backdrop color directly, bypassing SDRAM-bank transients.
+- **Next Step:** Open lane after #10567 closeout.
+
 ### RGB565 Hardware Bench Framing Investigation
-- **Status:** **OPEN** (#10503 follow-up). RTL feature proven; hardware-bench setup does not reliably exercise it.
-- **Scope:** Identify why the ESP8266 → FPGA bench path shows 1bpp-test-pattern output despite clean firmware trace (#10501) and symmetric RTL (#10500/#10502). Suspects: QspiSlave byte-level pipeline, TopTang20kHdmiScenario45HostVerilog wiring divergence, or signal-integrity/CDC hardware-only issue.
-- **Next Step:** BrightForge to extend harness to full QSPI byte-stream integration sim (option 1) and re-walk `TopTang20kHdmi` wiring (option 3). Blocked until `BitmapCtrlCommitSim.scala` landed.
+- **Status:** **DEFERRED** (#10503 follow-up). 
+- **Scope:** Superseded by ESP32-S3 host bring-up and 1-pixel fix.
 
 ### Atari ST Adapter Lane
-- **Status:** **PAUSED** (#9783). Checkpoint A accepted (#9782).
-- **Scope:** 320×200 4-plane planar only. No sprites/blitter for v1.
+- **Status:** **PAUSED** (#9783).
+- **Scope:** Relocating to libvdp.
 
 ---
 
@@ -50,6 +54,9 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 
 | Task | Status | Reference |
 |---|---|---|
+| Scanline-start 1-pixel Transient Fix | **DONE** | #10550 |
+| ESP32-S3 Host Bring-up | **DONE** | #10539 |
+| CLS Optimization — gate2 readAsync→readSync | **DONE** | #10497 |
 | R5.4 Copper Integration (gate2 descCount=32) | **DONE** | #10398 |
 | 3b Copper Double-Buffer | **DONE** | #10270 |
 | Mode2optimized Feature Strip | **DONE** | #10142 |
@@ -152,6 +159,7 @@ For full pre-execution planning (primitive boundary, interfaces, data model, tim
 ### Required Proof
 - sim: ...
 - hardware: ...
+- synthesis/PnR: ... (mandatory per `CONVENTIONS.md` §Synthesis and PnR Proof Rule if ≥500 lines or top-level connectivity changed)
 
 ### Audit Focus
 - ...

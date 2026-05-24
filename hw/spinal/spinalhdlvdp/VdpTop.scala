@@ -193,14 +193,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     // resolution above descriptor 7 is shown (#10363).
     val spriteCollMask     = out Bits(8 bits)
 
-    // Task 1 (MODE_SELECT, #9154) — runtime adapter selection per
-    // MODE_SELECT_ARCHITECTURE.md v1.1 §4.2. Live-mode 4-bit field exported
-    // for adapters' output gating (§4.4) and for host READ_STATUS LIVE_MODE
-    // observability (§4.2 / open-question Q6 ruling: place in READ_STATUS).
-    //   0x0 = Native Mode0 (no adapter)
-    //   0x1 = C64 adapter
-    //   0x2 = ZX Spectrum adapter
-    //   0x3..0xF reserved
+    // MODE_SELECT live-mode field (4-bit) — exported for host READ_STATUS
+    // LIVE_MODE observability. 0x0 = native Mode0; non-zero values are
+    // reserved for runtime adapter selection driven by libvdp.
     val modeSelect         = out UInt(4 bits)
 
     // Task 3 — Planar Fetch Hardening: SDRAM master interface for
@@ -395,14 +390,11 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // Without this gate, the copper's combinational write arrives mid-line,
   // shifts the compositor's effective enable mask mid-scanline, and shows
   // up as 1-frame scroll skips + wrong-bank pixel flashes on hardware.
-  // Task 48: expanded to 5 bits — {L3[4], L2[3], sprite[2], L1[1], L0[0]}.
-  // Default 5'b00111 preserves the original 3-bit init for L0/L1/sprite
-  // (all on at reset) and keeps L2/L3 OFF until a scenario's Copper or
-  // host writes bits 4..3 explicitly. Matches CyanPeak #8221 audit note:
-  // "The default-zero state of bits 4..3 ensures L2/L3 are inactive for
-  // legacy builds."
-  val layerEnableReg    = (Reg(Bits(5 bits)) init B"00111").simPublic()
-  val layerEnablePend   = Reg(Bits(5 bits)) init B"00111"
+  // 5-bit layout: {L3[4], L2[3], sprite[2], L1[1], L0[0]}.
+  // Reset default = all-off (lane #10567 agnosticism). The host owns layer
+  // activation via libvdp.
+  val layerEnableReg    = (Reg(Bits(5 bits)) init B"00000").simPublic()
+  val layerEnablePend   = Reg(Bits(5 bits)) init B"00000"
   val layerEnablePendHit = (Reg(Bool()) init False).simPublic()
   when(effWrite && effAddr === U(0x0300, 15 bits)) {
     layerEnablePend    := effData(4 downto 0)
@@ -427,6 +419,19 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     attributeModePend    := effData(0 downto 0)
     attributeModePendHit := True
   }
+  // BACKDROP_INDEX @ 0x0348 — host-writable 7-bit absolute palette index used
+  // by the compositor `.otherwise` fallthrough as the displayed pixel when no
+  // layer is opaque. Decouples the backdrop color from layer0Bank (which is
+  // SDRAM-sourced and non-deterministic across reboots). POR=0 → palette[0].
+  // Standard safe-boundary shadow+commit pattern.
+  val backdropIndexReg     = (Reg(UInt(7 bits)) init U(0, 7 bits)).simPublic()
+  val backdropIndexPend    = Reg(UInt(7 bits)) init U(0, 7 bits)
+  val backdropIndexPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0348, 15 bits)) {
+    backdropIndexPend    := effData(6 downto 0).asUInt
+    backdropIndexPendHit := True
+  }
+
   // R5.3: VDP_CTRL @ 0x0310, safe-boundary shadow + commit for copper enable.
   // R5.4: bit[1] = COPPER_SWAP_REQUEST (latch-on-write). HW auto-clears at
   // commit. Last-write-wins precedence below: swap-commit and disable-clear
@@ -442,10 +447,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   when(copperSwapNowPulse)   { copperSwapPending := False }
   when(!copperCtrlReg(0))    { copperSwapPending := False }
 
-  // Task 1 (MODE_SELECT, #9154) per MODE_SELECT_ARCHITECTURE.md v1.1 §4.2:
-  // 16-bit register at 0x0313 — [3:0] = MODE_SELECT, [7:4] = reserved,
-  // [15:8] = MODE_FLAGS. Write authority: host/QSPI only for v1; the
-  // AdapterRegRouter (Phase 4) silently drops Copper/HDMA writes to 0x0313.
+  // MODE_SELECT @ 0x0313: 16-bit register — [3:0] = MODE_SELECT,
+  // [7:4] = reserved, [15:8] = MODE_FLAGS. Host/QSPI-write only.
   // Frame-atomic commit at V=0 (vsync start) — NOT the per-line hCounter===0
   // boundary used by other safe-boundary regs, since mode switch must not
   // produce split-frame artifacts.
@@ -580,12 +583,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   //
   // Defines a dedicated rectangular window at display coordinates. When
   // BORDER_CTRL[0] is set, pixels OUTSIDE the rectangle are replaced at
-  // the final display stage with palette[BORDER_CTRL[12:8]] (typically
-  // slot 24, written by the ZX Spectrum adapter's border emitter — see
-  // ZXSpectrumAdapter.scala). The rectangle is independent from the
-  // CW-5 WIN1/WIN2 windows so existing scenarios using those for
-  // ColorMath effects are unaffected. Defaults are all-zero so v3-OFF
-  // scenarios continue to render bit-identically.
+  // the final display stage with palette[BORDER_CTRL[12:8]]. The rectangle
+  // is independent from the CW-5 WIN1/WIN2 windows so existing scenes using
+  // those for ColorMath effects are unaffected. Defaults are all-zero so
+  // v3-OFF scenes continue to render bit-identically.
   //
   //   0x033C BORDER_X0   (10 bits, inclusive)
   //   0x033D BORDER_X1   (10 bits, exclusive)
@@ -725,6 +726,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     when(attributeModePendHit) {
       attributeModeReg     := attributeModePend
       attributeModePendHit := False
+    }
+    when(backdropIndexPendHit) {
+      backdropIndexReg     := backdropIndexPend
+      backdropIndexPendHit := False
     }
     when(copperCtrlPendHit) {
       copperCtrlReg     := copperCtrlPend
@@ -1357,8 +1362,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     composedBgBank   := layer1Bank
     composedBgSource := U(PixelMetadata.SourceBG1, 3 bits)
   }.otherwise {
-    composedBgIdx    := layer0Pixel
-    composedBgBank   := layer0Bank
+    // Backdrop: no layer is opaque (or all layers disabled). Display the
+    // host-programmed BACKDROP_INDEX as an absolute 7-bit palette index.
+    // Splitting it into bank[6:4] + idx[3:0] makes the downstream
+    // `palette[bank*16+idx]` lookup map to palette[BACKDROP_INDEX] linearly.
+    composedBgIdx    := backdropIndexReg(3 downto 0).asBits
+    composedBgBank   := backdropIndexReg(6 downto 4)
     composedBgSource := U(PixelMetadata.SourceBG0, 3 bits)
   }
   val composedBg = composedBgIdx
@@ -2007,7 +2016,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   //     `spriteSpriteHitDescB` (existing sprite) bits are set in the
   //     mask. Reverse-iter draw order makes this OR-accumulation
   //     produce the canonical "every participating sprite has its bit
-  //     set" semantic (matches C64 $D01E MIB-MIB collision).
+  //     set" semantic.
   //
   // Clear semantics:
   //   - Same write-1-to-clear pattern as STATUS_STICKY @ 0x0320: bits

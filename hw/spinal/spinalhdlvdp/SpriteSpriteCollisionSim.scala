@@ -5,7 +5,7 @@ import spinal.core.sim._
 
 /** Task 54 Checkpoint B — sprite-sprite collision proof.
   *
-  * Verifies the C64-style $D01E MIB-MIB collision surface:
+  * Verifies the set-on-collide, read-and-clear sprite-sprite collision surface:
   *   - 0x0322 SPRITE_COLL_MASK : 8-bit per-descriptor sticky mask, W1C
   *   - 0x0320 STATUS_STICKY    : new bit 6 SPRITE_SPRITE_HIT rollup, W1C
   *

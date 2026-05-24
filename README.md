@@ -37,10 +37,9 @@ The Scala package for this repository is `spinalhdlvdp`.
 `Mode0` is a foundational rendering substrate providing generic primitives: raster timing, fetch, composition, palette, sprites, scrolling, Copper, and HDMA.
 
 **Principles:**
-1. **Generic Core:** `Mode0` grows universal capabilities needed by multiple platforms.
-2. **Semantic Adapters:** Platform-specific modes (C64, NES, Amiga, etc.) sit on top as adapters.
-3. **Quirk Isolation:** Platform-specific registers and logic belong in adapters, not the core substrate.
+1. **Generic Core:** The VDP RTL is a purely generic graphics IP. It grows universal capabilities needed by multiple platforms but contains zero platform-specific logic.
+2. **Firmware Personality:** Platform-specific personality (register shims, initialization sequences, asset management) resides entirely in `libvdp` or host-side firmware.
+3. **Quirk Isolation:** Platform-specific quirks are handled by the host library translating to generic Mode0 register writes.
 
 Roadmap: [`PROJECT_PLAN/MODE0_PLANNING.md`](PROJECT_PLAN/MODE0_PLANNING.md).
-Detailed adapter specs: [`PROJECT_PLAN/PLATFORM_ADAPTERS.md`](PROJECT_PLAN/PLATFORM_ADAPTERS.md).
 User guide: [`VDP_PROGRAMMING_GUIDE.md`](VDP_PROGRAMMING_GUIDE.md).
