@@ -1,7 +1,7 @@
 # MODE0_PLANNING.md
 
-**Updated:** 2026-05-20
-**Purpose:** Current `Mode0-T20` profile specification for the Tang20k-targeted Mode0 build.
+**Updated:** 2026-05-24
+**Purpose:** Current `Mode0-T20` profile specification for the Tang20k-targeted Mode0 build. (RTL Platform-Agnosticism Purge active #10567).
 
 ---
 
@@ -12,6 +12,7 @@
 | Ceiling class | Amiga + SNES |
 | Explicitly removed as ceiling driver | Neo Geo |
 | Profile type | Tang20k-scoped implementation profile |
+| Personality | **Agnostic** (relocated to libvdp) |
 
 ---
 
@@ -55,7 +56,7 @@ For high-level usage and examples, see the [**`VDP Programming Guide`**](../VDP_
 - **Fetch/Raster:** `0x0350..0x037F`
 - **Automation/Tables:** `0x0380..0x0AFF`
 - **DMA/Blitter:** `0x0B00..0x0DFF`
-- **Adapter Pages:** `0x0E00..0x0FFF`
+- **Adapter Pages:** `0x0E00..0x0FFF` (**Deprecated** — personality relocated to libvdp)
 
 ---
 

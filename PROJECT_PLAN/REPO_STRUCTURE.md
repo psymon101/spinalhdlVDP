@@ -19,7 +19,9 @@ spinalhdlVDP/
 │   └── vhdl/                    # optional checked-in VHDL outputs
 ├── fpga/
 │   └── tang20k/                 # Tang Nano 20K board build / constraints / transport
-├── kb/                          # local hardware and vendor references
+├── firmware/
+│   └── libvdp/                  # host driver library (owns all platform personality)
+├── kb/                          # local hardware and vendor references (adapter specs remain for reference)
 └── target/                      # SBT build outputs
 ```
 

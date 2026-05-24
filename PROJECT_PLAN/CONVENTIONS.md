@@ -4,6 +4,18 @@
 
 ---
 
+## Architectural Principles
+
+### RTL Agnosticism (Mandatory 2026-05-24)
+
+- **Rule:** The VDP RTL must remain purely generic graphics IP.
+- **No Adapters:** Do not implement platform-specific register shims (C64, ZX, etc.) in the RTL tree.
+- **No Hardcoding:** Do not hardcode platform-specific palettes, Copper programs, or scenario branches in production bitstreams.
+- **Personality Location:** All platform "personality" (register translation, initialization sequences, asset uploads) belongs in `libvdp` or host-side firmware.
+- **Exception:** Test-only scenarios may exist in archived commits but must not pollute the main generic bitstream.
+
+---
+
 ## Language and Toolchain
 
 - **HDL authoring:** SpinalHDL / Scala

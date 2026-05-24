@@ -105,7 +105,47 @@
 | **Latest Auth Mail** | #9295 (BrightForge HW proof v2); #9298 (CyanPeak re-audit PASS) |
 | **Next Deliverable** | N/A — fully closed |
 
-**Proof:** V=32: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. HW proof v2: 30s capture, 868 frames, 28 visible sprites, freeze=0.0000, glitch=0.0000. Regression 10/10 PASS. Total trajectory: 51,191 → 13,924 = 3.7× reduction.
+| **Proof** | V=32: 13,924 logic (68%), 9,595 LUT, 7,726 FF, 0 unplaced REGs, 0 timing violations. HW proof v2: 30s capture, 868 frames, 28 visible sprites, freeze=0.0000, glitch=0.0000. Regression 10/10 PASS. Total trajectory: 51,191 → 13,924 = 3.7× reduction.
+
+---
+
+### Task 52 — Per-Sprite X/Y Flip Primitive (CLOSED)
+
+| Field | Value |
+|---|---|
+| **Task** | Task 52 — Per-Sprite X/Y Flip Primitive |
+| **Status** | **DONE** — CyanPeak audit PASS #9127; hardware verified |
+| **Owner** | BrightForge (implementation + proof), CyanPeak (audit), BronzeGate (firmware) |
+| **Baseline Commit** | `39a7242` (Sprite Phase 2) |
+| **Latest Auth Mail** | #9127 (CyanPeak audit PASS) |
+| **Proof** | \`SpriteFlipSim\` 12/12 cases PASS; hardware proof Scenario 62 shows pixel-perfect mirror grid on Tang Nano 20K. |
+
+---
+
+### ESP32-S3 Host Bring-up (CLOSED)
+
+| Field | Value |
+|---|---|
+| **Task** | ESP32-S3 Host Bring-up — Hardware SPI2 + DMA |
+| **Status** | **DONE** — Finalized #10541; bitstream `8b61a2e` |
+| **Owner** | BronzeGate (firmware), BrightForge (RTL support) |
+| **Latest Auth Mail** | #10539 (Root cause SOLVED), #10541 (Closeout) |
+| **Proof** | Hardware SPI2 at 60 MHz (write) / 3 MHz (read). Bit-perfect palette writes proven via \`esp32s3_red_screen\`. |
+
+---
+
+### Scanline-start 1-pixel Transient Fix (CLOSED)
+
+| Field | Value |
+|---|---|
+| **Task** | Scanline-start 1-pixel Transient Fix |
+| **Status** | **DONE** — CyanPeak audit PASS #10546; hardware fixed |
+| **Owner** | BrightForge (implementation), CyanPeak (audit PASS), BronzeGate (verification) |
+| **Commit** | \`a98ad0a\` (local only) |
+| **Latest Auth Mail** | #10550 (FIXED on bench), #10552 (Ready to commit) |
+| **Proof** | RTL pre-advance \`(hCounter + 1)\` aligned fetch latency with compositor. Left-edge green strip eliminated on HW bench. |
+
+---
 
 ### Task 3 — Planar Fetch Hardening (DONE)
 
