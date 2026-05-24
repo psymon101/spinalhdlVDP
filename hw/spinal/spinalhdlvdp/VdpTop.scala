@@ -1083,7 +1083,26 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   io.layer0FetchLine        := fetchLineReg
   io.layer0FetchScrollX     := fetchScrollXReg
   io.layer0FetchScrollY     := fetchScrollYReg
-  io.layer0FetchPixelAddr   := hCounter.resize(10)
+  /* Pre-advance pixelAddr by 1 cycle to compensate for the
+   * SdramTileAttributeFetch / SdramTileFetch line-buffer `readSync`
+   * latency. Without this, the leftmost active pixel of every scanline
+   * paints with the previous clock's stale `readWord` (1-pixel bank-0
+   * transient on the left edge — #10542/#10546).
+   *
+   * Mirrors the existing drainAddr pattern at line ~1610 (CyanPeak audit
+   * #8760, sprite-pattern lane); explicit wrap at hTotal-1 → 0 so the
+   * last active pixel (hCounter == hActive-1) reads mem[hActive-1] then
+   * resets to 0 for the next line — without the conditional, the +1
+   * would index past the line buffer's hActive-deep range. */
+  val layer0FetchPixelAddrReg = UInt(10 bits)
+  when(hCounter === hTotal - 1) {
+    layer0FetchPixelAddrReg := U(0, 10 bits)
+  }.elsewhen(hCounter < hActive - 1) {
+    layer0FetchPixelAddrReg := (hCounter + 1).resize(10)
+  }.otherwise {
+    layer0FetchPixelAddrReg := U(0, 10 bits)
+  }
+  io.layer0FetchPixelAddr := layer0FetchPixelAddrReg
 
   // Task 56 Checkpoint B (#9678 / #9693): L1 fetch scheduler outputs.
   // Latch registers mirror the L0 earlyLatchStrobe pattern with `layer1*`
