@@ -2255,29 +2255,39 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   scaler.io.inRgb      := displayRgb
   val displayRgbScaled = scaler.io.outRgb
 
-  // Sync / DE / RGB pipeline — one extra cycle of registers to match the
-  // scaler's +1 latency. hsync/vsync are active-low so init True (inactive).
-  val hsyncRR         = RegNext(hsyncR)         init True
-  val vsyncRR         = RegNext(vsyncR)         init True
-  val deRR            = RegNext(deR)            init False
-  val primedRR        = RegNext(primedR)        init False
-  val rasterPendingRR = RegNext(rasterPendingR) init False
+  // Sync / DE / RGB pipeline — three extra cycles of registers to match the
+  // scaler's +1 latency on top of the pre-scaler N+2 ColorMath pipeline.
+  // CyanPeak #10621 identified the off-by-one: deRR was at N+2 but
+  // displayRgbScaled lands at N+3, so the gate dropped the first column of
+  // every line and clipped the last. The third RegNext (deRRR/primedRRR/…)
+  // aligns the gate with the scaler's output. hsync/vsync are active-low so
+  // init True (inactive).
+  val hsyncRR          = RegNext(hsyncR)          init True
+  val vsyncRR          = RegNext(vsyncR)          init True
+  val deRR             = RegNext(deR)             init False
+  val primedRR         = RegNext(primedR)         init False
+  val rasterPendingRR  = RegNext(rasterPendingR)  init False
+  val hsyncRRR         = RegNext(hsyncRR)         init True
+  val vsyncRRR         = RegNext(vsyncRR)         init True
+  val deRRR            = RegNext(deRR)            init False
+  val primedRRR        = RegNext(primedRR)        init False
+  val rasterPendingRRR = RegNext(rasterPendingRR) init False
 
-  io.hsync := hsyncRR
-  io.vsync := vsyncRR
-  io.de    := deRR
+  io.hsync := hsyncRRR
+  io.vsync := vsyncRRR
+  io.de    := deRRR
   io.red   := B(0, 8 bits)
   io.green := B(0, 8 bits)
   io.blue  := B(0, 8 bits)
-  when(deRR && primedRR) {
+  when(deRRR && primedRRR) {
     val redRaw = displayRgbScaled(23 downto 16)
-    io.red   := Mux(rasterPendingRR, ~redRaw, redRaw)
+    io.red   := Mux(rasterPendingRRR, ~redRaw, redRaw)
     io.green := displayRgbScaled(15 downto 8)
     io.blue  := displayRgbScaled(7 downto 0)
   }
-  // io.x/y track the same +2 cycle pipeline as the RGB output.
-  io.x := RegNext(RegNext(hCounter.resize(10)) init 0) init 0
-  io.y := RegNext(RegNext(vCounter.resize(10)) init 0) init 0
+  // io.x/y track the same +3 cycle pipeline as the RGB output.
+  io.x := RegNext(RegNext(RegNext(hCounter.resize(10)) init 0) init 0) init 0
+  io.y := RegNext(RegNext(RegNext(vCounter.resize(10)) init 0) init 0) init 0
 }
 
 object VdpTop {
