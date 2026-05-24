@@ -27,9 +27,10 @@ This section tracks the active lane.
 | **Task ID** | #10590 |
 | **Owner** | BrightForge (RTL), BronzeGate (libvdp) |
 | **Baseline Commit** | `9c0b161` (main, post-agnosticism-purge) |
-| **Latest Auth Mail** | TopazCliff #10590 (lane open) to BrightForge, BronzeGate, CyanPeak |
+| **Latest Auth Mail** | BrightForge #10603 (Checkpoint A done), TopazCliff #10604 (Checkpoint B authorized) |
 | **Summary** | Add integer pixel-repetition scaling to VdpTop output path. libvdp specifies logical resolutions (e.g. 320x240, 256x192) that render as pixel-perfect integer-scale blocks centered on 640x480 physical panel, with auto-computed border window. Owner chose Option 1: integer-only, no fractional scaling. |
-| **Next Step** | BrightForge Checkpoint A: register contract + scaler skeleton. |
+| **Checkpoints** | A: DONE (233132a, brightforge/pixel-repeat-scaler) — register contract + scaler skeleton, sbt compile clean. B: IN-PROGRESS — line buffer body + counters + TopTang20kHdmi wiring + ScaleRepeatSim + PnR + bench. |
+| **Next Step** | BrightForge Checkpoint B: line buffer body, repeat counters, HDMI wiring, sim proof. |
 
 ---
 
