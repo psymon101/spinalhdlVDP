@@ -390,14 +390,11 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // Without this gate, the copper's combinational write arrives mid-line,
   // shifts the compositor's effective enable mask mid-scanline, and shows
   // up as 1-frame scroll skips + wrong-bank pixel flashes on hardware.
-  // Task 48: expanded to 5 bits — {L3[4], L2[3], sprite[2], L1[1], L0[0]}.
-  // Default 5'b00111 preserves the original 3-bit init for L0/L1/sprite
-  // (all on at reset) and keeps L2/L3 OFF until a scenario's Copper or
-  // host writes bits 4..3 explicitly. Matches CyanPeak #8221 audit note:
-  // "The default-zero state of bits 4..3 ensures L2/L3 are inactive for
-  // legacy builds."
-  val layerEnableReg    = (Reg(Bits(5 bits)) init B"00111").simPublic()
-  val layerEnablePend   = Reg(Bits(5 bits)) init B"00111"
+  // 5-bit layout: {L3[4], L2[3], sprite[2], L1[1], L0[0]}.
+  // Reset default = all-off (lane #10567 agnosticism). The host owns layer
+  // activation via libvdp.
+  val layerEnableReg    = (Reg(Bits(5 bits)) init B"00000").simPublic()
+  val layerEnablePend   = Reg(Bits(5 bits)) init B"00000"
   val layerEnablePendHit = (Reg(Bool()) init False).simPublic()
   when(effWrite && effAddr === U(0x0300, 15 bits)) {
     layerEnablePend    := effData(4 downto 0)
