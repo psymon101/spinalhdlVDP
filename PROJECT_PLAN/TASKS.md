@@ -111,6 +111,22 @@ If CyanPeak issues `HOLD`, BrightForge may correct and resubmit once. A second `
 
 ---
 
+## Lane-Closeout Team Check (Mandatory)
+
+At every large-task closeout, `TopazCliff` must send a PM team check to all active agents before opening the next large lane.
+
+Purpose: surface blockers, process friction, and capacity constraints while they are fresh, rather than letting them accumulate across lanes.
+
+Required reply content from each agent:
+1. **Blockers** — tooling, docs, coordination, handoffs, stale dependencies, unclear scope
+2. **Process friction** — mail patterns, lane handoffs, proof requirements, review cycles
+3. **Suggestions** — start/stop/change at large-task boundaries
+4. **Status** — current lane/focus and capacity for next PM-assigned task
+
+No new large lane may be opened until the team check has been sent and replies have been reviewed. Small side lanes (doc fixes, sketch tweaks, sim-only cleanup) are exempt.
+
+---
+
 ## Lane-Open Packet Template
 
 Every new implementation lane must open with one authoritative packet. Copy this template into the kick-off mail or doc update.
