@@ -1743,8 +1743,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   //                                            commits {R,G,B} into entry
   // Two writes per entry; pointer wraps modulo 256. Hosts should sequence
   // bulk palette uploads inside vblank to avoid mid-frame visible flicker
-  // (the readAsync pixel path will see the new entry on the very next
-  // pixel after the second write).
+  // (the readSync pixel path sees the new entry one pixel-clock later
+  // than the second write completes — still visible on the next pixel
+  // for vblank-paced uploads).
   val paletteWritePtr  = Reg(UInt(8 bits)) init 0
   val paletteWriteAcc  = Reg(Bits(16 bits)) init 0
   val palettePtrHit    = effWrite && (effAddr === U(0x0601, 15 bits))
@@ -1763,6 +1764,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   }
 
   val palette = Mem(Bits(24 bits), initialContent = TileAttributeAssets.paletteInit)
+  // Lane #10686: force BSRAM inference (no LUT-RAM / distributed SSRAM).
+  // The readAsync→readSync conversion below plus this attribute eliminates
+  // the placement-sensitive prop-delay path that drove Gowin synthesis
+  // non-determinism (4 distinct bitstream sha1s from identical source,
+  // mail #10683 / #10652).
+  palette.addAttribute("ram_style", "block")
   palette.simPublic()
 
   // Task 50 v3.3 — Palette mirror registers for the first 32 entries.
@@ -1784,7 +1791,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     data    = paletteCommitData,
     enable  = paletteCommitNow
   )
-  val paletteRgb = palette.readAsync(paletteAddr)
+  val paletteRgb = palette.readSync(paletteAddr)
 
   // R1 Raster Trigger Unit. Pending status is used below as a visible split
   // indicator (inverts the red channel after the trigger fires), which is the
@@ -2148,8 +2155,16 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val dcDrained       = dcLineBuf.io.readData
   val dcActiveDrained = dcDrained(24).simPublic()
   val dcRgbDrained    = dcDrained(23 downto 0).simPublic()
-  val bgOrDirectRgb   = Mux(dcActiveDrained && !drainSpriteWins, dcRgbDrained, paletteRgb).simPublic()
-  val maskedRgb       = Mux(layerMaskActive, B(0, 24 bits), bgOrDirectRgb)
+  // Lane #10686 palette readSync compensation. paletteRgb is now +1 cycle
+  // (readSync semantics). Delay every other input to this mux by 1 cycle
+  // so all four inputs represent the same drain cycle. Pre-#10686 these
+  // were combinationally co-timed with the old readAsync paletteRgb.
+  val dcActiveDrainedR  = RegNext(dcActiveDrained)  init False
+  val dcRgbDrainedR     = RegNext(dcRgbDrained)     init B(0, 24 bits)
+  val drainSpriteWinsR  = RegNext(drainSpriteWins)  init False
+  val layerMaskActiveR  = RegNext(layerMaskActive)  init False
+  val bgOrDirectRgb   = Mux(dcActiveDrainedR && !drainSpriteWinsR, dcRgbDrainedR, paletteRgb).simPublic()
+  val maskedRgb       = Mux(layerMaskActiveR, B(0, 24 bits), bgOrDirectRgb)
 
   // CW Option 1 pipeline (CyanPeak #8649): register the new dual-window
   // / layer-mask combinational outputs before they enter ColorMath, so
@@ -2216,7 +2231,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   // Display-side sync / DE / gating signals delayed 1 cycle to track
   // the ColorMath input pipeline. hsync/vsync are active-low so reset
-  // value is True (inactive).
+  // value is True (inactive). Lane #10686's palette readSync change
+  // is matched by the dcSide RegNext at the bgOrDirectRgb mux input,
+  // keeping the total post-palette pipeline depth unchanged.
   val hsyncR         = RegNext(!(hCounter >= hSyncStart && hCounter < hSyncEnd)) init True
   val vsyncR         = RegNext(!(vCounter >= vSyncStart && vCounter < vSyncEnd)) init True
   val deR            = RegNext(activeVideo)           init False
