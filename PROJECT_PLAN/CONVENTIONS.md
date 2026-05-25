@@ -14,6 +14,18 @@
 - **Personality Location:** All platform "personality" (register translation, initialization sequences, asset uploads) belongs in `libvdp` or host-side firmware.
 - **Exception:** Test-only scenarios may exist in archived commits but must not pollute the main generic bitstream.
 
+### Transport Canary Mandate (#10670 / #10681)
+
+- **Rule:** The v1 transport canary must remain in production. It is a 16×16 bright-cyan block at FPGA-active coordinates `x ∈ [624, 639]`, `y ∈ [464, 479]`, gated only on `video.io.de`, muxed at the final RGB stage in `TopTang20kHdmi.scala` immediately before `hdmiCleanStart`.
+- **Independence:** The canary must not depend on `scenarioId`, `BITMAP_CTRL`, palette, SDRAM, or any scene-specific path.
+- **Removal or modification:** Any RTL change that gates, removes, or alters the canary path must be flagged explicitly in the PM packet.
+- **Hardware proof evidence (mandatory tuple):**
+  - bitstream sha1
+  - capture artifact path (PNG / MP4 under `fpga/tang20k/captures/`)
+  - OpenCV-derived numeric (`cyan_fraction` at probe coords `[1872, 1044, 1920, 1080]` for 1920×1080 captures, threshold `> 0.50`)
+- **Single-build claims:** A single-build capture is a status update, not proof. Any RTL change that touches BSRAM utilization, `readAsync` Mems, or the compositor critical path requires a 3-build determinism panel per the #10671 protocol (clean `impl/gwsynthesis` + `impl/pnr` between builds, physical power-cycle between flashes, 3/3 PASS criterion).
+- **Reference:** Full capture-path hardening guide at `PROJECT_PLAN/CAPTURE.md`; transport-gate classifier at `scripts/regression/check_transport.py`.
+
 ---
 
 ## Language and Toolchain
