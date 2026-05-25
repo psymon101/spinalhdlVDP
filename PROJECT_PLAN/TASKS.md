@@ -27,10 +27,10 @@ This section tracks the active lane.
 | **Task ID** | #10590 |
 | **Owner** | BrightForge (RTL), BronzeGate (libvdp) |
 | **Baseline Commit** | `9c0b161` (main, post-agnosticism-purge) |
-| **Latest Auth Mail** | CyanPeak #10633 (Gate of Death + lineBuf OOB findings), TopazCliff #10634 (discriminator endorsed) |
-| **Summary** | Add integer pixel-repetition scaling to VdpTop output path. Pipeline rebalance committed (a007ddf) but black screen persists. Investigation active: CyanPeak found `primedRRR` may never assert ("Gate of Death") AND scaler `lineBuf.write` uses hCounter 0..799 into 640-entry buffer (OOB wrap). BrightForge running 2-line discriminator to isolate root cause. |
-| **Checkpoints** | A: DONE (233132a). B: DONE (653adc9) + rebalance (a007ddf). C: DONE #10606. **INVESTIGATION ACTIVE:** #10630-10634 — black screen root cause hunt. |
-| **Next Step** | BrightForge: run CyanPeak's primed discriminator (2-line hack: `when(deRRR)` + `primed init True`). If image returns → Gate of Death confirmed. If still black → data path debug. |
+| **Latest Auth Mail** | TopazCliff #10641 (PM decision: strategic revert authorized), BronzeGate #10640 (endorses revert) |
+| **Summary** | Add integer pixel-repetition scaling to VdpTop output path. Six orthogonal discriminators all returned black. Absolute bypass inside scaler still black → bug is scaler presence in module hierarchy or pre-scaler. PM decision: surgical disconnect revert to isolate root cause. Backdrop architecture: Option B confirmed. |
+| **Checkpoints** | A: DONE (233132a). B: DONE (653adc9) + rebalance (a007ddf). C: DONE #10606. **INVESTIGATION DONE:** Six discriminators falsified all micro-hypotheses. **PM DECISION:** Strategic revert authorized #10641. |
+| **Next Step** | BrightForge: surgical disconnect revert on brightforge/pixel-repeat-scaler — remove scaler instantiation, restore direct displayRgb→io.red wiring, test with non-black visible output. Binary result: image returns = scaler at fault; still black = pre-scaler bug. |
 
 ---
 
