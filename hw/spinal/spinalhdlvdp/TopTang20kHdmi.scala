@@ -592,9 +592,31 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // Slice-A clean-start mute: feed RGB through hdmiCleanStart so the same
     // window that holds hsync/vsync inactive also forces RGB to 0. Avoids
     // any coloured-pixel emission during the post-reset blanking window.
-    hdmiCleanStart.io.inRed   := video.io.red
-    hdmiCleanStart.io.inGreen := video.io.green
-    hdmiCleanStart.io.inBlue  := video.io.blue
+    // Transport canary v1 (PM #10670): 16x16 cyan block at active
+    // (x=624..639, y=464..479). Gated on video.io.de only. Independent of
+    // scenarioId / BITMAP_CTRL / palette / SDRAM — proves the pixel transport
+    // path is moving without depending on any frame-buffer content.
+    val canaryHPos = Reg(UInt(10 bits)) init 0
+    val canaryVPos = Reg(UInt(10 bits)) init 0
+    val dePrev = RegNext(video.io.de) init False
+    val deFalling = !video.io.de && dePrev
+    when(video.io.de) {
+      canaryHPos := canaryHPos + 1
+    } otherwise {
+      canaryHPos := 0
+    }
+    when(deFalling) {
+      canaryVPos := canaryVPos + 1
+    }
+    when(vsyncRising) {
+      canaryVPos := 0
+    }
+    val inCanaryBox = video.io.de &&
+      (canaryHPos >= U(624, 10 bits)) && (canaryHPos <= U(639, 10 bits)) &&
+      (canaryVPos >= U(464, 10 bits)) && (canaryVPos <= U(479, 10 bits))
+    hdmiCleanStart.io.inRed   := Mux(inCanaryBox, B(0x00, 8 bits), video.io.red)
+    hdmiCleanStart.io.inGreen := Mux(inCanaryBox, B(0xFF, 8 bits), video.io.green)
+    hdmiCleanStart.io.inBlue  := Mux(inCanaryBox, B(0xFF, 8 bits), video.io.blue)
     hdmiTx.red   := RegNext(hdmiCleanStart.io.outRed)   init 0
     hdmiTx.green := RegNext(hdmiCleanStart.io.outGreen) init 0
     hdmiTx.blue  := RegNext(hdmiCleanStart.io.outBlue)  init 0
