@@ -432,6 +432,36 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     backdropIndexPendHit := True
   }
 
+  // PixelRepeatScaler register block (lane #10590 Path B).
+  //   0x0349 SCALE_CTRL    : [2:0]=scaleX (0/1 = 1x, 2..6 = 2x..6x; ≥7 clamps)
+  //                          [6:4]=scaleY (same encoding)
+  //                          [7]  = autoCenter
+  //   0x034A LOGIC_WIDTH   : 11-bit logical canvas width  (1..640)
+  //   0x034B LOGIC_HEIGHT  : 11-bit logical canvas height (1..480)
+  // Hardware silently clamps scale*logic to active dimensions (CyanPeak #10596).
+  // Safe-boundary commit at hCounter===0 like the rest of the register file.
+  val scaleCtrlReg     = (Reg(Bits(8 bits)) init B(0, 8 bits)).simPublic()
+  val scaleCtrlPend    = Reg(Bits(8 bits)) init B(0, 8 bits)
+  val scaleCtrlPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0349, 15 bits)) {
+    scaleCtrlPend    := effData(7 downto 0)
+    scaleCtrlPendHit := True
+  }
+  val logicWidthReg     = (Reg(UInt(11 bits)) init U(640, 11 bits)).simPublic()
+  val logicWidthPend    = Reg(UInt(11 bits)) init U(640, 11 bits)
+  val logicWidthPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x034A, 15 bits)) {
+    logicWidthPend    := effData(10 downto 0).asUInt
+    logicWidthPendHit := True
+  }
+  val logicHeightReg     = (Reg(UInt(11 bits)) init U(480, 11 bits)).simPublic()
+  val logicHeightPend    = Reg(UInt(11 bits)) init U(480, 11 bits)
+  val logicHeightPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x034B, 15 bits)) {
+    logicHeightPend    := effData(10 downto 0).asUInt
+    logicHeightPendHit := True
+  }
+
   // R5.3: VDP_CTRL @ 0x0310, safe-boundary shadow + commit for copper enable.
   // R5.4: bit[1] = COPPER_SWAP_REQUEST (latch-on-write). HW auto-clears at
   // commit. Last-write-wins precedence below: swap-commit and disable-clear
@@ -730,6 +760,18 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     when(backdropIndexPendHit) {
       backdropIndexReg     := backdropIndexPend
       backdropIndexPendHit := False
+    }
+    when(scaleCtrlPendHit) {
+      scaleCtrlReg     := scaleCtrlPend
+      scaleCtrlPendHit := False
+    }
+    when(logicWidthPendHit) {
+      logicWidthReg     := logicWidthPend
+      logicWidthPendHit := False
+    }
+    when(logicHeightPendHit) {
+      logicHeightReg     := logicHeightPend
+      logicHeightPendHit := False
     }
     when(copperCtrlPendHit) {
       copperCtrlReg     := copperCtrlPend
@@ -2149,6 +2191,17 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // cycle T+1.
   val borderEnable = borderCtrlReg(0)
   val borderIdx    = borderCtrlReg(12 downto 8).asUInt
+  // PixelRepeatScaler (lane #10590) is DISCONNECTED on this branch. The
+  // module file remains at `PixelRepeatScaler.scala` for follow-on debug,
+  // but it is no longer instantiated in the active output path. Adding it
+  // caused intermittent all-black HDMI on hardware even with the bypass
+  // active — root cause traces to Gowin synthesis non-determinism (3 builds
+  // of identical Verilog produced 3 functionally-different bitstreams; STA
+  // reported 0 violations in all 3). Fix deferred to a follow-on lane that
+  // changes `palette.readAsync` → `readSync`/BSRAM so timing is properly
+  // constrained. SCALE_CTRL / LOGIC_WIDTH / LOGIC_HEIGHT registers stay
+  // decoded so libvdp's host surface is unchanged; the values have no
+  // effect today.
   val insideBorder = (hCounter >= borderX0Reg.resize(log2Up(hTotal))) &&
                      (hCounter <  borderX1Reg.resize(log2Up(hTotal))) &&
                      (vCounter >= borderY0Reg.resize(log2Up(vTotal))) &&
@@ -2177,10 +2230,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   io.hsync := hsyncR
   io.vsync := vsyncR
-  io.de := deR
-  io.red := B(0, 8 bits)
+  io.de    := deR
+  io.red   := B(0, 8 bits)
   io.green := B(0, 8 bits)
-  io.blue := B(0, 8 bits)
+  io.blue  := B(0, 8 bits)
   when(deR && primedR) {
     val redRaw = displayRgb(23 downto 16)
     io.red   := Mux(rasterPendingR, ~redRaw, redRaw)
@@ -2188,8 +2241,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     io.blue  := displayRgb(7 downto 0)
   }
   // io.x/y are the displayed-pixel coordinates and must track the same
-  // 1-cycle pipeline shift as io.de / io.red / io.green / io.blue (CW
-  // Option 1 pipeline above).
+  // 1-cycle pipeline shift as io.de / io.red / io.green / io.blue.
   io.x := RegNext(hCounter.resize(10)) init 0
   io.y := RegNext(vCounter.resize(10)) init 0
 }
