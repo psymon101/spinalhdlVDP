@@ -2191,44 +2191,22 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // cycle T+1.
   val borderEnable = borderCtrlReg(0)
   val borderIdx    = borderCtrlReg(12 downto 8).asUInt
-  // PixelRepeatScaler instantiation (lane #10590). Lives here so its
-  // auto-center outputs are available to the border-mux below. The RGB-side
-  // wiring (scaler.io.inRgb / outRgb) is done at the output-pipeline block
-  // further down. Scaler counters reset on the first cycle of hsync/vsync
-  // (when hCounter/vCounter enter their respective sync regions); we detect
-  // those edges combinationally here.
-  val hsyncActive    = hCounter >= hSyncStart && hCounter < hSyncEnd
-  val vsyncActive    = vCounter >= vSyncStart && vCounter < vSyncEnd
-  val hsyncActivePrv = RegNext(hsyncActive) init False
-  val vsyncActivePrv = RegNext(vsyncActive) init False
-  val hsyncEdge      = hsyncActive && !hsyncActivePrv
-  val vsyncEdge      = vsyncActive && !vsyncActivePrv
-  val scaler = PixelRepeatScaler()
-  scaler.io.hCounter     := hCounter.resize(10)
-  scaler.io.vCounter     := vCounter.resize(10)
-  scaler.io.hsyncRising  := hsyncEdge
-  scaler.io.vsyncRising  := vsyncEdge
-  scaler.io.hActive      := U(hActive, 11 bits)
-  scaler.io.vActive      := U(vActive, 11 bits)
-  scaler.io.scaleXReg    := scaleCtrlReg(2 downto 0).asUInt
-  scaler.io.scaleYReg    := scaleCtrlReg(6 downto 4).asUInt
-  scaler.io.autoCenter   := scaleCtrlReg(7)
-  scaler.io.logicWidth   := logicWidthReg
-  scaler.io.logicHeight  := logicHeightReg
-
-  // Auto-center override of the host BORDER_X/Y0/1. Host BORDER_CTRL[12:8]
-  // still picks the bezel palette slot. SCALE_CTRL[7] arms the override.
-  val acActive    = scaleCtrlReg(7)
-  val effBorderX0 = Mux(acActive, scaler.io.acBorderX0, borderX0Reg)
-  val effBorderX1 = Mux(acActive, scaler.io.acBorderX1, borderX1Reg)
-  val effBorderY0 = Mux(acActive, scaler.io.acBorderY0, borderY0Reg)
-  val effBorderY1 = Mux(acActive, scaler.io.acBorderY1, borderY1Reg)
-  val effBorderEnable = borderEnable || acActive
-  val insideBorder = (hCounter >= effBorderX0.resize(log2Up(hTotal))) &&
-                     (hCounter <  effBorderX1.resize(log2Up(hTotal))) &&
-                     (vCounter >= effBorderY0.resize(log2Up(vTotal))) &&
-                     (vCounter <  effBorderY1.resize(log2Up(vTotal)))
-  val borderActive = effBorderEnable && !insideBorder
+  // PixelRepeatScaler (lane #10590) is DISCONNECTED on this branch. The
+  // module file remains at `PixelRepeatScaler.scala` for follow-on debug,
+  // but it is no longer instantiated in the active output path. Adding it
+  // caused intermittent all-black HDMI on hardware even with the bypass
+  // active — root cause traces to Gowin synthesis non-determinism (3 builds
+  // of identical Verilog produced 3 functionally-different bitstreams; STA
+  // reported 0 violations in all 3). Fix deferred to a follow-on lane that
+  // changes `palette.readAsync` → `readSync`/BSRAM so timing is properly
+  // constrained. SCALE_CTRL / LOGIC_WIDTH / LOGIC_HEIGHT registers stay
+  // decoded so libvdp's host surface is unchanged; the values have no
+  // effect today.
+  val insideBorder = (hCounter >= borderX0Reg.resize(log2Up(hTotal))) &&
+                     (hCounter <  borderX1Reg.resize(log2Up(hTotal))) &&
+                     (vCounter >= borderY0Reg.resize(log2Up(vTotal))) &&
+                     (vCounter <  borderY1Reg.resize(log2Up(vTotal)))
+  val borderActive = borderEnable && !insideBorder
   // Task 50 v3.3: Use a combinational lookup from the palette mirror
   // registers to fetch the border color. This removes the second async
   // read port on the palette Mem which broke BSRAM inference in v3.0.
@@ -2250,44 +2228,22 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // pixel.
   val displayRgb = Mux(borderActiveR, borderRgbR, mathRgb)
 
-  // Wire displayRgb into the (already-instantiated) scaler. Scaler is +1
-  // latency uniformly across bypass and scaled paths.
-  scaler.io.inRgb      := displayRgb
-  val displayRgbScaled = scaler.io.outRgb
-
-  // Sync / DE / RGB pipeline — three extra cycles of registers to match the
-  // scaler's +1 latency on top of the pre-scaler N+2 ColorMath pipeline.
-  // CyanPeak #10621 identified the off-by-one: deRR was at N+2 but
-  // displayRgbScaled lands at N+3, so the gate dropped the first column of
-  // every line and clipped the last. The third RegNext (deRRR/primedRRR/…)
-  // aligns the gate with the scaler's output. hsync/vsync are active-low so
-  // init True (inactive).
-  val hsyncRR          = RegNext(hsyncR)          init True
-  val vsyncRR          = RegNext(vsyncR)          init True
-  val deRR             = RegNext(deR)             init False
-  val primedRR         = RegNext(primedR)         init False
-  val rasterPendingRR  = RegNext(rasterPendingR)  init False
-  val hsyncRRR         = RegNext(hsyncRR)         init True
-  val vsyncRRR         = RegNext(vsyncRR)         init True
-  val deRRR            = RegNext(deRR)            init False
-  val primedRRR        = RegNext(primedRR)        init False
-  val rasterPendingRRR = RegNext(rasterPendingRR) init False
-
-  io.hsync := hsyncRRR
-  io.vsync := vsyncRRR
-  io.de    := deRRR
+  io.hsync := hsyncR
+  io.vsync := vsyncR
+  io.de    := deR
   io.red   := B(0, 8 bits)
   io.green := B(0, 8 bits)
   io.blue  := B(0, 8 bits)
-  when(deRRR && primedRRR) {
-    val redRaw = displayRgbScaled(23 downto 16)
-    io.red   := Mux(rasterPendingRRR, ~redRaw, redRaw)
-    io.green := displayRgbScaled(15 downto 8)
-    io.blue  := displayRgbScaled(7 downto 0)
+  when(deR && primedR) {
+    val redRaw = displayRgb(23 downto 16)
+    io.red   := Mux(rasterPendingR, ~redRaw, redRaw)
+    io.green := displayRgb(15 downto 8)
+    io.blue  := displayRgb(7 downto 0)
   }
-  // io.x/y track the same +3 cycle pipeline as the RGB output.
-  io.x := RegNext(RegNext(RegNext(hCounter.resize(10)) init 0) init 0) init 0
-  io.y := RegNext(RegNext(RegNext(vCounter.resize(10)) init 0) init 0) init 0
+  // io.x/y are the displayed-pixel coordinates and must track the same
+  // 1-cycle pipeline shift as io.de / io.red / io.green / io.blue.
+  io.x := RegNext(hCounter.resize(10)) init 0
+  io.y := RegNext(vCounter.resize(10)) init 0
 }
 
 object VdpTop {
