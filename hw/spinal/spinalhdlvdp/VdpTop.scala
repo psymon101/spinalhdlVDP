@@ -4,7 +4,11 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib.BufferCC
 
-case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false, enableL2L3: Boolean = false) extends Component {
+case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false, enableL2L3: Boolean = false,
+                  scaleCtrlInit:   Int = 0,
+                  logicWidthInit:  Int = 640,
+                  logicHeightInit: Int = 480,
+                  borderCtrlInit:  Int = 0) extends Component {
   // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM is migrated
   // into the SDRAM clock domain. When `sdramCd` is null (sim-default),
   // use the current pixel ClockDomain so single-clock sims keep working;
@@ -440,21 +444,21 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   //   0x034B LOGIC_HEIGHT  : 11-bit logical canvas height (1..480)
   // Hardware silently clamps scale*logic to active dimensions (CyanPeak #10596).
   // Safe-boundary commit at hCounter===0 like the rest of the register file.
-  val scaleCtrlReg     = (Reg(Bits(8 bits)) init B(0, 8 bits)).simPublic()
+  val scaleCtrlReg     = (Reg(Bits(8 bits)) init B(scaleCtrlInit, 8 bits)).simPublic()
   val scaleCtrlPend    = Reg(Bits(8 bits)) init B(0, 8 bits)
   val scaleCtrlPendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x0349, 15 bits)) {
     scaleCtrlPend    := effData(7 downto 0)
     scaleCtrlPendHit := True
   }
-  val logicWidthReg     = (Reg(UInt(11 bits)) init U(640, 11 bits)).simPublic()
+  val logicWidthReg     = (Reg(UInt(11 bits)) init U(logicWidthInit, 11 bits)).simPublic()
   val logicWidthPend    = Reg(UInt(11 bits)) init U(640, 11 bits)
   val logicWidthPendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x034A, 15 bits)) {
     logicWidthPend    := effData(10 downto 0).asUInt
     logicWidthPendHit := True
   }
-  val logicHeightReg     = (Reg(UInt(11 bits)) init U(480, 11 bits)).simPublic()
+  val logicHeightReg     = (Reg(UInt(11 bits)) init U(logicHeightInit, 11 bits)).simPublic()
   val logicHeightPend    = Reg(UInt(11 bits)) init U(480, 11 bits)
   val logicHeightPendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x034B, 15 bits)) {
@@ -653,7 +657,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     borderY1Pend    := effData(9 downto 0).asUInt
     borderY1PendHit := True
   }
-  val borderCtrlReg     = (Reg(Bits(16 bits)) init 0).simPublic()
+  val borderCtrlReg     = (Reg(Bits(16 bits)) init B(borderCtrlInit, 16 bits)).simPublic()
   val borderCtrlPend    = Reg(Bits(16 bits)) init 0
   val borderCtrlPendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x0347, 15 bits)) {
