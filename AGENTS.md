@@ -257,6 +257,23 @@ The `memory` MCP is a **queryable cache**, not the authoritative log. Backing st
 - Only ask the team after checking memory and the live docs/code, unless the question is genuinely new.
 - If you learn a durable fact, write it back to MCP memory with a short summary and commit/mail tie-back.
 
+### Task Closeout Memory Rule (Mandatory)
+
+After completing any task, the owning agent must write a comprehensive task summary to `memory` **before claiming closeout**. A task is not closed until the memory entry is written.
+
+The summary must include:
+- Task objective, scope, and bounded touchpoints
+- Approach taken and key technical decisions
+- Blockers encountered and how they were resolved
+- Lessons learned and reusable constraints
+- Key MCP mail thread IDs and commit hashes
+- Proof artifacts and validation results
+- **Dialogue capture:** the substance of all relevant chat dialogue and MCP mail exchange that shaped the outcome
+
+Do not omit conversational context that would help a future agent understand why a decision was made. The entry may be long; use strong tags for searchability.
+
+**PM lane/project closeout:** At the end of every lane or project, `TopazCliff` must write a comprehensive lane/project summary to `memory` covering the same categories at aggregate level, including cross-lane dependencies, scope changes, and final state.
+
 **Typical uses:**
 - Tang/Gowin gotchas before hardware-debug branch
 - Prior audit conclusions before architecture restatement
@@ -350,6 +367,7 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 | 8 | AGENTS.md Immutability | No unilateral rewrites. Requires TopazCliff authorization AND `CyanPeak` review (when activated) AND diff review |
 | 9 | Project Owner Override | Owner may override process constraints by direct instruction. Agent records owner-directed change; diff remains reviewable; scope is limited to instruction unless broader intent stated |
 | 10 | Prior Art Search | See §Prior Art Search Rule above. No novel-root-cause claims without searching `TASKS_HISTORY.md`, `archive/artifacts/`, `GOTCHAS.md`, and `memory` first |
+| 11 | Memory Closeout | After every task, write comprehensive task summary to `memory` including lessons learned and dialogue context. PM writes lane/project summaries. No closeout without memory entry |
 
 **Canonical QSPI contract:** 2 MHz SCK, 10 µs CS hold, 20 µs OSR drain.
 
