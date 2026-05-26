@@ -15,13 +15,14 @@ Examples and command snippets: `AGENTS_EXAMPLES.md`
 |----------------|------|-------|
 | `BrightForge` | FPGA RTL engineer | Claude |
 | `BronzeGate` | MCU firmware engineer | Codex |
-| `CyanPeak` | Datasheet / compliance / documentation reviewer | Gemini |
 | `TopazCliff` | Technical project manager | Kimi (Inst. 2) |
+
+*Retired roles: `CoralReef` (compliance/documentation, retired) and `CyanPeak` (datasheet/spec review, inactive — not operational).*
 
 **Role ownership:**
 - `BronzeGate` owns MCU firmware responsibilities for `spinalhdlVDP`
 - `TopazCliff` owns PM sequencing and interface-definition work for this repository
-- `CyanPeak` owns datasheet/spec review plus compliance/documentation review for this repository
+- Datasheet/spec review and compliance/documentation review are currently unassigned; PM handles final review/approval at lane closeout, with `BronzeGate` covering compliance-class repo audits ad-hoc
 
 ## Mail Registration
 
@@ -130,8 +131,9 @@ After running simulation:
 |------|----------------|
 | `BrightForge` | FPGA implementation, validation, proof, board flashing |
 | `BronzeGate` | MCU firmware, host transport, platform parity, scenario bootstrap |
-| `CyanPeak` | Datasheet/manual review, code-to-spec checking, hardware-accuracy review, compliance/documentation review, static-ruleset audit support, memory/doc curation |
 | `TopazCliff` | Sequencing, scope control, HW/SW interface definition, stall intervention |
+
+*Unassigned: datasheet/manual review, code-to-spec checking, hardware-accuracy review, compliance/documentation review, static-ruleset audit support, memory/doc curation. `TopazCliff` handles final review/approval at lane closeout; `BronzeGate` covers compliance-class repo audits ad-hoc.*
 
 **Rules:**
 - One active engineering lane at a time on the critical path.
@@ -143,8 +145,6 @@ After running simulation:
 - `TopazCliff` is the authoritative PM owner for this repo.
 - `BronzeGate` is the authoritative MCU firmware owner for this repo.
 - `BrightForge` is the authoritative FPGA owner for this repo.
-- `CyanPeak` is the authoritative datasheet/spec review owner for this repo.
-- `CyanPeak` is the authoritative compliance/documentation review owner for this repo.
 
 ### Deliverable Verification Rule
 
@@ -278,8 +278,8 @@ The `memory` MCP is a **queryable cache**, not the authoritative log. Backing st
 
 | Owner | Responsibility |
 |-------|----------------|
-| `CyanPeak` | Initial curated compliance/doc memory pass |
-| `CyanPeak` | Ongoing updates: compliance findings, documentation deltas, static-rule gotchas, and reusable process constraints |
+| `TopazCliff` | Final review/approval at lane closeout |
+| `BronzeGate` | Compliance-class repo audits ad-hoc |
 
 **Workflow:** check `memory` first → use mail/docs as authority → add back only short, reusable findings.
 
@@ -374,13 +374,13 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 | # | Rule | One-line Requirement |
 |---|------|----------------------|
 | 1 | Role Transfer | No self-declared role absorption. Requires TopazCliff authorization + transition mail + `AGENTS.md` update |
-| 2 | Review Singleton | CyanPeak owns spec-accuracy review and compliance/doc review. Any future transfer requires TopazCliff authorization and explicit role reassignment |
+| 2 | Review Singleton | Spec-accuracy review and compliance/doc review are currently unassigned. Any future assignment requires TopazCliff authorization and explicit role transfer mail |
 | 3 | Commit-Within-Cycle | Audit PASS work must be committed before next PM review. Audit owner may withhold PASS until commit hash is in packet |
 | 4 | Contract Deviation | >25% deviation from locked hardware contract must be documented in `GOTCHAS.md` with quantitative analysis |
 | 5 | Signoff Consistency | One canonical signoff per agent. No mixed aliases mid-thread |
 | 6 | Identity Retirement | Requires retirement mail + roster removal + no pending audits + 24h observation window |
 | 7 | Side-Lane Authorization | Parallel work requires TopazCliff lane-open authorization before implementation |
-| 8 | AGENTS.md Immutability | No unilateral rewrites. Requires TopazCliff authorization AND CyanPeak review AND diff review |
+| 8 | AGENTS.md Immutability | No unilateral rewrites. Requires TopazCliff authorization AND diff review |
 | 9 | Project Owner Override | Owner may override process constraints by direct instruction. Agent records owner-directed change; diff remains reviewable; scope is limited to instruction unless broader intent stated |
 | 10 | Prior Art Search | See §Prior Art Search Rule above. No novel-root-cause claims without searching `TASKS_HISTORY.md`, `archive/artifacts/`, `GOTCHAS.md`, and `memory` first |
 
