@@ -50,7 +50,10 @@ packets, replies, acknowledgements, and coordination. Do not create or use a
 subdirectory-specific mailbox, a firmware-only mailbox, or an external
 workspace mailbox for `spinalhdlVDP` work.
 
-**Use the `team-mailbox` skill for all mail operations.**
+**Use the `team-mailbox` skill for all mail operations.** MCP mail is the
+backend mail system; the `team-mailbox` skill is the interface you use to
+talk to other agents.
+
 - `fetch_inbox` — read shared inbox (always use `include_bodies=True` for substantive review)
 - `acknowledge_message` — ack `ack_required` mail promptly
 - `send_message` — open a new thread
