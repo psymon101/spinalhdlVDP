@@ -162,7 +162,14 @@ case class PixelRepeatScaler() extends Component {
   // BSRAM on Gowin via readSync + ram_style attribute.
   val lineBuf = Mem(Bits(24 bits), 640)
   lineBuf.addAttribute("ram_style", "block")
-  when(onFreshLine) {
+  // BronzeGate #10697: guard the write address against the blanking
+  // region. hCounter spans 0..hTotal-1 (= 0..799 in 640x480), but
+  // lineBuf is 640 deep. Without this guard, writes during the
+  // 160-cycle blanking region would land at out-of-range addresses
+  // and (in Gowin BSRAM) either wrap modulo or be silently dropped,
+  // either way corrupting valid entries 0..639. Same class of bug as
+  // the prior planar-path OOB (archive/TASKS_HISTORY.md:194).
+  when(onFreshLine && io.hCounter < io.hActive.resize(10)) {
     lineBuf.write(address = io.hCounter, data = freshOut)
   }
 
