@@ -1,7 +1,6 @@
 # AGENTS.md — spinalhdlVDP
 
 Repo-specific rules for `/home/itadmin/github/spinalhdlVDP`.
-
 The workspace file at `/home/itadmin/github/AGENTS.md` remains authoritative
 for canonical identity, roster, and cross-project coordination rules.
 
@@ -9,43 +8,63 @@ Examples and command snippets: `AGENTS_EXAMPLES.md`
 
 ---
 
+## Quick Reference
+
+| | |
+|---|---|
+| **Active repo** | `spinalhdlVDP` — SpinalHDL VDP for Tang Nano 20K |
+| **Mailbox** | `/home/itadmin/github/spinalhdlVDP` (repo-root only); use `team-mailbox` skill |
+| **Source of truth order** | (1) mail → (2) `TASKS.md` live-lane → (3) repo state |
+| **Critical path rule** | One active engineering lane at a time |
+| **Session start** | Read `AGENTS.md` → `PROJECT_PLAN/PROJECT_PLAN.md` → `PROJECT_PLAN/TASKS.md` |
+| **Hardware proof rule** | Simulator first, then unambiguous hardware proof. 100% required. No exceptions. |
+| **AGENTS.md edits** | Requires PM authorization + diff review (Preventive Rule #8) |
+
+---
+
 ## Identity
 
-| Canonical Name | Role | Model |
-|----------------|------|-------|
-| `BrightForge` | FPGA RTL engineer | Claude |
-| `BronzeGate` | MCU firmware engineer | Codex |
-| `TopazCliff` | Technical project manager | Kimi (Inst. 2) |
+| Canonical Name | Role | Model | Activation |
+|----------------|------|-------|------------|
+| `BrightForge` | FPGA RTL engineer | Claude | Active executor |
+| `BronzeGate` | MCU firmware engineer | Codex | Active executor |
+| `TopazCliff` | Technical project manager | Kimi (Inst. 2) | PM |
+| `CyanPeak` | Datasheet / spec review | Gemini | **Advisory — PM-activated only** |
+| `CoralReef` | Compliance / documentation | Kimi | **Advisory — PM-activated only** |
 
-*Retired roles: `CoralReef` (compliance/documentation, retired) and `CyanPeak` (datasheet/spec review, inactive — not operational).*
+*Advisory roles are pulled in by `TopazCliff` only when needed. Do not self-assign implementation work.*
 
 **Role ownership:**
 - `BronzeGate` owns MCU firmware responsibilities for `spinalhdlVDP`
 - `TopazCliff` owns PM sequencing and interface-definition work for this repository
-- Datasheet/spec review and compliance/documentation review are currently unassigned; PM handles final review/approval at lane closeout, with `BronzeGate` covering compliance-class repo audits ad-hoc
+- `CyanPeak` owns datasheet/spec review when activated by PM
+- `CoralReef` owns compliance/documentation review when activated by PM
 
 ## Mail Registration
 
 Project mailbox: `/home/itadmin/github/spinalhdlVDP`
 
 Register with the same canonical name used in other project mailboxes.
-
 All in-repo agents must use this single repo-root mail project for lane
 packets, replies, acknowledgements, and coordination. Do not create or use a
 subdirectory-specific mailbox, a firmware-only mailbox, or an external
 workspace mailbox for `spinalhdlVDP` work.
 
+**Use the `team-mailbox` skill for all mail operations.**
+- `fetch_inbox` — read shared inbox (always use `include_bodies=True` for substantive review)
+- `acknowledge_message` — ack `ack_required` mail promptly
+- `send_message` — open a new thread
+- `reply_message` — continue an existing thread
+- Do not use raw HTTP calls, ad-hoc scripts, or local caches as the authority.
+
 | Do | Do Not |
 |----|--------|
-| Use canonical name from Identity table | Omit the `name` field |
-| `ensure_project` + `register_agent` with `human_key=/home/itadmin/github/spinalhdlVDP` | Create a fresh alias |
-| | Use a different display name |
-| Use the repo-root mailbox for all replies and ACKs | Route firmware mail through a separate mailbox |
+| Use canonical name from Identity table | Create a fresh alias or different display name |
+| `ensure_project` + `register_agent` with `human_key=/home/itadmin/github/spinalhdlVDP` | Route firmware mail through a separate mailbox |
 
-If the canonical name is unavailable, stop and resolve the mismatch. Do not create a replacement identity.
+If the canonical name is unavailable, stop and resolve the mismatch.
 
-### Mail checks
-
+**Mail checks:**
 - Use the shared repo-root mailbox record as the source of truth.
 - Before reporting "no new mail," fetch the current inbox snapshot and check the newest mailbox-visible message id.
 - Do not rely on local cache, ad hoc queries, or last-seen timestamps alone.
@@ -60,21 +79,6 @@ If the canonical name is unavailable, stop and resolve the mismatch. Do not crea
   - `fpga/tang20k/` — wrappers, constraints, integration glue
 - Port from older repos only what is intentionally adopted.
 
-## Mandatory Session Start Rule
-
-Read before acting:
-
-1. `AGENTS.md`
-2. `PROJECT_PLAN/PROJECT_PLAN.md`
-3. `PROJECT_PLAN/TASKS.md`
-
-Then, if needed:
-- `PROJECT_PLAN/MODE0_PLANNING.md` — roadmap-driven work
-- `PROJECT_PLAN/TASK_TEMPLATE.md` — new bounded task
-- Active `PROJECT_PLAN/TASK_*.md` — current execution lane
-
-Working rule: if mail, docs, and local assumptions disagree, stop and reconcile before coding or assigning work.
-
 ## Build Path Rules
 
 - keep the Scala package name as `spinalhdlvdp`
@@ -86,14 +90,12 @@ If those paths change, update `README.md`, `build.sbt`, `build.sc`, and
 `Config.scala` together in the same change.
 
 When editing Scala source in `hw/spinal/`:
-
 - use `metals-lsp` first for symbol navigation, compile diagnostics, and reference search
 - do not rely on manual grep or file reading when the language server can answer the question directly
 
 ## Validation
 
 For FPGA-affecting changes:
-
 - run a simulator-based validation step before claiming hardware-ready status
 - do not mix stale generated HDL with current Scala sources
 - regenerate outputs from the current source tree before downstream Gowin use
@@ -102,38 +104,32 @@ For FPGA-affecting changes:
 ### Artifact Match Rule
 
 Hardware proof must use artifacts verified to match the intended source state.
-
-- do not assume a flashed sketch or bitstream is current just because upload or
-  programming succeeded
-- before bench testing, verify the flashed firmware matches the intended
-  sketch/build and the flashed FPGA bitstream matches the intended source/build
+- do not assume a flashed sketch or bitstream is current just because upload succeeded
+- before bench testing, verify the flashed firmware matches the intended sketch/build and the flashed FPGA bitstream matches the intended source/build
 - if the match cannot be proven, rebuild and reflash before testing
-- for Tang Nano 20K, do not flash `fpga/tang20k/impl/pnr/project.fs` as
-  "current" when it is older than `hw/gen/top_tang20k.v`
+- for Tang Nano 20K, do not flash `fpga/tang20k/impl/pnr/project.fs` as "current" when it is older than `hw/gen/top_tang20k.v`
 
 ### 100% Verification Rule (Mandatory)
 
 **Every task must be proven 100% before closeout. No exceptions.**
-
 - Ambiguous or "probably correct" states are not acceptable.
 - Simulator proof alone is not sufficient for hardware-facing primitives; an unambiguous hardware proof is also required.
 - If visual proof is noisy or ambiguous, a dedicated diagnostic asset/probe must be created to resolve the ambiguity.
 - A task is not closed until the final evidence is definitive and reproducible.
 
 After running simulation:
-
 - use `pywellen` to query waveform files (VCD/FST) for signal values, timing checks, and behavioral proof
 - do not launch GTKWave or parse VCD text manually when `pywellen` can answer the query directly
 
-## Execution Workflow (Summary)
+## Execution Workflow
 
 | Role | Responsibility |
 |------|----------------|
 | `BrightForge` | FPGA implementation, validation, proof, board flashing |
 | `BronzeGate` | MCU firmware, host transport, platform parity, scenario bootstrap |
 | `TopazCliff` | Sequencing, scope control, HW/SW interface definition, stall intervention |
-
-*Unassigned: datasheet/manual review, code-to-spec checking, hardware-accuracy review, compliance/documentation review, static-ruleset audit support, memory/doc curation. `TopazCliff` handles final review/approval at lane closeout; `BronzeGate` covers compliance-class repo audits ad-hoc.*
+| `CyanPeak` | Datasheet/manual review, code-to-spec checking, hardware-accuracy review (PM-activated) |
+| `CoralReef` | Compliance/documentation review, static-ruleset audit support, memory/doc curation (PM-activated) |
 
 **Rules:**
 - One active engineering lane at a time on the critical path.
@@ -145,35 +141,22 @@ After running simulation:
 - `TopazCliff` is the authoritative PM owner for this repo.
 - `BronzeGate` is the authoritative MCU firmware owner for this repo.
 - `BrightForge` is the authoritative FPGA owner for this repo.
+- `CyanPeak` is the authoritative datasheet/spec review owner for this repo when activated by PM.
+- `CoralReef` is the authoritative compliance/documentation review owner for this repo when activated by PM.
 
 ### Deliverable Verification Rule
 
-A lane deliverable counts only when the mailbox-visible message matches the
-required owner and packet type.
-
+A lane deliverable counts only when the mailbox-visible message matches the required owner and packet type.
 - if an agent claims "I sent it", they must provide the exact message id
-- the visible message must match the required lane owner and packet type
-  (`planning`, `completion`, `audit`, `blocker`, or `ETA`)
-- a different agent's message or a different packet type does not satisfy the
-  missing deliverable unless `TopazCliff` explicitly reassigns the lane
-- mailbox verification must not rely on a single inbox poll alone; if a
-  claimed message is not visible there, verify via the same repo-root project
-  mailbox using the message thread and topic before treating it as missing
-- if the claimed message still cannot be verified anywhere in the project
-  mailbox, treat it as not received and require resend
-- after repeated non-response, `TopazCliff` may reassign the lane without
-  waiting further
+- the visible message must match the required lane owner and packet type (`planning`, `completion`, `audit`, `blocker`, or `ETA`)
+- a different agent's message or a different packet type does not satisfy the missing deliverable unless `TopazCliff` explicitly reassigns the lane
+- mailbox verification must not rely on a single inbox poll alone; if a claimed message is not visible, verify via the same repo-root project mailbox using the message thread and topic before treating it as missing
+- if the claimed message still cannot be verified anywhere in the project mailbox, treat it as not received and require resend
+- after repeated non-response, `TopazCliff` may reassign the lane without waiting further
 
-Mailbox reliability rule:
-
-- all coordination decisions must be based on the shared repo-root mailbox, not
-  one tool view of it
-- if `fetch_inbox` and thread/topic views disagree, use the newest
-  mailbox-visible project record, update the ledger, and continue the lane
-  instead of stalling on the view mismatch
+**Mailbox reliability rule:** all coordination decisions must be based on the shared repo-root mailbox, not one tool view of it. If `fetch_inbox` and thread/topic views disagree, use the newest mailbox-visible project record, update the ledger, and continue the lane instead of stalling on the view mismatch.
 
 Detailed templates, checklists, and escalation policy: `PROJECT_PLAN/archive/AGENTS_WORKFLOW_RULES.md`.
-Examples and command snippets: `AGENTS_EXAMPLES.md`.
 
 ## BronzeGate Scope and Rules
 
@@ -231,40 +214,22 @@ Use this order every time:
 To avoid adapter-spec sprawl, each platform adapter must have exactly one
 canonical knowledge file under `kb/`.
 
-Working rule:
-
 - use `kb/<Adapter>/README.md` as the single canonical adapter document
-- do not split the live adapter contract across `PROJECT_PLAN/`,
-  `firmware/README.md`, ad hoc notes, and task artifacts
-- `PROJECT_PLAN/` may summarize status, priority, and archive references, but
-  must point back to the `kb/` adapter file for the current contract
-- firmware sketches and proof code remain in `firmware/`, but the host-side
-  workflow they implement must be described in the adapter's `kb/` file
+- do not split the live adapter contract across `PROJECT_PLAN/`, `firmware/README.md`, ad hoc notes, and task artifacts
+- `PROJECT_PLAN/` may summarize status, priority, and archive references, but must point back to the `kb/` adapter file for the current contract
+- firmware sketches and proof code remain in `firmware/`, but the host-side workflow they implement must be described in the adapter's `kb/` file
 
-Each canonical adapter file should contain, at minimum:
-
-1. video model summary
-2. supported features
-3. unsupported / deferred features
-4. adapter register surface
-5. Mode0 mapping
-6. host memory layout
-7. firmware workflow
-8. proof / validation plan
-9. known gaps / gotchas
-10. reference links
+Each canonical adapter file should contain: video model summary, supported features, unsupported/deferred features, adapter register surface, Mode0 mapping, host memory layout, firmware workflow, proof/validation plan, known gaps/gotchas, reference links.
 
 ## Context Compression
 
 When resuming or handing off, compress state to:
-
 - task / checkpoint
 - latest commit
 - latest authoritative mail
 - blocker or next allowed step
 
-Do not carry full conversational history forward when those four facts are
-sufficient.
+Do not carry full conversational history forward when those four facts are sufficient.
 
 ## Memory Curation Rule
 
@@ -278,8 +243,9 @@ The `memory` MCP is a **queryable cache**, not the authoritative log. Backing st
 
 | Owner | Responsibility |
 |-------|----------------|
-| `TopazCliff` | Final review/approval at lane closeout |
-| `BronzeGate` | Compliance-class repo audits ad-hoc |
+| `CyanPeak` | Initial curated compliance/doc memory pass (when activated) |
+| `CyanPeak` | Ongoing updates: compliance findings, documentation deltas, static-rule gotchas, and reusable process constraints (when activated) |
+| `CoralReef` | Compliance/documentation review and static-ruleset audit support (when activated) |
 
 **Workflow:** check `memory` first → use mail/docs as authority → add back only short, reusable findings.
 
@@ -297,8 +263,6 @@ The `memory` MCP is a **queryable cache**, not the authoritative log. Backing st
 ## MCP Servers
 
 Repo-local configuration: `.mcp.json` (sibling to this file).
-
-Configured servers and typical use:
 
 | Server | Purpose |
 |--------|---------|
@@ -361,11 +325,11 @@ Before declaring a bug root-cause **novel**, proposing a **new fix pattern**, or
 4. `kb/` adapter docs and `memory` MCP — check for reusable findings
 
 **Working rule:**
-- If a prior artifact documents the same root-cause class (e.g. `readSync` 1-pixel latency, bootstrap FSM ordering, QSPI byte-stream misframe), the agent must **reference the prior artifact** in their root-cause packet and explain why the previous fix was not applicable or why it was missed.
+- If a prior artifact documents the same root-cause class, the agent must **reference the prior artifact** in their root-cause packet and explain why the previous fix was not applicable or why it was missed.
 - Do not claim a fix is "new" or "novel" without completing the search above.
 - If the search reveals a prior fix that was never propagated to the current path, the agent must **note the propagation gap** and treat the fix as a known-good pattern, not an invention.
 
-**Escalation:** If the search is inconclusive after 10 minutes, proceed with investigation but flag the uncertainty in the first status mail so CyanPeak or TopazCliff can direct you to the right artifact.
+**Escalation:** If the search is inconclusive after 10 minutes, proceed with investigation but flag the uncertainty in the first status mail so `TopazCliff` can direct you to the right artifact.
 
 ## Preventive Rules
 
@@ -374,13 +338,13 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 | # | Rule | One-line Requirement |
 |---|------|----------------------|
 | 1 | Role Transfer | No self-declared role absorption. Requires TopazCliff authorization + transition mail + `AGENTS.md` update |
-| 2 | Review Singleton | Spec-accuracy review and compliance/doc review are currently unassigned. Any future assignment requires TopazCliff authorization and explicit role transfer mail |
+| 2 | Review Singleton | `CyanPeak` owns spec-accuracy review; `CoralReef` owns compliance/doc review. Both are advisory and PM-activated. Any future transfer requires TopazCliff authorization and explicit role reassignment |
 | 3 | Commit-Within-Cycle | Audit PASS work must be committed before next PM review. Audit owner may withhold PASS until commit hash is in packet |
 | 4 | Contract Deviation | >25% deviation from locked hardware contract must be documented in `GOTCHAS.md` with quantitative analysis |
 | 5 | Signoff Consistency | One canonical signoff per agent. No mixed aliases mid-thread |
 | 6 | Identity Retirement | Requires retirement mail + roster removal + no pending audits + 24h observation window |
 | 7 | Side-Lane Authorization | Parallel work requires TopazCliff lane-open authorization before implementation |
-| 8 | AGENTS.md Immutability | No unilateral rewrites. Requires TopazCliff authorization AND diff review |
+| 8 | AGENTS.md Immutability | No unilateral rewrites. Requires TopazCliff authorization AND `CyanPeak` review (when activated) AND diff review |
 | 9 | Project Owner Override | Owner may override process constraints by direct instruction. Agent records owner-directed change; diff remains reviewable; scope is limited to instruction unless broader intent stated |
 | 10 | Prior Art Search | See §Prior Art Search Rule above. No novel-root-cause claims without searching `TASKS_HISTORY.md`, `archive/artifacts/`, `GOTCHAS.md`, and `memory` first |
 
@@ -390,6 +354,7 @@ Binding rules mirrored from workspace `AGENTS.md`. Enforced to prevent identity,
 - `— BronzeGate`
 - `— BrightForge`
 - `— CyanPeak`
+- `— CoralReef`
 - `— TopazCliff`
 
 If you believe a rule is wrong, escalate to TopazCliff with a specific amendment proposal. Do not edit the file directly.
