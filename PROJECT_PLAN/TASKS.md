@@ -29,8 +29,8 @@ This section tracks the active lane.
 | **Baseline Commit** | `9c0b161` (main, post-agnosticism-purge) |
 | **Latest Auth Mail** | TopazCliff #10641 (PM decision: strategic revert authorized), BronzeGate #10640 (endorses revert) |
 | **Summary** | Add integer pixel-repetition scaling to VdpTop output path. Six orthogonal discriminators all returned black. Absolute bypass inside scaler still black → bug is scaler presence in module hierarchy or pre-scaler. PM decision: surgical disconnect revert to isolate root cause. Backdrop architecture: Option B confirmed. |
-| **Checkpoints** | A: DONE (233132a). B: DONE (653adc9) + rebalance (a007ddf). C: DONE #10606. **INVESTIGATION DONE:** Six discriminators falsified all micro-hypotheses. **PM DECISION:** Strategic revert authorized #10641. |
-| **Next Step** | BrightForge: surgical disconnect revert on brightforge/pixel-repeat-scaler — remove scaler instantiation, restore direct displayRgb→io.red wiring, test with non-black visible output. Binary result: image returns = scaler at fault; still black = pre-scaler bug. |
+| **Checkpoints** | A: DONE (233132a). B: DONE (653adc9) + rebalance (a007ddf). C: DONE #10606. **INVESTIGATION DONE:** Six discriminators falsified all micro-hypotheses. **PM DECISION:** Strategic revert authorized #10641. **DISCONNECT DONE** (7ff34f0): scaler removed, direct wiring restored, +2 pipeline preserved. |
+| **Next Step** | Hardware proof: build bitstream from `main @ 7ff34f0`, flash to Tang Nano 20K, verify non-black visible output (not just transport canary). Binary result: image returns = scaler at fault; still black = pre-scaler bug. |
 
 ---
 
