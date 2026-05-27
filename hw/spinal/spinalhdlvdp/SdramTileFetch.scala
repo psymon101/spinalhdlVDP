@@ -236,6 +236,18 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
     val tileMapRom = Mem(Bits(8 bits), initialContent = tileMapBytesInit)
     val tileRowRom = Mem(Bits(8 bits), initialContent = tileRowBytesInit)
 
+    // CP-B(2) #10772: tileMapRom converted to readSync + ram_style="block"
+    // (BSRAM). The boot FSM consumes one byte per write cycle, so we use
+    // the BlitterEngine srcRam lookahead-address pattern (see BlitterEngine
+    // .scala:152-160, 178-204): a combinational address signal defaulted to
+    // the current bootCounter holds the readSync port stable during stalls,
+    // and is overridden to bootCounter+1 the cycle we fire cmdWr so the
+    // registered readSync output lines up with the next iteration. See
+    // hw/spinal/GOTCHAS.md "GOTCHA-14: readSync FSM lookahead" for the
+    // generic pattern. tileRowRom stays readAsync — covered by AUDIT #10772
+    // Class 1 comment at its readAsync site below.
+    tileMapRom.addAttribute("ram_style", "block")
+
     // ----- FIFO push side (32-bit words) ---------------------------------
     val pushValid   = RegInit(False)
     val pushPayload = Reg(Bits(32 bits)) init 0
@@ -260,6 +272,18 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
     val bootCounter   = Reg(UInt(12 bits)) init 0       // up to 4096 bytes
     val tileIdx       = Reg(UInt(6 bits))  init 0       // 0..39
     val tileIndexReg  = Reg(UInt(TileIndexBits bits)) init 0
+
+    // CP-B(2): tileMapRom readSync lookahead address (see ROM block above).
+    // Default holds current bootCounter so the readSync output stays valid
+    // for the current iteration during arbitrarily long stall sequences
+    // (sdramBusy / cmdWr clear / refresh detours). Overridden in the
+    // sBootTileMap fire branch to bootCounter+1 so output is ROM[N+1] on
+    // the next fire cycle. Primed naturally: bootCounter=0 during sPowerWait,
+    // so by the time sBootTileMap runs the readSync addressReg has sampled
+    // 0 and output = ROM[0].
+    val tileMapRomAddr = UInt(log2Up(TotalTileBytes) bits)
+    tileMapRomAddr := bootCounter.resize(log2Up(TotalTileBytes))
+    val tileMapRomData = tileMapRom.readSync(tileMapRomAddr)
 
     // Wrapped Y coordinate for the current line
     val lineY10 = (curLine + curScrollY).resize(10)
@@ -335,14 +359,15 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
           }.elsewhen(bootCounter < TotalTileBytes) {
             cmdWr   := True
             cmdAddr := (U(TileMapBase, 23 bits) + bootCounter.resize(23)).resized
-            // readAsync — AUDIT #10772: Class 1 (boot ROM, same-cycle FSM) —
-            // boot copy emits cmdWr + cmdAddr + cmdDin in the SAME cycle as the
-            // tileMapRom read. readSync would push cmdDin 1 cycle late while
-            // cmdAddr/cmdWr emit on the original cycle, mis-aligning every
-            // SDRAM byte by 1 entry. CP-B(2) demonstration target: lookahead-
-            // address FSM rework (BlitterEngine srcRam pattern).
-            cmdDin  := tileMapRom.readAsync(bootCounter.resize(log2Up(TotalTileBytes)))
+            // CONVERTED in CP-B(2) #10772: readSync + ram_style="block".
+            // tileMapRomData = tileMapRom.readSync(tileMapRomAddr) is valid
+            // for bootCounter this cycle because tileMapRomAddr defaulted to
+            // bootCounter for at least one prior cycle (sPowerWait or the
+            // prior stall) so its addressReg sampled bootCounter. Lookahead
+            // line below pre-issues bootCounter+1 for the next fire.
+            cmdDin  := tileMapRomData
             bootCounter := bootCounter + 1
+            tileMapRomAddr := (bootCounter + 1).resize(log2Up(TotalTileBytes))
           }.otherwise {
             bootCounter := 0
             goto(sBootTileRows)
