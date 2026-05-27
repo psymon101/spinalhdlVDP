@@ -100,7 +100,12 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
   val indexedRdAddr = io.col(9 downto 3).resize(log2Up(BitmapBufferDepth))
   val directRdAddr  = io.col(9 downto 1).resize(log2Up(BitmapBufferDepth))
   val lineRdAddr    = Mux(io.directColor, directRdAddr, indexedRdAddr)
+  // readAsync — AUDIT #10772: Class 2 (per-pixel) — bitmap byte fetched
+  // every active pixel and driven combinationally to io.bitmapByte for the
+  // compositor. Candidate for readSync conversion + downstream RegNext.
   io.bitmapByte := bitmapLineBuf.readAsync(lineRdAddr)
+  // readAsync — AUDIT #10772: Class 2 (per-pixel) — bitmap-attribute byte
+  // co-timed with bitmapByte above; same per-pixel compositor read pattern.
   io.attrByte   := attrLineBuf.readAsync(lineRdAddr)
 
   byteFifo.io.pop.ready := True

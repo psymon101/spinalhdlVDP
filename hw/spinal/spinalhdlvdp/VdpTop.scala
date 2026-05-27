@@ -1253,6 +1253,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val affineTexture = Mem(Bits(8 bits), AffineAssets.Width * AffineAssets.Height)
     .init(AffineAssets.textureInit)
   val affineAddr  = (affineStepper.io.vInt ## affineStepper.io.uInt).asUInt
+  // readAsync — AUDIT #10772: Class 2 (per-pixel) — affine texture sample read
+  // combinationally per pixel from the affine UV stepper; consumer is the
+  // affineIndex/affineBank/affinePrio decomposition below feeding the L0 mux.
+  // Candidate for readSync conversion + 1-cycle pipeline on the stepper output.
   val affinePixel = affineTexture.readAsync(affineAddr)
   val affineIndex = affinePixel(3 downto 0)
   val affineBank  = affinePixel(6 downto 4).asUInt

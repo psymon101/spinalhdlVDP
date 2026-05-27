@@ -36,8 +36,15 @@ case class BasicPatternSource() extends Component {
   val tileRows = Mem(Bits(TileRowWidth bits), initialContent = tileRowInit)
 
   val tileAddress = (tileY * U(MapTilesX, log2Up(MapTilesX + 1) bits) + tileX.resized).resized
+  // readAsync — AUDIT #10772: Class 2 (per-pixel) — BG tile-index lookup on
+  // pixel critical path. Consumer is the rowAddress combinational chain
+  // below. Candidate for readSync conversion + lookahead-address (BlitterEngine
+  // pattern) in a future per-Mem CP.
   val tileIndex = tileMap.readAsync(tileAddress).asUInt
   val rowAddress = (tileIndex.asBits ## pixelY.asBits).asUInt
+  // readAsync — AUDIT #10772: Class 2 (per-pixel) — BG tile-row pixel fetch
+  // on pixel critical path. Consumer is the io.pixelIndex assignment below.
+  // Candidate for readSync conversion paired with the tileMap conversion above.
   val rowData = tileRows.readAsync(rowAddress)
 
   io.pixelIndex := rowData.subdivideIn(PixelBits bits)(pixelX)

@@ -451,6 +451,11 @@ case class SdramTileAttributeFetch(
           .elsewhen(bootCounter < TotalTileBytes) {
             cmdWr   := True
             cmdAddr := (U(tileMapBaseAddr, 23 bits) + bootCounter.resize(23)).resized
+            // readAsync — AUDIT #10772: Class 1 (boot ROM, same-cycle FSM) —
+            // boot copy emits cmdWr + cmdAddr + cmdDin in the SAME cycle as the
+            // tileMapRom read. readSync would mis-align every SDRAM byte by 1
+            // entry. Conversion requires lookahead-address FSM rework
+            // (BlitterEngine srcRam pattern).
             cmdDin  := tileMapRom.readAsync(bootCounter.resize(log2Up(TotalTileBytes)))
             bootCounter := bootCounter + 1
           }.otherwise { bootCounter := 0; goto(sBootAttrMap) }
@@ -463,6 +468,8 @@ case class SdramTileAttributeFetch(
           .elsewhen(bootCounter < TotalAttrBytes) {
             cmdWr   := True
             cmdAddr := (U(attributeMapBaseAddr, 23 bits) + bootCounter.resize(23)).resized
+            // readAsync — AUDIT #10772: Class 1 (boot ROM, same-cycle FSM) —
+            // attr-map boot copy; same pattern as sBootTileMap above.
             cmdDin  := attrMapRom.readAsync(bootCounter.resize(log2Up(TotalAttrBytes)))
             bootCounter := bootCounter + 1
           }.otherwise { bootCounter := 0; goto(sBootTileRows) }
@@ -475,6 +482,8 @@ case class SdramTileAttributeFetch(
           .elsewhen(bootCounter < TotalRowBytes) {
             cmdWr   := True
             cmdAddr := (U(tileRowBaseAddr, 23 bits) + bootCounter.resize(23)).resized
+            // readAsync — AUDIT #10772: Class 1 (boot ROM, same-cycle FSM) —
+            // tile-row boot copy; same pattern as sBootTileMap above.
             cmdDin  := tileRowRom.readAsync(bootCounter.resize(log2Up(TotalRowBytes)))
             bootCounter := bootCounter + 1
           }.otherwise {
@@ -504,6 +513,8 @@ case class SdramTileAttributeFetch(
           .elsewhen(bootCounter < PlanarTileAssets.TotalBytes) {
             cmdWr   := True
             cmdAddr := (U(PlanarTileAssets.SdramBase, 23 bits) + bootCounter.resize(23)).resized
+            // readAsync — AUDIT #10772: Class 1 (boot ROM, same-cycle FSM) —
+            // planar row boot copy (plane 0); same pattern as sBootTileMap above.
             cmdDin  := planarRowRom.readAsync(bootCounter.resize(log2Up(PlanarTileAssets.TotalBytes)))
             bootCounter := bootCounter + 1
           }.otherwise { bootCounter := 0; goto(sBootPlane1) }
@@ -520,6 +531,8 @@ case class SdramTileAttributeFetch(
           .elsewhen(bootCounter < PlanarTileAssets.TotalBytes) {
             cmdWr   := True
             cmdAddr := (U(PlanarTileAssets.Plane1SdramBase, 23 bits) + bootCounter.resize(23)).resized
+            // readAsync — AUDIT #10772: Class 1 (boot ROM, same-cycle FSM) —
+            // planar row boot copy (plane 1); same pattern as sBootTileMap above.
             cmdDin  := plane1RowRom.readAsync(bootCounter.resize(log2Up(PlanarTileAssets.TotalBytes)))
             bootCounter := bootCounter + 1
           }.otherwise {

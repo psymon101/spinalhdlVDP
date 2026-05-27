@@ -137,6 +137,10 @@ case class Hdmi720pPlanarProofTop() extends Component {
     // pendingPlane is consumed). SpinalHDL infers BSRAM with sync-read
     // semantics, so wrap with `readAsync` for combinational lookup.
     val planeReads: Vec[Bits] = Vec((0 until PlaneCount).map { p =>
+      // readAsync — AUDIT #10772: Class 4 (proof-top scaffolding) — planar
+      // proof top, not in the Tang Nano production bitstream. Combinational
+      // multi-plane read is intentional per the comment above; convert
+      // opportunistically only if this top is ever exercised on hardware.
       planeROMs(p).readAsync(pendingDword)
     })
     val dout32W = planeReads(pendingPlane)
@@ -173,6 +177,8 @@ case class Hdmi720pPlanarProofTop() extends Component {
 
     // 32-entry palette ROM: 5-bit pixel index → 24-bit RGB.
     val paletteROM = Mem(Bits(24 bits), PaletteSize).initBigInt(PaletteRGB)
+    // readAsync — AUDIT #10772: Class 4 (proof-top scaffolding) — planar
+    // proof top palette lookup, not in Tang Nano production bitstream.
     val paletteRGB = paletteROM.readAsync(planeFetch.io.pixel.asUInt)
     val pixR = paletteRGB(23 downto 16)
     val pixG = paletteRGB(15 downto  8)
