@@ -597,6 +597,12 @@ case class SpriteEvaluator(
     enable  = memWrite
   )
 
+  // readAsync — AUDIT #10772: Class 2 (per-pixel) — sprite active-list entry
+  // returned combinationally on io.activeReadData for per-pixel sprite drain
+  // decisions. Candidate for readSync conversion; would require RegNext on
+  // the consumer (priority encoder / drain FSM). See Task-55 shadow-Reg note
+  // below — prior author already split the mask path off this Mem to keep
+  // it at a single readAsync port and avoid Gowin synthesis fragility.
   io.activeReadData := activeListMem.readAsync(io.activeReadAddr)
   io.activeCountOut := activeCount
 

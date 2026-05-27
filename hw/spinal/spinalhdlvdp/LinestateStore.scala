@@ -78,6 +78,11 @@ case class LinestateStore(lineCount: Int) extends Component {
   // render path gets the line's record combinationally with no
   // line-boundary stale-pixel artifact. Commit Mem stays in
   // distributed SSRAM/LUTRAM (unchanged from the original design).
+  // readAsync — AUDIT #10772: Class 2 (per-pixel) — RECLASSIFIED from Class 3.
+  // Per the prior author comment at line 39-50 / line 77-80 above, this read
+  // MUST stay readAsync: render pipeline reads commit per-pixel and a 1-cycle
+  // readSync delay produces a per-line first-pixel artifact (line-boundary
+  // stale-record). DO NOT convert without redesigning the commit-side pipeline.
   val record = commit.readAsync(io.readAddr)
   io.layer0Enable := record(11)
   io.layer1Enable := record(10)

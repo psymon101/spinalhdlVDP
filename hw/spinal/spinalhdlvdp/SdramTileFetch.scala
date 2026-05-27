@@ -335,6 +335,12 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
           }.elsewhen(bootCounter < TotalTileBytes) {
             cmdWr   := True
             cmdAddr := (U(TileMapBase, 23 bits) + bootCounter.resize(23)).resized
+            // readAsync — AUDIT #10772: Class 1 (boot ROM, same-cycle FSM) —
+            // boot copy emits cmdWr + cmdAddr + cmdDin in the SAME cycle as the
+            // tileMapRom read. readSync would push cmdDin 1 cycle late while
+            // cmdAddr/cmdWr emit on the original cycle, mis-aligning every
+            // SDRAM byte by 1 entry. CP-B(2) demonstration target: lookahead-
+            // address FSM rework (BlitterEngine srcRam pattern).
             cmdDin  := tileMapRom.readAsync(bootCounter.resize(log2Up(TotalTileBytes)))
             bootCounter := bootCounter + 1
           }.otherwise {
@@ -354,6 +360,9 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
           }.elsewhen(bootCounter < TotalRowBytes) {
             cmdWr   := True
             cmdAddr := (U(TileRowBase, 23 bits) + bootCounter.resize(23)).resized
+            // readAsync — AUDIT #10772: Class 1 (boot ROM, same-cycle FSM) —
+            // tile-row boot copy; same pattern as sBootTileMap above.
+            // Conversion requires lookahead-address FSM rework.
             cmdDin  := tileRowRom.readAsync(bootCounter.resize(log2Up(TotalRowBytes)))
             bootCounter := bootCounter + 1
           }.otherwise {

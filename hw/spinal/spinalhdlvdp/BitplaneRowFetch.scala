@@ -75,6 +75,10 @@ case class BitplaneRowFetch(
   // syn_ramstyle causes EX0200 "Property set invalid" and is stripped.
   val planeMems = Seq.fill(planeCount)(Mem(Bits(32 bits), readsPerPlane))
   for (p <- 0 until planeCount) {
+    // readAsync — AUDIT #10772: Class 2 (per-pixel) — planar slot word fetched
+    // combinationally per pixel for each plane; consumer drives io.slotWord(p)
+    // to the planar compositor. Per-plane Vec(Mem), so per-Mem rework required
+    // for any readSync conversion (paired RegNext per plane on consumer side).
     io.slotWord(p) := planeMems(p).readAsync(io.slotIdx)
   }
 

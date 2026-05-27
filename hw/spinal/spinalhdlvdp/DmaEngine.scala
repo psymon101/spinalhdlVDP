@@ -117,6 +117,12 @@ case class DmaEngine() extends Component {
     // staging.readAsync returns the old value of the entry written this
     // cycle (Mem readAsync default), streaming consecutive entries is fine
     // — the host must have filled staging before triggering the DMA.
+    // readAsync — AUDIT #10772: Class 3 (mid-frame, same-cycle FSM) — see
+    // prior author comment above: stagingRead feeds io.dmaData on the same
+    // cycle as io.dmaWr emission. readSync would mis-align the streamed
+    // entry by 1 (dmaWr fires with stale data). Conversion requires the
+    // standard lookahead-address pattern (issue counter+1 to readSync,
+    // gate dmaWr by 1-cycle pipelined state). Per-DMA-burst, not per-pixel.
     val stagingRead = staging.readAsync(counter(stagingAddrBits - 1 downto 0))
 
     // Defaults.

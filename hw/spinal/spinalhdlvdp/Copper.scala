@@ -382,6 +382,13 @@ case class Copper() extends Component {
       val isData = slot(0)
       val ix     = (ch.resize(log2Up(NUM_CH * NUM_ENT)) * U(NUM_ENT, log2Up(NUM_CH * NUM_ENT) bits) +
                     ent.resize(log2Up(NUM_CH * NUM_ENT))).resize(log2Up(NUM_CH * NUM_ENT))
+      // readAsync — AUDIT #10772: Class 3 (mid-frame, same-cycle RMW) — host
+      // HDMA register write is a read-modify-write: read the current tbl
+      // entry, merge with io.hdmaData per isData/valid/line/data fields,
+      // then write back tblWrAddr/tblWrData this same cycle. readSync
+      // would push `cur` one cycle late, causing the merge to use the
+      // PREVIOUS entry's bits and corrupt every HDMA programming write.
+      // Conversion requires 2-cycle write-state FSM rework.
       val cur       = tbl.readAsync(ix)
       val nextValid = Mux(isData, cur(25),                     io.hdmaData(15))
       val nextLine  = Mux(isData, cur(24 downto 16),           io.hdmaData(8 downto 0))
@@ -423,6 +430,12 @@ case class Copper() extends Component {
 
   val chi      = sweepCh.resize(log2Up(NUM_CH))
   val masked   = hdmaChMask(chi)
+  // readAsync — AUDIT #10772: Class 3 (mid-frame, same-cycle FSM) — sweep
+  // FSM evaluates entValid/entLine/hit and may issue a write on the SAME
+  // cycle it reads `curEntry`. readSync would 1-cycle-delay hit detection
+  // relative to sweepCh/sweepEnt, causing the writeback to land at the
+  // wrong tidx index. Conversion requires lookahead-address rework
+  // (pre-issue tidx of next entry to readSync port). Per-line, not per-pixel.
   val curEntry = tbl.readAsync(tidx(chi, sweepEnt))
   val entValid = curEntry(25)
   val entLine  = curEntry(24 downto 16).asUInt    // BH-3: 9-bit line field

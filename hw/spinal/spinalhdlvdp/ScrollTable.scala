@@ -40,5 +40,9 @@ case class ScrollTable(
   // Host must clear table before use.
 
   mem.write(address = io.wrAddr, data = io.wrData, enable = io.wr)
+  // readAsync — AUDIT #10772: Class 2 (per-pixel) — scroll offset returned
+  // combinationally to io.rdData; consumer is the compositor's per-pixel
+  // scrolledX/scrolledY adder. Candidate for readSync conversion with
+  // consumer RegNext alignment on the scrolledX path.
   io.rdData := mem.readAsync(io.rdAddr)
 }
