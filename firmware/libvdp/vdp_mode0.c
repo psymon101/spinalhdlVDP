@@ -19,6 +19,13 @@ uint16_t vdp_mode0_border_ctrl(bool enable, uint8_t palette_index)
     return (uint16_t)((enable ? 1u : 0u) | (((uint16_t)palette_index & 0x1Fu) << 8));
 }
 
+uint16_t vdp_mode0_scale_ctrl(uint8_t scale_x, uint8_t scale_y, bool auto_center)
+{
+    return (uint16_t)((((uint16_t)scale_x) & 0x7u) |
+                      ((((uint16_t)scale_y) & 0x7u) << 4) |
+                      (auto_center ? 0x0080u : 0u));
+}
+
 uint16_t vdp_mode0_trigger_ctrl(bool enable, bool pixel_cmp_enable, bool clear_pulse)
 {
     return (uint16_t)((enable ? 1u : 0u) |
@@ -142,6 +149,25 @@ void vdp_mode0_set_border_window(const vdp_mode0_rect_t *rect, uint16_t border_c
 void vdp_mode0_set_border_ctrl(uint16_t border_ctrl)
 {
     vdp_reg_write(VDP_MODE0_REG_BORDER_CTRL, border_ctrl);
+}
+
+void vdp_mode0_set_scale_ctrl(uint16_t ctrl)
+{
+    vdp_reg_write(VDP_MODE0_REG_SCALE_CTRL, (uint16_t)(ctrl & 0x00FFu));
+}
+
+void vdp_mode0_set_logic_size(uint16_t width, uint16_t height)
+{
+    vdp_reg_write(VDP_MODE0_REG_LOGIC_WIDTH, (uint16_t)(width & 0x07FFu));
+    vdp_reg_write(VDP_MODE0_REG_LOGIC_HEIGHT, (uint16_t)(height & 0x07FFu));
+}
+
+void vdp_mode0_set_scale_mode(uint8_t scale_x, uint8_t scale_y, bool auto_center,
+                              uint16_t width, uint16_t height)
+{
+    // Program dimensions first so the scaler never sees an out-of-date logic size.
+    vdp_mode0_set_logic_size(width, height);
+    vdp_mode0_set_scale_ctrl(vdp_mode0_scale_ctrl(scale_x, scale_y, auto_center));
 }
 
 void vdp_mode0_set_affine(const vdp_mode0_affine_t *cfg)

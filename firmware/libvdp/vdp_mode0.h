@@ -50,6 +50,9 @@ extern "C" {
 #define VDP_MODE0_REG_AFFINE_Y          0x0345u
 #define VDP_MODE0_REG_AFFINE_CTRL       0x0346u
 #define VDP_MODE0_REG_BORDER_CTRL       0x0347u
+#define VDP_MODE0_REG_SCALE_CTRL        0x0349u
+#define VDP_MODE0_REG_LOGIC_WIDTH       0x034Au
+#define VDP_MODE0_REG_LOGIC_HEIGHT      0x034Bu
 
 /* Bitmap fetch block */
 #define VDP_MODE0_REG_BITMAP_CTRL       0x0350u
@@ -214,6 +217,7 @@ typedef struct {
 
 uint16_t vdp_mode0_bitmap_ctrl(bool enable, uint8_t bpp, uint8_t cell_width_log2);
 uint16_t vdp_mode0_border_ctrl(bool enable, uint8_t palette_index);
+uint16_t vdp_mode0_scale_ctrl(uint8_t scale_x, uint8_t scale_y, bool auto_center);
 uint16_t vdp_mode0_trigger_ctrl(bool enable, bool pixel_cmp_enable, bool clear_pulse);
 uint16_t vdp_mode0_dma_ctrl(bool go, uint8_t mode, bool done_ack);
 uint16_t vdp_mode0_blit_ctrl(bool go, uint8_t mode, bool done_ack);
@@ -238,6 +242,10 @@ void vdp_mode0_set_window2(const vdp_mode0_rect_t *rect, uint16_t win2_ctrl);
 void vdp_mode0_set_window_combine(uint16_t combine_ctrl, uint16_t layer_mask);
 void vdp_mode0_set_border_window(const vdp_mode0_rect_t *rect, uint16_t border_ctrl);
 void vdp_mode0_set_border_ctrl(uint16_t border_ctrl);
+void vdp_mode0_set_scale_ctrl(uint16_t ctrl);
+void vdp_mode0_set_logic_size(uint16_t width, uint16_t height);
+void vdp_mode0_set_scale_mode(uint8_t scale_x, uint8_t scale_y, bool auto_center,
+                              uint16_t width, uint16_t height);
 
 void vdp_mode0_set_affine(const vdp_mode0_affine_t *cfg);
 void vdp_mode0_set_bitmap_cfg(const vdp_mode0_bitmap_cfg_t *cfg);
