@@ -2210,15 +2210,46 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // cycle T+1.
   val borderEnable = borderCtrlReg(0)
   val borderIdx    = borderCtrlReg(12 downto 8).asUInt
-  // PixelRepeatScaler (lane #10590) DISCONNECTED — surgical revert on main
-  // after re-land Step 1 (#10702) still produced black output. Module stays
-  // in tree; registers SCALE_CTRL / LOGIC_WIDTH / LOGIC_HEIGHT stay decoded
-  // so libvdp host surface is unchanged.
-  val insideBorder = (hCounter >= borderX0Reg.resize(log2Up(hTotal))) &&
-                     (hCounter <  borderX1Reg.resize(log2Up(hTotal))) &&
-                     (vCounter >= borderY0Reg.resize(log2Up(vTotal))) &&
-                     (vCounter <  borderY1Reg.resize(log2Up(vTotal)))
-  val borderActive = borderEnable && !insideBorder
+  // PixelRepeatScaler instantiation (lane #10590-reland, PM #10701).
+  // Re-landed on top of the palette readSync fix (main @ 661907d) which
+  // removed the Gowin placement-sensitivity that caused the original
+  // intermittent black-HDMI. lineBuf write OOB-guard added per
+  // BronzeGate #10697. POR scaleCtrlReg=0 yields 1x bypass (scaleX=1,
+  // scaleY=1, autoCenter=0). Counters reset on the first cycle of
+  // hsync/vsync (when hCounter/vCounter enter their respective sync
+  // regions); we detect those edges combinationally here.
+  val hsyncActive    = hCounter >= hSyncStart && hCounter < hSyncEnd
+  val vsyncActive    = vCounter >= vSyncStart && vCounter < vSyncEnd
+  val hsyncActivePrv = RegNext(hsyncActive) init False
+  val vsyncActivePrv = RegNext(vsyncActive) init False
+  val hsyncEdge      = hsyncActive && !hsyncActivePrv
+  val vsyncEdge      = vsyncActive && !vsyncActivePrv
+  val scaler = PixelRepeatScaler()
+  scaler.io.hCounter     := hCounter.resize(10)
+  scaler.io.vCounter     := vCounter.resize(10)
+  scaler.io.hsyncRising  := hsyncEdge
+  scaler.io.vsyncRising  := vsyncEdge
+  scaler.io.hActive      := U(hActive, 11 bits)
+  scaler.io.vActive      := U(vActive, 11 bits)
+  scaler.io.scaleXReg    := scaleCtrlReg(2 downto 0).asUInt
+  scaler.io.scaleYReg    := scaleCtrlReg(6 downto 4).asUInt
+  scaler.io.autoCenter   := scaleCtrlReg(7)
+  scaler.io.logicWidth   := logicWidthReg
+  scaler.io.logicHeight  := logicHeightReg
+
+  // Auto-center override of the host BORDER_X/Y0/1. Host BORDER_CTRL[12:8]
+  // still picks the bezel palette slot. SCALE_CTRL[7] arms the override.
+  val acActive    = scaleCtrlReg(7)
+  val effBorderX0 = Mux(acActive, scaler.io.acBorderX0, borderX0Reg)
+  val effBorderX1 = Mux(acActive, scaler.io.acBorderX1, borderX1Reg)
+  val effBorderY0 = Mux(acActive, scaler.io.acBorderY0, borderY0Reg)
+  val effBorderY1 = Mux(acActive, scaler.io.acBorderY1, borderY1Reg)
+  val effBorderEnable = borderEnable || acActive
+  val insideBorder = (hCounter >= effBorderX0.resize(log2Up(hTotal))) &&
+                     (hCounter <  effBorderX1.resize(log2Up(hTotal))) &&
+                     (vCounter >= effBorderY0.resize(log2Up(vTotal))) &&
+                     (vCounter <  effBorderY1.resize(log2Up(vTotal)))
+  val borderActive = effBorderEnable && !insideBorder
   // Task 50 v3.3: Use a combinational lookup from the palette mirror
   // registers to fetch the border color. This removes the second async
   // read port on the palette Mem which broke BSRAM inference in v3.0.
@@ -2228,7 +2259,11 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   // Display-side sync / DE / gating signals first stage (+1) — tracks the
   // ColorMath input pipeline. hsync/vsync are active-low so reset value
-  // is True (inactive).
+  // is True (inactive). The scaler re-land below adds a second RegNext
+  // (RR) to match the scaler's +1 output latency; total display depth
+  // becomes +2. Lane #10686's palette readSync is absorbed inside the
+  // post-palette stage via the dcSide RegNexts at the bgOrDirectRgb
+  // mux input, so it does NOT contribute to display-side depth here.
   val hsyncR         = RegNext(!(hCounter >= hSyncStart && hCounter < hSyncEnd)) init True
   val vsyncR         = RegNext(!(vCounter >= vSyncStart && vCounter < vSyncEnd)) init True
   val deR            = RegNext(activeVideo)           init False
@@ -2240,13 +2275,16 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // pixel.
   val displayRgb = Mux(borderActiveR, borderRgbR, mathRgb)
 
-  // Scaler disconnected — bypass directly. Keep the +2 pipeline stage
-  // (RR) so display-side timing is unchanged; this avoids breaking sim
-  // alignment with the ColorMath output path.
-  val displayRgbBypass = displayRgb
+  // Wire displayRgb into the scaler. Scaler is +1 latency uniformly
+  // across bypass (1x) and scaled paths — outRgb is registered.
+  scaler.io.inRgb      := displayRgb
+  val displayRgbScaled = scaler.io.outRgb
 
-  // Display-side second-stage RegNext (+2 total) — preserved from the
-  // scaler integration so downstream timing stays aligned.
+  // Display-side second-stage RegNext (+2 total) to align with the
+  // scaler's +1 output latency. Matches the dc1fba8-pre-disconnect
+  // depth, minus the third stage that was overcounted there (the
+  // third stage was matched to a post-palette compensation that the
+  // dcSide RegNexts now absorb upstream of maskedRgbR).
   val hsyncRR         = RegNext(hsyncR)          init True
   val vsyncRR         = RegNext(vsyncR)          init True
   val deRR            = RegNext(deR)             init False
@@ -2260,10 +2298,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   io.green := B(0, 8 bits)
   io.blue  := B(0, 8 bits)
   when(deRR && primedRR) {
-    val redRaw = displayRgbBypass(23 downto 16)
+    val redRaw = displayRgbScaled(23 downto 16)
     io.red   := Mux(rasterPendingRR, ~redRaw, redRaw)
-    io.green := displayRgbBypass(15 downto 8)
-    io.blue  := displayRgbBypass(7 downto 0)
+    io.green := displayRgbScaled(15 downto 8)
+    io.blue  := displayRgbScaled(7 downto 0)
   }
   // io.x/y track the same +2 cycle pipeline as the RGB output.
   val hCounterR = RegNext(hCounter.resize(10)) init 0
