@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-27 (P3 Planar Hardening: MERGED to main @ `1efa9c1`. CyanPeak CP-C doc audit HOLD #10810 — 2 doc fixes authorized #10811, awaiting commit.)
+**Updated:** 2026-05-27 (P3 Planar Hardening: FULLY CLOSED. CyanPeak doc audit PASS #10814. Team check sent #10815, awaiting replies before P4.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,15 +22,15 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | Priority 3 — Planar Hardening Task 3 |
-| **Status** | **IN-PROGRESS** |
+| **Task** | *(none — last closed: Priority 3 Planar Hardening)* |
+| **Status** | **NO ACTIVE LANE** |
 | **Task ID** | — |
 | **Owner** | BrightForge |
 | **Baseline Commit** | `1efa9c1` (main, post-P3 merge) |
-| **Latest Auth Mail** | TopazCliff #10811 (HOLD fixes authorized) |
+| **Latest Auth Mail** | TopazCliff #10815 (lane-closeout team check sent) |
 | **Summary** | Defensive checks on planar read path. 6 risks identified, runtime asserts landed, sim discriminators in flight. |
-| **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): DONE (`50fcced`, `aa4b1d0`, `89ec7e9`). B(3): DONE (`4123604`). C: IN-PROGRESS (CyanPeak doc audit HOLD — 2 fixes authorized). |
-| **Next Step** | CyanPeak CP-C doc audit → team check → P4 (Reset-pin) lane open. |
+| **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): DONE (`50fcced`, `aa4b1d0`, `89ec7e9`). B(3): DONE (`4123604`). C: DONE (CyanPeak doc audit PASS #10814, fixes merged `60a6f03`). |
+| **Next Step** | Await team check replies (#10815) → review → open P4 (Reset-pin) lane. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -65,7 +65,7 @@ This section tracks the active lane.
 - **Closeout:** DONE — CyanPeak doc audit PASS (#10786).
 
 ### Priority 3 — Planar Hardening Task 3
-- **Status:** **IN-PROGRESS**
+- **Status:** **DONE**
 - **Owner:** BrightForge
 - **Scope:** Defensive checks on planar read path.
 - **Depends on:** None
@@ -75,7 +75,8 @@ This section tracks the active lane.
   - **B(1):** DONE (`4ff92d5`) — Runtime `assert(...)` at all 6 risk sites. 80 lines, 2 files, zero new diagnostics. All planar regression sims PASS.
   - **B(2):** DONE (`50fcced`, `aa4b1d0`, `89ec7e9`) — 3 targeted sim discriminators. Boundary + Refresh PASS (asserts silent). WriteBufRace ASSERT TRIPS ~30× under pathological stress → CP-B(3) GO.
   - **B(3):** DONE (`4123604`) — Option α latch-and-flip implemented, scheduler gap analysis (858 cycles min, ~30 cycles emit-clear, 28.6× safety ratio), full regression PASS. Merged to main @ `1efa9c1`.
-  - **C:** IN-PROGRESS — CyanPeak doc audit #10809. Atomic merge complete; awaiting documentation/architectural review before team check.
+  - **C:** DONE — CyanPeak doc audit PASS #10814, fixes merged `60a6f03`.
+- **Closeout:** DONE — lane-closeout team check sent #10815, awaiting replies before P4.
 
 ### Priority 4 — Reset-pin Lane
 - **Status:** **QUEUED**
