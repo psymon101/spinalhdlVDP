@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-27 (P3 Planar Hardening: CP-B(1) done, CP-B(2) authorized via corrected channel #10799. Security incident #10796 resolved.)
+**Updated:** 2026-05-27 (P3 Planar Hardening: MERGED to main @ `1efa9c1`. CyanPeak CP-C doc audit HOLD #10810 — 2 doc fixes authorized #10811, awaiting commit.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -27,9 +27,9 @@ This section tracks the active lane.
 | **Task ID** | — |
 | **Owner** | BrightForge |
 | **Baseline Commit** | `1efa9c1` (main, post-P3 merge) |
-| **Latest Auth Mail** | TopazCliff #10808 (merge confirmed), #10809 (CyanPeak doc audit activated) |
+| **Latest Auth Mail** | TopazCliff #10811 (HOLD fixes authorized) |
 | **Summary** | Defensive checks on planar read path. 6 risks identified, runtime asserts landed, sim discriminators in flight. |
-| **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): DONE (`50fcced`, `aa4b1d0`, `89ec7e9`). B(3): DONE (`4123604`). C: IN-PROGRESS (CyanPeak doc audit). |
+| **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): DONE (`50fcced`, `aa4b1d0`, `89ec7e9`). B(3): DONE (`4123604`). C: IN-PROGRESS (CyanPeak doc audit HOLD — 2 fixes authorized). |
 | **Next Step** | CyanPeak CP-C doc audit → team check → P4 (Reset-pin) lane open. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
