@@ -173,21 +173,52 @@ case class SdramTileAttributeFetch(
     emitting     := False
     underrunR    := False
   }
+  // P3 CP-B(3) #10791 Risk #3 fix — Option α drain-complete gate.
+  //
+  // Pre-fix (CP-B(1)+CP-B(2)): `when(fetchStartRise) { writeBuf := !writeBuf }`
+  // flipped writeBuf the same cycle as fetchStartRise. If `emitting=True` at
+  // that moment, the ping-pong reader switched to the buffer being overwritten
+  // by the new fetch — half-line corruption. PlanarWriteBufRaceSim reproduced
+  // ~30 trips of the CP-B(1) input-edge assert under pathological back-to-back
+  // grants.
+  //
+  // Option α: defer the writeBuf flip until the prior row's emission has
+  // fully drained. `pendingFlip` latches on fetchStartRise; the actual flip
+  // fires the first cycle when `!emitting && !wordFifo.io.pop.valid` so
+  // there's nothing left in flight that could be read from the wrong buffer.
+  // pendingFlip clears with the flip so the next grant gets its own latch.
+  //
+  // Production reachability note: under the FetchSlotScheduler's worst-case
+  // inter-grant gap of O(scanline) ≈ ~858 pixel-clock cycles, emit-clear
+  // bound is ≈ 16 sub-pixels × 16 tiles × FIFO pop cadence ≈ ~600 cycles
+  // worst-case. Margin is positive but tight under heavy SDRAM contention;
+  // Option α makes the worst-case unreachable rather than merely improbable.
+  val pendingFlip = Reg(Bool()) init False
   when(fetchStartRise) {
-    writeBuf := !writeBuf
+    pendingFlip := True
+  }
+  when(pendingFlip && !emitting && !wordFifo.io.pop.valid) {
+    writeBuf    := !writeBuf
+    pendingFlip := False
   }
 
-  // P3 CP-B(1) #10791 Risk #3 (writeBuf race vs in-flight drain). If a new
-  // fetchStartRise arrives while the prior row is still being emitted, the
-  // ping-pong reader switches to the buffer being overwritten by the new
-  // fetch — half-line corruption. Healthy timing: emitting clears at
-  // unpackIdx-wrap of the last word AND well before the next scanline's
-  // fetchGrant fires. (`emitting` is also force-cleared by the same
-  // `when(io.fetchGrant)` block above so subsequent cycles recover, but
-  // any pixel BEFORE that recovery may have hit the half-written buffer.)
+  // P3 CP-B(3) #10791 Risk #3 validation canary (REVISED from CP-B(1) form).
+  //
+  // CP-B(1) checked the INPUT condition `!fetchStartRise || !emitting` —
+  // useful before the fix (it reproduced ~30 trips in PlanarWriteBufRaceSim
+  // and triggered CP-B(3)). Post-fix, fetchStartRise during emitting is the
+  // EXACT scenario Option α handles, so the input-edge assert would trip on
+  // every legitimate latched-flip event.
+  //
+  // The canary that matters post-fix is the OUTPUT invariant: writeBuf must
+  // not change while emitting=True. Option α holds writeBuf stable across
+  // the entire emission window; if a future refactor reintroduced an early
+  // flip, this assert catches it. PlanarWriteBufRaceSim re-run under all 3
+  // stress patterns is the proof that the canary stays silent.
+  val writeBufPrev = RegNext(writeBuf) init False
   assert(
-    assertion = !fetchStartRise || !emitting,
-    message   = "P3 Risk #3: fetchStartRise while prior row still emitting (writeBuf would flip mid-drain)",
+    assertion = !emitting || (writeBuf === writeBufPrev),
+    message   = "P3 Risk #3 (post-fix): writeBuf changed while emitting=True (drain-complete gate broken)",
     severity  = ERROR
   )
 
