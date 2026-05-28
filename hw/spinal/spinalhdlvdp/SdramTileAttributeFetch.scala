@@ -177,6 +177,20 @@ case class SdramTileAttributeFetch(
     writeBuf := !writeBuf
   }
 
+  // P3 CP-B(1) #10791 Risk #3 (writeBuf race vs in-flight drain). If a new
+  // fetchStartRise arrives while the prior row is still being emitted, the
+  // ping-pong reader switches to the buffer being overwritten by the new
+  // fetch — half-line corruption. Healthy timing: emitting clears at
+  // unpackIdx-wrap of the last word AND well before the next scanline's
+  // fetchGrant fires. (`emitting` is also force-cleared by the same
+  // `when(io.fetchGrant)` block above so subsequent cycles recover, but
+  // any pixel BEFORE that recovery may have hit the half-written buffer.)
+  assert(
+    assertion = !fetchStartRise || !emitting,
+    message   = "P3 Risk #3: fetchStartRise while prior row still emitting (writeBuf would flip mid-drain)",
+    severity  = ERROR
+  )
+
   wordFifo.io.pop.ready := !emitting
   when(wordFifo.io.pop.fire) {
     unpackRow  := wordFifo.io.pop.payload(63 downto 0)
@@ -390,6 +404,20 @@ case class SdramTileAttributeFetch(
       // uses the normal planar base (0xA000) via tileRowBaseSelSync.
       val plane1Addr = (U(PlanarTileAssets.Plane1SdramBase, 23 bits) + effOffset).resize(23)
       val baseAddr   = (tileRowBaseSelSync + effOffset).resize(23)
+      // P3 CP-B(1) #10791 Risk #1 (OOB planar memory): when this address is
+      // used for a planar/shuffled-mode plane buffer read (either bank), the
+      // effOffset must stay within TotalBytes so plane0 stays in [SdramBase,
+      // SdramBase+TotalBytes) and plane1 stays in [Plane1SdramBase, +
+      // TotalBytes). For packed-mode reads (tileRowBaseSel = TileRowBase)
+      // the constraint does not apply (the legacy region has its own depth).
+      val planarPathActive = shuffledSync ||
+        (tileRowBaseSelSync === U(PlanarTileAssets.SdramBase, 23 bits))
+      assert(
+        assertion = !planarPathActive ||
+          (effOffset < U(PlanarTileAssets.TotalBytes, 23 bits)),
+        message   = "P3 Risk #1: planar tileRowByteAddr effOffset exceeds TotalBytes",
+        severity  = ERROR
+      )
       Mux(shuffledSync && wordIdx(0), plane1Addr, baseAddr)
     }
 
@@ -583,6 +611,29 @@ case class SdramTileAttributeFetch(
           }
         }
       }
+
+      // P3 CP-B(1) #10791 Risk #5 (bootDoneR monotone). Once asserted, the
+      // boot-done flag must never clear — every fetch downstream assumes the
+      // SDRAM contents are stable. Catches accidental Reg re-init or stray
+      // assignment in a future refactor of the boot FSM.
+      val bootDoneRPrev = RegNext(bootDoneR) init False
+      assert(
+        assertion = !bootDoneRPrev || bootDoneR,
+        message   = "P3 Risk #5: bootDoneR cleared after being set",
+        severity  = ERROR
+      )
+
+      // P3 CP-B(1) #10791 Risk #6 (fetchGrantEdge before settled memtestPassR).
+      // memtestPassR is set in the sdram domain; fetchGrantEdge derives from a
+      // BufferCC'd fetchGrant. The when-gate below checks memtestPassR but does
+      // not require it to have been stable for ≥1 cycle. Catches a 1-cycle
+      // glitch where memtestPassR rises in the same cycle as fetchGrantEdge.
+      val memtestPassRPrev = RegNext(memtestPassR) init False
+      assert(
+        assertion = !fetchGrantEdge || (memtestPassR === memtestPassRPrev),
+        message   = "P3 Risk #6: fetchGrantEdge fired in same cycle memtestPassR changed",
+        severity  = ERROR
+      )
 
       sIdle.whenIsActive {
         when(fetchGrantEdge && memtestPassR) {
