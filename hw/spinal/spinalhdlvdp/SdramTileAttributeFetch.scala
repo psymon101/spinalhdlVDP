@@ -173,9 +173,54 @@ case class SdramTileAttributeFetch(
     emitting     := False
     underrunR    := False
   }
+  // P3 CP-B(3) #10791 Risk #3 fix — Option α drain-complete gate.
+  //
+  // Pre-fix (CP-B(1)+CP-B(2)): `when(fetchStartRise) { writeBuf := !writeBuf }`
+  // flipped writeBuf the same cycle as fetchStartRise. If `emitting=True` at
+  // that moment, the ping-pong reader switched to the buffer being overwritten
+  // by the new fetch — half-line corruption. PlanarWriteBufRaceSim reproduced
+  // ~30 trips of the CP-B(1) input-edge assert under pathological back-to-back
+  // grants.
+  //
+  // Option α: defer the writeBuf flip until the prior row's emission has
+  // fully drained. `pendingFlip` latches on fetchStartRise; the actual flip
+  // fires the first cycle when `!emitting && !wordFifo.io.pop.valid` so
+  // there's nothing left in flight that could be read from the wrong buffer.
+  // pendingFlip clears with the flip so the next grant gets its own latch.
+  //
+  // Production reachability note: under the FetchSlotScheduler's worst-case
+  // inter-grant gap of O(scanline) ≈ ~858 pixel-clock cycles, emit-clear
+  // bound is ≈ 16 sub-pixels × 16 tiles × FIFO pop cadence ≈ ~600 cycles
+  // worst-case. Margin is positive but tight under heavy SDRAM contention;
+  // Option α makes the worst-case unreachable rather than merely improbable.
+  val pendingFlip = Reg(Bool()) init False
   when(fetchStartRise) {
-    writeBuf := !writeBuf
+    pendingFlip := True
   }
+  when(pendingFlip && !emitting && !wordFifo.io.pop.valid) {
+    writeBuf    := !writeBuf
+    pendingFlip := False
+  }
+
+  // P3 CP-B(3) #10791 Risk #3 validation canary (REVISED from CP-B(1) form).
+  //
+  // CP-B(1) checked the INPUT condition `!fetchStartRise || !emitting` —
+  // useful before the fix (it reproduced ~30 trips in PlanarWriteBufRaceSim
+  // and triggered CP-B(3)). Post-fix, fetchStartRise during emitting is the
+  // EXACT scenario Option α handles, so the input-edge assert would trip on
+  // every legitimate latched-flip event.
+  //
+  // The canary that matters post-fix is the OUTPUT invariant: writeBuf must
+  // not change while emitting=True. Option α holds writeBuf stable across
+  // the entire emission window; if a future refactor reintroduced an early
+  // flip, this assert catches it. PlanarWriteBufRaceSim re-run under all 3
+  // stress patterns is the proof that the canary stays silent.
+  val writeBufPrev = RegNext(writeBuf) init False
+  assert(
+    assertion = !emitting || (writeBuf === writeBufPrev),
+    message   = "P3 Risk #3 (post-fix): writeBuf changed while emitting=True (drain-complete gate broken)",
+    severity  = ERROR
+  )
 
   wordFifo.io.pop.ready := !emitting
   when(wordFifo.io.pop.fire) {
@@ -390,6 +435,20 @@ case class SdramTileAttributeFetch(
       // uses the normal planar base (0xA000) via tileRowBaseSelSync.
       val plane1Addr = (U(PlanarTileAssets.Plane1SdramBase, 23 bits) + effOffset).resize(23)
       val baseAddr   = (tileRowBaseSelSync + effOffset).resize(23)
+      // P3 CP-B(1) #10791 Risk #1 (OOB planar memory): when this address is
+      // used for a planar/shuffled-mode plane buffer read (either bank), the
+      // effOffset must stay within TotalBytes so plane0 stays in [SdramBase,
+      // SdramBase+TotalBytes) and plane1 stays in [Plane1SdramBase, +
+      // TotalBytes). For packed-mode reads (tileRowBaseSel = TileRowBase)
+      // the constraint does not apply (the legacy region has its own depth).
+      val planarPathActive = shuffledSync ||
+        (tileRowBaseSelSync === U(PlanarTileAssets.SdramBase, 23 bits))
+      assert(
+        assertion = !planarPathActive ||
+          (effOffset < U(PlanarTileAssets.TotalBytes, 23 bits)),
+        message   = "P3 Risk #1: planar tileRowByteAddr effOffset exceeds TotalBytes",
+        severity  = ERROR
+      )
       Mux(shuffledSync && wordIdx(0), plane1Addr, baseAddr)
     }
 
@@ -583,6 +642,29 @@ case class SdramTileAttributeFetch(
           }
         }
       }
+
+      // P3 CP-B(1) #10791 Risk #5 (bootDoneR monotone). Once asserted, the
+      // boot-done flag must never clear — every fetch downstream assumes the
+      // SDRAM contents are stable. Catches accidental Reg re-init or stray
+      // assignment in a future refactor of the boot FSM.
+      val bootDoneRPrev = RegNext(bootDoneR) init False
+      assert(
+        assertion = !bootDoneRPrev || bootDoneR,
+        message   = "P3 Risk #5: bootDoneR cleared after being set",
+        severity  = ERROR
+      )
+
+      // P3 CP-B(1) #10791 Risk #6 (fetchGrantEdge before settled memtestPassR).
+      // memtestPassR is set in the sdram domain; fetchGrantEdge derives from a
+      // BufferCC'd fetchGrant. The when-gate below checks memtestPassR but does
+      // not require it to have been stable for ≥1 cycle. Catches a 1-cycle
+      // glitch where memtestPassR rises in the same cycle as fetchGrantEdge.
+      val memtestPassRPrev = RegNext(memtestPassR) init False
+      assert(
+        assertion = !fetchGrantEdge || (memtestPassR === memtestPassRPrev),
+        message   = "P3 Risk #6: fetchGrantEdge fired in same cycle memtestPassR changed",
+        severity  = ERROR
+      )
 
       sIdle.whenIsActive {
         when(fetchGrantEdge && memtestPassR) {

@@ -79,6 +79,20 @@ case class BitplaneRowFetch(
     // combinationally per pixel for each plane; consumer drives io.slotWord(p)
     // to the planar compositor. Per-plane Vec(Mem), so per-Mem rework required
     // for any readSync conversion (paired RegNext per plane on consumer side).
+    //
+    // P3 CP-B(1) #10791 Risk #4 (slot read race vs pop-drain write).
+    // DOCUMENTED AS KNOWN-SAFE FOR CURRENT CONFIG (per PM #10791 spec).
+    // Reasoning: planeCount=2, readsPerPlane=1 → planeMems(p) has exactly
+    // 1 entry (slotIdx physically 0). The compositor reads slotIdx=0 every
+    // pixel; the pop-drain writes popReadIdx=0 once per row. If the
+    // compositor reads BEFORE the pop fires (cold start), it observes the
+    // Mem's init value (zero); this corresponds to the leading black
+    // backdrop until the first row has drained, which is the expected
+    // power-on behavior. No silent-corruption mode exists for
+    // readsPerPlane=1. **If readsPerPlane ever increases**, revisit:
+    // the compositor's slotIdx sweep may consume entries not yet written
+    // by the in-flight pop-drain, and this site must gain a `validBits`
+    // mask or a stall-until-row-ready interlock.
     io.slotWord(p) := planeMems(p).readAsync(io.slotIdx)
   }
 
@@ -195,6 +209,21 @@ case class BitplaneRowFetch(
   rowFifo.io.pop.ready := True
   val popFire = rowFifo.io.pop.fire
 
+  // P3 CP-B(1) #10791 Risk #2 (invalid planeIdx). The selective-write below
+  // matches popPlaneIdx === U(p) per plane; if popPlaneIdx >= planeCount NO
+  // plane fires and the word is silently dropped. For power-of-two
+  // planeCount the bit-width itself prevents popPlaneIdx from exceeding
+  // planeCount-1, so the assert is trivially satisfied and we omit it to
+  // avoid a SpinalHDL OUT OF RANGE warning on the comparison. For non-pow2
+  // planeCount (3, 5, 6, 7) popPlaneIdx CAN exceed planeCount-1; the
+  // assert catches that case.
+  if (planeCount < (1 << planeIdxBits)) {
+    assert(
+      assertion = !popFire || (popPlaneIdx < U(planeCount, planeIdxBits bits)),
+      message   = "P3 Risk #2: popPlaneIdx >= planeCount (non-pow2 planeCount silent-drop)",
+      severity  = ERROR
+    )
+  }
   for (p <- 0 until planeCount) {
     planeMems(p).write(
       address = popReadIdx,
