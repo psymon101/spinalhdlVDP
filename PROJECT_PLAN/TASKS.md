@@ -26,11 +26,11 @@ This section tracks the active lane.
 | **Status** | **IN-PROGRESS** |
 | **Task ID** | — |
 | **Owner** | BrightForge |
-| **Baseline Commit** | `17b1c2c` (main, post-P2 merge) |
-| **Latest Auth Mail** | TopazCliff #10805 (CP-B(3) GO, Option α latch-and-flip, atomic closeout) |
+| **Baseline Commit** | `1efa9c1` (main, post-P3 merge) |
+| **Latest Auth Mail** | TopazCliff #10808 (merge confirmed), #10809 (CyanPeak doc audit activated) |
 | **Summary** | Defensive checks on planar read path. 6 risks identified, runtime asserts landed, sim discriminators in flight. |
-| **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): DONE (`50fcced`, `aa4b1d0`, `89ec7e9`). B(3): IN-PROGRESS (Option α latch-and-flip). C: QUEUED. |
-| **Next Step** | BrightForge delivers CP-B(3) Option α implementation + scheduler gap analysis. Atomic merge to main after CP-B(3) validation. |
+| **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): DONE (`50fcced`, `aa4b1d0`, `89ec7e9`). B(3): DONE (`4123604`). C: IN-PROGRESS (CyanPeak doc audit). |
+| **Next Step** | CyanPeak CP-C doc audit → team check → P4 (Reset-pin) lane open. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -74,8 +74,8 @@ This section tracks the active lane.
   - **A:** DONE (#10790) — 8 entry points, boundary surfaces mapped, 6 risks classified, zero runtime asserts found
   - **B(1):** DONE (`4ff92d5`) — Runtime `assert(...)` at all 6 risk sites. 80 lines, 2 files, zero new diagnostics. All planar regression sims PASS.
   - **B(2):** DONE (`50fcced`, `aa4b1d0`, `89ec7e9`) — 3 targeted sim discriminators. Boundary + Refresh PASS (asserts silent). WriteBufRace ASSERT TRIPS ~30× under pathological stress → CP-B(3) GO.
-  - **B(3):** IN-PROGRESS — Option α latch-and-flip: defer `writeBuf` toggle until `!emitting && !wordFifo.io.pop.valid`. Includes mandatory `FetchSlotScheduler.scala` worst-case gap analysis.
-  - **C:** Simulation proof — stress-test scenarios pass, no regressions
+  - **B(3):** DONE (`4123604`) — Option α latch-and-flip implemented, scheduler gap analysis (858 cycles min, ~30 cycles emit-clear, 28.6× safety ratio), full regression PASS. Merged to main @ `1efa9c1`.
+  - **C:** IN-PROGRESS — CyanPeak doc audit #10809. Atomic merge complete; awaiting documentation/architectural review before team check.
 
 ### Priority 4 — Reset-pin Lane
 - **Status:** **QUEUED**
