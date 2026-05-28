@@ -190,9 +190,9 @@ case class SdramTileAttributeFetch(
   //
   // Production reachability note: under the FetchSlotScheduler's worst-case
   // inter-grant gap of O(scanline) ≈ ~858 pixel-clock cycles, emit-clear
-  // bound is ≈ 16 sub-pixels × 16 tiles × FIFO pop cadence ≈ ~600 cycles
-  // worst-case. Margin is positive but tight under heavy SDRAM contention;
-  // Option α makes the worst-case unreachable rather than merely improbable.
+  // bound is ≈ ~30 cycles worst-case (per BrightForge analysis). Safety
+  // ratio is ≈ 28.6×; race is naturally unreachable in production.
+  // Option α provides defense-in-depth for pathological stress cases.
   val pendingFlip = Reg(Bool()) init False
   when(fetchStartRise) {
     pendingFlip := True

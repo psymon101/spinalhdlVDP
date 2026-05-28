@@ -113,3 +113,67 @@ counts — any timing drift indicates the lookahead is mis-issued.
   explicit "stays readAsync" rationale from a prior author.
 - **Class 4 (proof-top scaffolding).** Not in the production bitstream;
   conversion risk outweighs benefit.
+
+---
+
+## GOTCHA-15: Ping-pong write buffer race vs emission drain
+
+**Context.** Multiple fetch engines in this design use a ping-pong buffer
+architecture: one buffer is being filled by an SDRAM fetch (`writeBuf`) while
+the other is being drained to the compositor (`!writeBuf`). The flip logic
+typically triggers on `fetchStartRise` (the arrival of a new SDRAM grant).
+
+If a new grant arrives before the prior row's emission has fully completed
+(`emitting=True`), a naive `writeBuf := !writeBuf` flip switches the
+compositor's reader to the buffer that the new fetch is about to overwrite.
+This causes mid-line corruption (reproduced in `PlanarWriteBufRaceSim`,
+#10804).
+
+### The pattern (Option α: Latch-and-flip)
+
+The fix is an explicit **drain-complete interlock**. The flip request is
+latched on the grant edge but deferred until the previous row has cleared
+the emission pipeline and the word FIFO is empty.
+
+```scala
+// Latch the flip request on the grant edge
+val pendingFlip = Reg(Bool()) init False
+when(fetchStartRise) {
+  pendingFlip := True
+}
+
+// Interlock: flip only when drain is complete
+when(pendingFlip && !emitting && !wordFifo.io.pop.valid) {
+  writeBuf := !writeBuf
+  pendingFlip := False
+}
+
+// Invariant canary (post-fix)
+assert(
+  assertion = !emitting || (writeBuf === RegNext(writeBuf)),
+  message   = "writeBuf changed while emitting=True (drain-complete gate broken)",
+  severity  = ERROR
+)
+```
+
+### Why this works
+
+- **Safety.** The `pendingFlip` mechanism ensures the reader/writer roles never
+  swap while the reader (compositor) is still active.
+- **Performance.** Under production timing (e.g., `FetchSlotScheduler`), the
+  inter-grant gap is typically much larger than the emission time (e.g., 28.6×
+  safety ratio in `SdramTileAttributeFetch`). The stall only occurs during
+  pathological stress cases and resolves as soon as the drain finishes, with
+  zero impact on production bandwidth.
+
+### Validation
+
+Simulate using a **race-reproducer Sim** that pulses `fetchGrant` back-to-back
+without waiting for emission to finish. The in-RTL `assert` must be silent
+under stress stimulus.
+
+### Reference
+
+- Priority 3 Planar Hardening: `SdramTileAttributeFetch.scala:176-223`,
+  audit mail #10809, lane closed in commit `1efa9c1`.
+- Sim discriminator: `PlanarWriteBufRaceSim.scala` (reproduced race in #10804).
