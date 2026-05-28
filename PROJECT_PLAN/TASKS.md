@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-24 (Lane #10590 open — Integer Pixel-Repetition Scaler; RTL Platform-Agnosticism Purge #10567 DONE; ESP32-S3 host bring-up #10539 and scanline-start transient fix #10550 closed; baseline `9c0b161`.)
+**Updated:** 2026-05-27 (P3 Planar Hardening: CP-B(1) done, CP-B(2) in progress.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,24 +22,70 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | **Integer Pixel-Repetition Scaler + Auto-Center Borders** |
+| **Task** | Priority 3 — Planar Hardening Task 3 |
 | **Status** | **IN-PROGRESS** |
-| **Task ID** | #10590 |
-| **Owner** | BrightForge (RTL), BronzeGate (libvdp) |
-| **Baseline Commit** | `9c0b161` (main, post-agnosticism-purge) |
-| **Latest Auth Mail** | TopazCliff #10641 (PM decision: strategic revert authorized), BronzeGate #10640 (endorses revert) |
-| **Summary** | Add integer pixel-repetition scaling to VdpTop output path. Six orthogonal discriminators all returned black. Absolute bypass inside scaler still black → bug is scaler presence in module hierarchy or pre-scaler. PM decision: surgical disconnect revert to isolate root cause. Backdrop architecture: Option B confirmed. |
-| **Checkpoints** | A: DONE (233132a). B: DONE (653adc9) + rebalance (a007ddf). C: DONE #10606. **INVESTIGATION DONE:** Six discriminators falsified all micro-hypotheses. **PM DECISION:** Strategic revert authorized #10641. |
-| **Next Step** | BrightForge: surgical disconnect revert on brightforge/pixel-repeat-scaler — remove scaler instantiation, restore direct displayRgb→io.red wiring, test with non-black visible output. Binary result: image returns = scaler at fault; still black = pre-scaler bug. |
+| **Task ID** | — |
+| **Owner** | BrightForge |
+| **Baseline Commit** | `17b1c2c` (main, post-P2 merge) |
+| **Latest Auth Mail** | TopazCliff #10794 (CP-B(2) authorized) |
+| **Summary** | Defensive checks on planar read path. 6 risks identified, runtime asserts landed, sim discriminators in flight. |
+| **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): IN-PROGRESS (3 sims). B(3): QUEUED (conditional). C: QUEUED. |
+| **Next Step** | BrightForge delivers CP-B(2) sim discriminators + CP-B(3) go/no-go. |
 
 ---
 
 ## Next Up / Open Queue
 
+### Priority 1 — libvdp Scaler Register Exposure
+- **Status:** **DONE**
+- **Owner:** BronzeGate (firmware), BrightForge (hardware sanity test)
+- **Scope:** Wire `SCALE_CTRL`, `LOGIC_WIDTH`, `LOGIC_HEIGHT` into libvdp register map + host API. `BORDER_CTRL` already exposed.
+- **Depends on:** #10590 (scaler RTL proven)
+- **Validation:** Host can successfully change scaler mode from firmware; hardware proof shows bezel response to register writes.
+- **Checkpoints:**
+  - **A:** DONE (`c1f87fd`) — register constants + packer/writer helpers + compile check
+  - **B:** DONE (`d900182`) — ESP32/ESP32-S3/ESP8266 runtime bezel sketch, 3500ms mode cycles
+  - **C:** DONE (#10762) — BrightForge hardware sanity test: runtime-write path bezel verification + canary stability gate. Runtime-write parity proven byte-identical to POR-init.
+- **Closeout:** DONE — scenario cleanup merged (`fe8d6f3`), CyanPeak doc audit PASS (#10770), BronzeGate housekeeping landed (`ec838da`).
+
+### Priority 2 — readAsync Mems Audit
+- **Status:** **DONE**
+- **Owner:** BrightForge
+- **Scope:** Audit remaining `readAsync` memory usages across the design for safety / timing closure.
+- **Depends on:** None
+- **Validation:** All `readAsync` instances either justified with comment or converted to `readSync`.
+- **Checkpoints:**
+  - **A:** DONE (#10772) — 21 instances across 13 files, classified into 4 risk classes
+  - **A-revised:** DONE (#10778) — CP-A reclassified. All targets have same-cycle FSM semantics.
+  - **B(1):** DONE (`72adf70` → `dbb4c08`) — Uniform audit comments on all 21 instances. Merged to main.
+  - **B(2):** DONE (`d0b645e` → `17b1c2c`) — Demonstration conversion: `SdramTileFetch tileMapRom` readAsync→readSync with lookahead-address FSM. Sim byte-identical to baseline. Pattern documented as GOTCHA-14.
+  - **C:** DONE — Synthesis clean, 0 violations. Converted Mem uses `ram_style="block"`.
+- **Closeout:** DONE — CyanPeak doc audit PASS (#10786).
+
+### Priority 3 — Planar Hardening Task 3
+- **Status:** **IN-PROGRESS**
+- **Owner:** BrightForge
+- **Scope:** Defensive checks on planar read path.
+- **Depends on:** None
+- **Validation:** Simulation proof of planar path under stress conditions.
+- **Checkpoints:**
+  - **A:** DONE (#10790) — 8 entry points, boundary surfaces mapped, 6 risks classified, zero runtime asserts found
+  - **B(1):** DONE (`4ff92d5`) — Runtime `assert(...)` at all 6 risk sites. 80 lines, 2 files, zero new diagnostics. All planar regression sims PASS.
+  - **B(2):** IN-PROGRESS — 3 targeted sim discriminators: `PlanarBoundaryAddressSim`, `PlanarRefreshStallSim`, `PlanarWriteBufRaceSim`
+  - **B(3):** QUEUED — Conditional design change if CP-B(2) reproduces writeBuf race (Risk #3); SKIP if assert stays silent
+  - **C:** Simulation proof — stress-test scenarios pass, no regressions
+
+### Priority 4 — Reset-pin Lane
+- **Status:** **QUEUED**
+- **Owner:** BrightForge
+- **Scope:** Physical reset button / pin for Tang Nano 20K.
+- **Depends on:** None
+- **Validation:** Hardware proof: reset pin returns system to known state without power cycle.
+
 ### Integer Pixel-Repetition Scaler + Auto-Center Borders
-- **Status:** **IN-PROGRESS** (#10590).
+- **Status:** **DONE** (#10590).
 - **Scope:** Add integer pixel-repetition scaling to VdpTop output path + libvdp resolution APIs.
-- **Next Step:** BrightForge Checkpoint A (register contract + scaler skeleton).
+- **Closeout:** Merged to main @ `d69d404`. Hardware proof v3 validated by BrightForge #10731, merged by TopazCliff #10732.
 
 ### RGB565 Hardware Bench Framing Investigation
 - **Status:** **DEFERRED** (#10503 follow-up). 
@@ -120,6 +166,9 @@ Before opening a new lane, landing code, or sending a proof packet, verify the t
 ### Audit HOLD Iteration Limit
 If CyanPeak issues `HOLD`, BrightForge may correct and resubmit once. A second `HOLD` on the same scope must escalate to BronzeGate. No third HOLD cycle without PM intervention.
 
+### Doc-Audit Rule (PM-activated)
+CyanPeak is activated for documentation review after each priority completion. See `AGENTS/CyanPeak.md` §Doc-Audit Protocol. CyanPeak must review and sign off on docs before the next priority opens.
+
 ---
 
 ## Lane-Closeout Team Check (Mandatory)
@@ -135,6 +184,8 @@ Required reply content from each agent:
 4. **Status** — current lane/focus and capacity for next PM-assigned task
 
 No new large lane may be opened until the team check has been sent and replies have been reviewed. Small side lanes (doc fixes, sketch tweaks, sim-only cleanup) are exempt.
+
+**Override:** Project owner may direct immediate lane opening via direct instruction. TopazCliff records the override and proceeds.
 
 ---
 

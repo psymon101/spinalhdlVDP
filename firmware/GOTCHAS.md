@@ -187,3 +187,33 @@ the VDP side ever adds high-Z states.
 **Implication:** At 80 MHz, signal integrity on breadboards or long unshielded wires is poor. Reflections can cause bit-flips in bulk register writes, leading to corrupted palette or SDRAM data.
 
 **Fix:** Use **60 MHz** (`VDP_QSPI_SCK_WRITE_HZ`) as the production bulk-write speed. It provides nearly the same throughput (~6.8 MB/s) with significantly more SI margin. Interleaving data lines with multiple Ground wires on the ribbon cable is also recommended.
+
+### GOTCHA-12: Scaler Register Ordering and Safe-Boundary Commit
+
+**Fact:** The integer pixel-repetition scaler (lane #10590) uses safe-boundary commit logic. Register writes to `SCALE_CTRL`, `LOGIC_WIDTH`, and `LOGIC_HEIGHT` are staged in pending registers and committed only when `hCounter === 0`.
+
+**Implication:**
+1. **Set `LOGIC_WIDTH` and `LOGIC_HEIGHT` before enabling scale mode.** If you write `SCALE_CTRL` first with a non-1x scale factor while `LOGIC_WIDTH`/`LOGIC_HEIGHT` are still at POR defaults (640×480), the scaler may compute out-of-bounds line-buffer addresses. This was the root cause of the OOB-write bug caught by BronzeGate (#10697). The RTL now guards against this, but the ordering rule remains: size first, then scale mode.
+
+2. **Register writes take effect at the next frame boundary**, not immediately. Do not expect visible changes mid-frame.
+
+3. **Hardware silently clamps `scale × logicSize` to the active display dimensions.** A 4× scale of 320×240 on a 640×480 display will not crash; it will be clamped to the visible area. The auto-center bezel math computes offsets based on the clamped visible region.
+
+**Fix:** Always set size before scale:
+```c
+vdp_mode0_set_logic_size(320, 240);   // size first
+vdp_mode0_set_scale_ctrl(
+    vdp_mode0_scale_ctrl(2, 2, true)  // then scale mode
+);
+```
+
+---
+
+### GOTCHA-13: Scaler Bezel Test as Canonical Hardware Discriminator
+
+**Fact:** The scaler hardware proof uses a "bezel test" pattern: white bezel (palette[1]) + black scaled center (palette[64 default backdrop]). This is the unambiguous visual discriminator that the scaler is in the data path and auto-center math is working.
+
+**Implication:** If the capture shows all-white or all-black, the scaler is either disconnected (see `7ff34f0` anomaly) or the border/backdrop configuration is wrong. The bezel test must show **structured** white-on-black (or chosen color-on-color) with measurable bezel width.
+
+**Fix:** For hardware proof, always use the bezel test with `autoCenter=1`, `borderEnable=1`, and a high-contrast palette choice. Predict bezel width from `((hActive - scaleX*logicWidth) / 2)` and verify against capture mean.
+

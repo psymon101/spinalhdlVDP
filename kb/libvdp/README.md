@@ -166,6 +166,7 @@ python3 scripts/assets/bin_to_c_array.py build/frame.tiles.bin \
 | **Copper / HDMA** | `vdp_copper_enable`, `vdp_copper_upload`, `vdp_copper_swap_request`, `vdp_copper_upload_and_swap`, `vdp_mode0_set_hdma_ctrl`, `vdp_mode0_hdma_done_ack`, `vdp_mode0_set_hdma_ch_addr`, `vdp_mode0_set_hdma_data_ptr`, `vdp_mode0_hdma_write_data`, `vdp_mode0_set_hdma_base`, `vdp_mode0_hdma_ctrl_encode` | Double-buffer RAM and FSM control. |
 | **DMA / Blitter** | `vdp_mode0_dma_config`, `vdp_mode0_dma_ctrl`, `vdp_mode0_dma_write_staging`, `vdp_mode0_blit_config`, `vdp_mode0_blit_ctrl`, `vdp_mode0_blit_write_src` | DMA/Blitter engine init and control. |
 | **Raster** | `vdp_mode0_set_raster_trigger`, `vdp_mode0_trigger_ctrl` | All 3 hardware triggers. |
+| **Scaler** | `vdp_mode0_scale_ctrl`, `vdp_mode0_set_scale_ctrl`, `vdp_mode0_set_logic_size`, `vdp_mode0_set_scale_mode` | Integer pixel repetition + auto-center (Task 10590). |
 | **Sprite** | `vdp_mode0_set_sprite`, `vdp_sprite_upload`, `vdp_mode0_set_pattern_ptr`, `vdp_mode0_write_pattern_data` | 32-descriptor substrate + Pattern RAM. |
 | **Tables** | `vdp_mode0_write_linestate`, `vdp_mode0_set_vscroll_base`, `vdp_mode0_write_vscroll_entry` | V-scroll and line-buffer init. |
 

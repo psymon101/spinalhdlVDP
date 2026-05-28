@@ -29,6 +29,7 @@ platforms over a full 6-wire quad QSPI transport.
 - `test_qspi_smoke/` — Pico-native smoke test exercising the full libvdp surface.
 - `test_mode0_bad_apple/` — Pico demo uploading a monochrome Bad Apple frame.
 - `esp8266_asset_upload/` — ESP8266 template showing generated asset headers + `vdp_upload_asset()`
+- `esp_scaler_runtime_bezel/` — ESP32/ESP8266 runtime scaler exercise (Priority 1 proof)
 
 ## Build
 

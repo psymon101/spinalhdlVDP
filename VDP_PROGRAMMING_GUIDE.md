@@ -305,7 +305,7 @@ vdp_mode0_set_logical_resolution(320, 240);
 | `0x0310` | `VDP_CTRL` | bit0:Copper Enable, bit1:Copper Swap Request |
 | `0x0320` | `STATUS_STICKY` | bit0:Raster Match, bit8:DMA Done, bit9:Blit Done |
 | `0x0330` | `WIN1_X0` | Window 1 Left Boundary |
-| `0x0347` | `BORDER_CTRL` | bit0:Enable, bits[15:8]:Palette Index |
+| `0x0347` | `BORDER_CTRL` | bit0:Enable, bits[12:8]:Palette Index |
 | `0x0348` | `BACKDROP_INDEX` | 7-bit palette index for background fallthrough |
 | `0x0349` | `SCALE_CTRL` | bit[2:0]:scaleX, bit[6:4]:scaleY, bit[7]:autoCenter |
 | `0x034A` | `LOGIC_WIDTH` | 11-bit logical canvas width (1..640) |

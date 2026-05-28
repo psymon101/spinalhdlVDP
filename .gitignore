@@ -29,3 +29,8 @@ hw/gen/**
 !hw/gen/.gitkeep
 !hw/verilog/.gitkeep
 !hw/vhdl/.gitkeep
+
+# FPGA hardware capture artifacts (MP4/PNG proofs)
+fpga/tang20k/captures/*.mp4
+fpga/tang20k/captures/*.png
+fpga/tang20k/captures/*.json
