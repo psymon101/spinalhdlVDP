@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-27 (P3 Planar Hardening: CP-B(1) done, CP-B(2) in progress.)
+**Updated:** 2026-05-27 (P3 Planar Hardening: CP-B(1) done, CP-B(2) authorized via corrected channel #10799. Security incident #10796 resolved.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -27,10 +27,12 @@ This section tracks the active lane.
 | **Task ID** | — |
 | **Owner** | BrightForge |
 | **Baseline Commit** | `17b1c2c` (main, post-P2 merge) |
-| **Latest Auth Mail** | TopazCliff #10794 (CP-B(2) authorized) |
+| **Latest Auth Mail** | TopazCliff #10799 (CP-B(2) authorized, corrected channel) |
 | **Summary** | Defensive checks on planar read path. 6 risks identified, runtime asserts landed, sim discriminators in flight. |
 | **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): IN-PROGRESS (3 sims). B(3): QUEUED (conditional). C: QUEUED. |
 | **Next Step** | BrightForge delivers CP-B(2) sim discriminators + CP-B(3) go/no-go. |
+
+**Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
 ---
 
