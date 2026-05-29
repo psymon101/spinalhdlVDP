@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-27 (P3 Planar Hardening: FULLY CLOSED. CyanPeak doc audit PASS #10814. Team check sent #10815, awaiting replies before P4.)
+**Updated:** 2026-05-29 (P3 closed, P4 queued. BrightForge replied to team check #10853. Three active sub-lanes/action items in flight.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -30,7 +30,7 @@ This section tracks the active lane.
 | **Latest Auth Mail** | TopazCliff #10815 (lane-closeout team check sent) |
 | **Summary** | Defensive checks on planar read path. 6 risks identified, runtime asserts landed, sim discriminators in flight. |
 | **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): DONE (`50fcced`, `aa4b1d0`, `89ec7e9`). B(3): DONE (`4123604`). C: DONE (CyanPeak doc audit PASS #10814, fixes merged `60a6f03`). |
-| **Next Step** | Await team check replies (#10815) → review → open P4 (Reset-pin) lane. |
+| **Next Step** | Await team check replies (#10815) → review → open P4 (Reset-pin) lane. BrightForge standing by for PM priority assignment between active sub-lanes. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -84,6 +84,20 @@ This section tracks the active lane.
 - **Scope:** Physical reset button / pin for Tang Nano 20K.
 - **Depends on:** None
 - **Validation:** Hardware proof: reset pin returns system to known state without power cycle.
+
+### Sub-lane: 2bpp Planar FPGA Hardware Proof
+- **Status:** **IN-PROGRESS**
+- **Owner:** BrightForge
+- **Opened by:** TopazCliff #10851 (ACK sent, plan replied #10853-sub)
+- **Scope:** Generate 2bpp planar test asset, flash to Tang Nano 20K, capture visual proof.
+- **Validation:** Visual output matches source pattern; any mirroring/color-swap/stride-corruption = FAIL.
+
+### Action: Tile-Row Stride Verification (non-4bpp)
+- **Status:** **IN-PROGRESS**
+- **Owner:** BrightForge
+- **Opened by:** TopazCliff #10826 (ACK sent, analysis replied #10853-sub)
+- **Scope:** Confirm hardware fetch behavior for 1bpp and 2bpp tiles with fixed 8-byte row stride.
+- **Validation:** RTL analysis complete; hardware proof pending PM decision on priority.
 
 ### Integer Pixel-Repetition Scaler + Auto-Center Borders
 - **Status:** **DONE** (#10590).
