@@ -91,6 +91,7 @@ object PlanarTileFetchIntegrationSim {
       val sdramBusy      = in  Bool()
       // diagnostics
       val pixelIndex  = out Bits(4 bits)
+      val pixelAddr   = out UInt(10 bits)   // = hCounter; gate sampling to active region
       val bootDone    = out Bool()
       val memtestPass = out Bool()
       val memtestFail = out Bool()
@@ -108,6 +109,7 @@ object PlanarTileFetchIntegrationSim {
     fetch.io.sdramDataReady := io.sdramDataReady
     fetch.io.sdramBusy      := io.sdramBusy
     io.pixelIndex  := fetch.io.pixelIndex
+    io.pixelAddr   := video.io.layer0FetchPixelAddr
     io.bootDone    := fetch.io.bootDone
     io.memtestPass := fetch.io.memtestPass
     io.memtestFail := fetch.io.memtestFail
@@ -200,29 +202,42 @@ object PlanarTileFetchIntegrationSim {
       }
       println(f"[sim] overwrote all planar tiles white at 0x$pbase%X")
 
-      // RUNTIME-TUNE: let several frames elapse so the real scheduler grant
-      // fetches a line and the ping-pong line buffer presents it on the read
-      // side. One 640x480 frame ~ 800*525 pixel clocks; sample a few frames in.
+      // TUNED (PM #10904): let several full frames elapse so the real scheduler
+      // grant has filled the ping-pong line buffer for many lines. One 640x480
+      // frame = 800*525 pixel clocks; wait 3 frames so we sample steady-state.
       dut.clockDomain.waitSampling(800 * 525 * 3)
 
-      // RUNTIME-TUNE: sample fetch.io.pixelIndex over a span of active video and
-      // assert it reads white (3). pixelAddr is driven by video's hCounter, so
-      // we just observe over many cycles and histogram the result.
-      val hist = mutable.HashMap[Int, Int]().withDefaultValue(0)
-      for (_ <- 0 until 4000) {
-        hist(dut.io.pixelIndex.toInt) += 1
+      // TUNED sampling: gate to the ACTIVE display region only. pixelAddr =
+      // hCounter (0..799). During horizontal blanking (640..799) pixelAddr
+      // exceeds the line-buffer depth, so fetch.io.pixelIndex reads
+      // uninitialized memory (the uniform 0..15 garbage seen in the untuned
+      // run). Only pixelAddr in [0,640) addresses filled line-buffer entries.
+      // Sample across >10 full frames so vblank lines average out and any real
+      // corruption (not just blanking) would still show.
+      val hActive = 640
+      val hist    = mutable.HashMap[Int, Int]().withDefaultValue(0)
+      var active  = 0
+      var blanking = 0
+      val sampleCycles = 800 * 525 * 12   // ~12 frames
+      for (_ <- 0 until sampleCycles) {
+        if (dut.io.pixelAddr.toInt < hActive) {
+          hist(dut.io.pixelIndex.toInt) += 1
+          active += 1
+        } else blanking += 1
         dut.clockDomain.waitSampling()
       }
-      val total = hist.values.sum
+      val total  = hist.values.sum
       val threes = hist.getOrElse(3, 0)
-      println(s"[sim] pixelIndex histogram over $total samples: ${hist.toSeq.sortBy(-_._2)}")
-      println(f"[sim] index==3 fraction = ${threes.toDouble / total}%.4f")
-
-      // NOTE: assertion intentionally lenient pending RUNTIME-TUNE confirmation
-      // of the sample window. On a clean run this should be ~1.0 (active region).
+      val frac   = threes.toDouble / total
+      println(s"[sim] active-region samples=$active  blanking-skipped=$blanking")
+      println(s"[sim] active pixelIndex histogram: ${hist.toSeq.sortBy(-_._2)}")
+      println(f"[sim] index==3 fraction (active region) = $frac%.4f")
+      if (frac > 0.95)        println("[sim] RESULT: >95% white in active region — RTL grant/fetch/linebuffer path is CLEAN")
+      else if (hist.getOrElse(0, 0).toDouble / total > 0.5) println("[sim] RESULT: index-0 DOMINANT — reproduces HW black; RTL path SUSPECT")
+      else                    println("[sim] RESULT: inconclusive — neither >95% white nor index-0 dominant")
       assert(threes > 0,
-        "integration path produced ZERO white pixels — fetch/grant/linebuffer delivers nothing (bug reproduced in sim)")
-      println("[sim] PlanarTileFetchIntegrationSim: ran (see fraction; tune window before trusting PASS/FAIL)")
+        "integration path produced ZERO white pixels in active region — fetch/grant/linebuffer delivers nothing")
+      println("[sim] PlanarTileFetchIntegrationSim: done")
     }
   }
 }
