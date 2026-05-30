@@ -749,14 +749,57 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   pixelArea.fetchL1.io.sdramBusy      := sdramArea.ctrl.io.busy
 
   val uploadDrive = sdramCdcArea.uploadWrPulse
-  sdramArea.ctrl.io.rd      := sdramArbiter.io.sdramRd
+
+  // DIAG #10908 (P4 Task A) — sdram-domain one-shot read FSM for the readback
+  // surface. Arms on the dbgArm toggle (CDC from pixel domain); issues the read
+  // ONLY when the SDRAM is fully idle (no arbiter rd/wr, no upload, no refresh,
+  // controller !busy). When busy=0 there is no transaction in flight, so no
+  // engine (fetch/bitmap/planar) is awaiting data_ready — the debug read can
+  // never steal another consumer's data_ready. Result latched in dataReg.
+  val dbgReadArea = new ClockingArea(sdramClockDomain) {
+    val armSync  = BufferCC(pixelArea.dbgArm, False)
+    val armPrev  = RegNext(armSync) init False
+    val armEdge  = armSync =/= armPrev
+    val addrSync = BufferCC(pixelArea.dbgAddr, U(0, 23 bits))
+    val pending  = Reg(Bool()) init False
+    val inFlight = Reg(Bool()) init False
+    val rdPulse  = Reg(Bool()) init False
+    val rdAddr   = Reg(UInt(23 bits)) init 0
+    val dataReg  = Reg(Bits(32 bits)) init 0
+    rdPulse := False
+    when(armEdge) { pending := True }
+    val sdramIdle = !sdramArbiter.io.sdramRd && !sdramArbiter.io.sdramWr &&
+                    !uploadDrive && !pixelArea.fetch.io.sdramRefresh &&
+                    !sdramArea.ctrl.io.busy
+    when(pending && !inFlight && sdramIdle) {
+      rdPulse  := True
+      rdAddr   := addrSync
+      inFlight := True
+      pending  := False
+    }
+    when(inFlight && sdramArea.ctrl.io.data_ready) {
+      dataReg  := sdramArea.ctrl.io.dout32
+      inFlight := False
+    }
+  }
+
+  sdramArea.ctrl.io.rd      := sdramArbiter.io.sdramRd || dbgReadArea.rdPulse
   sdramArea.ctrl.io.wr      := sdramArbiter.io.sdramWr || uploadDrive
   sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh
-  sdramArea.ctrl.io.addr    := Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramAddr, sdramArbiter.io.sdramAddr)
+  sdramArea.ctrl.io.addr    := Mux(dbgReadArea.rdPulse, dbgReadArea.rdAddr,
+                                Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramAddr, sdramArbiter.io.sdramAddr))
   sdramArea.ctrl.io.din     := Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramDin,  sdramArbiter.io.sdramDin)
   pixelArea.fetch.io.sdramDout      := sdramArea.ctrl.io.dout
   pixelArea.fetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
   pixelArea.fetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready
+  // DIAG #10908 (P4 Task A) — CDC the sdram-domain read result back to the
+  // pixel domain and feed the QspiDecoder sel=8 surface. dataReg is quasi-static
+  // (changes once per armed read; host polls it in a much later transaction),
+  // so a 2-stage BufferCC is a sufficient synchronizer.
+  val dbgResultPixArea = new ClockingArea(pixelClockDomain) {
+    pixelArea.debugSdramDataPix := BufferCC(dbgReadArea.dataReg, B(0, 32 bits))
+  }
+
   // Task 44b iter 6: gate BitmapRowFetch init on tile-fetch bootDone
   // (forward-referenced because `fetch` is declared after bitmapRowFetch
   // in pixelArea block).
