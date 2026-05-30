@@ -408,7 +408,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // same safe-boundary pattern as layerEnable — pending shadow + commit at
   // hCounter===0. Widened from 1→2 bits to encode shuffled mode (0x02)
   // alongside packed (0x00) and planar (0x01). See layer0TileDecodeMode.
-  val tileDecodeModeReg     = Reg(Bits(2 bits)) init B(1, 2 bits) // DIAG #11011: hardwire planar (mode 1) for SDRAM-fix decisive build; revert after lane
+  val tileDecodeModeReg     = Reg(Bits(2 bits)) init B(0, 2 bits)
   val tileDecodeModePend    = Reg(Bits(2 bits)) init B(0, 2 bits)
   val tileDecodeModePendHit = Reg(Bool()) init False
   when(effWrite && effAddr === U(0x0311, 15 bits)) {
