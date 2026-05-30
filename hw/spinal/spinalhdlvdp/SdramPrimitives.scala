@@ -19,7 +19,13 @@ case class Tang20kSdramPll() extends BlackBox {
   */
 case class SdramController() extends BlackBox {
   setDefinitionName("sdram")
-  addGeneric("FREQ", 27_000_000)
+  // EM638325-6 timing fix (#11011): FREQ matches the 64.8MHz sdram clock so the
+  // power-on init counter (sdram.v: FREQ/1000*200/1000) reaches 200us, not 83us.
+  // T_RP/T_RCD=2 (30.9ns >= 18ns -6 grade); T_RC=6 (refresh-cycle safety).
+  addGeneric("FREQ", 64_800_000)
+  addGeneric("T_RP", 2)
+  addGeneric("T_RCD", 2)
+  addGeneric("T_RC", 6)
 
   val io = new Bundle {
     // SDRAM side (directly connected to Gowin's magic port names in the top wrapper)
