@@ -439,6 +439,27 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // Mode0 register bus is driven straight from the arbitrator's mixed output.
     video.io.regBus <> regBusArbiter.io.mixed
 
+    // === DIAG #10908 (P4 Task A) — host-visible SDRAM readback surface ========
+    // Two REG_WRITE regs latch a 23-bit debug SDRAM address; writing the HI reg
+    // (0x0327) ARMS a one-shot read performed in the sdram domain (dbgReadArea
+    // at top level). The 32-bit result is CDC'd back here and exposed via
+    // READ_STATUS sel=8. Diagnostic-only — remove with the 2bpp planar HW lane.
+    val dbgMixed   = regBusArbiter.io.mixed
+    val dbgAddrLo  = Reg(Bits(16 bits)) init 0
+    val dbgAddrHi  = Reg(Bits(7 bits))  init 0
+    val dbgArm     = Reg(Bool())        init False
+    when(dbgMixed.enable && dbgMixed.addr === U(0x0326, 15 bits)) {
+      dbgAddrLo := dbgMixed.data
+    }
+    when(dbgMixed.enable && dbgMixed.addr === U(0x0327, 15 bits)) {
+      dbgAddrHi := dbgMixed.data(6 downto 0)
+      dbgArm    := !dbgArm   // toggle = one-shot trigger across the CDC
+    }
+    val dbgAddr = (dbgAddrHi ## dbgAddrLo).asUInt   // 23 bits
+    // Result wire driven from the sdram-domain read FSM via BufferCC (top level).
+    val debugSdramDataPix = Bits(32 bits)
+    qspiDec.io.debug_sdram_data := debugSdramDataPix
+
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100
     // Bouncing logic removed for the R2 proof — sprites are pinned at fixed
