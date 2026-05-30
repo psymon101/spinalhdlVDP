@@ -47,6 +47,10 @@ case class QspiDecoder() extends Component {
     // via READ_STATUS sel=7 per MODE_SELECT_ARCHITECTURE.md v1.1 §4.2 / Q6
     // (CyanPeak #9161 audit correction).
     val live_mode = in UInt (4 bits)
+    // DIAG #10908 (P4 Task A): host-visible SDRAM readback. 32-bit word fetched
+    // from a debug-configurable SDRAM address (regs 0x0326/0x0327 in TopTang),
+    // surfaced over READ_STATUS sel=8. Diagnostic-only; remove with the lane.
+    val debug_sdram_data = in Bits (32 bits)
 
     // Task 34 — SDRAM_WRITE bridge interface.
     val sdramHeaderValid = out Bool()
@@ -198,6 +202,12 @@ case class QspiDecoder() extends Component {
         // Host polls this after a MODE_SELECT write to confirm V=0 commit
         // (alternative to STATUS_STICKY bit 11 MODE_SELECT_CHANGED).
         rxWord := B(0, 28 bits) ## io.live_mode.asBits
+      }
+      is(U(8, 8 bits)) {                                                  // DIAG #10908
+        // sel=8 SDRAM readback: the 32-bit word the SDRAM controller returned
+        // for the debug address armed via regs 0x0326/0x0327. Byte order matches
+        // dout32 (little-endian: byte0 in [7:0]).
+        rxWord := io.debug_sdram_data
       }
       default          { rxWord := B(0, 32 bits) }
     }

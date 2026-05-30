@@ -19,7 +19,10 @@ case class Tang20kSdramPll() extends BlackBox {
   */
 case class SdramController() extends BlackBox {
   setDefinitionName("sdram")
-  addGeneric("FREQ", 27_000_000)
+  // TEST 3 (#11034): keep FREQ=64.8M (fixes the verified 83us->200us init bug)
+  // but leave T_RP/T_RCD/T_RC at sdram.v defaults (1/1/4) — isolates whether the
+  // T_xx bump regressed SDRAM writes (#11033). FREQ-only is the candidate fix.
+  addGeneric("FREQ", 64_800_000)
 
   val io = new Bundle {
     // SDRAM side (directly connected to Gowin's magic port names in the top wrapper)
