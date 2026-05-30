@@ -804,7 +804,15 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     }
   }
 
-  sdramArea.ctrl.io.rd      := sdramArbiter.io.sdramRd || dbgReadArea.rdPulse
+  // DIAG #10928 readback fix: the debug read OWNS the controller bus from issue
+  // (rdPulse) until capture (inFlight clears). Without `!dbgReadArea.inFlight`,
+  // the fetch engine kept issuing reads through the arbiter while the debug read
+  // was outstanding, so the snoop at `when(inFlight && data_ready)` latched the
+  // FETCH transaction's dout32 — data independent of the debug address (the
+  // "fixed data regardless of upload/addr" symptom in TopazCliff #10928).
+  // sdramIdle already blocks issue while a fetch read is mid-flight, so this only
+  // delays a not-yet-started fetch read by the few cycles of the one-shot read.
+  sdramArea.ctrl.io.rd      := (sdramArbiter.io.sdramRd && !dbgReadArea.inFlight) || dbgReadArea.rdPulse
   sdramArea.ctrl.io.wr      := sdramArbiter.io.sdramWr || uploadDrive
   sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh
   sdramArea.ctrl.io.addr    := Mux(dbgReadArea.rdPulse, dbgReadArea.rdAddr,
