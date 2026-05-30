@@ -660,15 +660,22 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // R4 production LED mapping — restored after stage-1c diagnostic closed.
     // Debug attribute probe outputs remain exposed on the fetch engine for
     // any future diagnostic lane but are not surfaced to LEDs.
+    // DIAG #10963: sticky fetch-underrun telemetry (instrumentation only — no
+    // scheduling/arbitration change). fetch.io.underrun is produced in the SDRAM
+    // clock domain; BufferCC into this pixel domain, then latch sticky so a brief
+    // per-line underrun is never missed. Sticky clears only on pixelReset (PLL
+    // lock loss / power-cycle) — satisfies the "latches until cleared" requirement.
+    val underrunSyncPix   = BufferCC(fetch.io.underrun, False)
+    val underrunStickyReg = Reg(Bool()) init False
+    when(underrunSyncPix) { underrunStickyReg := True }
+
     O_led := B"6'b111111"
     O_led(0) := !pll.LOCK
     O_led(1) := !sdramPll.lock
     O_led(2) := !fetch.io.bootDone
     O_led(3) := !video.io.irq            // Task 35 — lit while any enabled status bit is set
-    // memtestFail / underrun were bring-up telemetry — no production
-    // consumer. Tie LEDs to constants so the producers DCE-prune.
-    O_led(4) := False
-    O_led(5) := False
+    O_led(4) := !underrunStickyReg       // DIAG #10963: lit once ANY fetch underrun has occurred (sticky)
+    O_led(5) := !underrunSyncPix         // DIAG #10963: live (non-sticky) underrun pulse
 
   }
 
