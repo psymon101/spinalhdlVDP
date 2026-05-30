@@ -209,11 +209,6 @@ case class QspiDecoder() extends Component {
         // dout32 (little-endian: byte0 in [7:0]).
         rxWord := io.debug_sdram_data
       }
-      is(U(9, 8 bits)) {                                                  // DIAG #10969
-        // sel=9 LED state: logical (active-HIGH) board LED bits in [5:0],
-        // upper bits zero. bit4=underrunSticky, bit5=underrunLive.
-        rxWord := B(0, 26 bits) ## io.debug_led_state
-      }
       default          { rxWord := B(0, 32 bits) }
     }
     rxByteIdx := 0

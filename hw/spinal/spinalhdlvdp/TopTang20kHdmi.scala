@@ -677,11 +677,6 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     O_led(4) := !underrunStickyReg       // DIAG #10963: lit once ANY fetch underrun has occurred (sticky)
     O_led(5) := !underrunSyncPix         // DIAG #10963: live (non-sticky) underrun pulse
 
-    // DIAG #10969: expose logical (active-HIGH) LED state over QSPI READ_STATUS
-    // sel=9. ~O_led inverts the active-low board encoding back to logical, so
-    // bit4=underrunSticky, bit5=underrunLive (matches sel=9 contract).
-    qspiDec.io.debug_led_state := ~O_led
-
   }
 
   // Task 34 CDC hardening (CyanPeak #7689 / BronzeGate #7690 path β).
