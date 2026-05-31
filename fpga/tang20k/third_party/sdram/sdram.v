@@ -77,14 +77,20 @@ reg dq_oen;         // 0 means output
 reg [DATA_WIDTH-1:0] dq_out;
 assign SDRAM_DQ = dq_oen ? 32'bzzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz_zzzz : dq_out;
 wire [DATA_WIDTH-1:0] dq_in = SDRAM_DQ;     // DQ input
+// #11168 FIX A (CyanPeak): register captured read data on clk. dout32 was
+// combinational (IO_sdram_dq -> dout32 -> fetch FSM = the -7.46ns read-path
+// setup violation). Registering cuts that path to IOBUF->FF, freeing a full
+// cycle. Adds 1 cycle of read latency -> data_ready/dout_buf below shift +1.
+reg [DATA_WIDTH-1:0] dq_in_r;
+always @(posedge clk) dq_in_r <= dq_in;
 
 reg [1:0] off;          // byte offset
 reg [7:0] dout_buf;
-wire [7:0] next_dout =  off == 0 ? dq_in[7:0] :
-                        off == 1 ? dq_in[15:8] :
-                        off == 2 ? dq_in[23:16] : dq_in[31:24];
+wire [7:0] next_dout =  off == 0 ? dq_in_r[7:0] :
+                        off == 1 ? dq_in_r[15:8] :
+                        off == 2 ? dq_in_r[23:16] : dq_in_r[31:24];
 assign dout = data_ready ? next_dout : dout_buf;
-assign dout32 = dq_in;
+assign dout32 = dq_in_r;
 assign SDRAM_CLK = clk_sdram;
 assign SDRAM_CKE = 1'b1;
 assign SDRAM_nCS = 1'b0;
@@ -191,10 +197,10 @@ always @(posedge clk) begin
             SDRAM_DQM <= 4'b0;
             off <= addr_buf[1:0];
         end
-        {READ, T_RCD+CAS}: begin
+        {READ, T_RCD+CAS+4'd1}: begin   // #11168 FIX A: +1 for registered dq_in_r
             data_ready <= 1'b1;
         end
-        {READ, T_RCD+CAS+4'd1}: begin
+        {READ, T_RCD+CAS+4'd2}: begin
             data_ready <= 1'b0;
             dout_buf <= next_dout;
             busy <= 0;

@@ -56,7 +56,12 @@ defparam rpll_inst.FCLKIN = "27";
 defparam rpll_inst.DYN_IDIV_SEL = "false";
 defparam rpll_inst.DYN_FBDIV_SEL = "false";
 defparam rpll_inst.DYN_ODIV_SEL = "false";
-// PSDA_SEL="1000" = 180° (per UG286 Table 5-7).
+// PSDA_SEL="1000" = 180° phase for CLKOUTP (per UG286 Table 5-7).
+// #11168 FIX B TRIED + REVERTED: 90° ("0100") was expected to center the read
+// eye, but STA showed it made the WRITE output path WORSE (-8.635 vs -4.777 at
+// 180°) — 90° gives the addr/cmd/write-DQ outputs only ~2.36ns budget. Kept at
+// 180° pending CyanPeak STA reconciliation (the residual write-path violation
+// magnitude looks like a clock-routing/insertion-delay or modeling artifact).
 // DUTYDA_SEL="1000" = tool default; "0000" is rejected by Gowin (see EX0205).
 defparam rpll_inst.PSDA_SEL = "1000";
 defparam rpll_inst.DYN_DA_EN = "false";
