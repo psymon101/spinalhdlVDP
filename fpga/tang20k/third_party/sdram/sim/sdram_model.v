@@ -66,20 +66,20 @@ module sdram_model #(
       end
       CMD_RD: begin
         rd_word   <= mem[word_addr(SDRAM_BA, act_row[SDRAM_BA], col)];
-        rd_timer  <= CAS;          // present data CAS cycles later
-        rd_active <= 1'b1;
-      end
+        rd_timer  <= CAS + 3;      // hold the read word across a wide window so
+        rd_active <= 1'b1;         // the controller's capture edge (registered
+      end                          // dq_in_r after #11168 FIX A, +1 latency) sees it
       CMD_REF: refreshed <= 1'b1;
       default: ;
     endcase
     if (rd_active) begin
-      if (rd_timer > 1) rd_timer <= rd_timer - 1;
+      if (rd_timer > 0) rd_timer <= rd_timer - 1;
       else              rd_active <= 1'b0;
     end
   end
 
-  // Drive DQ on the CAS cycle (and one extra) so the controller's sample edge
-  // sees stable read data regardless of the exact capture cycle.
-  wire drive_dq = rd_active && (rd_timer <= 2);
+  // Drive DQ for the whole read window (the real chip holds data through the
+  // burst + tOH); reads are busy-spaced so this never collides with a write.
+  wire drive_dq = rd_active;
   assign SDRAM_DQ = drive_dq ? rd_word : 32'bz;
 endmodule
