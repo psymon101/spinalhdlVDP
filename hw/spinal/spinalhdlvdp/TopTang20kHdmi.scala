@@ -1,7 +1,7 @@
 package spinalhdlvdp
 
 import spinal.core._
-import spinal.lib.BufferCC   // Task 34 CDC — toggle-based crossing for upload pulse
+import spinal.lib._   // #11123 FIX 1: StreamFifoCC lossless upload crossing (+ BufferCC)
 
 /** Tang Nano 20K top.
   *
@@ -408,7 +408,8 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     qspiSdramBridge.io.byteIn      := qspiDec.io.sdramByteOut
     qspiSdramBridge.io.byteValid   := qspiDec.io.sdramByteValid
     qspiSdramBridge.io.allowUpload := !video.io.de
-    qspiSdramBridge.io.sdramBusy   := sdramArea.ctrl.io.busy
+    // #11123 FIX 1: bridge no longer takes raw cross-domain busy; its wrCmd
+    // Stream is crossed losslessly via uploadCc (StreamFifoCC) at top level.
     qspiDec.io.upload_busy := qspiSdramBridge.io.uploadBusy
     qspiDec.io.upload_done := qspiSdramBridge.io.uploadDone
 
@@ -679,21 +680,17 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
 
   }
 
-  // Task 34 CDC hardening (CyanPeak #7689 / BronzeGate #7690 path β).
-  // Toggle-based crossing for the upload-side write pulse: bridge (in
-  // pixelClockDomain) flips wrToggle on each committed write. Here we
-  // 2-stage-sync it into sdramClockDomain and edge-detect to regenerate
-  // a one-cycle pulse. `sdramAddr` / `sdramDin` outputs from the bridge
-  // are held stable between writes (FSM holds them in wrAddrReg/wrDinReg
-  // until the next write trigger), so sampling them on the regenerated
-  // pulse is safe. This placement after pixelArea avoids a forward
-  // reference into the bridge.
-  val sdramCdcArea = new ClockingArea(sdramClockDomain) {
-    val uploadToggleSync = BufferCC(pixelArea.qspiSdramBridge.io.wrToggle, False)
-    val uploadTogglePrev = RegNext(uploadToggleSync) init False
-    val uploadWrPulse    = uploadToggleSync =/= uploadTogglePrev
-
-  }
+  // #11123 FIX 1 (BronzeGate #11120 Finding 1) — lossless pixel->SDRAM upload
+  // crossing. The bridge (pixelClockDomain) emits a `wrCmd` Stream carrying
+  // {addr,din} in ONE 31-bit payload; this StreamFifoCC carries it into
+  // sdramClockDomain with address and data inseparable. Replaces the prior
+  // toggle + quasi-static-bus + raw-cross-domain-busy scheme, which could
+  // mis-pair addr/data, collapse two toggle flips, and drop writes — the cause
+  // of partial sentinel bytes and writes landing at the wrong address.
+  // depth=16 (power-of-two, GT-022). The SDRAM-side pop (uploadPopArea, below
+  // dbgReadArea) consumes one entry only when the controller can accept it.
+  val uploadCc = StreamFifoCC(Bits(31 bits), 16, pixelClockDomain, sdramClockDomain)
+  uploadCc.io.push << pixelArea.qspiSdramBridge.io.wrCmd
   // Task 3 fix (BronzeGate #9344, CoralReef convergence #9343):
   // `planarDataReadyArea` defined AFTER `sdramArbiter` below — see post-
   // arbiter wiring for the toggle-based pulse regeneration of
@@ -776,7 +773,8 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   pixelArea.fetchL1.io.sdramDataReady := sdramArea.ctrl.io.data_ready
   pixelArea.fetchL1.io.sdramBusy      := sdramArea.ctrl.io.busy
 
-  val uploadDrive = sdramCdcArea.uploadWrPulse
+  // #11123 FIX 1: `uploadDrive` is defined below (uploadPopArea), after
+  // dbgReadArea, so the upload pop can defer to an in-flight debug read.
 
   // DIAG #10908 (P4 Task A) — sdram-domain one-shot read FSM for the readback
   // surface. Arms on the dbgArm toggle (CDC from pixel domain); issues the read
@@ -796,8 +794,11 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val dataReg  = Reg(Bits(32 bits)) init 0
     rdPulse := False
     when(armEdge) { pending := True }
+    // #11123 FIX 1: priority reversed — the upload pop (uploadPopArea) now
+    // defers to this debug read (it checks rdPulse/inFlight/pending), so
+    // sdramIdle no longer needs to reference uploadDrive (avoids a cycle).
     val sdramIdle = !sdramArbiter.io.sdramRd && !sdramArbiter.io.sdramWr &&
-                    !uploadDrive && !pixelArea.fetch.io.sdramRefresh &&
+                    !pixelArea.fetch.io.sdramRefresh &&
                     !sdramArea.ctrl.io.busy
     when(pending && !inFlight && sdramIdle) {
       rdPulse  := True
@@ -811,6 +812,23 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     }
   }
 
+  // #11123 FIX 1: SDRAM-side pop of the upload-write CC FIFO. Consume ONE entry
+  // only when the controller can accept a write: not busy, in blanking (de
+  // synced into this domain — preserves the prior !activeVideo upload gating so
+  // uploads never collide with fetch reads), and no debug read in flight/pending
+  // (upload defers to the host-initiated readback). addr+din arrive together in
+  // the popped payload, so they can never mis-pair across the crossing.
+  val uploadPopArea = new ClockingArea(sdramClockDomain) {
+    val deSync    = BufferCC(pixelArea.video.io.de, False)
+    val canAccept = !sdramArea.ctrl.io.busy && !deSync &&
+                    !dbgReadArea.rdPulse && !dbgReadArea.inFlight && !dbgReadArea.pending
+    uploadCc.io.pop.ready := canAccept
+    val fire = uploadCc.io.pop.fire
+    val addr = uploadCc.io.pop.payload(30 downto 8).asUInt
+    val din  = uploadCc.io.pop.payload(7 downto 0)
+  }
+  val uploadDrive = uploadPopArea.fire
+
   // DIAG #10928 readback fix: the debug read OWNS the controller bus from issue
   // (rdPulse) until capture (inFlight clears). Without `!dbgReadArea.inFlight`,
   // the fetch engine kept issuing reads through the arbiter while the debug read
@@ -823,8 +841,8 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   sdramArea.ctrl.io.wr      := sdramArbiter.io.sdramWr || uploadDrive
   sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh
   sdramArea.ctrl.io.addr    := Mux(dbgReadArea.rdPulse, dbgReadArea.rdAddr,
-                                Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramAddr, sdramArbiter.io.sdramAddr))
-  sdramArea.ctrl.io.din     := Mux(uploadDrive, pixelArea.qspiSdramBridge.io.sdramDin,  sdramArbiter.io.sdramDin)
+                                Mux(uploadDrive, uploadPopArea.addr, sdramArbiter.io.sdramAddr))
+  sdramArea.ctrl.io.din     := Mux(uploadDrive, uploadPopArea.din,  sdramArbiter.io.sdramDin)
   pixelArea.fetch.io.sdramDout      := sdramArea.ctrl.io.dout
   pixelArea.fetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
   pixelArea.fetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready

@@ -5,34 +5,37 @@ import spinal.lib._
 import spinal.lib.fsm._
 
 /** Task 34 — Bridge between `QspiDecoder`'s SDRAM_WRITE payload stream and
-  * the `SdramController` 8-bit write port.
+  * the SDRAM controller's 8-bit write port.
   *
   * Contract (pixel clock domain):
   *   - `headerValid` pulses when QspiDecoder receives a valid SDRAM_WRITE
   *     header.  `addrInit` and `lenBytes` are sampled on that pulse.
-  *   - `byteValid` pulses each time a payload byte arrives from the
-  *     decoder.  The bridge latches the byte and issues a per-byte SDRAM
-  *     write at `addrInit + n`, where n counts from 0.
-  *   - `allowUpload` gates writes to the controller.  Per artifact §4.4,
-  *     Checkpoint C uses vblank-only gating; the top-level wires this to
-  *     `!activeVideo` so upload writes never collide with fetch reads.
-  *     When low, the bridge holds its output byte latched and waits; the
-  *     host is expected to pace bursts so the small buffer doesn't
-  *     overrun.
-  *   - `sdramBusy` from the controller is honored: the bridge asserts
-  *     `sdramWr` for one cycle when busy is low and allowUpload is high.
+  *   - `byteValid` pulses each time a payload byte arrives from the decoder.
+  *     Bytes are buffered in a small FIFO and emitted as a sequence of
+  *     per-byte write commands at `addrInit + n`.
+  *   - `allowUpload` gates emission. The top wires this to `!activeVideo`
+  *     so upload writes never collide with fetch reads.
+  *
+  * #11123 FIX 1 (CDC repair, BronzeGate #11120 Finding 1):
+  *   The previous design crossed the write into the SDRAM clock domain as a
+  *   toggle pulse PLUS quasi-static `addr`/`din` buses, and gated emission on
+  *   a RAW cross-domain `busy`. That is not lossless: the regenerated pulse
+  *   could sample stale/younger addr-data, two toggle flips could collapse,
+  *   and using async `busy` as the acceptance handshake dropped writes. That
+  *   produced partial bytes and writes landing at the wrong address.
+  *
+  *   This bridge now exposes a proper `wrCmd` Stream carrying `{addr,din}`
+  *   ATOMICALLY in one payload. The top crosses it into the SDRAM domain via a
+  *   `StreamFifoCC` (lossless, addr+data inseparable) and the SDRAM side pops
+  *   one entry only when the controller can accept it. No toggle, no
+  *   quasi-static buses, no raw cross-domain `busy` handshake.
   *
   * Status outputs:
-  *   - `uploadBusy` high while transaction is in flight (header latched,
-  *     len bytes still pending).
-  *   - `uploadDone` pulses one cycle when the last byte has been written.
+  *   - `uploadBusy` high while a transaction is in flight.
+  *   - `uploadDone` pulses one cycle after the last byte is emitted.
   *
-  * Address wrap (CyanPeak #7680 callout): `sdramAddr` is 23 bits, so the
-  * addr + n calculation naturally wraps at 8 MB boundary. Bridge does
-  * not reject out-of-range addresses — it is the host's responsibility
-  * (per §6 risks table) to stay within allocated asset regions. Writes
-  * beyond the writable region just corrupt reserved memory; the bridge
-  * neither enforces bounds nor raises an error.
+  * Address wrap (CyanPeak #7680): `addr` is 23 bits and wraps at the 8 MB
+  * boundary; the bridge does not bounds-check (host's responsibility).
   */
 case class QspiSdramBridge() extends Component {
   val io = new Bundle {
@@ -43,72 +46,37 @@ case class QspiSdramBridge() extends Component {
     val byteIn      = in Bits(8 bits)
     val byteValid   = in Bool()
 
-    // Arbitration gate (high = upload allowed to drive SDRAM)
+    // Arbitration gate (high = upload allowed to emit)
     val allowUpload = in Bool()
 
-    // To SDRAM controller
-    val sdramWr     = out Bool()
-    val sdramAddr   = out UInt(23 bits)
-    val sdramDin    = out Bits(8 bits)
-    val sdramBusy   = in  Bool()
+    // To SDRAM domain (via StreamFifoCC at the top): one write command per
+    // byte. payload = addr(23) ## din(8) = 31 bits, atomic.
+    val wrCmd       = master Stream (Bits(31 bits))
 
     // Host-visible status
     val uploadBusy  = out Bool()
     val uploadDone  = out Bool()
-
-    // Task 34 CDC fix (CyanPeak #7689, BronzeGate #7690 path β):
-    // Toggle signal that flips on each successful sdramWr pulse. The
-    // destination (sdram) clock domain BufferCC's this and edge-detects
-    // to regenerate a one-cycle pulse in its own domain. Together with
-    // the stable `sdramAddr` / `sdramDin` outputs (held unchanged between
-    // writes, inherent to the FSM), this gives a safe pulse+data CDC
-    // without losing writes due to unfavorable pixel↔sdram clock phase.
-    val wrToggle = out Bool()
   }
 
-  val addrReg    = Reg(UInt(23 bits)) init 0
-  val bytesLeft  = Reg(UInt(17 bits)) init 0
-  // Task 3 host-upload repair (CoralReef #9360, CyanPeak audit PASS #9362):
-  // replace the prior single-byte latch (`latchedByte` + `hasByte`) with a
-  // 16-byte StreamFifo. The single-byte latch silently dropped bytes any
-  // time `allowUpload` was low (active video) — at 500 kHz QSPI, ~13 bytes
-  // arrived per active line and only 1 could be held. The 16-byte FIFO
-  // absorbs the per-line backlog with margin; H-blank drains it faster
-  // than active video can fill it.
+  val addrReg   = Reg(UInt(23 bits)) init 0
+  val bytesLeft = Reg(UInt(17 bits)) init 0
+
+  // Task 3 (CoralReef #9360): 16-byte FIFO absorbs the per-active-line backlog
+  // (~13 bytes/line at 500 kHz QSPI) so no byte is dropped while allowUpload
+  // is low; H-blank drains it faster than active video fills it.
   val byteFifo = StreamFifo(Bits(8 bits), depth = 16)
-
-  // The write address presented to the SDRAM controller lags addrReg by
-  // one cycle so it carries the CURRENT byte's address on the cycle the
-  // wr pulse asserts, while addrReg has already advanced to the next
-  // byte ready for the following write.
-  val wrAddrReg = Reg(UInt(23 bits)) init 0
-  val wrDinReg  = Reg(Bits(8 bits)) init 0
-  val wrPulse  = Reg(Bool()) init False
-  val donePulse = Reg(Bool()) init False
-  // Toggle reg: flips every time wrPulse asserts. Stable between flips,
-  // which makes it safe to cross into sdramClockDomain via BufferCC.
-  val wrToggleReg = Reg(Bool()) init False
-  wrPulse   := False   // default — single-cycle
-  donePulse := False
-
-  // Push every incoming byte into the FIFO. Backpressure is intentionally
-  // ignored on `byteValid` (the QSPI decoder source has no flow-control
-  // input); depth=16 absorbs the worst-case ~13 bytes/active-line backlog
-  // with margin. If a sustained-overflow scenario is ever introduced,
-  // expose `byteFifo.io.push.ready` here.
   byteFifo.io.push.valid   := io.byteValid
   byteFifo.io.push.payload := io.byteIn
+  // Backpressure on byteValid is intentionally ignored (the decoder source
+  // has no flow-control input); depth 16 covers the worst-case line backlog.
 
-  // Pop one byte per cycle when all gates open. canWrite is the unified
-  // pop+ready predicate: data available, blanking window open, controller
-  // not busy. The FSM observes `canWrite` to advance its byte counter.
-  val canWrite = byteFifo.io.pop.valid && io.allowUpload && !io.sdramBusy
-  byteFifo.io.pop.ready := canWrite
+  val donePulse = Reg(Bool()) init False
+  donePulse := False
 
   val fsm = new StateMachine {
-    val sIdle     = new State with EntryPoint
-    val sActive   = new State
-    val sDone     = new State
+    val sIdle   = new State with EntryPoint
+    val sActive = new State
+    val sDone   = new State
 
     sIdle.whenIsActive {
       when(io.headerValid) {
@@ -119,14 +87,10 @@ case class QspiSdramBridge() extends Component {
     }
 
     sActive.whenIsActive {
-      // Write one byte per cycle when all gates open. Capture the address
-      // and data INTO the write-side regs and schedule the pulse; addrReg
-      // advances in parallel so the following write targets the next byte.
-      when(canWrite) {
-        wrAddrReg := addrReg
-        wrDinReg  := byteFifo.io.pop.payload
-        wrPulse   := True
-        wrToggleReg := !wrToggleReg       // flip on each write — CDC source
+      // One write command per byte fires when the downstream CC FIFO has
+      // space (wrCmd.ready) AND the blanking gate is open AND a byte is
+      // buffered. addr+data leave together in one payload — cannot mis-pair.
+      when(io.wrCmd.fire) {
         addrReg   := addrReg + 1          // wraps at 2^23 naturally
         bytesLeft := bytesLeft - 1
         when(bytesLeft === U(1, 17 bits)) {
@@ -141,10 +105,12 @@ case class QspiSdramBridge() extends Component {
     }
   }
 
-  io.sdramWr     := wrPulse
-  io.sdramAddr   := wrAddrReg
-  io.sdramDin    := wrDinReg
-  io.uploadBusy  := !fsm.isActive(fsm.sIdle)
-  io.uploadDone  := donePulse
-  io.wrToggle    := wrToggleReg
+  // wrCmd source: valid while emitting and a byte is available and gate open.
+  // pop the byte FIFO exactly when the command is accepted (fire).
+  io.wrCmd.valid   := fsm.isActive(fsm.sActive) && byteFifo.io.pop.valid && io.allowUpload
+  io.wrCmd.payload := addrReg.asBits ## byteFifo.io.pop.payload
+  byteFifo.io.pop.ready := io.wrCmd.fire
+
+  io.uploadBusy := !fsm.isActive(fsm.sIdle)
+  io.uploadDone := donePulse
 }

@@ -35,7 +35,7 @@ object SdramUploadSim extends App {
     dut.io.byteIn      #= 0
     dut.io.byteValid   #= false
     dut.io.allowUpload #= true
-    dut.io.sdramBusy   #= false
+    dut.io.wrCmd.ready #= true   // #11123 FIX 1: downstream (CC FIFO) always ready here
     dut.clockDomain.waitSampling(5)
 
     def sendHeader(addr: Int, lenBytes: Int): Unit = {
@@ -54,8 +54,9 @@ object SdramUploadSim extends App {
         var ticks = 0
         while (ticks < 50000 && !doneSeen) {
           dut.clockDomain.waitSampling(); ticks += 1
-          if (dut.io.sdramWr.toBoolean) {
-            captured += ((dut.io.sdramAddr.toLong, dut.io.sdramDin.toInt))
+          if (dut.io.wrCmd.valid.toBoolean && dut.io.wrCmd.ready.toBoolean) {
+            val p = dut.io.wrCmd.payload.toBigInt   // addr(23) ## din(8)
+            captured += (((p >> 8).toLong, (p & 0xFF).toInt))
           }
           if (dut.io.uploadDone.toBoolean) doneSeen = true
         }

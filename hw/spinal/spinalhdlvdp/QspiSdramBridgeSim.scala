@@ -29,7 +29,7 @@ object QspiSdramBridgeSim extends App {
     dut.io.byteIn      #= 0
     dut.io.byteValid   #= false
     dut.io.allowUpload #= true
-    dut.io.sdramBusy   #= false
+    dut.io.wrCmd.ready #= true   // #11123 FIX 1: downstream (CC FIFO) always ready here
     dut.clockDomain.waitSampling(5)
 
     // Capture every committed write from the bridge into a list so we
@@ -39,8 +39,9 @@ object QspiSdramBridgeSim extends App {
     fork {
       while(true) {
         dut.clockDomain.waitSampling()
-        if (dut.io.sdramWr.toBoolean) {
-          writes += Wrt(dut.io.sdramAddr.toBigInt, dut.io.sdramDin.toBigInt)
+        if (dut.io.wrCmd.valid.toBoolean && dut.io.wrCmd.ready.toBoolean) {
+          val p = dut.io.wrCmd.payload.toBigInt   // addr(23) ## din(8)
+          writes += Wrt(p >> 8, p & 0xFF)
         }
       }
     }
