@@ -794,13 +794,19 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val dataReg  = Reg(Bits(32 bits)) init 0
     rdPulse := False
     when(armEdge) { pending := True }
-    // #11123 FIX 1: priority reversed — the upload pop (uploadPopArea) now
-    // defers to this debug read (it checks rdPulse/inFlight/pending), so
-    // sdramIdle no longer needs to reference uploadDrive (avoids a cycle).
+    // #11123 FIX 2 (commit barrier, BronzeGate #11144 Finding 2): the debug read
+    // must reflect COMMITTED writes, so it waits until the upload queue is fully
+    // drained — CC FIFO empty (no pending pop) AND the bridge no longer producing.
+    // Otherwise an immediate readback can overtake queued writes and return stale
+    // storage (uploadDone fires on FIFO-accept, not SDRAM commit). Priority:
+    // arbiter/refresh > upload drain > debug read (deadlock-free: upload never
+    // waits on the debug read; the debug read waits on the drain).
+    val uploadBusySync = BufferCC(pixelArea.qspiSdramBridge.io.uploadBusy, False)
+    val uploadDrained  = !uploadCc.io.pop.valid && !uploadBusySync
     val sdramIdle = !sdramArbiter.io.sdramRd && !sdramArbiter.io.sdramWr &&
                     !pixelArea.fetch.io.sdramRefresh &&
                     !sdramArea.ctrl.io.busy
-    when(pending && !inFlight && sdramIdle) {
+    when(pending && !inFlight && sdramIdle && uploadDrained) {
       rdPulse  := True
       rdAddr   := addrSync
       inFlight := True
@@ -812,16 +818,25 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     }
   }
 
-  // #11123 FIX 1: SDRAM-side pop of the upload-write CC FIFO. Consume ONE entry
-  // only when the controller can accept a write: not busy, in blanking (de
-  // synced into this domain — preserves the prior !activeVideo upload gating so
-  // uploads never collide with fetch reads), and no debug read in flight/pending
-  // (upload defers to the host-initiated readback). addr+din arrive together in
-  // the popped payload, so they can never mis-pair across the crossing.
+  // #11123 FIX 1 + arbiter-race repair (BronzeGate #11144 Finding 1): pop an
+  // upload write ONLY when the controller is truly idle — not busy, in blanking,
+  // AND no arbiter read/write or refresh THIS cycle. The earlier canAccept omitted
+  // the arbiter/refresh exclusions: a coincident fetch read + upload pop made
+  // sdram.v take a READ (rd wins the rd|wr ternary) at the UPLOAD address, so the
+  // fetch got wrong-address data AND the upload write was LOST (the pop had already
+  // fired) — exactly the address-mixing / lost-write symptom on the live H-blank
+  // schedule (VdpTop moves fetch grants to the start of H-blank, which is !de).
+  // Debug read now defers to upload drain (FIX 2), so upload no longer defers to a
+  // pending/in-flight debug read; `!rdPulse` only prevents same-cycle ctrl drive
+  // (moot since debug issues only when the FIFO is drained). addr+din are atomic in
+  // the popped payload. With these exclusions, uploadDrive can NEVER coincide with
+  // arbiter/refresh/debug ctrl traffic, so every popped entry commits as a write.
   val uploadPopArea = new ClockingArea(sdramClockDomain) {
     val deSync    = BufferCC(pixelArea.video.io.de, False)
     val canAccept = !sdramArea.ctrl.io.busy && !deSync &&
-                    !dbgReadArea.rdPulse && !dbgReadArea.inFlight && !dbgReadArea.pending
+                    !sdramArbiter.io.sdramRd && !sdramArbiter.io.sdramWr &&
+                    !pixelArea.fetch.io.sdramRefresh &&
+                    !dbgReadArea.rdPulse
     uploadCc.io.pop.ready := canAccept
     val fire = uploadCc.io.pop.fire
     val addr = uploadCc.io.pop.payload(30 downto 8).asUInt
