@@ -12,7 +12,23 @@ create_clock -name clk_sdram -period 15.432 -waveform {0 7.716} [get_pins {sdram
 # vary SDRAM data/clock phase alignment to satisfy a meaningless cross path.
 set_clock_groups -asynchronous -group [get_clocks {clk_pixel clk_x5}] -group [get_clocks {clk_sdram}]
 
-# TODO FIX 2 (substantive, pending CyanPeak EM638325 values): off-chip SDRAM IO
-# timing — set_output_delay for addr/BA/cmd/DQM/write-DQ and set_input_delay for
-# read-DQ, referenced to the 180-deg SDRAM output clock (tSU/tHD/tAC/tOH). This
-# is what actually closes the marginal interface; add before flash.
+# #11123 FIX 2 part 2 — off-chip SDRAM IO timing closure. Values are CyanPeak's
+# EM638325 datasheet-derived numbers (#11127, relayed #11130), referenced to
+# clk_sdram (the 180-deg SDRAM output-clock relationship is baked into the
+# values). Without these, PnR never proves FPGA<->SDRAM setup/hold margin, so
+# the interface was placement/PVT-marginal (the root cause, #11116).
+#
+# Writes (FPGA launches, SDRAM captures): addr/BA/cmd/DQM/write-DQ.
+set_output_delay -clock clk_sdram -max  1.5 [get_ports {O_sdram_addr[*]}]
+set_output_delay -clock clk_sdram -min -1.0 [get_ports {O_sdram_addr[*]}]
+set_output_delay -clock clk_sdram -max  1.5 [get_ports {O_sdram_ba[*]}]
+set_output_delay -clock clk_sdram -min -1.0 [get_ports {O_sdram_ba[*]}]
+set_output_delay -clock clk_sdram -max  1.5 [get_ports {O_sdram_dqm[*]}]
+set_output_delay -clock clk_sdram -min -1.0 [get_ports {O_sdram_dqm[*]}]
+set_output_delay -clock clk_sdram -max  1.5 [get_ports {O_sdram_cs_n O_sdram_ras_n O_sdram_cas_n O_sdram_wen_n O_sdram_cke}]
+set_output_delay -clock clk_sdram -min -1.0 [get_ports {O_sdram_cs_n O_sdram_ras_n O_sdram_cas_n O_sdram_wen_n O_sdram_cke}]
+set_output_delay -clock clk_sdram -max  1.5 [get_ports {IO_sdram_dq[*]}]
+set_output_delay -clock clk_sdram -min -1.0 [get_ports {IO_sdram_dq[*]}]
+# Reads (SDRAM launches, FPGA captures): read-DQ.
+set_input_delay  -clock clk_sdram -max  5.4 [get_ports {IO_sdram_dq[*]}]
+set_input_delay  -clock clk_sdram -min  2.5 [get_ports {IO_sdram_dq[*]}]
