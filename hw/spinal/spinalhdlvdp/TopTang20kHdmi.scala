@@ -707,9 +707,12 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // toggle + quasi-static-bus + raw-cross-domain-busy scheme, which could
   // mis-pair addr/data, collapse two toggle flips, and drop writes — the cause
   // of partial sentinel bytes and writes landing at the wrong address.
-  // depth=16 (power-of-two, GT-022). The SDRAM-side pop (uploadPopArea, below
+  // depth=128 (power-of-two, GT-022). #11246 F5b: deepened 16->128 alongside the
+  // bridge byteFifo so the CDC stage isn't the bottleneck — UploadSeamSim proved
+  // depth 128 yields ZERO upload drops at the 8 MHz cap under per-line fetch read
+  // bursts (16 dropped most, 64 dropped 13). The SDRAM-side pop (uploadPopArea, below
   // dbgReadArea) consumes one entry only when the controller can accept it.
-  val uploadCc = StreamFifoCC(Bits(31 bits), 16, pixelClockDomain, sdramClockDomain)
+  val uploadCc = StreamFifoCC(Bits(31 bits), 128, pixelClockDomain, sdramClockDomain)
   uploadCc.io.push << pixelArea.qspiSdramBridge.io.wrCmd
   // Task 3 fix (BronzeGate #9344, CoralReef convergence #9343):
   // `planarDataReadyArea` defined AFTER `sdramArbiter` below — see post-
