@@ -217,3 +217,55 @@ vdp_mode0_set_scale_ctrl(
 
 **Fix:** For hardware proof, always use the bezel test with `autoCenter=1`, `borderEnable=1`, and a high-contrast palette choice. Predict bezel width from `((hActive - scaleX*logicWidth) / 2)` and verify against capture mean.
 
+---
+
+### GOTCHA-030: Tang Nano 20K (GW2AR-18) Embedded SDRAM Pins are SiP
+
+**Fact:** The GW2AR-18 used on the Tang Nano 20K features a System-in-Package (SiP) 64 Mbit SDRAM. These connections are die-to-die internal to the chip.
+
+**Implication:**
+- The SDRAM Address bus (A[10:0]), Bank Address (BA[1:0]), and Data bus (DQ[31:0]) are NOT routed to external FPGA pins.
+- You cannot probe these signals with an oscilloscope or logic analyzer.
+- Signal integrity is fixed by the package substrate; no external termination or board-level tuning is possible.
+
+---
+
+### GOTCHA-031: Embedded SDRAM Address Margin Ceiling (64.8 MHz)
+
+**Fact:** Initial bring-up attempts at 64.8 MHz (Phase 1A) showed non-deterministic Row Address Aliasing (e.g., Row 0x28 overwriting Row 0x2C).
+
+**Why it occurred:** The physical capture window at 180° phase (7.7 ns) is marginal for the combined SiP substrate skew and chip-internal latch requirements. Timing artifacts in the EDA tool hid this marginality until hardware verification.
+
+**Fix:** Lower the SDRAM clock to **40.5 MHz**. This widens the capture window to **12.35 ns**, providing ~60% more setup/hold margin. This is the mandatory stable baseline for Tang Nano 20K Phase 1A.
+
+**Simulation Note:** At 40.5 MHz (RefreshPeriodCycles=593), the `PlanarRefreshStallSim` canary may trip deterministically due to the tighter refresh cadence shifting `memtestPassR` into phase with the artificial testbench stimulus. This is a **benign sim-stimulus artifact** and does not indicate a hardware bug. Do not relax the RTL assert contract.
+
+---
+
+### GOTCHA-032: Multi-bit Clock Domain Crossing (CDC) Value Corruption
+
+**Fact:** Using `BufferCC` (a simple 2-stage synchronizer) on multi-bit vectors (e.g., 23-bit addresses, 10-bit line indices) is a critical integrity failure.
+
+**Why it occurs:** Independent bit-skew during the domain crossing allows the capture domain to sample the vector while only some bits have transitioned. This results in "torn" or "mangled" values that never existed in the source domain.
+
+**Impact:**
+- Random jumps in SDRAM fetch addresses (leading to "ghost" tiles).
+- Corruption of grant IDs in the arbiter (leading to bus-ownership confusion).
+- Mangled status readbacks (e.g., `READ_STATUS` returning invalid dwords).
+
+**Fix:** Replace `BufferCC` for vectors with proper coherent crossings: `PulseSync` + Latch-stable data, or Gray-code encoding for counters.
+
+---
+
+### GOTCHA-033: QSPI Physical SCK Ceiling (25.2 MHz Oversampling)
+
+**Fact:** The `QspiSlave.scala` oversamples the asynchronous SCK pin using the 25.2 MHz pixel clock.
+
+**Logic Ceiling:** Per Nyquist-Shannon, the SCK frequency MUST be less than 12.6 MHz (half the oversampling rate). In practice, with routing jitter and setup/hold requirements, the stable ceiling is ~8 MHz.
+
+**Implication:**
+- The 60 MHz write speed recommended in earlier firmware versions is **physically invalid**.
+- At 60 MHz, the FPGA sees aliased/random transitions, causing protocol collapse and non-deterministic register/SDRAM write failures.
+
+**Fix:** Cap the QSPI write clock to **8 MHz** max. Adjust `VDP_QSPI_SCK_WRITE_HZ` in `vdp_platform.h` and the ESP32 probe firmware.
+
