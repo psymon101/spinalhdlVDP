@@ -84,14 +84,14 @@
  *     bound anyway (~103 µs per call) so SCK rate doesn't matter for reads.
  *
  *   - Writes (REG_WRITE, SDRAM_WRITE): bench-clean at 80 MHz (IOMUX max).
- *     Per-burst is overhead-bound (~74 µs at 80 MHz of which only ~13 µs is
- *     actually on the wire) so headroom above 60 MHz is small. Holding 60
- *     MHz as the production write speed gives a comfortable SI margin.
+ *     However, Phase 1A physical constraints (25.2 MHz oversampler) dictate
+ *     a strict Nyquist ceiling of 12.6 MHz. The maximum stable production
+ *     write speed is therefore capped at 8 MHz to prevent protocol aliasing.
  *
  * Default = 3 MHz so first-call READ_STATUS magic works out of the box.
  * Sketches doing bulk uploads should call:
  *
- *     vdp_qspi_set_speed_hz(60000000u);   // before write-heavy section
+ *     vdp_qspi_set_speed_hz(8000000u);   // before write-heavy section
  *     ...
  *     vdp_qspi_set_speed_hz( 3000000u);   // before next read
  *
@@ -99,7 +99,7 @@
  * cadence — the set_speed_hz call is a no-op there. */
 #if defined(VDP_QSPI_BACKEND_SPI2)
 #define VDP_QSPI_SCK_HZ    3000000u    /* boot/read default */
-#define VDP_QSPI_SCK_WRITE_HZ 60000000u /* recommended bulk-write speed */
+#define VDP_QSPI_SCK_WRITE_HZ 8000000u  /* firmware physical cap */
 #else
 #define VDP_QSPI_SCK_HZ    2000000u
 #endif
