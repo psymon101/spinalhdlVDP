@@ -38,7 +38,7 @@ object TileAttributeFetchL1BaseSim extends App {
   import TileAttributeAssets._
 
   Config.sim.compile {
-    val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(64800000 Hz))
+    val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(40500000 Hz))
     SdramTileAttributeFetch(
       sdramCd,
       skipSdramInit            = false,

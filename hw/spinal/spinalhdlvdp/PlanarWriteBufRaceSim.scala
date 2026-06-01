@@ -34,7 +34,7 @@ import scala.collection.mutable
   */
 object PlanarWriteBufRaceSim extends App {
   Config.sim.compile {
-    val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(64800000 Hz))
+    val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(40500000 Hz))
     SdramTileAttributeFetch(sdramCd)
   }.doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)

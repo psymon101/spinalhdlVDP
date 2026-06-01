@@ -54,7 +54,10 @@ case class SdramTileAttributeFetch(
   val MemtestSize = 256
   def memtestByte(i: UInt): Bits = (i.resize(8) ^ U(0xA5, 8 bits)).asBits
 
-  val RefreshPeriodCycles = 950
+  // #11204 (TopazCliff): scaled 950 -> 593 for the 40.5 MHz SDRAM clock. The
+  // divisor counts sdramCd cycles; 950 @ 40.5 MHz = 23.46 µs > 15.6 µs refresh
+  // requirement. 593 cyc preserves the proven 64.8 MHz interval (14.66 -> 14.64 µs).
+  val RefreshPeriodCycles = 593
   val FifoDepth = 32              // 4 words per tile now, double the previous depth
   val PixelLineBits = 8           // {priority[7], bank[6:4], index[3:0]}
 
@@ -844,7 +847,7 @@ object SdramTileAttributeFetchVerilog extends App {
   Config.spinal.generateVerilog {
     val sdramCd = ClockDomain.external(
       "sdram",
-      frequency = FixedFrequency(64800000 Hz)
+      frequency = FixedFrequency(40500000 Hz)
     )
     SdramTileAttributeFetch(sdramCd)
   }

@@ -49,7 +49,7 @@ case class UploadBridgeCcHarness(popCd: ClockDomain) extends Component {
 
 object SdramUploadCdcSim extends App {
   Config.sim.compile {
-    val popCd = ClockDomain.external("pop", withReset = true, frequency = FixedFrequency(64800000 Hz))
+    val popCd = ClockDomain.external("pop", withReset = true, frequency = FixedFrequency(40500000 Hz))
     UploadBridgeCcHarness(popCd)
   }.doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)   // push (pixel-ish) — FAST

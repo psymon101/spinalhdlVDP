@@ -29,7 +29,7 @@ object PlanarBoundaryAddressSim extends App {
   val Plane1Hi = PlanarTileAssets.Plane1SdramBase + PlanarTileAssets.TotalBytes // 0xB200
 
   Config.sim.compile {
-    val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(64800000 Hz))
+    val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(40500000 Hz))
     SdramTileAttributeFetch(sdramCd)
   }.doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)
