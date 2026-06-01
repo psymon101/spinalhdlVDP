@@ -8,9 +8,14 @@
 //   CLKOUT = VCO / ODIV_SEL  =  FCLKIN * (FBDIV_SEL+1) / (IDIV_SEL+1)
 //   VCO must sit in the GW2AR window (tool reports 500-1250 MHz).
 //
-// FBDIV_SEL = 11, IDIV_SEL = 4, ODIV_SEL = 8:
-//   CLKOUT = 27 * 12 / 5 = 64.8 MHz
-//   VCO    = 64.8 * 8   = 518.4 MHz  (within 500-1250)
+// #11197 Option A (lower SDRAM clock to widen the analog address-capture window;
+// closes the 0xA000<->0xB000 row aliasing at 64.8MHz). Target ~40 MHz: EXACT 40
+// is irreducible 40/27 -> IDIV+1=27 -> PFD=1MHz (below the rPLL minimum, won't
+// lock). 40.5 MHz = 27*3/2 is the clean achievable point with a healthy PFD.
+// FBDIV_SEL = 2, IDIV_SEL = 1, ODIV_SEL = 16:
+//   CLKOUT = 27 * 3 / 2 = 40.5 MHz   (180deg capture window 12.35ns vs 7.7ns)
+//   VCO    = 40.5 * 16  = 648 MHz    (within 500-1250)
+//   PFD    = 27 / 2     = 13.5 MHz   (vs the proven 5.4MHz; comfortably valid)
 //
 // PSDA_SEL = "1000" = 180° phase for CLKOUTP (per UG286 Table 5-7).
 // DUTYDA_SEL = "1000" is the tool default; Gowin rejects "0000" and silently
@@ -48,10 +53,10 @@ rPLL rpll_inst (
     .FDLY({gw_gnd,gw_gnd,gw_gnd,gw_gnd})
 );
 
-// 64.8 MHz SDRAM clock. VCO = 64.8 * 8 = 518.4 MHz.
-defparam rpll_inst.FBDIV_SEL = 11;
-defparam rpll_inst.IDIV_SEL = 4;
-defparam rpll_inst.ODIV_SEL = 8;
+// #11197 Option A: 40.5 MHz SDRAM clock (was 64.8 MHz). VCO = 40.5 * 16 = 648 MHz.
+defparam rpll_inst.FBDIV_SEL = 2;
+defparam rpll_inst.IDIV_SEL = 1;
+defparam rpll_inst.ODIV_SEL = 16;
 defparam rpll_inst.FCLKIN = "27";
 defparam rpll_inst.DYN_IDIV_SEL = "false";
 defparam rpll_inst.DYN_FBDIV_SEL = "false";

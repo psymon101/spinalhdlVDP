@@ -19,8 +19,10 @@ case class Tang20kSdramPll() extends BlackBox {
   */
 case class SdramController() extends BlackBox {
   setDefinitionName("sdram")
-  // FREQ=64.8M fixes the 83us->200us init bug (#11034).
-  addGeneric("FREQ", 64_800_000)
+  // #11197 Option A: FREQ tracks the lowered SDRAM clock (40.5 MHz) so sdram.v's
+  // init counter (FREQ/1000*200/1000 cycles) still yields the 200us power-on
+  // delay. FREQ ONLY drives that init counter — not the T_xx op latencies.
+  addGeneric("FREQ", 40_500_000)
   // #11123 FIX 3 (CyanPeak #11122): at 64.8 MHz (15.43 ns/cycle), T_RCD=1/T_RP=1
   // give only 15.43 ns < EM638325 spec (tRCD/tRP = 18 ns). Raise both to 2
   // (30.86 ns >= 18 ns). T_RC stays at the sdram.v default 4 — CRITICAL: the
