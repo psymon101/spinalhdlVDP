@@ -127,7 +127,15 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val fetchGrantSync = BufferCC(io.fetchGrant, False)
     val fetchGrantPrev = RegNext(fetchGrantSync) init False
     val fetchGrantEdge = fetchGrantSync && !fetchGrantPrev
-    val fetchLineSync  = BufferCC(io.fetchLine, U(0, 10 bits))
+    // #11246 F1 (CyanPeak): gray-code fetchLine before the CDC so only ONE bit
+    // flips per line — a raw multi-bit binary BufferCC can return a torn
+    // intermediate at line/tileY boundaries (e.g. 239->240 flips 5 bits) -> wrong
+    // line fetched. Same mitigation SdramTileAttributeFetch already uses (#7138);
+    // this engine was missed.
+    def bin2gray(b: UInt): UInt = b ^ (b >> 1).resize(b.getWidth)
+    val fetchLineGraySync = BufferCC(bin2gray(io.fetchLine), init = U(0, 10 bits))
+    val fetchLineSync = UInt(10 bits)
+    for (i <- 0 until 10) { fetchLineSync(i) := fetchLineGraySync(9 downto i).xorR }
     val enableSync     = BufferCC(io.enable, False)
     val directColorSync = BufferCC(io.directColor, False)
     val tileBootDoneSync = BufferCC(io.tileBootDone, False)

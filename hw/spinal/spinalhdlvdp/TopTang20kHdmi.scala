@@ -407,7 +407,14 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     qspiSdramBridge.io.lenBytes    := qspiDec.io.sdramLenBytes
     qspiSdramBridge.io.byteIn      := qspiDec.io.sdramByteOut
     qspiSdramBridge.io.byteValid   := qspiDec.io.sdramByteValid
-    qspiSdramBridge.io.allowUpload := !video.io.de
+    // #11246 F5: drain the upload byteFifo CONTINUOUSLY, not only in blanking. The
+    // old !de gate stalled the bridge during active video, so at the production QSPI
+    // rate the 16-deep byteFifo overflowed and silently dropped bytes
+    // (UploadByteRateSim #11231: 200/256 lost @60 MHz). The pop side
+    // (uploadPopArea.canAccept) now defers to fetch activity per-cycle with one-cycle
+    // look-ahead, so emitting anytime is safe; BronzeGate's 8 MHz host write cap (F3)
+    // keeps the average source rate under the SDRAM byte-write sink.
+    qspiSdramBridge.io.allowUpload := True
     // #11123 FIX 1: bridge no longer takes raw cross-domain busy; its wrCmd
     // Stream is crossed losslessly via uploadCc (StreamFifoCC) at top level.
     qspiDec.io.upload_busy := qspiSdramBridge.io.uploadBusy
@@ -722,11 +729,22 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val arbiter = SdramArbiter(clientCount = 4, addrWidth = 23, dataWidth = 8)
 
     val activeBit   = BufferCC(pixelArea.bitmapRowFetch.io.sdramActive, False)
-    val grantIdSync = BufferCC(pixelArea.video.io.layer0FetchGrantClientId, U(0, 2 bits))
+    // #11246 F1@712: cross grantClientId(2b) + slotValid + grant as ONE bundle so
+    // the multi-bit grant id cannot skew relative to its qualifying grant/slotValid
+    // pulse. Separate per-signal BufferCCs allowed the 2-bit id to tear mid-
+    // transition vs the grant edge -> arbiter routes the granted transaction to the
+    // wrong client for a cycle. Same coherent-bundle pattern as the fetch engine's
+    // ctrlBundle (SdramTileAttributeFetch:292).
+    val grantBundle = BufferCC(
+      pixelArea.video.io.layer0FetchGrantClientId.asBits ##
+        pixelArea.video.io.layer0FetchSlotValid.asBits ##
+        pixelArea.video.io.layer0FetchGrant.asBits,
+      B(0, 4 bits))
+    val grantIdSync = grantBundle(3 downto 2).asUInt
 
     arbiter.io.grantClientId := Mux(activeBit, U(1, 2 bits), grantIdSync)
-    arbiter.io.slotValid     := BufferCC(pixelArea.video.io.layer0FetchSlotValid, False)
-    arbiter.io.grant         := BufferCC(pixelArea.video.io.layer0FetchGrant,     False)
+    arbiter.io.slotValid     := grantBundle(1)
+    arbiter.io.grant         := grantBundle(0)
   }
   val sdramArbiter = sdramArbArea.arbiter
 
@@ -825,10 +843,17 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
       inFlight := True
       pending  := False
     }
-    when(inFlight && sdramArea.ctrl.io.data_ready) {
+    val dataCaptured = inFlight && sdramArea.ctrl.io.data_ready
+    when(dataCaptured) {
       dataReg  := sdramArea.ctrl.io.dout32
       inFlight := False
     }
+    // #11246 F1@869: dataReg crosses to the pixel domain (sel=8 readback) over a
+    // 32-bit BufferCC. Flip a result-ready toggle ONE CYCLE AFTER dataReg settles so
+    // the pixel side latches the value only once the multi-bit BufferCC is coherent,
+    // never a torn intermediate during the update cycle.
+    val resultToggle = Reg(Bool()) init False
+    when(RegNext(dataCaptured) init False) { resultToggle := !resultToggle }
   }
 
   // #11123 FIX 1 + arbiter-race repair (BronzeGate #11144 Finding 1): pop an
@@ -845,11 +870,26 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // the popped payload. With these exclusions, uploadDrive can NEVER coincide with
   // arbiter/refresh/debug ctrl traffic, so every popped entry commits as a write.
   val uploadPopArea = new ClockingArea(sdramClockDomain) {
-    val deSync    = BufferCC(pixelArea.video.io.de, False)
-    val canAccept = !sdramArea.ctrl.io.busy && !deSync &&
-                    !sdramArbiter.io.sdramRd && !sdramArbiter.io.sdramWr &&
-                    !pixelArea.fetch.io.sdramRefresh &&
-                    !dbgReadArea.rdPulse
+    // #11246 F2 (GT-17 look-ahead) + F4/F5 (drop the stale de gate). The upload
+    // write is muxed onto the controller at top level, competing with whatever the
+    // fetch clients drive. Each client's sdramRd/Wr is REGISTERED (asserts the
+    // cycle AFTER its FSM commits), so gating only on the current value let an
+    // upload pop fire into the cycle a fetch was about to read -> sdram.v's rd|wr
+    // ternary takes the read and the upload write is silently lost (CyanPeak GT-17).
+    // Fix: gate on each contending client's CURRENT and NEXT-cycle (getAheadValue)
+    // request, plus refresh. This also removes the de/deSync gating (F4/F5) — uploads
+    // drain during ANY truly-idle SDRAM cycle (incl. active video), bounded by the
+    // 8 MHz host cap, instead of only in blanking (which overflowed the byteFifo).
+    val fetchBusy = pixelArea.fetch.io.sdramRd   || pixelArea.fetch.io.sdramWr   ||
+                    pixelArea.fetch.io.sdramRdNext || pixelArea.fetch.io.sdramWrNext ||
+                    pixelArea.fetch.io.sdramRefresh || pixelArea.fetch.io.sdramRefreshNext
+    val fetchL1Busy = pixelArea.fetchL1.io.sdramRd   || pixelArea.fetchL1.io.sdramWr   ||
+                      pixelArea.fetchL1.io.sdramRdNext || pixelArea.fetchL1.io.sdramWrNext ||
+                      pixelArea.fetchL1.io.sdramRefresh || pixelArea.fetchL1.io.sdramRefreshNext
+    val bitmapBusy = pixelArea.bitmapRowFetch.io.sdramRd || pixelArea.bitmapRowFetch.io.sdramWr
+    val planarBusy = pixelArea.video.io.planarSdramRd
+    val anyClientActive = fetchBusy || fetchL1Busy || bitmapBusy || planarBusy
+    val canAccept = !sdramArea.ctrl.io.busy && !anyClientActive && !dbgReadArea.rdPulse
     uploadCc.io.pop.ready := canAccept
     val fire = uploadCc.io.pop.fire
     val addr = uploadCc.io.pop.payload(30 downto 8).asUInt
@@ -867,7 +907,12 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // delays a not-yet-started fetch read by the few cycles of the one-shot read.
   sdramArea.ctrl.io.rd      := (sdramArbiter.io.sdramRd && !dbgReadArea.inFlight) || dbgReadArea.rdPulse
   sdramArea.ctrl.io.wr      := sdramArbiter.io.sdramWr || uploadDrive
-  sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh
+  // #11246 F6: merge L1's refresh request too (was L0-only — L1's refresh pulses
+  // were dropped, so an enabled L1 region would decay). AUTO_REFRESH is chip-global
+  // (refreshes all banks/rows), so a single OR'd pulse correctly serves both
+  // engines; no per-engine refresh accounting needed. Latent in the current
+  // bitstream (enableL1Fetch=false) but required before L1 is ever enabled.
+  sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh || pixelArea.fetchL1.io.sdramRefresh
   sdramArea.ctrl.io.addr    := Mux(dbgReadArea.rdPulse, dbgReadArea.rdAddr,
                                 Mux(uploadDrive, uploadPopArea.addr, sdramArbiter.io.sdramAddr))
   sdramArea.ctrl.io.din     := Mux(uploadDrive, uploadPopArea.din,  sdramArbiter.io.sdramDin)
@@ -879,7 +924,16 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // (changes once per armed read; host polls it in a much later transaction),
   // so a 2-stage BufferCC is a sufficient synchronizer.
   val dbgResultPixArea = new ClockingArea(pixelClockDomain) {
-    pixelArea.debugSdramDataPix := BufferCC(dbgReadArea.dataReg, B(0, 32 bits))
+    // #11246 F1@869: latch the readback result only on the synchronized result-ready
+    // toggle edge, by which point the 32-bit dataReg BufferCC has settled (dataReg
+    // was stable >=1 cycle before the toggle flipped). Prevents a torn 32-bit
+    // readback if the host polls during the update window.
+    val resultToggleSync = BufferCC(dbgReadArea.resultToggle, False)
+    val resultTogglePrev = RegNext(resultToggleSync) init False
+    val dataSync         = BufferCC(dbgReadArea.dataReg, B(0, 32 bits))
+    val dbgResultHold    = Reg(Bits(32 bits)) init 0
+    when(resultToggleSync =/= resultTogglePrev) { dbgResultHold := dataSync }
+    pixelArea.debugSdramDataPix := dbgResultHold
   }
 
   // Task 44b iter 6: gate BitmapRowFetch init on tile-fetch bootDone
