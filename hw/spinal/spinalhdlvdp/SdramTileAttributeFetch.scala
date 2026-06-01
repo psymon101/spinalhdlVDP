@@ -68,6 +68,11 @@ case class SdramTileAttributeFetch(
     val sdramRd        = out Bool()
     val sdramWr        = out Bool()
     val sdramRefresh   = out Bool()
+    // #11246 F2: next-cycle (register-input) view of the command lines for the
+    // top-level upload look-ahead gate — see assignment near the FSM tail.
+    val sdramRdNext      = out Bool()
+    val sdramWrNext      = out Bool()
+    val sdramRefreshNext = out Bool()
     val sdramDout      = in  Bits(8 bits)
     val sdramDout32    = in  Bits(32 bits)
     val sdramDataReady = in  Bool()
@@ -828,6 +833,15 @@ case class SdramTileAttributeFetch(
     io.sdramRefresh := cmdRefresh
     io.sdramAddr    := cmdAddr
     io.sdramDin     := cmdDin
+    // #11246 F2 (GT-17, CyanPeak #11256): cmdRd/Wr/Refresh are REGISTERS — they
+    // assert the cycle AFTER the FSM commits to a transaction. A top-level upload
+    // gate that samples the registered sdramRd can fire a write the same cycle the
+    // engine is about to read; sdram.v's rd|wr ternary then takes the read and the
+    // upload write is silently lost. Expose the register INPUTS (next-cycle value)
+    // so the upload canAccept can look one cycle ahead and never collide.
+    io.sdramRdNext      := cmdRd.getAheadValue()
+    io.sdramWrNext      := cmdWr.getAheadValue()
+    io.sdramRefreshNext := cmdRefresh.getAheadValue()
   }
 
   io.bootDone    := BufferCC(sdramArea.bootDoneR,    init = False)

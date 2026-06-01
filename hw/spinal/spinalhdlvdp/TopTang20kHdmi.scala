@@ -449,14 +449,27 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val dbgAddrLo  = Reg(Bits(16 bits)) init 0
     val dbgAddrHi  = Reg(Bits(7 bits))  init 0
     val dbgArm     = Reg(Bool())        init False
+    // #11246 F1@789 (CyanPeak GT-CDC): the old code wrote dbgAddrHi AND toggled
+    // dbgArm in the SAME cycle, then crossed dbgAddr (23b) and dbgArm (1b) on
+    // SEPARATE BufferCCs into sdramClockDomain. Data changing coincident with its
+    // req => the sdram-side addrSync could be sampled mid-skew (torn readback
+    // address). Fix is source-side: capture the FULL address into a stable holding
+    // register (dbgArmedAddr) on the HI write, and toggle the arm ONE CYCLE LATER,
+    // so the address is provably stable before the arm toggle crosses. The
+    // existing BufferCC(dbgAddr) at top level then sees a coherent, settled value.
+    val dbgArmedAddr = Reg(UInt(23 bits)) init 0
     when(dbgMixed.enable && dbgMixed.addr === U(0x0326, 15 bits)) {
       dbgAddrLo := dbgMixed.data
     }
-    when(dbgMixed.enable && dbgMixed.addr === U(0x0327, 15 bits)) {
-      dbgAddrHi := dbgMixed.data(6 downto 0)
-      dbgArm    := !dbgArm   // toggle = one-shot trigger across the CDC
+    val dbgHiWrite = dbgMixed.enable && dbgMixed.addr === U(0x0327, 15 bits)
+    when(dbgHiWrite) {
+      dbgAddrHi    := dbgMixed.data(6 downto 0)
+      dbgArmedAddr := (dbgMixed.data(6 downto 0) ## dbgAddrLo).asUInt
     }
-    val dbgAddr = (dbgAddrHi ## dbgAddrLo).asUInt   // 23 bits
+    when(RegNext(dbgHiWrite) init False) {
+      dbgArm := !dbgArm   // toggle one-shot trigger AFTER dbgArmedAddr is stable
+    }
+    val dbgAddr = dbgArmedAddr   // stable, CDC-coherent 23-bit armed address
     // Result wire driven from the sdram-domain read FSM via BufferCC (top level).
     val debugSdramDataPix = Bits(32 bits)
     qspiDec.io.debug_sdram_data := debugSdramDataPix
