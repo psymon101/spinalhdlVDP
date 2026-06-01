@@ -886,7 +886,13 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val fetchL1Busy = pixelArea.fetchL1.io.sdramRd   || pixelArea.fetchL1.io.sdramWr   ||
                       pixelArea.fetchL1.io.sdramRdNext || pixelArea.fetchL1.io.sdramWrNext ||
                       pixelArea.fetchL1.io.sdramRefresh || pixelArea.fetchL1.io.sdramRefreshNext
-    val bitmapBusy = pixelArea.bitmapRowFetch.io.sdramRd || pixelArea.bitmapRowFetch.io.sdramWr
+    val bitmapBusy = pixelArea.bitmapRowFetch.io.sdramRd || pixelArea.bitmapRowFetch.io.sdramWr ||
+                     pixelArea.bitmapRowFetch.io.sdramRdNext || pixelArea.bitmapRowFetch.io.sdramWrNext
+    // Planar (client 2) is gated on its CURRENT request: its Next would require
+    // 4-level IO plumbing (BitplaneRowFetch->PlanarLineFetch->VdpTop->top) and it is
+    // not a live client during tile uploads. Current-gating is sufficient here (the
+    // upload write reaches the controller first and makes it busy; a next-cycle
+    // planar read then waits). Revisit if the seam sim shows otherwise.
     val planarBusy = pixelArea.video.io.planarSdramRd
     val anyClientActive = fetchBusy || fetchL1Busy || bitmapBusy || planarBusy
     val canAccept = !sdramArea.ctrl.io.busy && !anyClientActive && !dbgReadArea.rdPulse

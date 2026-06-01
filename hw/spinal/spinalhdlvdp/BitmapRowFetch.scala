@@ -62,6 +62,10 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val sdramDin       = out Bits(8 bits)
     val sdramRd        = out Bool()
     val sdramWr        = out Bool()
+    // #11246 F2 (defensive look-ahead, PM #11260): next-cycle value of the cmd regs
+    // so the top upload gate avoids the registered-rd collision for this client too.
+    val sdramRdNext    = out Bool()
+    val sdramWrNext    = out Bool()
     val sdramDout      = in  Bits(8 bits)
     val sdramDataReady = in  Bool()
     val sdramBusy      = in  Bool()
@@ -413,6 +417,8 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     io.sdramDin  := cmdDin
     io.sdramRd   := cmdRd
     io.sdramWr   := cmdWr
+    io.sdramRdNext := cmdRd.getAheadValue()   // #11246 F2 defensive look-ahead
+    io.sdramWrNext := cmdWr.getAheadValue()
 
     // Level-high sdramActive: True across all non-idle states. Pulsing
     // on cmdRd/cmdWr alone is too narrow for the top-level pixelCd
