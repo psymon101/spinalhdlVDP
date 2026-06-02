@@ -100,6 +100,39 @@ object QspiSdramBridgeSim extends App {
         f"write $i: data 0x${w.data.toInt}%X expected 0x$expData%X")
     }
     println("[sim] all 40 bytes written in order under active-video gating PASS")
+
+    // ---- #11321: two back-to-back SDRAM_WRITE transactions, NO idle gap ----
+    // The 2nd header arrives while the bridge may still be draining the 1st. With
+    // the header FIFO, txn2 must re-anchor at its OWN address (0x5000), not continue
+    // txn1's (0x2004) — the pre-fix bug that corrupted burst/back-to-back uploads.
+    writes.clear()
+    def fireTxn(addr: Int, data: Seq[Int]): Unit = {
+      dut.io.addrInit    #= addr
+      dut.io.lenBytes    #= data.size
+      dut.io.headerValid #= true
+      dut.clockDomain.waitSampling()
+      dut.io.headerValid #= false
+      for (b <- data) {
+        dut.io.byteIn    #= b
+        dut.io.byteValid #= true
+        dut.clockDomain.waitSampling()
+        dut.io.byteValid #= false      // no inter-byte gap — stress the FIFO path
+      }
+    }
+    fireTxn(0x2000, Seq(0x11, 0x22, 0x33, 0x44))
+    fireTxn(0x5000, Seq(0x55, 0x66, 0x77, 0x88))   // immediately after, no idle gap
+    dut.clockDomain.waitSampling(3000)             // drain through active-video gating
+    assert(writes.size == 8, s"back-to-back: expected 8 writes, got ${writes.size}")
+    val b2bExp = Seq(
+      (0x2000, 0x11), (0x2001, 0x22), (0x2002, 0x33), (0x2003, 0x44),
+      (0x5000, 0x55), (0x5001, 0x66), (0x5002, 0x77), (0x5003, 0x88))
+    for (i <- 0 until 8) {
+      assert(writes(i).addr.toLong == b2bExp(i)._1,
+        f"b2b write $i: addr 0x${writes(i).addr.toLong}%X exp 0x${b2bExp(i)._1}%X")
+      assert(writes(i).data.toInt == b2bExp(i)._2,
+        f"b2b write $i: data 0x${writes(i).data.toInt}%X exp 0x${b2bExp(i)._2}%X")
+    }
+    println("[sim] back-to-back: txn2 re-anchored at 0x5000 (not 0x2004) — header FIFO PASS")
     println("QspiSdramBridgeSim: PASS")
   }
 }

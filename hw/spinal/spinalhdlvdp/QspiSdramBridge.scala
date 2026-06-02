@@ -75,6 +75,18 @@ case class QspiSdramBridge() extends Component {
   byteFifo.io.push.valid   := io.byteValid
   byteFifo.io.push.payload := io.byteIn
 
+  // #11321 (BronzeGate Finding 1 / TopazCliff): a NEW SDRAM_WRITE header arriving
+  // while the bridge was still draining the previous transaction got DROPPED
+  // (sIdle-only acceptance), so the next transaction's bytes continued at the OLD
+  // addrReg -> back-to-back uploads corrupted (isolated writes passed). Queue headers
+  // in a small FIFO so every transaction re-anchors addrReg/bytesLeft at its own
+  // boundary. The byte stream stays consistent because the decoder now forwards
+  // exactly LEN bytes per header (#11308). payload = addrInit(23) ## lenBytes(17).
+  val hdrFifo = StreamFifo(Bits(40 bits), depth = 8)
+  hdrFifo.io.push.valid   := io.headerValid
+  hdrFifo.io.push.payload := io.addrInit.asBits ## io.lenBytes.asBits
+  hdrFifo.io.pop.ready    := False
+
   val donePulse = Reg(Bool()) init False
   donePulse := False
 
@@ -84,9 +96,12 @@ case class QspiSdramBridge() extends Component {
     val sDone   = new State
 
     sIdle.whenIsActive {
-      when(io.headerValid) {
-        addrReg   := io.addrInit
-        bytesLeft := io.lenBytes
+      // Pop the next queued header (back-to-back safe) and re-anchor this
+      // transaction's address + byte budget.
+      when(hdrFifo.io.pop.valid) {
+        addrReg   := hdrFifo.io.pop.payload(39 downto 17).asUInt
+        bytesLeft := hdrFifo.io.pop.payload(16 downto 0).asUInt
+        hdrFifo.io.pop.ready := True
         goto(sActive)
       }
     }
@@ -116,6 +131,6 @@ case class QspiSdramBridge() extends Component {
   io.wrCmd.payload := addrReg.asBits ## byteFifo.io.pop.payload
   byteFifo.io.pop.ready := io.wrCmd.fire
 
-  io.uploadBusy := !fsm.isActive(fsm.sIdle)
+  io.uploadBusy := !fsm.isActive(fsm.sIdle) || hdrFifo.io.pop.valid  // active OR headers queued
   io.uploadDone := donePulse
 }
