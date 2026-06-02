@@ -50,6 +50,7 @@ case class UploadSeamHarness(preFix: Boolean) extends Component {
     val ctrlDin       = out Bits(8 bits)
     // Observability
     val uploadFire  = out Bool()
+    val uploadBusy  = out Bool()
     val bootDone    = out Bool()
   }
 
@@ -80,7 +81,8 @@ case class UploadSeamHarness(preFix: Boolean) extends Component {
   fetch.io.pixelAddr        := 0
   fetch.io.tileDecodeMode   := 0
   fetch.io.attributeMode    := 0
-  io.bootDone := fetch.io.bootDone
+  io.bootDone   := fetch.io.bootDone
+  io.uploadBusy := bridge.io.uploadBusy
 
   // ---- sdram-domain: arbiter + upload glue (mirrors TopTang20kHdmi) ----
   val sdramArea = new ClockingArea(sdramCd) {
@@ -216,38 +218,40 @@ object UploadSeamSim extends App {
         }
       }
 
-      // ---- push a 512-byte upload (disjoint from fetch) at 8MHz-equiv: the SDRAM
-      // byte-write sink is ~6 cycles/byte (40.5 MHz); the 8 MHz host cap delivers a
-      // byte ~every 10 cycles (40.5/8). gap=9 models that. preFix's !de gate starves
-      // the 16-deep byteFifo across the 640-cycle active window (~64 bytes arrive,
-      // buffers hold ~32 -> overflow); postFix drains continuously (sink 1/6 > src
-      // 1/10) so nothing overflows. ----
+      // ---- #11330 repro: 32 back-to-back SDRAM_WRITE transactions (tile-matrix
+      // pattern), gap=0 (max stress), through the bridge WHILE the real fetch engine
+      // contends on the pop side (uploadCc gated by canAccept + refresh). Each txn is
+      // a header + 4 bytes to base+t*4. Checks the bridge never DEADLOCKS (uploadBusy
+      // stuck) and every byte lands. preFix=true = old gating; preFix=false = the
+      // shipped header-FIFO bridge.
       val base = 0x100000
-      val n    = 512
-      dut.io.addrInit    #= base
-      dut.io.lenBytes    #= n
-      dut.io.headerValid #= true
-      dut.clockDomain.waitSampling()
-      dut.io.headerValid #= false
-      for (i <- 0 until n) {
-        dut.io.byteIn    #= (0xC0 + (i & 0x3F)) & 0xFF
-        dut.io.byteValid #= true
+      val nTxn = 32
+      for (t <- 0 until nTxn) {
+        dut.io.addrInit    #= base + t * 4
+        dut.io.lenBytes    #= 4
+        dut.io.headerValid #= true
         dut.clockDomain.waitSampling()
-        dut.io.byteValid #= false
-        dut.clockDomain.waitSampling(9)   // 8 MHz-equiv inter-byte gap
+        dut.io.headerValid #= false
+        for (k <- 0 until 4) {
+          dut.io.byteIn    #= (0x10 * (k + 1) + t) & 0xFF
+          dut.io.byteValid #= true
+          dut.clockDomain.waitSampling()
+          dut.io.byteValid #= false
+        }
       }
-
-      dut.clockDomain.waitSampling(120000)  // drain (long enough to flush FIFO tail)
+      dut.clockDomain.waitSampling(120000)  // drain
+      val stuck = dut.io.uploadBusy.toBoolean
       contend = false; gate = false
       contender.join(); gater.join()
 
       var landed = 0
-      for (i <- 0 until n) {
-        val exp = (0xC0 + (i & 0x3F)) & 0xFF
-        if (mem.getOrElse((base + i) & 0x7fffff, -1) == exp) landed += 1
+      for (t <- 0 until nTxn; k <- 0 until 4) {
+        val exp = (0x10 * (k + 1) + t) & 0xFF
+        if (mem.getOrElse((base + t * 4 + k) & 0x7fffff, -1) == exp) landed += 1
       }
-      dropped = n - landed
-      println(f"[seam preFix=$preFix%-5s] pushed=$n landed=$landed DROPPED=$dropped | uploadFires=$nFire modelRd=$nRd modelWr=$nWr modelRf=$nRf")
+      dropped = nTxn * 4 - landed
+      println(f"[seam preFix=$preFix%-5s] 32-txn burst: landed=$landed/${nTxn * 4} DROPPED=$dropped uploadBusyStuck=$stuck | fires=$nFire rd=$nRd wr=$nWr rf=$nRf")
+      if (stuck) println(f"[seam preFix=$preFix%-5s] *** DEADLOCK: uploadBusy stuck high after burst ***")
     }
     dropped
   }

@@ -49,8 +49,9 @@ object QspiSdramBridgeSim extends App {
     // Active-video gating mimic at the real 4:1 active:blank ratio
     // (640 active px vs 160 blank px). Scaled-down 80:20 cycles for
     // sim runtime; that's what the hardware actually presents.
+    var gaterRun = true
     fork {
-      while(true) {
+      while(gaterRun) {
         dut.io.allowUpload #= false
         dut.clockDomain.waitSampling(80)
         dut.io.allowUpload #= true
@@ -133,6 +134,46 @@ object QspiSdramBridgeSim extends App {
         f"b2b write $i: data 0x${writes(i).data.toInt}%X exp 0x${b2bExp(i)._2}%X")
     }
     println("[sim] back-to-back: txn2 re-anchored at 0x5000 (not 0x2004) — header FIFO PASS")
+
+    // ---- #11330: 32 back-to-back transactions (tile matrix) under gating ----
+    // Reproduce the HW deadlock: many headers arriving faster than the gated drain
+    // could overflow the depth-8 hdrFifo -> dropped headers desync the byte stream
+    // -> bridge stuck (uploadBusy never releases) / dropped writes. Asserts the
+    // bridge NEVER leaves uploadBusy stuck and lands every byte.
+    // Production config: F5 sets allowUpload := True (continuous drain). Stop the
+    // legacy 80/20 gater so this matches the shipped bridge, not the old gating.
+    gaterRun = false
+    dut.clockDomain.waitSampling(120)
+    dut.io.allowUpload #= true
+    dut.clockDomain.waitSampling(5)
+    writes.clear()
+    val nTxn = 32
+    for (t <- 0 until nTxn) {
+      dut.io.addrInit    #= 0xA000 + t * 4
+      dut.io.lenBytes    #= 4
+      dut.io.headerValid #= true
+      dut.clockDomain.waitSampling()
+      dut.io.headerValid #= false
+      for (k <- 0 until 4) {
+        dut.io.byteIn    #= (0x10 * (k + 1) + t) & 0xFF
+        dut.io.byteValid #= true
+        dut.clockDomain.waitSampling()
+        dut.io.byteValid #= false
+      }
+      // NO gap between transactions — stress hdrFifo vs the gated drain
+    }
+    dut.clockDomain.waitSampling(12000)            // ample drain
+    println(s"[sim] 32-txn: ${writes.size} writes (expected ${nTxn * 4}), uploadBusy=${dut.io.uploadBusy.toBoolean}")
+    assert(!dut.io.uploadBusy.toBoolean, "DEADLOCK: uploadBusy stuck high after 32 back-to-back txns")
+    assert(writes.size == nTxn * 4, s"32-txn: expected ${nTxn * 4} writes, got ${writes.size} (dropped headers -> desync)")
+    for (t <- 0 until nTxn; k <- 0 until 4) {
+      val w = writes(t * 4 + k)
+      val expAddr = (0xA000 + t * 4 + k) & ((1L << 23) - 1)
+      val expData = (0x10 * (k + 1) + t) & 0xFF
+      assert(w.addr.toLong == expAddr && w.data.toInt == expData,
+        f"32-txn write t=$t k=$k: addr 0x${w.addr.toLong}%X/data 0x${w.data.toInt}%X exp 0x$expAddr%X/0x$expData%X")
+    }
+    println("[sim] 32-txn back-to-back: all 128 bytes landed, no deadlock — PASS")
     println("QspiSdramBridgeSim: PASS")
   }
 }
