@@ -193,6 +193,40 @@ object QspiFramingSim extends App {
     val (mhc, mle) = runMerged(4)
     val mverdict = if (mhc >= 4 && mle == 0) "OK" else "*** DESYNC (expected) — bounds host CS-deassert contract ***"
     println(f"[framing] MERGED -> headers=$mhc%2d/4 lastErr=0x$mle%02X  $mverdict")
+    // Sweep 3c: SCK-GLITCH-DURING-HEADER (#11354, CyanPeak's hypothesis). The
+    // dangerous transient is NOT during idle (Sweep 3 = harmless, CS high) — it's
+    // a spurious SCK edge WHILE CS is asserted at the start of a header, injected
+    // by the SPI2 teardown/re-init as it (re)asserts CS. ONE extra SCK rising edge
+    // toggles nibble_cnt an extra time -> the first byte assembles from
+    // (glitch_nibble ## real_high_nibble) instead of (real_high ## real_low) ->
+    // every byte shifts by a nibble -> opcode misframes -> 0x40. This models the
+    // "one extra/missing SCK edge" CyanPeak deduced from the HW.
+    def runSckGlitch(h: Int, extraEdges: Int): (Int, Int) = {
+      hdrCount = 0; lastErr = 0
+      def sendNibbleG(n: Int): Unit = {
+        dut.io.spi_io_in #= (n & 0xF); dut.clockDomain.waitSampling(h)
+        dut.io.spi_sck #= true; dut.clockDomain.waitSampling(h); dut.io.spi_sck #= false
+      }
+      def sendByteG(b: Int): Unit = { sendNibbleG((b >> 4) & 0xF); sendNibbleG(b & 0xF) }
+      for (t <- 0 until 8) {
+        dut.io.spi_cs_n #= false
+        dut.clockDomain.waitSampling(3)
+        for (_ <- 0 until extraEdges) sendNibbleG(0xF)   // spurious SCK edge(s) w/ garbage, CS asserted
+        Seq(0x02, (0xB000 + t) & 0xFF, 0xB0, 0x00, 0x01, 0x00).foreach(sendByteG)
+        Seq(0xAA, 0x55).foreach(sendByteG)
+        dut.clockDomain.waitSampling(h * 2)
+        dut.io.spi_cs_n #= true
+        dut.clockDomain.waitSampling(40)
+      }
+      dut.clockDomain.waitSampling(50)
+      (hdrCount, lastErr)
+    }
+    println("[framing] SCK-GLITCH-DURING-HEADER (N extra SCK edges after CS assert, 8 txns):")
+    for (extra <- Seq(1, 2)) {
+      val (ghc, gle) = runSckGlitch(4, extra)
+      val gv = if (ghc == 8 && gle == 0) "OK" else "*** DESYNC — reproduces HW 0x40 class ***"
+      println(f"[framing] SCKGLITCH extra=$extra%d -> headers=$ghc%2d/8 lastErr=0x$gle%02X  $gv")
+    }
     println("QspiFramingSim: done (see DESYNC rows above)")
   }
 }
