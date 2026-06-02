@@ -88,6 +88,11 @@ case class QspiDecoder() extends Component {
   val sdramLenBytesReg    = Reg(UInt(17 bits)) init 0
   val sdramByteOutReg     = Reg(Bits(8 bits)) init 0
   val sdramByteValidReg   = Reg(Bool()) init False
+  // #11308 hardening: bound the SDRAM_WRITE payload to LEN so trailing/padding/glitch
+  // bytes past the declared length are IGNORED (not forwarded as spurious writes that
+  // desync the address stream — the libvdp 4-byte-padding corruption, #11297/#11305).
+  // Mirrors wordsLeft for REG_WRITE; counts payload BYTES (LEN = 2*words).
+  val sdramBytesLeft = Reg(UInt(17 bits)) init 0
   sdramHeaderValidReg := False
   sdramByteValidReg   := False
 
@@ -110,6 +115,7 @@ case class QspiDecoder() extends Component {
     when(io.cmd_opcode === Op.SDRAM_WRITE) {
       sdramAddrInitReg    := io.cmd_addr(22 downto 0)
       sdramLenBytesReg    := (io.cmd_len << 1).resize(17)   // bytes = 2 * words
+      sdramBytesLeft      := (io.cmd_len << 1).resize(17)   // #11308: payload byte budget
       sdramHeaderValidReg := True
     }
   }
@@ -131,8 +137,14 @@ case class QspiDecoder() extends Component {
       }
     } elsewhen(activeSdramWrite) {
       // Task 34 — raw byte forwarded to the bridge; no word assembly here.
-      sdramByteOutReg   := io.payload_byte
-      sdramByteValidReg := True
+      // #11308: only forward while within the declared LEN budget. Bytes beyond
+      // LEN (host 4-byte padding, or any trailing/glitch byte before CS-deassert)
+      // are dropped so they cannot become spurious writes past addrInit+LEN.
+      when(sdramBytesLeft > U(0, 17 bits)) {
+        sdramByteOutReg   := io.payload_byte
+        sdramByteValidReg := True
+        sdramBytesLeft    := sdramBytesLeft - 1
+      }
     } otherwise {
       // Unknown opcode — record error but drop the byte.
       last_error := opcodeReg
