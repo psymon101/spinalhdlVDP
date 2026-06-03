@@ -41,7 +41,8 @@ void setup() {
     Serial.println("  u               : Raw upload status (READ_STATUS sel=6)");
     Serial.println("  b <addr> <count> <data> : No-poll DWORD burst to SDRAM");
     Serial.println("  f               : Flush SDRAM FIFOs");
-    Serial.println("  t               : Run HW validation matrix");
+    Serial.println("  t               : Run HW data-path matrix; may set sticky uploadError");
+    Serial.println("                    in tight-poll mode. Use w+u pacing for status-clean checks.");
     
     // Initialize libvdp
     vdp_qspi_init();
@@ -119,6 +120,8 @@ void do_burst(uint32_t addr, uint16_t count, uint32_t data) {
 
 void do_matrix() {
     Serial.println("\n--- RUNNING HW MATRIX ---");
+    Serial.println("NOTE: t verifies data path under tight polling. CP-A5 hardware can false-fire");
+    Serial.println("      sel=6 bit2 in this mode; use manual w+u pacing for status-clean checks.");
     uint32_t sent_addr = 0x00B000;
     uint32_t sent_data = 0x22221111;
     do_write(sent_addr, sent_data);
