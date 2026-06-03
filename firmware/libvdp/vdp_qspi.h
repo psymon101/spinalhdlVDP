@@ -52,7 +52,8 @@ void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_word
  * little-endian response word for the requested selector.
  * @param sel   0 = magic 0x51560002, 1 = rx_cmd_cnt, 2 = last_addr,
  *              3 = last_data, 4 = last_error, 5 = status sticky,
- *              6 = upload status (busy/done bits), 7 = live mode
+ *              6 = upload status (busy/done bits), 7 = live mode,
+ *              8 = diagnostic SDRAM dword readback
  * @return 32-bit response assembled from 4 bit-banged bytes (byte 0 = LSB)
  */
 uint32_t vdp_read_status(uint8_t sel);
@@ -84,7 +85,8 @@ int vdp_last_error(void);
  * platforms this is a no-op. Pass a frequency in Hz; the actual rate
  * may be rounded to the nearest divisor of the bus clock.
  *
- * Safe to call between transactions; do not call mid-transaction.
+ * Safe to call between transactions; do not call mid-transaction. The
+ * ESP32-S3 backend clamps requests to `VDP_QSPI_SCK_WRITE_HZ` (8 MHz).
  */
 void vdp_qspi_set_speed_hz(uint32_t hz);
 
