@@ -733,7 +733,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // CP-A2 (Phase A #11421/#11426): clientCount 4→5. Client 4 = UPLOAD DMA,
     // promoted from a side-channel OR into a first-class arbiter client granted
     // on idle cycles (priority below refresh+fetch). idBits widens 2→3.
-    val arbiter = SdramArbiter(clientCount = 5, addrWidth = 23, dataWidth = 8)
+    // CP-A2b (#11429/#11432): clientCount 5→6. Client 5 = DEBUG READ (lowest
+    // priority), promoted from the ctrl.rd OR / ctrl.addr Mux side-path so the
+    // dataCaptured snoop can't latch a fetch transaction (CyanPeak audit).
+    val arbiter = SdramArbiter(clientCount = 6, addrWidth = 23, dataWidth = 8)
 
     val activeBit   = BufferCC(pixelArea.bitmapRowFetch.io.sdramActive, False)
     // #11246 F1@712: cross grantClientId(2b) + slotValid + grant as ONE bundle so
@@ -927,8 +930,22 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   sdramArbiter.io.clientWr(4)   := uploadDrive
   sdramArbiter.io.clientAddr(4) := uploadPopArea.addr
   sdramArbiter.io.clientDin(4)  := uploadPopArea.din
-  sdramArbiter.io.grantClientId := Mux(uploadDrive, U(4, sdramArbiter.idBits bits),
-                                       sdramArbArea.baseGrantId)
+  // CP-A2b: DEBUG READ = client 5 (read-only, lowest priority). dbgReadArea.rdPulse
+  // already fires ONLY when sdramIdle (no fetch rd/wr/refresh, !busy) AND uploadDrained,
+  // so granting client 5 on rdPulse never collides with fetch or upload. The read makes
+  // the controller busy, which blocks fetch issue for the read's duration -> the
+  // dataCaptured snoop (inFlight && data_ready) can only see the debug read's own data.
+  sdramArbiter.io.clientRd(5)   := dbgReadArea.rdPulse
+  sdramArbiter.io.clientWr(5)   := False
+  sdramArbiter.io.clientAddr(5) := dbgReadArea.rdAddr
+  sdramArbiter.io.clientDin(5)  := B(0, 8 bits)
+  // Grant priority: UPLOAD(4) > DEBUG(5) > fetch(baseGrantId). uploadDrive and rdPulse
+  // are mutually exclusive (rdPulse requires uploadDrained), so the order is moot for
+  // correctness but matches the signed-off hierarchy (Refresh P0 > Fetch P1 > Upload P2
+  // > Debug P3; refresh is still controller-internal until CP-A3).
+  sdramArbiter.io.grantClientId := Mux(uploadDrive,            U(4, sdramArbiter.idBits bits),
+                                   Mux(dbgReadArea.rdPulse,    U(5, sdramArbiter.idBits bits),
+                                       sdramArbArea.baseGrantId))
 
   // DIAG #10928 readback fix: the debug read OWNS the controller bus from issue
   // (rdPulse) until capture (inFlight clears). Without `!dbgReadArea.inFlight`,
@@ -938,7 +955,13 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // "fixed data regardless of upload/addr" symptom in TopazCliff #10928).
   // sdramIdle already blocks issue while a fetch read is mid-flight, so this only
   // delays a not-yet-started fetch read by the few cycles of the one-shot read.
-  sdramArea.ctrl.io.rd      := (sdramArbiter.io.sdramRd && !dbgReadArea.inFlight) || dbgReadArea.rdPulse
+  // CP-A2b: debug read reaches ctrl via the arbiter (client 5) — no more `|| rdPulse`
+  // OR. A FETCH read (grant != 5) is still blocked while a debug read is in flight
+  // (the #10928 guard) so the snoop can't latch fetch data; the debug read itself
+  // (grant === 5) is allowed.
+  sdramArea.ctrl.io.rd      := sdramArbiter.io.sdramRd &&
+                               (!dbgReadArea.inFlight ||
+                                sdramArbiter.io.grantClientId === U(5, sdramArbiter.idBits bits))
   // CP-A2: upload write now arrives via the arbiter (client 4) — no more `|| uploadDrive`
   // side-channel OR. sdramWr already carries the upload write when grantClientId===4.
   sdramArea.ctrl.io.wr      := sdramArbiter.io.sdramWr
@@ -948,10 +971,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // engines; no per-engine refresh accounting needed. Latent in the current
   // bitstream (enableL1Fetch=false) but required before L1 is ever enabled.
   sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh || pixelArea.fetchL1.io.sdramRefresh
-  // CP-A2: addr/din come purely from the arbiter (upload is client 4); only the
-  // debug read still overrides addr (it remains a side-path until CP-A2b promotes it
-  // to client 5). uploadPopArea.addr/din now reach ctrl via clientAddr(4)/clientDin(4).
-  sdramArea.ctrl.io.addr    := Mux(dbgReadArea.rdPulse, dbgReadArea.rdAddr, sdramArbiter.io.sdramAddr)
+  // CP-A2b: addr/din now come PURELY from the arbiter for ALL clients — upload (4)
+  // via clientAddr/Din(4), debug read (5) via clientAddr(5)=rdAddr. The dbgRead addr
+  // Mux side-path is gone; ctrl is driven by a single arbitrated source.
+  sdramArea.ctrl.io.addr    := sdramArbiter.io.sdramAddr
   sdramArea.ctrl.io.din     := sdramArbiter.io.sdramDin
   pixelArea.fetch.io.sdramDout      := sdramArea.ctrl.io.dout
   pixelArea.fetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
