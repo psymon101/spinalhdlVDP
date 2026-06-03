@@ -37,7 +37,7 @@ import spinal.lib.fsm._
   * Address wrap (CyanPeak #7680): `addr` is 23 bits and wraps at the 8 MB
   * boundary; the bridge does not bounds-check (host's responsibility).
   */
-case class QspiSdramBridge() extends Component {
+case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
   val io = new Bundle {
     // From QspiDecoder
     val headerValid = in Bool()
@@ -56,6 +56,11 @@ case class QspiSdramBridge() extends Component {
     // Host-visible status
     val uploadBusy  = out Bool()
     val uploadDone  = out Bool()
+    // CP-A1 (Phase A #11411): sticky watchdog-abort flag. Set when a transaction
+    // is aborted because it could not make progress within `stallTimeout` cycles
+    // (wrCmd.ready stalled, or fewer payload bytes than LEN arrived). The top
+    // routes this to a host-visible status bit so the host can detect + resync.
+    val uploadError = out Bool()
   }
 
   val addrReg   = Reg(UInt(23 bits)) init 0
@@ -90,12 +95,22 @@ case class QspiSdramBridge() extends Component {
   val donePulse = Reg(Bool()) init False
   donePulse := False
 
+  // CP-A1 watchdog state. `stallCnt` counts cycles in sActive WITHOUT a committed
+  // byte (reset on every wrCmd.fire); a transaction making progress never trips it.
+  // Only a genuine wedge (ready stuck low, or fewer bytes than LEN ever arriving)
+  // lets it reach `stallTimeout` -> ABORT to sFlush. `uploadError` is sticky until
+  // the host clears it (or POR) so a transient wedge is observable after recovery.
+  val stallCnt    = Reg(UInt(log2Up(stallTimeout) bits)) init 0
+  val uploadError = Reg(Bool()) init False
+
   val fsm = new StateMachine {
     val sIdle   = new State with EntryPoint
     val sActive = new State
+    val sFlush  = new State
     val sDone   = new State
 
     sIdle.whenIsActive {
+      stallCnt := 0
       // Pop the next queued header (back-to-back safe) and re-anchor this
       // transaction's address + byte budget.
       when(hdrFifo.io.pop.valid) {
@@ -113,9 +128,28 @@ case class QspiSdramBridge() extends Component {
       when(io.wrCmd.fire) {
         addrReg   := addrReg + 1          // wraps at 2^23 naturally
         bytesLeft := bytesLeft - 1
+        stallCnt  := 0                    // progress — reset the watchdog
         when(bytesLeft === U(1, 17 bits)) {
           goto(sDone)
         }
+      } otherwise {
+        // No byte committed this cycle — advance the stall watchdog. If it
+        // saturates, the transaction is wedged: abort it instead of hanging
+        // uploadBusy forever (QspiWriteStatusReproSim CASE B/B2).
+        stallCnt := stallCnt + 1
+        when(stallCnt === U(stallTimeout - 1, log2Up(stallTimeout) bits)) {
+          uploadError := True
+          goto(sFlush)
+        }
+      }
+    }
+
+    sFlush.whenIsActive {
+      // Drop the orphaned transaction: drain whatever bytes remain buffered so a
+      // partial/wedged frame cannot mis-pair into the next transaction, then
+      // return to idle. Host sees uploadError on the next status poll and resyncs.
+      when(!byteFifo.io.pop.valid) {
+        goto(sIdle)
       }
     }
 
@@ -126,11 +160,13 @@ case class QspiSdramBridge() extends Component {
   }
 
   // wrCmd source: valid while emitting and a byte is available and gate open.
-  // pop the byte FIFO exactly when the command is accepted (fire).
+  // pop the byte FIFO when the command is accepted (fire) OR when flushing an
+  // aborted transaction (drain to clear, no write emitted).
   io.wrCmd.valid   := fsm.isActive(fsm.sActive) && byteFifo.io.pop.valid && io.allowUpload
   io.wrCmd.payload := addrReg.asBits ## byteFifo.io.pop.payload
-  byteFifo.io.pop.ready := io.wrCmd.fire
+  byteFifo.io.pop.ready := io.wrCmd.fire || fsm.isActive(fsm.sFlush)
 
   io.uploadBusy := !fsm.isActive(fsm.sIdle) || hdrFifo.io.pop.valid  // active OR headers queued
   io.uploadDone := donePulse
+  io.uploadError := uploadError
 }

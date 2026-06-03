@@ -42,13 +42,15 @@ object QspiWriteStatusReproSim extends App {
       val cmd_valid   = out Bool()
       val last_error  = out Bits(8 bits)
       val uploadBusy  = out Bool()
+      val uploadError = out Bool()
       val wrCmdFireCnt = out UInt(16 bits)
       val sdramHeaderValid = out Bool()
       val sdramLenBytes    = out UInt(17 bits)
     }
     val slave  = QspiSlave()
     val dec    = QspiDecoder()
-    val bridge = QspiSdramBridge()
+    // CP-A1: small stallTimeout so the watchdog fires quickly in sim (prod default 65536).
+    val bridge = QspiSdramBridge(stallTimeout = 64)
 
     slave.io.spi_cs_n  := io.spi_cs_n
     slave.io.spi_sck   := io.spi_sck
@@ -79,6 +81,7 @@ object QspiWriteStatusReproSim extends App {
     // Feed bridge status back to the decoder so READ_STATUS sel=6 reflects it.
     dec.io.upload_busy := bridge.io.uploadBusy
     dec.io.upload_done := bridge.io.uploadDone
+    dec.io.upload_error := bridge.io.uploadError
 
     val fireCnt = Reg(UInt(16 bits)) init 0
     when(bridge.io.wrCmd.fire) { fireCnt := fireCnt + 1 }
@@ -87,6 +90,7 @@ object QspiWriteStatusReproSim extends App {
     io.cmd_valid        := slave.io.cmd_valid
     io.last_error       := dec.io.last_error
     io.uploadBusy       := bridge.io.uploadBusy
+    io.uploadError      := bridge.io.uploadError
     io.wrCmdFireCnt     := fireCnt
     io.sdramHeaderValid := dec.io.sdramHeaderValid
     io.sdramLenBytes    := dec.io.sdramLenBytes
@@ -178,29 +182,28 @@ object QspiWriteStatusReproSim extends App {
       f"uploadBusy=$aBusy fires=+$aFires lastErr=0x$lastErr%02X")
 
     // ---- CASE B: LEN/payload MISMATCH (no glitch). Host sends LEN=4 words header but
-    // only 4 payload bytes; bridge expects 2*LEN=8 -> byteFifo dry at 4 -> stuck in
-    // sActive FOREVER. This is the FIRST sticker -> answers CyanPeak's self-heal Q.
+    // only 4 payload bytes; bridge expects 2*LEN=8 -> byteFifo dry at 4. PRE-CP-A1 this
+    // wedged sActive FOREVER. WITH the CP-A1 watchdog, after stallTimeout cycles with no
+    // committed byte the bridge ABORTS -> sFlush -> sIdle, sets sticky uploadError, and
+    // uploadBusy CLEARS. drain()=400 cycles >> stallTimeout=64, so it must recover.
     clearObs()
     val f1 = fires()
     sdramWrite(0xB100, lenWords = 4, payload = Seq(0xAA, 0xBB, 0xCC, 0xDD))
     drain()
-    val bBusy = dut.io.uploadBusy.toBoolean; val bFires = fires() - f1
-    line("B LEN/payload mismatch(len=4,4B)", bBusy && lastErr == 0,
-      f"uploadBusy=$bBusy fires=+$bFires lastErr=0x$lastErr%02X (STUCK, no glitch)")
+    val bBusy = dut.io.uploadBusy.toBoolean; val bErr = dut.io.uploadError.toBoolean; val bFires = fires() - f1
+    line("B LEN/payload mismatch -> watchdog abort", !bBusy && bErr,
+      f"uploadBusy=$bBusy(recovered) uploadError=$bErr(sticky) fires=+$bFires")
 
-    // ---- CASE B2: SELF-HEAL TEST — send a perfectly-formed write AFTER B's stuck
-    // state. If the bridge self-heals, uploadBusy would clear / this write would land.
-    // It does NOT: the FSM is wedged in sActive, the good header just queues in hdrFifo.
+    // ---- CASE B2: SELF-HEAL — a perfectly-formed write AFTER the abort MUST land now
+    // that the bridge recovered to idle. PASS = uploadBusy clears AND the 4 bytes commit
+    // (fires += 4). uploadError stays sticky (set in B) until the host clears it.
     clearObs()
     val f2 = fires()
     sdramWrite(0xB300, lenWords = 2, payload = Seq(0x01, 0x02, 0x03, 0x04))
     drain()
     val healBusy = dut.io.uploadBusy.toBoolean; val healFires = fires() - f2
-    // PASS = still stuck (no self-heal). The +4 fires are B2's bytes being CONSUMED by
-    // the still-wedged transaction B (wrong addr) before re-wedging on B2 -> worse than
-    // a clean stall: a single LEN mismatch corrupts EVERY following upload until reset.
-    line("B2 good write after stuck (self-heal?)", healBusy,
-      f"uploadBusy=$healBusy fires=+$healFires => NO self-heal; next txn's bytes mis-consumed")
+    line("B2 good write after abort (self-heal)", !healBusy && healFires == 4,
+      f"uploadBusy=$healBusy fires=+$healFires => RECOVERED, write landed")
 
     // ---- CASE C: TIGHT CS-to-SCK setup on READ_STATUS (csSetup=1). HYPOTHESIS was
     // that the slave misses the leading nibble (0x04 -> 0x40). RESULT: it does NOT —

@@ -60,6 +60,9 @@ case class QspiDecoder() extends Component {
     val sdramByteValid   = out Bool()
     val upload_busy      = in Bool()
     val upload_done      = in Bool()
+    // CP-A1 (Phase A #11411/#11419): sticky bridge watchdog-abort flag, surfaced
+    // on READ_STATUS sel=6 bit2 so the host can detect an aborted upload + resync.
+    val upload_error     = in Bool()
   }
 
   object Op {
@@ -205,8 +208,9 @@ case class QspiDecoder() extends Component {
       is(U(4, 8 bits)) { rxWord := B(0, 24 bits) ## last_error }
       is(U(5, 8 bits)) { rxWord := B(0, 16 bits) ## io.status_sticky }   // Task 35
       is(U(6, 8 bits)) {                                                  // Task 34
-        // sel=6 upload status: byte0[0] = upload_busy, byte0[1] = upload_done (latched)
-        val statBits = B(0, 6 bits) ## io.upload_done ## io.upload_busy
+        // sel=6 upload status: byte0[0]=upload_busy, byte0[1]=upload_done (latched),
+        // byte0[2]=upload_error (CP-A1 sticky watchdog-abort).
+        val statBits = B(0, 5 bits) ## io.upload_error ## io.upload_done ## io.upload_busy
         rxWord := B(0, 24 bits) ## statBits
       }
       is(U(7, 8 bits)) {                                                  // Task 1 (#9154)

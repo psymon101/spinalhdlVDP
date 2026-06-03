@@ -419,6 +419,7 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // Stream is crossed losslessly via uploadCc (StreamFifoCC) at top level.
     qspiDec.io.upload_busy := qspiSdramBridge.io.uploadBusy
     qspiDec.io.upload_done := qspiSdramBridge.io.uploadDone
+    qspiDec.io.upload_error := qspiSdramBridge.io.uploadError   // CP-A1: sticky abort -> READ_STATUS sel=6 bit2
 
     val regWriteFromBoot = bootWrite && bootIdx <= lastStepIdx
     // QSPI can only assert after bootstrap completes, preventing any

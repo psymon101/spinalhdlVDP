@@ -52,6 +52,7 @@ object QspiRegWriteSim extends App {
     // instantiated here). A SdramUploadSim covers the bridge path.
     dec.io.upload_busy := False
     dec.io.upload_done := False
+    dec.io.upload_error := False
     // #11308: tie off the sel=8 DIAG readback input (added later for #10908; this
     // harness never drove it -> a NO-DRIVER elaboration failure that had silently
     // broken QspiRegWriteSim). Tying it off restores the REG_WRITE regression.
