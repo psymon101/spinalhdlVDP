@@ -730,7 +730,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // into sdramClockDomain. Synchronize pixel-domain control signals via BufferCC
   // to ensure glitch-free switching and rule out SDRAM controller stalls.
   val sdramArbArea = new ClockingArea(sdramClockDomain) {
-    val arbiter = SdramArbiter(clientCount = 4, addrWidth = 23, dataWidth = 8)
+    // CP-A2 (Phase A #11421/#11426): clientCount 4→5. Client 4 = UPLOAD DMA,
+    // promoted from a side-channel OR into a first-class arbiter client granted
+    // on idle cycles (priority below refresh+fetch). idBits widens 2→3.
+    val arbiter = SdramArbiter(clientCount = 5, addrWidth = 23, dataWidth = 8)
 
     val activeBit   = BufferCC(pixelArea.bitmapRowFetch.io.sdramActive, False)
     // #11246 F1@712: cross grantClientId(2b) + slotValid + grant as ONE bundle so
@@ -746,7 +749,12 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
       B(0, 4 bits))
     val grantIdSync = grantBundle(3 downto 2).asUInt
 
-    arbiter.io.grantClientId := Mux(activeBit, U(1, 2 bits), grantIdSync)
+    // CP-A2: base (fetch) grant id, widened to the new 3-bit id space. The UPLOAD
+    // override (-> client 4) is applied at top level AFTER uploadPopArea is defined,
+    // because it depends on the idle-cycle decision (uploadDrive). slotValid/grant
+    // remain the scheduler's — fan-out (clientGrant/clientSlotValid) for fetch
+    // clients 0-3 is unaffected by the upload override.
+    val baseGrantId = Mux(activeBit, U(1, 3 bits), grantIdSync.resize(3))
     arbiter.io.slotValid     := grantBundle(1)
     arbiter.io.grant         := grantBundle(0)
   }
@@ -907,6 +915,21 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   }
   val uploadDrive = uploadPopArea.fire
 
+  // CP-A2 (#11421/#11426): UPLOAD = first-class arbiter client 4. uploadDrive
+  // (= uploadPopArea.pop.fire, the proven idle-cycle decision: !ctrl.busy &&
+  // !anyClientActive && !dbgRead) overrides the grant id to 4 for the ctrl-bound
+  // request mux. The arbiter then emits ONLY the upload write (clientRd(4)=False),
+  // so an upload write can NEVER collide with a fetch read on sdram.v's rd|wr
+  // ternary — the structural cure for the old side-channel-OR hazard. Fetch clients
+  // 0-3 keep scheduler-driven clientGrant/clientSlotValid fan-out (baseGrantId);
+  // the override only fires when !anyClientActive, so it never steals a fetch grant.
+  sdramArbiter.io.clientRd(4)   := False
+  sdramArbiter.io.clientWr(4)   := uploadDrive
+  sdramArbiter.io.clientAddr(4) := uploadPopArea.addr
+  sdramArbiter.io.clientDin(4)  := uploadPopArea.din
+  sdramArbiter.io.grantClientId := Mux(uploadDrive, U(4, sdramArbiter.idBits bits),
+                                       sdramArbArea.baseGrantId)
+
   // DIAG #10928 readback fix: the debug read OWNS the controller bus from issue
   // (rdPulse) until capture (inFlight clears). Without `!dbgReadArea.inFlight`,
   // the fetch engine kept issuing reads through the arbiter while the debug read
@@ -916,16 +939,20 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // sdramIdle already blocks issue while a fetch read is mid-flight, so this only
   // delays a not-yet-started fetch read by the few cycles of the one-shot read.
   sdramArea.ctrl.io.rd      := (sdramArbiter.io.sdramRd && !dbgReadArea.inFlight) || dbgReadArea.rdPulse
-  sdramArea.ctrl.io.wr      := sdramArbiter.io.sdramWr || uploadDrive
+  // CP-A2: upload write now arrives via the arbiter (client 4) — no more `|| uploadDrive`
+  // side-channel OR. sdramWr already carries the upload write when grantClientId===4.
+  sdramArea.ctrl.io.wr      := sdramArbiter.io.sdramWr
   // #11246 F6: merge L1's refresh request too (was L0-only — L1's refresh pulses
   // were dropped, so an enabled L1 region would decay). AUTO_REFRESH is chip-global
   // (refreshes all banks/rows), so a single OR'd pulse correctly serves both
   // engines; no per-engine refresh accounting needed. Latent in the current
   // bitstream (enableL1Fetch=false) but required before L1 is ever enabled.
   sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh || pixelArea.fetchL1.io.sdramRefresh
-  sdramArea.ctrl.io.addr    := Mux(dbgReadArea.rdPulse, dbgReadArea.rdAddr,
-                                Mux(uploadDrive, uploadPopArea.addr, sdramArbiter.io.sdramAddr))
-  sdramArea.ctrl.io.din     := Mux(uploadDrive, uploadPopArea.din,  sdramArbiter.io.sdramDin)
+  // CP-A2: addr/din come purely from the arbiter (upload is client 4); only the
+  // debug read still overrides addr (it remains a side-path until CP-A2b promotes it
+  // to client 5). uploadPopArea.addr/din now reach ctrl via clientAddr(4)/clientDin(4).
+  sdramArea.ctrl.io.addr    := Mux(dbgReadArea.rdPulse, dbgReadArea.rdAddr, sdramArbiter.io.sdramAddr)
+  sdramArea.ctrl.io.din     := sdramArbiter.io.sdramDin
   pixelArea.fetch.io.sdramDout      := sdramArea.ctrl.io.dout
   pixelArea.fetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
   pixelArea.fetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready

@@ -85,16 +85,22 @@ case class UploadSeamHarness(preFix: Boolean) extends Component {
   io.uploadBusy := bridge.io.uploadBusy
 
   // ---- sdram-domain: arbiter + upload glue (mirrors TopTang20kHdmi) ----
+  // Two readiness contracts (BronzeGate #11424 / TopazCliff #11426 clarification):
+  //   (a) bridge PUSH ready = ingress byteFifo capacity (inside QspiSdramBridge;
+  //       the CP-A1 watchdog covers a too-long ingress stall).
+  //   (b) upload DRAIN ready = uploadCc.pop.ready = the arbiter can accept this cycle.
+  //       preFix: canAccept gate + side-channel OR. postFix(CP-A2): the bridge's
+  //       wrCmd drains only when the arbiter GRANTS client 4 + the controller accepts.
   val sdramArea = new ClockingArea(sdramCd) {
-    val arbiter = SdramArbiter(clientCount = 4, addrWidth = 23, dataWidth = 8)
-    arbiter.io.grantClientId := U(0, 2 bits)
+    // CP-A2: clientCount 4→5 (client 4 = upload). idBits 2→3.
+    val arbiter = SdramArbiter(clientCount = 5, addrWidth = 23, dataWidth = 8)
     arbiter.io.slotValid     := True
     arbiter.io.grant         := BufferCC(io.fetchGrant, False)
     arbiter.io.clientRd(0)   := fetch.io.sdramRd
     arbiter.io.clientWr(0)   := fetch.io.sdramWr
     arbiter.io.clientAddr(0) := fetch.io.sdramAddr
     arbiter.io.clientDin(0)  := fetch.io.sdramDin
-    for (i <- 1 until 4) {
+    for (i <- 1 until 4) {                       // clients 1-3 unused here
       arbiter.io.clientRd(i)   := False
       arbiter.io.clientWr(i)   := False
       arbiter.io.clientAddr(i) := U(0, 23 bits)
@@ -107,7 +113,7 @@ case class UploadSeamHarness(preFix: Boolean) extends Component {
       !io.ctrlBusy && !deSync && !arbiter.io.sdramRd && !arbiter.io.sdramWr &&
         !fetch.io.sdramRefresh
     } else {
-      // NEW (5ceecb3): per-client current AND next-cycle look-ahead, no de gate.
+      // NEW: per-client current AND next-cycle look-ahead, no de gate.
       val fetchBusy = fetch.io.sdramRd || fetch.io.sdramWr ||
         fetch.io.sdramRdNext || fetch.io.sdramWrNext ||
         fetch.io.sdramRefresh || fetch.io.sdramRefreshNext
@@ -118,12 +124,34 @@ case class UploadSeamHarness(preFix: Boolean) extends Component {
     val upAddr = uploadCc.io.pop.payload(30 downto 8).asUInt
     val upDin  = uploadCc.io.pop.payload(7 downto 0)
 
-    io.ctrlRd      := arbiter.io.sdramRd
-    io.ctrlWr      := arbiter.io.sdramWr || fire
+    if (preFix) {
+      // OLD side-channel: upload OR'd into ctrl.wr, Mux on addr/din; client 4 unused.
+      arbiter.io.clientRd(4)   := False
+      arbiter.io.clientWr(4)   := False
+      arbiter.io.clientAddr(4) := U(0, 23 bits)
+      arbiter.io.clientDin(4)  := B(0, 8 bits)
+      arbiter.io.grantClientId := U(0, arbiter.idBits bits)
+      io.ctrlRd   := arbiter.io.sdramRd
+      io.ctrlWr   := arbiter.io.sdramWr || fire
+      io.ctrlAddr := Mux(fire, upAddr, arbiter.io.sdramAddr)
+      io.ctrlDin  := Mux(fire, upDin,  arbiter.io.sdramDin)
+    } else {
+      // CP-A2 (mirrors TopTang20kHdmi): upload = arbiter client 4. uploadDrive(fire)
+      // overrides the grant id to 4 -> arbiter emits ONLY the upload write
+      // (clientRd(4)=False), structurally barring an upload/fetch-read collision.
+      // NO OR into ctrl.wr, NO addr/din Mux — ctrl is driven purely by the arbiter.
+      arbiter.io.clientRd(4)   := False
+      arbiter.io.clientWr(4)   := fire
+      arbiter.io.clientAddr(4) := upAddr
+      arbiter.io.clientDin(4)  := upDin
+      arbiter.io.grantClientId := Mux(fire, U(4, arbiter.idBits bits), U(0, arbiter.idBits bits))
+      io.ctrlRd   := arbiter.io.sdramRd
+      io.ctrlWr   := arbiter.io.sdramWr
+      io.ctrlAddr := arbiter.io.sdramAddr
+      io.ctrlDin  := arbiter.io.sdramDin
+    }
     io.ctrlRefresh := fetch.io.sdramRefresh
-    io.ctrlAddr := Mux(fire, upAddr, arbiter.io.sdramAddr)
-    io.ctrlDin  := Mux(fire, upDin,  arbiter.io.sdramDin)
-    io.uploadFire := fire
+    io.uploadFire  := fire
   }
 
   fetch.io.sdramBusy      := io.ctrlBusy
@@ -133,8 +161,9 @@ case class UploadSeamHarness(preFix: Boolean) extends Component {
 }
 
 object UploadSeamSim extends App {
-  def run(preFix: Boolean): Int = {
+  def run(preFix: Boolean): (Int, Boolean) = {
     var dropped = -1
+    var stuckOut = false
     SimConfig.compile(UploadSeamHarness(preFix)).doSim { dut =>
       dut.clockDomain.forkStimulus(period = 10)
       dut.sdramCd.forkStimulus(period = 10)
@@ -241,6 +270,7 @@ object UploadSeamSim extends App {
       }
       dut.clockDomain.waitSampling(120000)  // drain
       val stuck = dut.io.uploadBusy.toBoolean
+      stuckOut = stuck
       contend = false; gate = false
       contender.join(); gater.join()
 
@@ -253,14 +283,14 @@ object UploadSeamSim extends App {
       println(f"[seam preFix=$preFix%-5s] 32-txn burst: landed=$landed/${nTxn * 4} DROPPED=$dropped uploadBusyStuck=$stuck | fires=$nFire rd=$nRd wr=$nWr rf=$nRf")
       if (stuck) println(f"[seam preFix=$preFix%-5s] *** DEADLOCK: uploadBusy stuck high after burst ***")
     }
-    dropped
+    (dropped, stuckOut)
   }
 
-  val before = run(true)
-  val after  = run(false)
-  println(s"[seam] SUMMARY: preFix(old gating) DROPPED=$before ; postFix(look-ahead) DROPPED=$after")
-  if (before > 0 && after == 0)
-    println("[seam] PROOF OK: reproduces drops before fix, ZERO drops after fix")
+  val (before, beforeStuck) = run(true)
+  val (after,  afterStuck)  = run(false)
+  println(s"[seam] SUMMARY: preFix(old side-channel) DROPPED=$before stuck=$beforeStuck ; postFix(CP-A2 arbiter client 4) DROPPED=$after stuck=$afterStuck")
+  if (before > 0 && after == 0 && !afterStuck)
+    println("[seam] PROOF OK: preFix drops; CP-A2 (upload as arbiter client 4) ZERO drops + no wedge")
   else
-    println(s"[seam] PROOF INCOMPLETE: before=$before after=$after (expected before>0, after=0)")
+    println(s"[seam] PROOF INCOMPLETE: before=$before after=$after afterStuck=$afterStuck (expected before>0, after=0, afterStuck=false)")
 }
