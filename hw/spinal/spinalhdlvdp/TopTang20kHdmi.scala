@@ -417,7 +417,11 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     qspiSdramBridge.io.allowUpload := True
     // #11123 FIX 1: bridge no longer takes raw cross-domain busy; its wrCmd
     // Stream is crossed losslessly via uploadCc (StreamFifoCC) at top level.
-    qspiDec.io.upload_busy := qspiSdramBridge.io.uploadBusy
+    // CP-A5 (#11464/#11470): upload_busy is driven AFTER uploadCc is defined (below) so
+    // it reflects the FULL drain (bridge OR uploadCc-not-empty), not just the bridge —
+    // otherwise the host poll-clear races ahead of the SDRAM-side drain and the CC
+    // backs up (sentinel+32 tiles = 132 > depth 128 -> tile[31] overflow + watchdog abort,
+    // proven in CpA5UploadDrainSim). Driven at the uploadCc instantiation site.
     qspiDec.io.upload_done := qspiSdramBridge.io.uploadDone
     qspiDec.io.upload_error := qspiSdramBridge.io.uploadError   // CP-A1: sticky abort -> READ_STATUS sel=6 bit2
     qspiDec.io.upload_overflow := qspiSdramBridge.io.fifoOverflow  // CP-A4: sticky ingress overflow -> sel=6 bit3
@@ -717,6 +721,12 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // dbgReadArea) consumes one entry only when the controller can accept it.
   val uploadCc = StreamFifoCC(Bits(31 bits), 128, pixelClockDomain, sdramClockDomain)
   uploadCc.io.push << pixelArea.qspiSdramBridge.io.wrCmd
+  // CP-A5: host-visible upload_busy = bridge active OR uploadCc still holding entries.
+  // pushOccupancy is in the PIXEL (push) clock domain — same domain as qspiDec — so no
+  // extra CDC. Makes the host poll-clear wait for SDRAM-side drain; the CC never backs
+  // up -> no tile[31] overflow/abort (CpA5UploadDrainSim: 132/132, no abort).
+  pixelArea.qspiDec.io.upload_busy := pixelArea.qspiSdramBridge.io.uploadBusy ||
+                                      (uploadCc.io.pushOccupancy =/= 0)
   // Task 3 fix (BronzeGate #9344, CoralReef convergence #9343):
   // `planarDataReadyArea` defined AFTER `sdramArbiter` below — see post-
   // arbiter wiring for the toggle-based pulse regeneration of

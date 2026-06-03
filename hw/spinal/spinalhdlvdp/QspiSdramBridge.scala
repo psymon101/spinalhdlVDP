@@ -91,6 +91,10 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
   // read sel=6 bit3 and know the transport out-paced the drain.
   val fifoOverflow = Reg(Bool()) init False
   when(byteFifo.io.push.valid && !byteFifo.io.push.ready) { fifoOverflow := True }
+  // CP-A5 (#11470): also latch downstream (uploadCc) backpressure — a wrCmd that can't
+  // push because the CDC FIFO is full is the tile[31] CC-overflow signature. Makes a
+  // CC-full event diagnosable on sel=6 bit3 (was invisible: only byteFifo was watched).
+  when(io.wrCmd.valid && !io.wrCmd.ready) { fifoOverflow := True }
 
   // #11321 (BronzeGate Finding 1 / TopazCliff): a NEW SDRAM_WRITE header arriving
   // while the bridge was still draining the previous transaction got DROPPED
