@@ -13,6 +13,13 @@
 
 uint32_t current_qspi_speed = VDP_QSPI_SCK_HZ;
 
+struct UploadAcceptResult {
+    uint32_t status;
+    uint32_t last_err;
+    uint8_t observed_counter;
+    bool timeout;
+};
+
 void select_read_speed() {
     // Fixed-rate diagnostic: never tear down/re-add SPI2 after initialization.
 }
@@ -62,14 +69,17 @@ void do_read(uint32_t addr) {
     Serial.printf("READ  [%06X] = %08X @ %u Hz\n", addr, val, current_qspi_speed);
 }
 
-void do_write(uint32_t addr, uint32_t data) {
+bool do_write(uint32_t addr, uint32_t data) {
     uint16_t buffer[2] = { (uint16_t)(data & 0xFFFF), (uint16_t)(data >> 16) };
     if (vdp_upload_asset(addr, buffer, 2, NULL)) {
         Serial.printf("WRITE [%06X] = %08X @ %u Hz\n", addr, data, current_qspi_speed);
     } else {
         Serial.println("WRITE FAILED (Timeout/Busy)");
+        select_read_speed();
+        return false;
     }
     select_read_speed();
+    return true;
 }
 
 void do_upload_status() {
@@ -97,6 +107,47 @@ bool poll_upload_clear(const char *label) {
     return false;
 }
 
+bool poll_upload_accept(const char *label, uint8_t expected_counter, UploadAcceptResult *result) {
+    const uint32_t timeout_ms = 100;
+    const uint32_t start = millis();
+    uint32_t upload = 0;
+    uint32_t err = 0;
+    if (result) {
+        result->status = 0;
+        result->last_err = 0;
+        result->observed_counter = 0;
+        result->timeout = false;
+    }
+    do {
+        upload = vdp_read_status(6);
+        err = vdp_read_status(4);
+        uint8_t observed = (uint8_t)((upload >> 8) & 0xFFu);
+        bool busy = (upload & 0x1u) != 0;
+        bool error = (upload & 0x4u) != 0;
+        if (result) {
+            result->status = upload;
+            result->last_err = err;
+            result->observed_counter = observed;
+        }
+        if (!busy) {
+            bool accepted = !error && observed == expected_counter;
+            Serial.printf("ACK   %-8s upload=%08X exp=%02X got=%02X last_err=%08X %s\n",
+                          label, upload, expected_counter, observed, err,
+                          accepted ? "ACCEPT" : "NAK");
+            return accepted;
+        }
+    } while ((millis() - start) < timeout_ms);
+    if (result) {
+        result->status = upload;
+        result->last_err = err;
+        result->observed_counter = (uint8_t)((upload >> 8) & 0xFFu);
+        result->timeout = true;
+    }
+    Serial.printf("ACK   %-8s upload=%08X exp=%02X got=%02X last_err=%08X TIMEOUT\n",
+                  label, upload, expected_counter, (uint8_t)((upload >> 8) & 0xFFu), err);
+    return false;
+}
+
 void do_flush() {
     Serial.println("Flushing SDRAM FIFOs (256 zeros)...");
     uint16_t zeros[128] = {0};
@@ -120,29 +171,71 @@ void do_burst(uint32_t addr, uint16_t count, uint32_t data) {
 
 void do_matrix() {
     Serial.println("\n--- RUNNING HW MATRIX ---");
-    Serial.println("NOTE: t verifies data path under tight polling. CP-A5 hardware can false-fire");
-    Serial.println("      sel=6 bit2 in this mode; use manual w+u pacing for status-clean checks.");
+    Serial.println("NOTE: t uses ACK/NAK counter polling and aborts on first failed frame.");
+    uint32_t baseline = vdp_read_status(6);
+    uint8_t expected_counter = (uint8_t)(((baseline >> 8) + 1u) & 0xFFu);
+    Serial.printf("ACK baseline upload=%08X next=%02X\n", baseline, expected_counter);
     uint32_t sent_addr = 0x00B000;
     uint32_t sent_data = 0x22221111;
-    do_write(sent_addr, sent_data);
-    poll_upload_clear("sentinel");
+    UploadAcceptResult fail = {0, 0, 0, false};
+
+    bool matrix_ok = true;
+    bool sentinel_ok = false;
+    for (int attempt = 1; attempt <= 3; attempt++) {
+        do_write(sent_addr, sent_data);
+        if (poll_upload_accept("sentinel", expected_counter, &fail)) {
+            expected_counter = (uint8_t)((expected_counter + 1u) & 0xFFu);
+            sentinel_ok = true;
+            break;
+        }
+        Serial.printf("RETRY sentinel attempt=%d status=%08X exp=%02X got=%02X last_err=%08X\n",
+                      attempt, fail.status, expected_counter, fail.observed_counter, fail.last_err);
+    }
+    if (!sentinel_ok) {
+        Serial.printf("MATRIX FAIL sentinel status=%08X exp=%02X got=%02X last_err=%08X timeout=%u\n",
+                      fail.status, expected_counter, fail.observed_counter, fail.last_err,
+                      fail.timeout ? 1u : 0u);
+        matrix_ok = false;
+    }
     
     uint32_t tile_addr = 0x00A000;
     uint32_t tile_data = 0x0000FFFF;
-    Serial.printf("Writing 32x %08X to %06X...\n", tile_data, tile_addr);
-    for (int i=0; i<32; i++) {
-        char label[9];
-        snprintf(label, sizeof(label), "tile[%02d]", i);
-        do_write(tile_addr + (i*4), tile_data);
-        if (!poll_upload_clear(label)) break;
+    int tiles_attempted = 0;
+    if (matrix_ok) {
+        Serial.printf("Writing 32x %08X to %06X...\n", tile_data, tile_addr);
+        for (int i=0; i<32; i++) {
+            char label[9];
+            snprintf(label, sizeof(label), "tile[%02d]", i);
+            bool accepted = false;
+            for (int attempt = 1; attempt <= 3; attempt++) {
+                do_write(tile_addr + (i*4), tile_data);
+                if (poll_upload_accept(label, expected_counter, &fail)) {
+                    expected_counter = (uint8_t)((expected_counter + 1u) & 0xFFu);
+                    accepted = true;
+                    tiles_attempted = i + 1;
+                    break;
+                }
+                Serial.printf("RETRY %-8s attempt=%d status=%08X exp=%02X got=%02X last_err=%08X\n",
+                              label, attempt, fail.status, expected_counter, fail.observed_counter, fail.last_err);
+            }
+            if (!accepted) {
+                Serial.printf("MATRIX FAIL tile[%02d] addr=%06X status=%08X exp=%02X got=%02X last_err=%08X timeout=%u\n",
+                              i, tile_addr + (i*4), fail.status, expected_counter,
+                              fail.observed_counter, fail.last_err, fail.timeout ? 1u : 0u);
+                matrix_ok = false;
+                break;
+            }
+        }
     }
     
     Serial.println("\nVerifying...");
     do_read(sent_addr);
-    for (int i=0; i<32; i++) {
+    for (int i=0; i<tiles_attempted; i++) {
         do_read(tile_addr + (i*4));
     }
     do_read(sent_addr);
+    Serial.printf("MATRIX SUMMARY: %s tiles_attempted=%d next_counter=%02X\n",
+                  matrix_ok ? "PASS" : "FAIL", tiles_attempted, expected_counter);
     Serial.println("--- MATRIX COMPLETE ---\n");
 }
 
