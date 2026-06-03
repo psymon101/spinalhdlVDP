@@ -133,6 +133,7 @@ uint32_t vdp_read_status(uint8_t sel)
 #include <driver/spi_master.h>
 
 static spi_device_handle_t s_spi = NULL;
+static bool s_bus_initialized = false;
 static bool s_initialized = false;
 static int s_last_error = 0;
 
@@ -149,22 +150,25 @@ void vdp_qspi_init(void)
     if (s_initialized) return;
     pinMode(VDP_PIN_QSPI_CS_N, OUTPUT);
     vdp_cs_deassert();
-    spi_bus_config_t buscfg = {0};
-    buscfg.mosi_io_num    = VDP_PIN_QSPI_IO0;
-    buscfg.miso_io_num    = VDP_PIN_QSPI_IO1;
-    buscfg.sclk_io_num    = VDP_PIN_QSPI_SCK;
-    buscfg.quadwp_io_num  = VDP_PIN_QSPI_IO2;
-    buscfg.quadhd_io_num  = VDP_PIN_QSPI_IO3;
-    buscfg.max_transfer_sz = 4096;
-    buscfg.flags          = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_QUAD;
-    if (spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO) != ESP_OK) { s_last_error = 3; return; }
+    if (!s_bus_initialized) {
+        spi_bus_config_t buscfg = {0};
+        buscfg.mosi_io_num    = VDP_PIN_QSPI_IO0;
+        buscfg.miso_io_num    = VDP_PIN_QSPI_IO1;
+        buscfg.sclk_io_num    = VDP_PIN_QSPI_SCK;
+        buscfg.quadwp_io_num  = VDP_PIN_QSPI_IO2;
+        buscfg.quadhd_io_num  = VDP_PIN_QSPI_IO3;
+        buscfg.max_transfer_sz = 4096;
+        buscfg.flags          = SPICOMMON_BUSFLAG_MASTER | SPICOMMON_BUSFLAG_QUAD;
+        if (spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO) != ESP_OK) { s_last_error = 3; return; }
+        s_bus_initialized = true;
+    }
     spi_device_interface_config_t devcfg = {0};
     devcfg.clock_speed_hz = VDP_QSPI_SCK_HZ;
     devcfg.mode           = 0;
     devcfg.spics_io_num   = -1;
     devcfg.queue_size     = 4;
     devcfg.flags          = SPI_DEVICE_HALFDUPLEX;
-    if (spi_bus_add_device(SPI2_HOST, &devcfg, &s_spi) != ESP_OK) { s_last_error = 4; return; }
+    if (spi_bus_add_device(SPI2_HOST, &devcfg, &s_spi) != ESP_OK) { s_spi = NULL; s_initialized = false; s_last_error = 4; return; }
     s_initialized = true;
 }
 
@@ -172,7 +176,7 @@ void vdp_pio_wait_sm_idle(void) {}
 
 void vdp_qspi_set_speed_hz(uint32_t hz)
 {
-    if (!s_initialized) return;
+    if (!s_bus_initialized) return;
     if (hz > VDP_QSPI_SCK_WRITE_HZ) hz = VDP_QSPI_SCK_WRITE_HZ;
     vdp_cs_deassert();
     if (s_spi) {
@@ -181,6 +185,7 @@ void vdp_qspi_set_speed_hz(uint32_t hz)
             return;
         }
         s_spi = NULL;
+        s_initialized = false;
     }
     spi_device_interface_config_t devcfg = {0};
     devcfg.clock_speed_hz = (int)hz;
@@ -189,24 +194,38 @@ void vdp_qspi_set_speed_hz(uint32_t hz)
     devcfg.queue_size     = 4;
     devcfg.flags          = SPI_DEVICE_HALFDUPLEX;
     if (spi_bus_add_device(SPI2_HOST, &devcfg, &s_spi) != ESP_OK) {
+        s_spi = NULL;
+        s_initialized = false;
         s_last_error = 4;
         return;
     }
+    s_initialized = true;
     vdp_cs_deassert();
+}
+
+static bool vdp_spi_ready(void)
+{
+    if (!s_initialized || s_spi == NULL) {
+        s_last_error = 4;
+        return false;
+    }
+    return true;
 }
 
 static void vdp_tx_bytes(const uint8_t *buf, size_t n)
 {
     if (n == 0) return;
+    if (!vdp_spi_ready()) return;
     spi_transaction_t t = {0};
     t.flags     = SPI_TRANS_MODE_QIO;
     t.length    = n * 8u;
     t.tx_buffer = buf;
-    spi_device_polling_transmit(s_spi, &t);
+    if (spi_device_polling_transmit(s_spi, &t) != ESP_OK) s_last_error = 5;
 }
 
 uint32_t vdp_read_status(uint8_t sel)
 {
+    if (!vdp_spi_ready()) return 0;
     uint8_t hdr[6] = { 0x04, sel, 0x00, 0x00, 0x00, 0x00 };
     uint8_t rx[4]  = { 0, 0, 0, 0 };
     vdp_cs_assert();
@@ -331,6 +350,11 @@ uint32_t vdp_read_status(uint8_t sel)
 // ---- Common Shared Implementation -------------------------------------------
 
 void vdp_reg_write(uint32_t addr, uint16_t data) { vdp_reg_write_burst(addr, &data, 1); }
+
+void vdp_clear_upload_status(uint16_t mask)
+{
+    vdp_reg_write(VDP_UPLOAD_STATUS_CLEAR_REG, (uint16_t)(mask & VDP_UPLOAD_STATUS_CLEAR_MASK));
+}
 
 void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)
 {

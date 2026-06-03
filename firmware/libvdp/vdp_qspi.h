@@ -20,6 +20,14 @@
 extern "C" {
 #endif
 
+#define VDP_UPLOAD_STATUS_CLEAR_REG 0x0323u
+#define VDP_UPLOAD_STATUS_BUSY      0x0001u
+#define VDP_UPLOAD_STATUS_DONE      0x0002u
+#define VDP_UPLOAD_STATUS_ERROR     0x0004u
+#define VDP_UPLOAD_STATUS_OVERFLOW  0x0008u
+#define VDP_UPLOAD_STATUS_CLEAR_MASK \
+    (VDP_UPLOAD_STATUS_ERROR | VDP_UPLOAD_STATUS_OVERFLOW)
+
 /**
  * One-time bring-up of the QSPI pins, PIO program, and clock divider.
  * Must be called once after `stdio_init_all()` and before any other
@@ -46,6 +54,14 @@ void vdp_reg_write(uint32_t addr, uint16_t data);
  * @param num_words 1..253 (capped by the 253-word local frame buffer)
  */
 void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words);
+
+/**
+ * Clear upload-status sticky bits using the RTL W1C register.
+ *
+ * Valid Fix B bits are VDP_UPLOAD_STATUS_ERROR (bit 2) and
+ * VDP_UPLOAD_STATUS_OVERFLOW (bit 3). Pass only bits intended to clear.
+ */
+void vdp_clear_upload_status(uint16_t mask);
 
 /**
  * Issue a READ_STATUS (CMD=0x04) transaction and return the 32-bit

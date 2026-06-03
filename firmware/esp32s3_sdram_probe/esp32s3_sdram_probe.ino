@@ -123,8 +123,8 @@ bool poll_upload_accept(const char *label, uint8_t expected_counter, UploadAccep
         upload = vdp_read_status(6);
         err = vdp_read_status(4);
         uint8_t observed = (uint8_t)((upload >> 8) & 0xFFu);
-        bool busy = (upload & 0x1u) != 0;
-        bool error = (upload & 0x4u) != 0;
+        bool busy = (upload & VDP_UPLOAD_STATUS_BUSY) != 0;
+        bool error = (upload & VDP_UPLOAD_STATUS_CLEAR_MASK) != 0;
         if (result) {
             result->status = upload;
             result->last_err = err;
@@ -191,7 +191,9 @@ void do_matrix() {
         }
         Serial.printf("RETRY sentinel attempt=%d status=%08X exp=%02X got=%02X last_err=%08X\n",
                       attempt, fail.status, expected_counter, fail.observed_counter, fail.last_err);
-        if (attempt < 3 && (fail.status & 0x4u) != 0) vdp_clear_sticky(0x04);
+        if (attempt < 3 && (fail.status & VDP_UPLOAD_STATUS_CLEAR_MASK) != 0) {
+            vdp_clear_upload_status((uint16_t)(fail.status & VDP_UPLOAD_STATUS_CLEAR_MASK));
+        }
     }
     if (!sentinel_ok) {
         Serial.printf("MATRIX FAIL sentinel status=%08X exp=%02X got=%02X last_err=%08X timeout=%u\n",
@@ -219,7 +221,9 @@ void do_matrix() {
                 }
                 Serial.printf("RETRY %-8s attempt=%d status=%08X exp=%02X got=%02X last_err=%08X\n",
                               label, attempt, fail.status, expected_counter, fail.observed_counter, fail.last_err);
-                if (attempt < 3 && (fail.status & 0x4u) != 0) vdp_clear_sticky(0x04);
+                if (attempt < 3 && (fail.status & VDP_UPLOAD_STATUS_CLEAR_MASK) != 0) {
+                    vdp_clear_upload_status((uint16_t)(fail.status & VDP_UPLOAD_STATUS_CLEAR_MASK));
+                }
             }
             if (!accepted) {
                 Serial.printf("MATRIX FAIL tile[%02d] addr=%06X status=%08X exp=%02X got=%02X last_err=%08X timeout=%u\n",
