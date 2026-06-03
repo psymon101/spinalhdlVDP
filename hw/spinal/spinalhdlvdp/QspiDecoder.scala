@@ -63,6 +63,9 @@ case class QspiDecoder() extends Component {
     // CP-A1 (Phase A #11411/#11419): sticky bridge watchdog-abort flag, surfaced
     // on READ_STATUS sel=6 bit2 so the host can detect an aborted upload + resync.
     val upload_error     = in Bool()
+    // CP-A4 (#11443): sticky ingress-FIFO overflow flag, surfaced on sel=6 bit3 so
+    // the host can detect a transport-ceiling drop (out-pacing the arbiter drain).
+    val upload_overflow  = in Bool()
   }
 
   object Op {
@@ -209,8 +212,9 @@ case class QspiDecoder() extends Component {
       is(U(5, 8 bits)) { rxWord := B(0, 16 bits) ## io.status_sticky }   // Task 35
       is(U(6, 8 bits)) {                                                  // Task 34
         // sel=6 upload status: byte0[0]=upload_busy, byte0[1]=upload_done (latched),
-        // byte0[2]=upload_error (CP-A1 sticky watchdog-abort).
-        val statBits = B(0, 5 bits) ## io.upload_error ## io.upload_done ## io.upload_busy
+        // byte0[2]=upload_error (CP-A1 sticky watchdog-abort), byte0[3]=upload_overflow
+        // (CP-A4 sticky ingress-FIFO overflow).
+        val statBits = B(0, 4 bits) ## io.upload_overflow ## io.upload_error ## io.upload_done ## io.upload_busy
         rxWord := B(0, 24 bits) ## statBits
       }
       is(U(7, 8 bits)) {                                                  // Task 1 (#9154)

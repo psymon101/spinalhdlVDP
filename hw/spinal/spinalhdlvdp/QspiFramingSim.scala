@@ -51,6 +51,7 @@ object QspiFramingSim extends App {
     dec.io.upload_busy      := False
     dec.io.upload_done      := False
     dec.io.upload_error     := False
+    dec.io.upload_overflow  := False
     io.cmd_opcode       := slave.io.cmd_opcode
     io.cmd_valid        := slave.io.cmd_valid
     io.last_error       := dec.io.last_error

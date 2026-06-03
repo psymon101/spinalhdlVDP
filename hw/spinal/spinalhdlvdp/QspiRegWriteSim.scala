@@ -53,6 +53,7 @@ object QspiRegWriteSim extends App {
     dec.io.upload_busy := False
     dec.io.upload_done := False
     dec.io.upload_error := False
+    dec.io.upload_overflow := False
     // #11308: tie off the sel=8 DIAG readback input (added later for #10908; this
     // harness never drove it -> a NO-DRIVER elaboration failure that had silently
     // broken QspiRegWriteSim). Tying it off restores the REG_WRITE regression.

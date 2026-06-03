@@ -24,7 +24,7 @@ object QspiDecoderSdramBoundSim extends App {
     dut.io.cmd_valid #= false; dut.io.payload_byte #= 0; dut.io.payload_valid #= false
     dut.io.tx_byte_sent #= false; dut.io.active #= false; dut.io.status_sticky #= 0
     dut.io.live_mode #= 0; dut.io.debug_sdram_data #= 0
-    dut.io.upload_busy #= false; dut.io.upload_done #= false; dut.io.upload_error #= false
+    dut.io.upload_busy #= false; dut.io.upload_done #= false; dut.io.upload_error #= false; dut.io.upload_overflow #= false
     dut.clockDomain.waitSampling(5)
 
     val fwd = mutable.ArrayBuffer[Int]()

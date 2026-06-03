@@ -420,6 +420,7 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     qspiDec.io.upload_busy := qspiSdramBridge.io.uploadBusy
     qspiDec.io.upload_done := qspiSdramBridge.io.uploadDone
     qspiDec.io.upload_error := qspiSdramBridge.io.uploadError   // CP-A1: sticky abort -> READ_STATUS sel=6 bit2
+    qspiDec.io.upload_overflow := qspiSdramBridge.io.fifoOverflow  // CP-A4: sticky ingress overflow -> sel=6 bit3
 
     val regWriteFromBoot = bootWrite && bootIdx <= lastStepIdx
     // QSPI can only assert after bootstrap completes, preventing any

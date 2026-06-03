@@ -61,6 +61,12 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
     // (wrCmd.ready stalled, or fewer payload bytes than LEN arrived). The top
     // routes this to a host-visible status bit so the host can detect + resync.
     val uploadError = out Bool()
+    // CP-A4 (Phase A #11443, CyanPeak): sticky ingress-FIFO overflow flag. Set when a
+    // payload byte is pushed while byteFifo is full (push.valid && !push.ready) — i.e.
+    // the host out-paces the arbiter's drain (the F3/F5 transport-ceiling symptom).
+    // Routed to READ_STATUS sel=6 bit3 for host diagnosis. byteValid has no flow
+    // control, so this is the only signal that a byte was dropped at ingress.
+    val fifoOverflow = out Bool()
   }
 
   val addrReg   = Reg(UInt(23 bits)) init 0
@@ -79,6 +85,12 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
   val byteFifo = StreamFifo(Bits(8 bits), depth = 128)
   byteFifo.io.push.valid   := io.byteValid
   byteFifo.io.push.payload := io.byteIn
+
+  // CP-A4 (#11443): sticky ingress-overflow detector. A byte pushed while the FIFO is
+  // full is silently lost (byteValid has no flow control); latch it so the host can
+  // read sel=6 bit3 and know the transport out-paced the drain.
+  val fifoOverflow = Reg(Bool()) init False
+  when(byteFifo.io.push.valid && !byteFifo.io.push.ready) { fifoOverflow := True }
 
   // #11321 (BronzeGate Finding 1 / TopazCliff): a NEW SDRAM_WRITE header arriving
   // while the bridge was still draining the previous transaction got DROPPED
@@ -169,4 +181,5 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
   io.uploadBusy := !fsm.isActive(fsm.sIdle) || hdrFifo.io.pop.valid  // active OR headers queued
   io.uploadDone := donePulse
   io.uploadError := uploadError
+  io.fifoOverflow := fifoOverflow
 }

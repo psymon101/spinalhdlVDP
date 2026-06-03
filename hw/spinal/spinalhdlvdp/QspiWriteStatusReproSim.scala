@@ -82,6 +82,7 @@ object QspiWriteStatusReproSim extends App {
     dec.io.upload_busy := bridge.io.uploadBusy
     dec.io.upload_done := bridge.io.uploadDone
     dec.io.upload_error := bridge.io.uploadError
+    dec.io.upload_overflow := bridge.io.fifoOverflow
 
     val fireCnt = Reg(UInt(16 bits)) init 0
     when(bridge.io.wrCmd.fire) { fireCnt := fireCnt + 1 }
