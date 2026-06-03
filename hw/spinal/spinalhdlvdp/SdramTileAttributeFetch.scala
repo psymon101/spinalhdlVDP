@@ -40,7 +40,13 @@ case class SdramTileAttributeFetch(
     attributeMapBytesOverride: Option[() => Seq[Bits]] = None,
     tileRowBytesOverride: Option[() => Seq[Bits]] = None,
     bootPlanarAssets: Boolean = true,
-    runMemtest: Boolean = true
+    runMemtest: Boolean = true,
+    // CP-A3 (Phase A #11438/#11439, Option B): when true the engine takes its refresh
+    // cadence from the arbiter's central timer via io.refreshDue (the port only exists
+    // in this mode); when false it keeps its own internal timer (default — standalone
+    // sims unchanged). The safe-point insertion + refreshReturn machinery is identical
+    // either way; only the timer SOURCE differs.
+    useExternalRefresh: Boolean = false
 ) extends Component {
   import TileAttributeAssets._
 
@@ -73,6 +79,9 @@ case class SdramTileAttributeFetch(
     val sdramRdNext      = out Bool()
     val sdramWrNext      = out Bool()
     val sdramRefreshNext = out Bool()
+    // CP-A3: central-refresh cadence input (Option B). Present ONLY when
+    // useExternalRefresh — standalone sims that use the internal timer never see it.
+    val refreshDue     = useExternalRefresh generate (in Bool())
     val sdramDout      = in  Bits(8 bits)
     val sdramDout32    = in  Bits(32 bits)
     val sdramDataReady = in  Bool()
@@ -279,13 +288,21 @@ case class SdramTileAttributeFetch(
   // SDRAM domain: boot, memtest, fetch FSM, refresh scheduler
   // ==========================================================================
   val sdramArea = new ClockingArea(sdramCd) {
+    // CP-A3 (Option B): refresh cadence source. useExternalRefresh=true -> latch the
+    // arbiter's central refreshDue pulse (one timer, no per-engine drift). Default
+    // (false) -> the engine's own internal timer (standalone-sim behavior, unchanged).
+    // Either way refreshPending feeds the SAME safe-point insertion + refreshReturn FSM.
     val refreshTimer   = Reg(UInt(10 bits)) init 0
     val refreshPending = Reg(Bool()) init False
-    when(refreshTimer === RefreshPeriodCycles - 1) {
-      refreshTimer   := 0
-      refreshPending := True
-    } otherwise {
-      refreshTimer := refreshTimer + 1
+    if (useExternalRefresh) {
+      when(io.refreshDue) { refreshPending := True }
+    } else {
+      when(refreshTimer === RefreshPeriodCycles - 1) {
+        refreshTimer   := 0
+        refreshPending := True
+      } otherwise {
+        refreshTimer := refreshTimer + 1
+      }
     }
 
     // Pixel→SDRAM CDC of fetch controls. Per CyanPeak #6762/#6793, bundle

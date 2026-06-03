@@ -549,7 +549,7 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
 
     // Bring-up memtest disabled in production fit; proven on real silicon
     // long ago, the FSM costs LUT/FF budget for no runtime value.
-    val fetch = SdramTileAttributeFetch(sdramClockDomain, skipSdramInit = useHostInit, runMemtest = false)
+    val fetch = SdramTileAttributeFetch(sdramClockDomain, skipSdramInit = useHostInit, runMemtest = false, useExternalRefresh = true)  // CP-A3: central arbiter refresh
     fetch.io.fetchGrant       := video.io.layer0FetchGrant
     fetch.io.fetchSlotValid   := video.io.layer0FetchSlotValid
     fetch.io.fetchPreAnnounce := video.io.layer0FetchPreAnnounce
@@ -589,7 +589,8 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
       attributeMapBytesOverride = Some(() => TileAttributeAssets.l1AttributeMapBytesInit),
       tileRowBytesOverride      = Some(() => TileAttributeAssets.l1TileRowBytesInit),
       bootPlanarAssets         = false,
-      runMemtest               = false
+      runMemtest               = false,
+      useExternalRefresh       = true   // CP-A3: central arbiter refresh (same cadence as L0)
     )
     fetchL1.io.fetchGrant       := video.io.layer1FetchGrant
     fetchL1.io.fetchSlotValid   := video.io.layer1FetchSlotValid
@@ -762,6 +763,13 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     arbiter.io.grant         := grantBundle(0)
   }
   val sdramArbiter = sdramArbArea.arbiter
+
+  // CP-A3 (Option B): both fetch engines take their refresh cadence from the arbiter's
+  // single central timer (Priority-0 accounting). Same sdram domain -> direct wire.
+  // ctrl.io.refresh keeps the L0||L1 cmdRefresh OR below; both are now fed by ONE timer
+  // (no per-engine drift; L1 guaranteed on-cadence).
+  pixelArea.fetch.io.refreshDue   := sdramArbiter.io.refreshDue
+  pixelArea.fetchL1.io.refreshDue := sdramArbiter.io.refreshDue
 
   // Client 0 — tile + attribute fetch.
   sdramArbiter.io.clientRd(0)   := pixelArea.fetch.io.sdramRd

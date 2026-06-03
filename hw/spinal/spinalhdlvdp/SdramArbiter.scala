@@ -24,7 +24,8 @@ import spinal.lib._
 case class SdramArbiter(
     clientCount: Int = 4,
     addrWidth:   Int = 23,
-    dataWidth:   Int = 8
+    dataWidth:   Int = 8,
+    refreshPeriodCycles: Int = 593   // CP-A3: central refresh cadence (593 cyc = 14.64µs @40.5MHz)
 ) extends Component {
   require(clientCount >= 1, "clientCount ≥ 1")
 
@@ -50,7 +51,26 @@ case class SdramArbiter(
     val sdramWr   = out Bool()
     val sdramAddr = out UInt(addrWidth bits)
     val sdramDin  = out Bits(dataWidth bits)
+
+    // CP-A3 (Phase A #11438/#11439, Option B): central refresh cadence. The arbiter
+    // owns the single refresh timer (Priority-0 accounting); `refreshDue` pulses one
+    // cycle every refreshPeriodCycles. Fetch engines consume it (replacing their own
+    // per-engine timers) and insert the AUTO_REFRESH at their next safe point — one
+    // timer, no per-engine drift, both layers on the same cadence.
+    val refreshDue = out Bool()
   }
+
+  // Central refresh timer.
+  val refreshTimer = Reg(UInt(log2Up(refreshPeriodCycles) bits)) init 0
+  val refreshDueR  = Reg(Bool()) init False
+  refreshDueR := False
+  when(refreshTimer === U(refreshPeriodCycles - 1, log2Up(refreshPeriodCycles) bits)) {
+    refreshTimer := 0
+    refreshDueR  := True
+  } otherwise {
+    refreshTimer := refreshTimer + 1
+  }
+  io.refreshDue := refreshDueR
 
   // Per-client fan-out — scheduler grants one client per cycle.
   for (i <- 0 until clientCount) {

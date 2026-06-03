@@ -93,6 +93,16 @@ object ArbiterSim extends App {
       }
       println("[sim] case4 slotValid fan-out — OK")
 
+      // === Case 5: CP-A3 central refresh cadence ===
+      // The arbiter owns the single refresh timer; refreshDue must pulse exactly
+      // every refreshPeriodCycles (default 593). Align to one pulse, then measure
+      // the gap to the next.
+      dut.clockDomain.waitSamplingWhere(dut.io.refreshDue.toBoolean)
+      var period = 0
+      do { dut.clockDomain.waitSampling(); period += 1 } while (!dut.io.refreshDue.toBoolean)
+      assert(period == 593, s"case5: refreshDue period got $period expected 593")
+      println(s"[sim] case5 refreshDue cadence = $period cycles (expected 593) — OK")
+
       println("[sim] ArbiterSim: PASS")
     }
 }
