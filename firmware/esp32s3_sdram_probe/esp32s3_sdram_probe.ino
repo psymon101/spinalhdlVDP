@@ -10,6 +10,7 @@
 #include "vdp_qspi.h"
 #include "vdp_mode0.h"
 #include "vdp_upload.h"
+#include "vdp_status.h"
 
 uint32_t current_qspi_speed = VDP_QSPI_SCK_HZ;
 
@@ -190,6 +191,7 @@ void do_matrix() {
         }
         Serial.printf("RETRY sentinel attempt=%d status=%08X exp=%02X got=%02X last_err=%08X\n",
                       attempt, fail.status, expected_counter, fail.observed_counter, fail.last_err);
+        if (attempt < 3 && (fail.status & 0x4u) != 0) vdp_clear_sticky(0x04);
     }
     if (!sentinel_ok) {
         Serial.printf("MATRIX FAIL sentinel status=%08X exp=%02X got=%02X last_err=%08X timeout=%u\n",
@@ -217,6 +219,7 @@ void do_matrix() {
                 }
                 Serial.printf("RETRY %-8s attempt=%d status=%08X exp=%02X got=%02X last_err=%08X\n",
                               label, attempt, fail.status, expected_counter, fail.observed_counter, fail.last_err);
+                if (attempt < 3 && (fail.status & 0x4u) != 0) vdp_clear_sticky(0x04);
             }
             if (!accepted) {
                 Serial.printf("MATRIX FAIL tile[%02d] addr=%06X status=%08X exp=%02X got=%02X last_err=%08X timeout=%u\n",
