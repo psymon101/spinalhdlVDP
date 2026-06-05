@@ -176,6 +176,18 @@ object MultiLayerSdramFetchSim extends App {
       dut.clockDomain.waitSampling()
     }
 
+    // #11874 (CoralReef review) — ENABLE the layers so the compositor priority
+    // chain is actually exercised. effectiveLNEnable = linestate.layerNEnable &&
+    // layerEnableReg(N); before this, Cases 3-5 ran with both gates 0 -> every
+    // layer pixel gated to 0 -> composedBgIdx=backdrop, so the chain (and the
+    // missing normal-L0 branch) was never reached. Enable globally (0x0300) AND
+    // per-line (linestate 0x0000-0x01DF), then run one full frame so the
+    // double-buffered linestate commits for every active line.
+    println("[sim] Enabling L0+L1 (global 0x0300 + per-line linestate) so the compositor chain is live")
+    writeReg(0x0300, 0x001F)                            // global LAYER_ENABLE: all layers on
+    for (line <- 0 until 480) writeReg(line, 0x0C00)    // per-line L0en(bit11)+L1en(bit10)
+    dut.clockDomain.waitSampling(525 * 800 + 4000)      // one full frame -> commit every line
+
     // -----------------------------------------------------------------
     // Case 3 — Both L0 and L1 active; L1>L0 opaque priority verified.
     // -----------------------------------------------------------------

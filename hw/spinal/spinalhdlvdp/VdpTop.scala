@@ -1411,6 +1411,17 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     // on-chip BasicPatternSource path (bit-identical pre-Task-56).
     composedBgBank   := layer1Bank
     composedBgSource := U(PixelMetadata.SourceBG1, 3 bits)
+  }.elsewhen(layer0Opaque) {
+    // #11867 (CoralReef) ROOT-CAUSE FIX: the normal (non-priority) L0 paint path
+    // was missing — only layer0PrioGated had a branch (the first `when`). A
+    // non-priority opaque L0 (e.g. planar, whose layer0Prio is hardwired False at
+    // :1376) fell through to .otherwise -> backdrop, so it never displayed. This
+    // restores the compositor's own documented contract: "When the only visible
+    // layer is L0 (or nothing), L0 paints." Opacity convention (index-0 transparent,
+    // bank-ignored) is unchanged — see layer0Opaque @1416 / drainBgOpaque @1738.
+    composedBgIdx    := layer0Pixel
+    composedBgBank   := layer0Bank
+    composedBgSource := U(PixelMetadata.SourceBG0, 3 bits)
   }.otherwise {
     // Backdrop: no layer is opaque (or all layers disabled). Display the
     // host-programmed BACKDROP_INDEX as an absolute 7-bit palette index.
