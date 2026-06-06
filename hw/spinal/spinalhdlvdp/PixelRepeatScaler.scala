@@ -52,6 +52,12 @@ case class PixelRepeatScaler() extends Component {
     // --- Outputs ---
     val outRgb        = out Bits(24 bits)
 
+    // --- Effective scale factors (after clamp/fit) for downstream inner-border
+    //     math in VdpTop. Exported so the border-mux need not duplicate the
+    //     clamp priority encoder. ---
+    val scaleXEffOut  = out UInt(3 bits)
+    val scaleYEffOut  = out UInt(3 bits)
+
     // --- Auto-center hints for the border-mux (driven combinationally from
     //     the clamped scale + logic dims; commit-on-vsync handled here so the
     //     border-mux can use these values for the next active region). ---
@@ -107,6 +113,8 @@ case class PixelRepeatScaler() extends Component {
   val bezelH   = (io.vActive - visibleH).resize(11)
   val offX     = (bezelW >> 1).resize(10)
   val offY     = (bezelH >> 1).resize(10)
+  io.scaleXEffOut   := scaleXEff
+  io.scaleYEffOut   := scaleYEff
   io.acBorderX0     := offX
   io.acBorderX1     := (offX + visibleW.resize(10)).resize(10)
   io.acBorderY0     := offY

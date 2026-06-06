@@ -19,6 +19,13 @@ uint16_t vdp_mode0_border_ctrl(bool enable, uint8_t palette_index)
     return (uint16_t)((enable ? 1u : 0u) | (((uint16_t)palette_index & 0x1Fu) << 8));
 }
 
+uint16_t vdp_mode0_border_ctrl_inner(bool enable, bool inner_enable, uint8_t palette_index)
+{
+    return (uint16_t)((enable ? 1u : 0u) |
+                      (inner_enable ? 0x0002u : 0u) |
+                      (((uint16_t)palette_index & 0x1Fu) << 8));
+}
+
 uint16_t vdp_mode0_scale_ctrl(uint8_t scale_x, uint8_t scale_y, bool auto_center)
 {
     return (uint16_t)((((uint16_t)scale_x) & 0x7u) |
@@ -149,6 +156,12 @@ void vdp_mode0_set_border_window(const vdp_mode0_rect_t *rect, uint16_t border_c
 void vdp_mode0_set_border_ctrl(uint16_t border_ctrl)
 {
     vdp_reg_write(VDP_MODE0_REG_BORDER_CTRL, border_ctrl);
+}
+
+void vdp_mode0_set_inner_border(uint16_t left, uint16_t right, uint16_t top, uint16_t bottom)
+{
+    const uint16_t words[4] = { left, right, top, bottom };
+    vdp_mode0_write_block(VDP_MODE0_REG_INNER_BORDER_L, words, 4);
 }
 
 void vdp_mode0_set_scale_ctrl(uint16_t ctrl)

@@ -82,9 +82,9 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 
 | Range | Purpose | Owning task | Reference |
 |---|---|---|---|
-| `0x0000..0x01DF` | Linestate prepare (480 lines × per-line `{l0en, l1en, l0scrollX[9:0]}`) | Task 14 | `VdpTop.scala:43` |
+| `0x0000..0x01DF` | Linestate prepare (480 lines × per-line `{l0en, l1en, l0scrollX[9:0]}`). **Required precondition** — a layer will NOT render on a line unless its linestate enable bit is set here, even if `LAYER_ENABLE` global bit is on. | Task 14 | `VdpTop.scala:43` |
 | `0x01E0..0x02FF` | **Reserved** — linestate expansion buffer | — | — |
-| `0x0300` | `LAYER_ENABLE` — `data[0]=L0, data[1]=L1, data[2]=sprite, data[3]=L2, data[4]=L3` | Task 13 / R5 / Task 48 | `VdpTop.scala:44,221` |
+| `0x0300` | `LAYER_ENABLE` — `data[0]=L0, data[1]=L1, data[2]=sprite, data[3]=L2, data[4]=L3`. **Global override only** — each bit is ANDed with the per-line linestate enable. A layer is visible only when BOTH this global bit AND the linestate bit for that line are 1. | Task 13 / R5 / Task 48 | `VdpTop.scala:44,221` |
 | `0x0301..0x030F` | **Reserved** — layer-group overrides | — | — |
 | `0x0310` | `VDP_CTRL` — `data[0]=copperEnable` (R5.3), `data[1]=copperSwapRequest` (R5.4) | Task R5.3 / R5.4 | `VdpTop.scala:172,245` |
 | `0x0311` | `VDP_TILE_MODE` — 2-bit packed/planar/shuffled | Task R4.1b/c/d | `VdpTop.scala:225,232` |
@@ -96,12 +96,15 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0335..0x033B` | **Task 20** — Window 2 + combine (`WIN2_X0`, `WIN2_X1`, `WIN2_Y0`, `WIN2_Y1`, `WIN2_CTRL`, `WIN_COMBINE`, `LAYER_MASK`) | Task 20 / R6 | `VdpTop.scala` |
 | `0x033C..0x033F` | **Task 20** — Border window (`BORDER_X0`, `BORDER_X1`, `BORDER_Y0`, `BORDER_Y1`) | Task 20 / R6 | `VdpTop.scala` |
 | `0x0340..0x0346` | **Task 19** — Affine Background registers (`AFFINE_A`, `AFFINE_B`, `AFFINE_C`, `AFFINE_D`, `AFFINE_X`, `AFFINE_Y`, `AFFINE_CTRL`) | Task 19 | `VdpTop.scala:297-352` |
-| `0x0347` | `BORDER_CTRL` — border enable + palette index | Task 20 / R6 | `VdpTop.scala` |
+| `0x0347` | `BORDER_CTRL` — bit[0]=enable, bit[1]=innerBorderEnable, bits[12:8]=palette index | Task 20 / R6 | `VdpTop.scala` |
 | `0x0348` | `BACKDROP_INDEX` — 7-bit palette index for background fallthrough | Lane #10567 | `VdpTop.scala` |
 | `0x0349` | `SCALE_CTRL` — [2:0]=scaleX, [6:4]=scaleY, [7]=autoCenter | Lane #10590 | `PixelRepeatScaler.scala` |
-| `0x034A` | `LOGIC_WIDTH` — 11-bit logical canvas width (1..640) | Lane #10590 | `VdpTop.scala` |
-| `0x034B` | `LOGIC_HEIGHT` — 11-bit logical canvas height (1..480) | Lane #10590 | `VdpTop.scala` |
-| `0x034C..0x034F` | **Reserved** — future expansion | — | — |
+| `0x034A` | `LOGIC_WIDTH` — 11-bit logical canvas width (1..640). **NOTE: Scaler source area, NOT asset size.** | Lane #10590 | `VdpTop.scala` |
+| `0x034B` | `LOGIC_HEIGHT` — 11-bit logical canvas height (1..480). **NOTE: Scaler source area, NOT asset size.** | Lane #10590 | `VdpTop.scala` |
+| `0x034C` | `INNER_BORDER_L` — 10-bit inner border thickness (logical pixels), left edge | Owner exception | `VdpTop.scala` |
+| `0x034D` | `INNER_BORDER_R` — 10-bit inner border thickness (logical pixels), right edge | Owner exception | `VdpTop.scala` |
+| `0x034E` | `INNER_BORDER_T` — 10-bit inner border thickness (logical pixels), top edge | Owner exception | `VdpTop.scala` |
+| `0x034F` | `INNER_BORDER_B` — 10-bit inner border thickness (logical pixels), bottom edge | Owner exception | `VdpTop.scala` |
 | `0x0350` | `BITMAP_CTRL` — `bit 7` is **deprecated** (no-op) | Task 44 / CP-1a | `VdpTop.scala`, `BitmapFetch.scala` |
 | `0x0351..0x0356` | **Reserved** — deprecated (formerly RGB565 base/stride registers) | — | — |
 | `0x0357..0x035F` | **Reserved** — Task 44 expansion / future host-surface registers | — | — |
@@ -131,6 +134,11 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0C06` | `BLIT_SRC_STRIDE` — source RAM row increment (9 bits, COPY mode) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
 | `0x0C07` | `BLIT_FILL_VAL` — fill constant (16 bits, FILL modes) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
 | `0x0C10..0x0D0F` | Blitter source/store RAM (512 × 16-bit) | Task 49 | `VdpTop.scala`, `BlitterEngine.scala` |
+| `0x0D10` | `PATTERN_RAM_DATA` — sprite pattern word write-port (auto-inc) | Task 53 | `VdpTop.scala` |
+| `0x0D11` | `PATTERN_RAM_PTR` — sprite pattern RAM word index | Task 53 | `VdpTop.scala` |
+| `0x0D20..0x0D3F` | `SPRITE_HARD` — 32 slots x 1 word hardening extension | Phase 2 | `VdpTop.scala` |
+| `0x0D40..0x0D49` | `PLANE_BASE` — 5 planes x 2 words (lo/hi). SDRAM byte addresses. | Task 55 | `VdpTop.scala` |
+| `0x0D4A` | `PLANAR_CTRL` — bit 0: planar fetch enable | Task 55 | `VdpTop.scala` |
 | `0x0F00..0x0FFF` | **ZX Spectrum adapter** — adapter-local register shadow (256 bytes) | Task 50 | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
 | `0x1000..0x10FF` | **Reserved** — future adapter (NES proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
 | `0x1100..0x11FF` | **Reserved** — future adapter (SMS proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
@@ -139,6 +147,27 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x1400..0x14FF` | **Reserved** — future adapter (Amiga proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
 | `0x1500..0x15FF` | **Reserved** — future adapter (Atari ST proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
 | `0x1600..0x7FFF` | **Reserved** — future Mode0 expansion (palette banks, sprite attr, etc.) | — | — |
+
+### 3.1.a Layer Enable Precondition (Linestate vs LAYER_ENABLE)
+
+The VDP uses a **two-level** layer enable for L0 and L1:
+
+1. **Per-line linestate** (`0x0000..0x01DF`): Each scanline has a 12-bit record with a layer-specific enable bit (`bit 11` for L0, `bit 10` for L1). At power-on, **all linestate entries are 0** (all layers disabled on every line).
+2. **Global override** (`LAYER_ENABLE @ 0x0300`): A global bitmask with one bit per layer.
+
+The effective enable for a layer on a given line is the **logical AND** of both:
+
+```
+effectiveL0Enable = linestate[line].l0en  &&  LAYER_ENABLE.bit0
+effectiveL1Enable = linestate[line].l1en  &&  LAYER_ENABLE.bit1
+```
+
+**Consequence**: Setting `LAYER_ENABLE` alone is NOT sufficient. If linestate entries are still 0 (power-on default), the layer is forced to output **palette index 0** on every line, producing a uniform solid color regardless of what tiles, sprites, or planar data are configured. This is a common bring-up trap.
+
+**Recommended bring-up sequence**:
+1. Upload assets / configure fetch engines.
+2. Write linestate entries (`0x0800` for L0-only, `0x0C00` for L0+L1, etc.).
+3. Set `LAYER_ENABLE` global bitmask.
 
 ### 3.1.1 STATUS_STICKY bit layout (`0x0320`, write-1-to-clear)
 
@@ -185,7 +214,7 @@ Priority mux (§2.2) resolves address/data. If two masters pulse `regWriteEnable
 
 ### 4.3 Write acknowledgement
 
-The bus has no ack path. Masters pulse and assume the write lands. The QSPI read-path (`READ_STATUS sel=1..4`) provides indirect verification — host can read `last_addr`/`last_data` to confirm the most recent QSPI write committed.
+The bus has no hardware acknowledgement path. Masters pulse and assume the write lands. The legacy QSPI read-path (`READ_STATUS sel=1..3`) has been removed to save logic; `sel=4` (last_error) remains available for transport-layer diagnostics.
 
 ### 4.4 Atomicity within a single register
 
@@ -200,14 +229,13 @@ The register bus is write-only. Read-back is provided by the QSPI READ_STATUS re
 | sel | Response contents |
 |---|---|
 | `0` | Magic `0x51560002` (host transport ID) |
-| `1` | `rx_cmd_cnt[7:0]` |
-| `2` | `last_addr[15:0]` |
-| `3` | `last_data[15:0]` |
+| `1..3` | **Removed** (formerly rx_cmd_cnt, last_addr, last_data) — returns 0 |
 | `4` | `last_error[7:0]` |
 | `5` | sticky status bits (`STATUS_STICKY` bit layout, §3.1.1) |
 | `6` | upload status (`busy`/`done` bits) |
 | `7` | committed live mode (post-safe-boundary `MODE_SELECT` and layer state) |
-| `8..255` | Reserved — zero response |
+| `8` | SDRAM readback — 32-bit word from debug address (0x0326/0x0327) |
+| `9..255` | Reserved — zero response |
 
 Task 35 status registers MUST be readable both by mapping into this sel table (extending to sel=5+) AND by appearing in the allocated `0x0320..0x032F` write-path block for clear-on-write semantics.
 

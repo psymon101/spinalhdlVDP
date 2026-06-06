@@ -466,6 +466,43 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     logicHeightPendHit := True
   }
 
+  // Inner-border registers (0x034C..0x034F): border thickness in LOGICAL pixels.
+  // Hardware auto-computes the physical BORDER_X0/Y0/X1/Y1 from these values
+  // plus scale + logic dims, so the host need not do the math.
+  //   0x034C INNER_BORDER_L  (10 bits)
+  //   0x034D INNER_BORDER_R  (10 bits)
+  //   0x034E INNER_BORDER_T  (10 bits)
+  //   0x034F INNER_BORDER_B  (10 bits)
+  //   0x0347 BORDER_CTRL     bit[1] = innerBorderEnable (in addition to bit[0]=enable)
+  val innerBorderLReg     = (Reg(UInt(10 bits)) init 0).simPublic()
+  val innerBorderLPend    = Reg(UInt(10 bits)) init 0
+  val innerBorderLPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x034C, 15 bits)) {
+    innerBorderLPend    := effData(9 downto 0).asUInt
+    innerBorderLPendHit := True
+  }
+  val innerBorderRReg     = (Reg(UInt(10 bits)) init 0).simPublic()
+  val innerBorderRPend    = Reg(UInt(10 bits)) init 0
+  val innerBorderRPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x034D, 15 bits)) {
+    innerBorderRPend    := effData(9 downto 0).asUInt
+    innerBorderRPendHit := True
+  }
+  val innerBorderTReg     = (Reg(UInt(10 bits)) init 0).simPublic()
+  val innerBorderTPend    = Reg(UInt(10 bits)) init 0
+  val innerBorderTPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x034E, 15 bits)) {
+    innerBorderTPend    := effData(9 downto 0).asUInt
+    innerBorderTPendHit := True
+  }
+  val innerBorderBReg     = (Reg(UInt(10 bits)) init 0).simPublic()
+  val innerBorderBPend    = Reg(UInt(10 bits)) init 0
+  val innerBorderBPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x034F, 15 bits)) {
+    innerBorderBPend    := effData(9 downto 0).asUInt
+    innerBorderBPendHit := True
+  }
+
   // R5.3: VDP_CTRL @ 0x0310, safe-boundary shadow + commit for copper enable.
   // R5.4: bit[1] = COPPER_SWAP_REQUEST (latch-on-write). HW auto-clears at
   // commit. Last-write-wins precedence below: swap-commit and disable-clear
@@ -627,6 +664,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   //   0x033E BORDER_Y0   (10 bits, inclusive)
   //   0x033F BORDER_Y1   (10 bits, exclusive)
   //   0x0347 BORDER_CTRL bit[0]    = enable
+  //                       bit[1]     = innerBorderEnable (auto-compute
+  //                                    physical borders from INNER_BORDER_*)
   //                       bits[12:8] = palette index (0..31) for the
   //                                    border source pixel
   val borderX0Reg     = (Reg(UInt(10 bits)) init 0).simPublic()
@@ -776,6 +815,22 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     when(logicHeightPendHit) {
       logicHeightReg     := logicHeightPend
       logicHeightPendHit := False
+    }
+    when(innerBorderLPendHit) {
+      innerBorderLReg     := innerBorderLPend
+      innerBorderLPendHit := False
+    }
+    when(innerBorderRPendHit) {
+      innerBorderRReg     := innerBorderRPend
+      innerBorderRPendHit := False
+    }
+    when(innerBorderTPendHit) {
+      innerBorderTReg     := innerBorderTPend
+      innerBorderTPendHit := False
+    }
+    when(innerBorderBPendHit) {
+      innerBorderBReg     := innerBorderBPend
+      innerBorderBPendHit := False
     }
     when(copperCtrlPendHit) {
       copperCtrlReg     := copperCtrlPend
@@ -2225,6 +2280,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // cycle T+1.
   val borderEnable = borderCtrlReg(0)
   val borderIdx    = borderCtrlReg(12 downto 8).asUInt
+  val innerBorderEnable = borderCtrlReg(1)
   // PixelRepeatScaler instantiation (lane #10590-reland, PM #10701).
   // Re-landed on top of the palette readSync fix (main @ 661907d) which
   // removed the Gowin placement-sensitivity that caused the original
@@ -2254,12 +2310,43 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   // Auto-center override of the host BORDER_X/Y0/1. Host BORDER_CTRL[12:8]
   // still picks the bezel palette slot. SCALE_CTRL[7] arms the override.
+  //
+  // INNER BORDER mode (BORDER_CTRL[1]): when set, the physical border
+  // rectangle is auto-computed from INNER_BORDER_L/R/T/B (in logical pixels)
+  // plus the scaler's effective scale factors. This lets the host set a
+  // logical canvas resolution and inner border thickness without doing the
+  // multiply-by-scale math in firmware. Inner border uses the same palette
+  // index as the outer border (BORDER_CTRL[12:8]).
   val acActive    = scaleCtrlReg(7)
-  val effBorderX0 = Mux(acActive, scaler.io.acBorderX0, borderX0Reg)
-  val effBorderX1 = Mux(acActive, scaler.io.acBorderX1, borderX1Reg)
-  val effBorderY0 = Mux(acActive, scaler.io.acBorderY0, borderY0Reg)
-  val effBorderY1 = Mux(acActive, scaler.io.acBorderY1, borderY1Reg)
-  val effBorderEnable = borderEnable || acActive
+  val ibScaleX    = scaler.io.scaleXEffOut
+  val ibScaleY    = scaler.io.scaleYEffOut
+  val ibOffX      = scaler.io.acBorderX0
+  val ibOffY      = scaler.io.acBorderY0
+
+  // Defensive clamp: inner border thickness cannot exceed the logical canvas
+  // on its own axis, and L+R (or T+B) cannot exceed the dimension. This
+  // prevents silent unsigned-wrap misbehavior when the host writes out-of-range
+  // values (BrightForge #11915 finding 1 / BronzeGate #11916 finding 1).
+  val ibL = Mux(innerBorderLReg.resize(11) > logicWidthReg,  logicWidthReg,  innerBorderLReg.resize(11))
+  val ibR = Mux(innerBorderRReg.resize(11) > logicWidthReg,  logicWidthReg,  innerBorderRReg.resize(11))
+  val ibT = Mux(innerBorderTReg.resize(11) > logicHeightReg, logicHeightReg, innerBorderTReg.resize(11))
+  val ibB = Mux(innerBorderBReg.resize(11) > logicHeightReg, logicHeightReg, innerBorderBReg.resize(11))
+  val ibRSafe = Mux((ibL + ibR) > logicWidthReg,  logicWidthReg  - ibL, ibR)
+  val ibBSafe = Mux((ibT + ibB) > logicHeightReg, logicHeightReg - ibT, ibB)
+
+  val effBorderX0 = Mux(innerBorderEnable,
+                        (ibOffX + (ibL * ibScaleX).resize(10)).resize(10),
+                        Mux(acActive, scaler.io.acBorderX0, borderX0Reg))
+  val effBorderX1 = Mux(innerBorderEnable,
+                        (ibOffX + ((logicWidthReg  - ibRSafe) * ibScaleX).resize(10)).resize(10),
+                        Mux(acActive, scaler.io.acBorderX1, borderX1Reg))
+  val effBorderY0 = Mux(innerBorderEnable,
+                        (ibOffY + (ibT * ibScaleY).resize(10)).resize(10),
+                        Mux(acActive, scaler.io.acBorderY0, borderY0Reg))
+  val effBorderY1 = Mux(innerBorderEnable,
+                        (ibOffY + ((logicHeightReg - ibBSafe) * ibScaleY).resize(10)).resize(10),
+                        Mux(acActive, scaler.io.acBorderY1, borderY1Reg))
+  val effBorderEnable = borderEnable || acActive || innerBorderEnable
   val insideBorder = (hCounter >= effBorderX0.resize(log2Up(hTotal))) &&
                      (hCounter <  effBorderX1.resize(log2Up(hTotal))) &&
                      (vCounter >= effBorderY0.resize(log2Up(vTotal))) &&
