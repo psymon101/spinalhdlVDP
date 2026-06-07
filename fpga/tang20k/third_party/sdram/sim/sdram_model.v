@@ -27,8 +27,11 @@ module sdram_model #(
                                // two AUTO_REFRESH (15.6us @64.8MHz). Set huge to
                                // disable for a BURST scheme (intentional big gaps).
   parameter REF_ROWS = 2048,   // rows the AUTO_REFRESH counter sweeps (sdram.v=2048)
-  parameter tREF_CK  = 4147200 // burst-mode invariant: each row must be re-refreshed
+  parameter tREF_CK  = 4147200,// burst-mode invariant: each row must be re-refreshed
                                // within this (64ms @64.8MHz). Row-coverage check.
+  parameter WARMUP_CK = 0      // suppress violation COUNTING while tck < this (the
+                               // controller's reset/init settle window emits command
+                               // patterns that are not real runtime violations).
 ) (
   input              clk,          // sample clock = controller clk_sdram (180-deg)
   inout  [31:0]      SDRAM_DQ,
@@ -122,10 +125,10 @@ module sdram_model #(
   integer ref_count;              // total AUTO_REFRESH issued (advances row counter)
   integer rr;
 
-  `define TVIOL(MSG) begin \
+  `define TVIOL(MSG) begin if (tck >= WARMUP_CK) begin \
       timing_violations = timing_violations + 1; \
       $display("[%0t] SDRAM-TIMING-VIOLATION tck=%0d: %s", $time, tck, MSG); \
-    end
+    end end
 
   initial begin
     timing_violations = 0; tck = 0; cyc_since_ref = 0; ref_busy_until = -1;
