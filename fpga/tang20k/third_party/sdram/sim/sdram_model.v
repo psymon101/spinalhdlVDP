@@ -22,8 +22,13 @@ module sdram_model #(
   parameter tRP_CK  = 1,       // PRE -> ACT          (controller T_RP=1)
   parameter tRAS_CK = 3,       // ACT -> PRE          (~42ns @64.8MHz)
   parameter tRC_CK  = 4,       // ACT -> ACT same bank (controller T_RC=4)
-  parameter tRFC_CK = 4,       // AUTO_REFRESH busy window (~tRC)
-  parameter tREFI_CK = 1011    // max cycles between AUTO_REFRESH (15.6us @64.8MHz)
+  parameter tRFC_CK = 4,       // AUTO_REFRESH busy window / REF-to-REF (~tRC)
+  parameter tREFI_CK = 1011,   // distributed-mode watchdog: max cycles between any
+                               // two AUTO_REFRESH (15.6us @64.8MHz). Set huge to
+                               // disable for a BURST scheme (intentional big gaps).
+  parameter REF_ROWS = 2048,   // rows the AUTO_REFRESH counter sweeps (sdram.v=2048)
+  parameter tREF_CK  = 4147200 // burst-mode invariant: each row must be re-refreshed
+                               // within this (64ms @64.8MHz). Row-coverage check.
 ) (
   input              clk,          // sample clock = controller clk_sdram (180-deg)
   inout  [31:0]      SDRAM_DQ,
@@ -113,6 +118,9 @@ module sdram_model #(
   integer last_pre_tck [0:3];     // last PRECHARGE cycle per bank
   reg [3:0] bank_active;          // per-bank row-open state
   integer tb;
+  integer ref_ring [0:REF_ROWS-1];// per-row last-refresh cycle (row-coverage tREF)
+  integer ref_count;              // total AUTO_REFRESH issued (advances row counter)
+  integer rr;
 
   `define TVIOL(MSG) begin \
       timing_violations = timing_violations + 1; \
@@ -121,10 +129,11 @@ module sdram_model #(
 
   initial begin
     timing_violations = 0; tck = 0; cyc_since_ref = 0; ref_busy_until = -1;
-    bank_active = 4'b0000;
+    bank_active = 4'b0000; ref_count = 0;
     for (tb = 0; tb < 4; tb = tb + 1) begin
       last_act_tck[tb] = -100000; last_pre_tck[tb] = -100000;
     end
+    for (rr = 0; rr < REF_ROWS; rr = rr + 1) ref_ring[rr] = 0;
   end
 
   always @(posedge clk) if (TIMING_CHECK) begin
@@ -174,9 +183,20 @@ module sdram_model #(
         end
       end
       CMD_REF: begin
+        if (tck < ref_busy_until)
+          `TVIOL("tRFC: AUTO_REFRESH too soon after AUTO_REFRESH")
         for (tb = 0; tb < 4; tb = tb + 1)
           if (bank_active[tb])
             `TVIOL("REF: AUTO_REFRESH issued with a bank still open")
+        // Row-coverage tREF (burst-aware): AUTO_REFRESH refreshes row
+        // (ref_count % REF_ROWS); if that row was last refreshed > tREF_CK ago
+        // it lost data. Catches under-refresh (e.g. the bogus 136/frame burst)
+        // and works for burst AND distributed schemes (unlike tREFI above).
+        if (ref_count >= REF_ROWS &&
+            (tck - ref_ring[ref_count % REF_ROWS]) > tREF_CK)
+          `TVIOL("tREF: row exceeded refresh window (under-refresh / lost data)")
+        ref_ring[ref_count % REF_ROWS] = tck;
+        ref_count = ref_count + 1;
         cyc_since_ref = 0;
         ref_busy_until = tck + tRFC_CK;
       end
