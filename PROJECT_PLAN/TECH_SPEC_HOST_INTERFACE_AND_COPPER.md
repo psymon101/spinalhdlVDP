@@ -168,6 +168,26 @@ icestation-32's copper has exactly these 4 instructions and achieves:
 
 This is sufficient for Mode0 and avoids the complexity of a general-purpose CPU.
 
+### 4.7 Prior-Art Comparison — Copper Capability
+
+| Feature | Amiga Copper | Xosera | VERA | **Ours (Mode0)** |
+|---------|-------------|--------|------|------------------|
+| **Pixel-precise `WAIT(X,Y)`** | ✅ Yes | ❌ No | ❌ No | ✅ Yes |
+| **Burst writes (`WRITE_SEQ`)** | ❌ No | ❌ No | ❌ No | ✅ Yes (8 words) |
+| **HDMA integration** | ❌ No | ❌ No | ❌ No | ✅ Yes (4 channels) |
+| **Program RAM size** | ~2 KB (Chip RAM) | 512 words | 512 words | **512 words × 2 banks** (double-buffered) |
+| **Instruction width** | 32-bit (MOVE/WAIT) | 16-bit | 16-bit | **16-bit** |
+| **Host upload while running** | No (list in Chip RAM) | No | No | **Yes** (routes to inactive bank) |
+| **Atomic bank swap** | N/A | N/A | N/A | **Yes** (at `vSyncStart`) |
+
+> **Note:** This table captures the *Copper coprocessor* dimension only. It does not claim overall VDP superiority — each peer makes different trade-offs in memory model, blitter tier, and host interface (see `DESIGN_NOTE_CHUNKY_CORE_PLANAR_COMPAT.md` §8 for the full VDP-level prior-art comparison).
+
+**Sources:**
+- Amiga: HRM Copper chapter; MOVE + WAIT only, no burst, no HDMA
+- Xosera: `xosera_pkg.sv` — copper has WAIT + MOVE, no WRITE_SEQ
+- VERA: `vera_module.v` — raster IRQ only; no programmable copper
+- Ours: `Copper.scala`, `vdp_copper.h` — 4-instruction set with WRITE_SEQ and double-buffer
+
 ---
 
 ## 5. Working-Set Caching Policy (Planar / Shuffled / Affine)
