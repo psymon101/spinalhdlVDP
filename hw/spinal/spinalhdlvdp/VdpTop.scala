@@ -2336,16 +2336,16 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   val effBorderX0 = Mux(innerBorderEnable,
                         (ibOffX + (ibL * ibScaleX).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderX0, borderX0Reg))
+                        Mux(acActive, scaler.io.acBorderX0, borderX0Reg)).simPublic()
   val effBorderX1 = Mux(innerBorderEnable,
                         (ibOffX + ((logicWidthReg  - ibRSafe) * ibScaleX).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderX1, borderX1Reg))
+                        Mux(acActive, scaler.io.acBorderX1, borderX1Reg)).simPublic()
   val effBorderY0 = Mux(innerBorderEnable,
                         (ibOffY + (ibT * ibScaleY).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderY0, borderY0Reg))
+                        Mux(acActive, scaler.io.acBorderY0, borderY0Reg)).simPublic()
   val effBorderY1 = Mux(innerBorderEnable,
                         (ibOffY + ((logicHeightReg - ibBSafe) * ibScaleY).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderY1, borderY1Reg))
+                        Mux(acActive, scaler.io.acBorderY1, borderY1Reg)).simPublic()
   val effBorderEnable = borderEnable || acActive || innerBorderEnable
   val insideBorder = (hCounter >= effBorderX0.resize(log2Up(hTotal))) &&
                      (hCounter <  effBorderX1.resize(log2Up(hTotal))) &&
