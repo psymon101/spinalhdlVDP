@@ -27,6 +27,14 @@ if [[ ! -f "$TOP_SCALA" ]]; then
     exit 1
 fi
 
+# readAsync gate (TopazCliff P0, external-report verification thread) — fail-fast
+# before any build if a new Mem.readAsync was introduced outside the audited,
+# grandfathered set. readAsync is the recurring Gowin synthesis-fragility root
+# cause; new ones must go through an audit + baseline bump.
+if [[ -x scripts/readasync_lint.sh ]]; then
+    scripts/readasync_lint.sh || { echo "build_all.sh: readAsync gate failed — aborting build" >&2; exit 1; }
+fi
+
 # Auto-detect scenarios if user didn't override. Parse the object names
 # TopTang20kHdmiScenarioNVerilog out of the source file. Always prepend 0
 # (the default) since its object is TopTang20kHdmiVerilog (no scenario id).
