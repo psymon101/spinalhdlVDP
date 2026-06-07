@@ -25,6 +25,5 @@ set_option -place_option 0
 set_option -route_option 0
 set_option -timing_driven 1
 set_option -correct_hold_violation 1
-set_option -ram_rw_check 0  ;# pin OFF: Ram R/W Check zeroes BSRAM reads during writes — never enable (TopazCliff P0)
 
 run all
