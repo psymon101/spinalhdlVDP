@@ -273,8 +273,21 @@ case class Copper() extends Component {
     }
 
     sSeqData.whenIsActive {
-      // R5.4: bankSwapNow precedence — same as sWriteData.
-      when(io.bankSwapNow) { goto(sFetch) }
+      // P0 fix (#11966): on bankSwapNow, COMMIT the in-flight WRITE_SEQ data
+      // word before re-dispatching. The old code did `goto(sFetch)` without
+      // emitting the write, so a bank swap landing on a WRITE_SEQ data word
+      // silently dropped it (data loss: missing palette/scroll entries on a
+      // mid-upload bank swap). The current `fetchWord` this cycle is still the
+      // pre-swap data word (readSync is registered), so committing it is correct.
+      // pc/activeBank/seqCount are already reset by the top-level bankSwapNow
+      // handler (line ~159); we must NOT assign pcNext here or it would override
+      // that reset — leave it at the top-level's 0 and just return to dispatch.
+      when(io.bankSwapNow) {
+        regAddrR := opAddr
+        regDataR := fetchWord
+        regWrR   := True
+        goto(sFetch)
+      }
       .elsewhen(!io.enabled) { goto(sHalt) }.otherwise {
         regAddrR := opAddr
         regDataR := fetchWord
