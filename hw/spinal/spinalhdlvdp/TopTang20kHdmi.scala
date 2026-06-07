@@ -772,6 +772,11 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val baseGrantId = Mux(activeBit, U(1, 3 bits), grantIdSync.resize(3))
     arbiter.io.slotValid     := grantBundle(1)
     arbiter.io.grant         := grantBundle(0)
+    // SDRAM-BURST-REFRESH (P16, #11978): vblank flag (pixel y >= vActive=480)
+    // synced into the SDRAM domain. burstRefresh is opt-in (default off), so this
+    // feeds an unused arbiter input today; enabling burst is then a one-line flip
+    // (burstRefresh=true) at the arbiter instantiation after cosim/HW proof.
+    arbiter.io.vblankActive  := BufferCC(pixelArea.video.io.y >= U(480, 10 bits), False)
   }
   val sdramArbiter = sdramArbArea.arbiter
 

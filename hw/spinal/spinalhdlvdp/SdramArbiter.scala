@@ -25,7 +25,16 @@ case class SdramArbiter(
     clientCount: Int = 4,
     addrWidth:   Int = 23,
     dataWidth:   Int = 8,
-    refreshPeriodCycles: Int = 593   // CP-A3: central refresh cadence (593 cyc = 14.64µs @40.5MHz)
+    refreshPeriodCycles: Int = 593,  // CP-A3: central refresh cadence (593 cyc = 14.64µs @40.5MHz)
+    // SDRAM-BURST-REFRESH (P16, #11978). Opt-in: default false keeps the proven
+    // distributed cadence. When true, refreshDue is sourced from a
+    // BurstRefreshController — suppressed during active video, bursted in vblank
+    // (paced; see the single-deep refreshPending constraint). io.vblankActive
+    // must be driven with an SDRAM-domain-synced vblank in burst mode.
+    burstRefresh:        Boolean = false,
+    burstRefreshCount:   Int = 2048,    // rows per vblank (sdram.v = 2048 rows)
+    burstPeriodCycles:   Int = 24,      // sdramCd cycles between burst pulses (>= service latency)
+    burstWatchdogCycles: Int = 1350000  // ~2 frames @40.5MHz failsafe (< 64ms tREF = 2.59M cyc)
 ) extends Component {
   require(clientCount >= 1, "clientCount ≥ 1")
 
@@ -58,19 +67,32 @@ case class SdramArbiter(
     // per-engine timers) and insert the AUTO_REFRESH at their next safe point — one
     // timer, no per-engine drift, both layers on the same cadence.
     val refreshDue = out Bool()
+    // SDRAM-BURST-REFRESH: vblank flag (SDRAM-domain synced). Only consumed when
+    // burstRefresh=true; harmless/unused in the default distributed mode.
+    val vblankActive = in Bool()
   }
 
-  // Central refresh timer.
-  val refreshTimer = Reg(UInt(log2Up(refreshPeriodCycles) bits)) init 0
-  val refreshDueR  = Reg(Bool()) init False
-  refreshDueR := False
-  when(refreshTimer === U(refreshPeriodCycles - 1, log2Up(refreshPeriodCycles) bits)) {
-    refreshTimer := 0
-    refreshDueR  := True
-  } otherwise {
-    refreshTimer := refreshTimer + 1
+  if (!burstRefresh) {
+    // Central refresh timer (default distributed cadence — unchanged).
+    val refreshTimer = Reg(UInt(log2Up(refreshPeriodCycles) bits)) init 0
+    val refreshDueR  = Reg(Bool()) init False
+    refreshDueR := False
+    when(refreshTimer === U(refreshPeriodCycles - 1, log2Up(refreshPeriodCycles) bits)) {
+      refreshTimer := 0
+      refreshDueR  := True
+    } otherwise {
+      refreshTimer := refreshTimer + 1
+    }
+    io.refreshDue := refreshDueR
+  } else {
+    // Vblank burst refresh (opt-in). Suppressed in active video, bursted in vblank.
+    val burstCtrl = BurstRefreshController(
+      burstCount     = burstRefreshCount,
+      periodCycles   = burstPeriodCycles,
+      watchdogCycles = burstWatchdogCycles)
+    burstCtrl.io.vblankActive := io.vblankActive
+    io.refreshDue := burstCtrl.io.refreshDue
   }
-  io.refreshDue := refreshDueR
 
   // Per-client fan-out — scheduler grants one client per cycle.
   for (i <- 0 until clientCount) {
