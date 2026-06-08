@@ -15,10 +15,9 @@
 // D on its rising edge, RD# drives D while low, DC selects cmd/addr(0) vs data(1).
 // First DC=0 byte of every txn is a 1-byte opcode (0x00 regwr / 0x01 regrd / 0x02 blockwr).
 //
-// 16-bit-expansion reserve (D8..D15, NOT wired in this 8-bit build): the remaining
-// header-free pins require a schematic-level special-function check before use —
-// IOR 48/49/51/54 (ex-QSPI) + 52/53/55/56 (I2S/EDID labels) and IOT 71-75 (HSPI/SDIO
-// labels). Decide per BronzeGate schematic pass when 16-bit is scheduled.
+// 8-bit only: owner decided this i80 host is 8-bit (BronzeGate #12038) — the D8..D15
+// 16-bit-expansion reserve is dropped (GPIO21 sits on the ESP32-S3 J3 side, away from
+// the J1 data group; keeping a reserve would force a data bit across board sides).
 
 // ---- D0..D7 : bidirectional data bus, IOB bank, pull-down (unwired reads 0) ----
 IO_LOC  "IO_i80_d[0]" 25;   // IOB6A
