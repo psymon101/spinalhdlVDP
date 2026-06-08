@@ -13,10 +13,15 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
                           scaleCtrlInit:   Int = 0,
                           logicWidthInit:  Int = 640,
                           logicHeightInit: Int = 480,
-                          borderCtrlInit:  Int = 0) extends Component {
+                          borderCtrlInit:  Int = 0,
+                          hostI80:         Boolean = false) extends Component {
   private val useHostInit: Boolean = true
 
-  setDefinitionName("top_tang20k")
+  // Lane P21: when hostI80, an Intel-8080 parallel host front-end (I80HostInterface)
+  // is added as regBus master(2) (the otherwise-quiescent animator slot) and the i80
+  // pads are brought out. The QSPI front-end stays present so the STA build is a
+  // conservative both-fronts test; deployment uses tang20k_i80.cst (QSPI displaced).
+  setDefinitionName(if (hostI80) "top_tang20k_i80" else "top_tang20k")
   noIoPrefix()
 
   val I_clk = in Bool()
@@ -31,15 +36,26 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // READ_STATUS response lands in a later checkpoint. IO2/IO3 are not brought
   // out on Tang for lane 1 — the slave internally accepts a 4-bit bus and the
   // upper two bits are tied low here.
-  val I_qspi_cs  = in Bool()
-  val I_qspi_sck = in Bool()
+  // QSPI pads are dropped when hostI80 (the i80 build displaces QSPI as the host).
+  // The QspiSlave/QspiDecoder LOGIC stays instantiated (tied-off inputs) so the
+  // STA build keeps representative core size/congestion.
+  val I_qspi_cs  = if (!hostI80) in Bool() else null
+  val I_qspi_sck = if (!hostI80) in Bool() else null
   // Task 38a: IO0..IO3 are bidirectional — FPGA drives during QspiSlave
   // Respond state (READ_STATUS response), high-Z during Header/Payload so
   // the host can drive them. Gowin IOBUF primitives live below.
-  val IO_qspi_io0 = inout(Analog(Bool()))
-  val IO_qspi_io1 = inout(Analog(Bool()))
-  val IO_qspi_io2 = inout(Analog(Bool()))
-  val IO_qspi_io3 = inout(Analog(Bool()))
+  val IO_qspi_io0 = if (!hostI80) inout(Analog(Bool())) else null
+  val IO_qspi_io1 = if (!hostI80) inout(Analog(Bool())) else null
+  val IO_qspi_io2 = if (!hostI80) inout(Analog(Bool())) else null
+  val IO_qspi_io3 = if (!hostI80) inout(Analog(Bool())) else null
+
+  // i80 parallel-host pads (lane P21, only present when hostI80). D0-7 bidir via
+  // GowinIobuf; CS/WR/RD/DC are inputs. Constrained by tang20k_i80*.cst.
+  val IO_i80_d = if (hostI80) inout(Analog(Bits(8 bits))) else null
+  val I_i80_cs = if (hostI80) in Bool() else null
+  val I_i80_wr = if (hostI80) in Bool() else null
+  val I_i80_rd = if (hostI80) in Bool() else null
+  val I_i80_dc = if (hostI80) in Bool() else null
 
   // Task 15: embedded SiP SDRAM pads. These map to Gowin's "magic" port names
   // (O_sdram_*, IO_sdram_DQ). No `.cst` entries — Gowin auto-binds them.
@@ -355,24 +371,33 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // CS/SCK/IO inputs.  After bootstrap completes it may assert regWriteEnable
     // via the QspiDecoder; bootstrap always takes priority while active.
     val qspi = QspiSlave()
-    qspi.io.spi_cs_n  := I_qspi_cs
-    qspi.io.spi_sck   := I_qspi_sck
+    if (!hostI80) {
+      qspi.io.spi_cs_n := I_qspi_cs
+      qspi.io.spi_sck  := I_qspi_sck
+    } else {
+      qspi.io.spi_cs_n := True   // QSPI host removed in the i80 build; hold idle
+      qspi.io.spi_sck  := False
+    }
     // Task 38a: bidirectional IO via Gowin IOBUF primitives. During Respond
     // state (spi_io_oe=1), the slave drives spi_io_out onto the pad. During
     // all other states (OEN=1), the pad is high-Z and we sense the host's
     // drive on .O back into spi_io_in. Pin order: IO3 high bit, IO0 low bit
     // — matches QspiSlave's {IO3,IO2,IO1,IO0} sampling expectation.
-    val qspiIobuf = Seq.tabulate(4) { i =>
-      val buf = GowinIobuf()
-      buf.I   := qspi.io.spi_io_out(i)
-      buf.OEN := !qspi.io.spi_io_oe
-      buf
+    if (!hostI80) {
+      val qspiIobuf = Seq.tabulate(4) { i =>
+        val buf = GowinIobuf()
+        buf.I   := qspi.io.spi_io_out(i)
+        buf.OEN := !qspi.io.spi_io_oe
+        buf
+      }
+      qspiIobuf(0).IO <> IO_qspi_io0
+      qspiIobuf(1).IO <> IO_qspi_io1
+      qspiIobuf(2).IO <> IO_qspi_io2
+      qspiIobuf(3).IO <> IO_qspi_io3
+      qspi.io.spi_io_in := (qspiIobuf(3).O ## qspiIobuf(2).O ## qspiIobuf(1).O ## qspiIobuf(0).O)
+    } else {
+      qspi.io.spi_io_in := B(0, 4 bits)   // no pads; host drive sensed as 0
     }
-    qspiIobuf(0).IO <> IO_qspi_io0
-    qspiIobuf(1).IO <> IO_qspi_io1
-    qspiIobuf(2).IO <> IO_qspi_io2
-    qspiIobuf(3).IO <> IO_qspi_io3
-    qspi.io.spi_io_in := (qspiIobuf(3).O ## qspiIobuf(2).O ## qspiIobuf(1).O ## qspiIobuf(0).O)
     val qspiDec = QspiDecoder()
     qspiDec.io.cmd_opcode    := qspi.io.cmd_opcode
     qspiDec.io.cmd_addr      := qspi.io.cmd_addr
@@ -445,13 +470,47 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     regBusArbiter.io.masters(1).enable := qspiActive
 
     // Master 2 is reserved for an on-chip animator slot. With no animator
-    // instantiated on this generic top, the slot stays quiescent.
-    regBusArbiter.io.masters(2).addr   := animWriteAddr
-    regBusArbiter.io.masters(2).data   := animWriteData
-    regBusArbiter.io.masters(2).enable := animWriteActive
+    // instantiated on this generic top, the slot stays quiescent — unless the
+    // i80 front-end (lane P21, hostI80) claims it; that wiring is below.
+    if (!hostI80) {
+      regBusArbiter.io.masters(2).addr   := animWriteAddr
+      regBusArbiter.io.masters(2).data   := animWriteData
+      regBusArbiter.io.masters(2).enable := animWriteActive
+    }
 
     // Mode0 register bus is driven straight from the arbitrator's mixed output.
     video.io.regBus <> regBusArbiter.io.mixed
+
+    // === Lane P21: i80 parallel host front-end (drives regBus master(2)) =======
+    // Async strobes are CDC'd inside I80HostInterface (pixel domain). The 8-bit
+    // data bus is bidirectional via GowinIobuf (FPGA drives only on reg-read).
+    // master(2) is the otherwise-quiescent animator slot; gated post-boot exactly
+    // like the QSPI master so the bootstrap register sequence owns the bus first.
+    if (hostI80) {
+      val i80 = I80HostInterface(8)
+      i80.io.cs := I_i80_cs
+      i80.io.wr := I_i80_wr
+      i80.io.rd := I_i80_rd
+      i80.io.dc := I_i80_dc
+      val i80Iobuf = Seq.tabulate(8) { i =>
+        val buf = GowinIobuf()
+        buf.I   := i80.io.dOut(i)
+        buf.OEN := !i80.io.dOutEn
+        buf
+      }
+      val i80DIn = Bits(8 bits)
+      for (i <- 0 until 8) {
+        i80Iobuf(i).IO <> IO_i80_d(i)
+        i80DIn(i) := i80Iobuf(i).O
+      }
+      i80.io.dIn := i80DIn
+      // Representative 16-bit read source so the read mux/IOBUF path is not pruned.
+      i80.io.readData     := RegNext(regBusArbiter.io.mixed.data) init 0
+      i80.io.blockWr.ready := True
+      regBusArbiter.io.masters(2).addr   := i80.io.regBus.addr
+      regBusArbiter.io.masters(2).data   := i80.io.regBus.data
+      regBusArbiter.io.masters(2).enable := bootDoneR && i80.io.regBus.enable
+    }
 
     // === DIAG #10908 (P4 Task A) — host-visible SDRAM readback surface ========
     // Two REG_WRITE regs latch a 23-bit debug SDRAM address; writing the HI reg
@@ -1032,5 +1091,11 @@ object TopTang20kHdmiVerilog extends App {
   // gated off so the synthesis/PnR resource delta can be measured against
   // Step 1 baseline (commit 6737bc0, 20943 logic).
   Config.spinal.generateVerilog(TopTang20kHdmi(enableL1Fetch = false))
+}
+
+object TopTang20kI80Verilog extends App {
+  // Lane P21 Checkpoint C: i80 parallel-host variant (top_tang20k_i80) for the
+  // 3-build STA. Same VDP core as the default top with the i80 front-end added.
+  Config.spinal.generateVerilog(TopTang20kHdmi(enableL1Fetch = false, hostI80 = true))
 }
 
