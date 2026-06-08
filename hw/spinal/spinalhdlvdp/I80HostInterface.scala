@@ -44,6 +44,8 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
     // ---- downstream: identical to QspiDecoder's output ----
     val regBus   = out(Mode0RegBus())
     val readData = in  Bits(16 bits)        // pre-latched value to return on reads
+    val readAddr = out UInt(15 bits)        // reg-read target (opcode 0x01)
+    val readReq  = out Bool()               // pulse when a read addr is latched
 
     // ---- SDRAM block-write payload (TODO: drain to StreamFifoCC) ----
     val blockWr     = master Stream(Bits(8 bits))
@@ -69,49 +71,63 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
   // First DC=0 byte == 0x02 enters block-write mode; otherwise it is reg addr-lo.
   // (Cmd-vs-addr disambiguation is the one open contract item — see report.)
   // ---------------------------------------------------------------------------
-  val addrReg = Reg(UInt(15 bits)) init 0
-  val dataReg = Reg(Bits(16 bits)) init 0
-  val regWrR  = Reg(Bool()) init False
-  regWrR := False
+  val addrReg  = Reg(UInt(15 bits)) init 0
+  val dataReg  = Reg(Bits(16 bits)) init 0
+  val regWrR   = Reg(Bool()) init False
+  val readReqR = Reg(Bool()) init False
+  val isRead   = Reg(Bool()) init False
+  regWrR   := False
+  readReqR := False
 
+  // Opcode (TopazCliff #12022 / BronzeGate #12023): the FIRST DC=0 byte of EVERY
+  // transaction is an opcode — 0x00=reg write, 0x01=reg read, 0x02=block write.
+  // Eliminates the first-byte addr-vs-command collision; control pins stay at 4.
   val fsm = new StateMachine {
-    val sAddrLo = new State with EntryPoint
+    val sOpcode = new State with EntryPoint
+    val sAddrLo = new State
     val sAddrHi = new State
     val sDataLo = new State
     val sDataHi = new State
     val sBlock  = new State
 
-    // Any CS deassert aborts back to the start of a transaction.
-    always { when(!csActive) { goto(sAddrLo) } }
+    always { when(!csActive) { goto(sOpcode) } }    // CS deassert ends/aborts txn
 
-    sAddrLo.whenIsActive {
+    sOpcode.whenIsActive {
       when(csActive && wrRise && !dcS) {
-        when(dInS(7 downto 0) === 0x02) { goto(sBlock) }      // block-write command
-          .otherwise { addrReg(7 downto 0) := dInS(7 downto 0).asUInt; goto(sAddrHi) }
+        switch(dInS(7 downto 0)) {
+          is(0x00) { isRead := False; goto(sAddrLo) }   // register write
+          is(0x01) { isRead := True;  goto(sAddrLo) }   // register read
+          is(0x02) { goto(sBlock) }                      // SDRAM block write
+          default  { }                                   // unknown opcode -> ignore
+        }
       }
     }
+    sAddrLo.whenIsActive {
+      when(csActive && wrRise && !dcS) { addrReg(7 downto 0) := dInS(7 downto 0).asUInt; goto(sAddrHi) }
+    }
     sAddrHi.whenIsActive {
-      when(csActive && wrRise && !dcS) { addrReg(14 downto 8) := dInS(6 downto 0).asUInt; goto(sDataLo) }
+      when(csActive && wrRise && !dcS) {
+        addrReg(14 downto 8) := dInS(6 downto 0).asUInt
+        when(isRead) { readReqR := True; goto(sOpcode) } // read: addr latched; RD strobes return data
+          .otherwise { goto(sDataLo) }
+      }
     }
     sDataLo.whenIsActive {
       when(csActive && wrRise && dcS) { dataReg(7 downto 0) := dInS(7 downto 0); goto(sDataHi) }
     }
     sDataHi.whenIsActive {
-      when(csActive && wrRise && dcS) {
-        dataReg(15 downto 8) := dInS(7 downto 0)
-        regWrR := True                       // emit the regBus write next cycle
-        goto(sAddrLo)
-      }
+      when(csActive && wrRise && dcS) { dataReg(15 downto 8) := dInS(7 downto 0); regWrR := True; goto(sOpcode) }
     }
     sBlock.whenIsActive {
-      // TODO Checkpoint B: capture addr(3B)+len(2B) on DC=0 beats, then stream
-      // DC=1 payload beats into io.blockWr (StreamFifoCC drain). Stub for now.
+      // TODO Checkpoint B: addr(3B)+len(2B) on DC=0, then DC=1 payload -> io.blockWr.
     }
   }
 
   io.regBus.addr   := addrReg
   io.regBus.data   := dataReg
   io.regBus.enable := regWrR
+  io.readAddr      := addrReg
+  io.readReq       := readReqR
 
   // ---------------------------------------------------------------------------
   // Read path: two RD strobes return readData lo then hi; D driven only while

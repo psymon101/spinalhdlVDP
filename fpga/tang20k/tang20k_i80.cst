@@ -1,0 +1,49 @@
+// Tang Nano 20K i80 (Intel 8080-style parallel) host pin constraints for spinalhdlVDP.
+// Board: Sipeed Tang Nano 20K     FPGA: GW2AR-LV18QN88C8/I7
+// Lane P21 (owner override #12010). Pins verified against the Sipeed Tang Nano 20K
+// datasheet v1.3 header map (BronzeGate #12023) — every pin below is header-exposed
+// and carries NO board special-function label (no I2S/EDID/WS2812/PA_EN/HSPI/SDIO).
+//
+// This is a SEPARATE host front-end from QSPI. In the i80 bitstream QSPI is the
+// retired legacy interface, so its header pins (41/42/48/49/51/54) are free; D7
+// reuses pin 41 (IOB43A, ex-I_qspi_sck) to keep the whole 8-bit data bus in one
+// IO bank (IOB) for clean same-bank IO timing. Do NOT build QSPI + i80 concurrently.
+//
+// Always-avoided (in use by HDMI build): 4=clk, 15-20=LED, 33-40=TMDS/HDMI.
+//
+// Host contract (TopazCliff #12017/#12022): CS# frames txn (active-low), WR# latches
+// D on its rising edge, RD# drives D while low, DC selects cmd/addr(0) vs data(1).
+// First DC=0 byte of every txn is a 1-byte opcode (0x00 regwr / 0x01 regrd / 0x02 blockwr).
+//
+// 16-bit-expansion reserve (D8..D15, NOT wired in this 8-bit build): the remaining
+// header-free pins require a schematic-level special-function check before use —
+// IOR 48/49/51/54 (ex-QSPI) + 52/53/55/56 (I2S/EDID labels) and IOT 71-75 (HSPI/SDIO
+// labels). Decide per BronzeGate schematic pass when 16-bit is scheduled.
+
+// ---- D0..D7 : bidirectional data bus, IOB bank, pull-down (unwired reads 0) ----
+IO_LOC  "IO_i80_d[0]" 25;   // IOB6A
+IO_PORT "IO_i80_d[0]" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+IO_LOC  "IO_i80_d[1]" 26;   // IOB6B
+IO_PORT "IO_i80_d[1]" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+IO_LOC  "IO_i80_d[2]" 27;   // IOB8A
+IO_PORT "IO_i80_d[2]" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+IO_LOC  "IO_i80_d[3]" 28;   // IOB8B
+IO_PORT "IO_i80_d[3]" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+IO_LOC  "IO_i80_d[4]" 29;   // IOB14A
+IO_PORT "IO_i80_d[4]" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+IO_LOC  "IO_i80_d[5]" 30;   // IOB14B
+IO_PORT "IO_i80_d[5]" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+IO_LOC  "IO_i80_d[6]" 31;   // IOB29A
+IO_PORT "IO_i80_d[6]" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+IO_LOC  "IO_i80_d[7]" 41;   // IOB43A (ex-I_qspi_sck, repurposed)
+IO_PORT "IO_i80_d[7]" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;
+
+// ---- control strobes, IOT bank ----
+IO_LOC  "I_i80_cs" 76;      // IOT30B — active-low frame, idle high
+IO_PORT "I_i80_cs" IO_TYPE=LVCMOS33 PULL_MODE=UP   BANK_VCCIO=3.3;
+IO_LOC  "I_i80_wr" 77;      // IOT30A — active-low write strobe, idle high
+IO_PORT "I_i80_wr" IO_TYPE=LVCMOS33 PULL_MODE=UP   BANK_VCCIO=3.3;
+IO_LOC  "I_i80_rd" 80;      // IOT27A — active-low read strobe, idle high
+IO_PORT "I_i80_rd" IO_TYPE=LVCMOS33 PULL_MODE=UP   BANK_VCCIO=3.3;
+IO_LOC  "I_i80_dc" 85;      // IOT4B  — 0=cmd/addr, 1=data
+IO_PORT "I_i80_dc" IO_TYPE=LVCMOS33 PULL_MODE=DOWN BANK_VCCIO=3.3;

@@ -24,7 +24,8 @@ object I80HostInterfaceSim extends App {
       dut.io.wr #= true;  dut.clockDomain.waitSampling(4)   // WR rising edge -> latch
     }
 
-    // --- register write: addr 0x0347 (BORDER_CTRL), data 0x1234 ---
+    // --- register write: opcode 0x00, addr 0x0347 (BORDER_CTRL), data 0x1234 ---
+    wrByte(false, 0x00)                        // opcode: reg write (DC=0)
     wrByte(false, 0x47); wrByte(false, 0x03)   // addr lo, hi  (DC=0)
     wrByte(true,  0x34); wrByte(true,  0x12)   // data lo, hi  (DC=1)
     dut.clockDomain.waitSampling(8)
@@ -33,8 +34,10 @@ object I80HostInterfaceSim extends App {
     println(s"[sim] regBus writes: ${captured.map { case (a, d) => f"0x$a%04X=0x$d%04X" }.mkString(", ")}")
     assert(captured.size == 1 && captured.head == (0x347, 0x1234), s"reg-write FSM wrong: $captured")
 
-    // --- register read: readData=0xBEEF, two RD strobes return lo then hi ---
+    // --- register read: opcode 0x01 + addr, then readData=0xBEEF via two RD strobes ---
     dut.io.readData #= 0xBEEF
+    wrByte(false, 0x01)                        // opcode: reg read (DC=0)
+    wrByte(false, 0x47); wrByte(false, 0x03)   // read addr lo, hi (DC=0) -> readReq pulse
     dut.io.cs #= false; dut.io.dc #= true
     def rdByte(): Int = {
       dut.io.rd #= false; dut.clockDomain.waitSampling(4)
