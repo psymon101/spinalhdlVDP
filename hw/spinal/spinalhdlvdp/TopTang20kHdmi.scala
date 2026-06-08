@@ -426,12 +426,52 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // contends with uploads. CyanPeak #7680 explicit callout: activeVideo
     // is the authoritative gate; using it mirrors the VdpTop timing that
     // drives fetch requests.
+    // Lane P21: i80 parallel host front-end. Instantiated here (pixel domain, same
+    // as qspiDec/the bridge — no CDC) so its block-write outputs can feed the SDRAM
+    // upload bridge below. The async strobes are CDC'd inside I80HostInterface; the
+    // 8-bit data bus is bidirectional via GowinIobuf (FPGA drives only on reg-read).
+    // The regBus master(2) hookup lands later (after regBusArbiter is declared).
+    val i80 = if (hostI80) I80HostInterface(8) else null
+    if (hostI80) {
+      i80.io.cs := I_i80_cs
+      i80.io.wr := I_i80_wr
+      i80.io.rd := I_i80_rd
+      i80.io.dc := I_i80_dc
+      val i80Iobuf = Seq.tabulate(8) { i =>
+        val buf = GowinIobuf()
+        buf.I   := i80.io.dOut(i)
+        buf.OEN := !i80.io.dOutEn
+        buf
+      }
+      val i80DIn = Bits(8 bits)
+      for (i <- 0 until 8) {
+        i80Iobuf(i).IO <> IO_i80_d(i)
+        i80DIn(i) := i80Iobuf(i).O
+      }
+      i80.io.dIn := i80DIn
+      // Representative 16-bit read source (read-back of last write data) so the
+      // read mux/IOBUF path is not pruned by synthesis.
+      i80.io.readData      := RegNext(i80.io.regBus.data) init 0
+      i80.io.blockWr.ready := True   // bridge byteValid is fire-and-forget (fifoOverflow handles backpressure)
+    }
+
     val qspiSdramBridge = QspiSdramBridge()
-    qspiSdramBridge.io.headerValid := qspiDec.io.sdramHeaderValid
-    qspiSdramBridge.io.addrInit    := qspiDec.io.sdramAddrInit
-    qspiSdramBridge.io.lenBytes    := qspiDec.io.sdramLenBytes
-    qspiSdramBridge.io.byteIn      := qspiDec.io.sdramByteOut
-    qspiSdramBridge.io.byteValid   := qspiDec.io.sdramByteValid
+    // CP-B2: when hostI80, the bridge is fed from the i80 block-write FSM; otherwise
+    // from the QSPI decoder. Both produce headerValid + addrInit/lenBytes then a
+    // byteIn/byteValid payload stream in the pixel domain.
+    if (hostI80) {
+      qspiSdramBridge.io.headerValid := i80.io.blockHeaderValid
+      qspiSdramBridge.io.addrInit    := i80.io.blockAddr
+      qspiSdramBridge.io.lenBytes    := i80.io.blockLen.resize(17)
+      qspiSdramBridge.io.byteIn      := i80.io.blockWr.payload
+      qspiSdramBridge.io.byteValid   := i80.io.blockWr.valid
+    } else {
+      qspiSdramBridge.io.headerValid := qspiDec.io.sdramHeaderValid
+      qspiSdramBridge.io.addrInit    := qspiDec.io.sdramAddrInit
+      qspiSdramBridge.io.lenBytes    := qspiDec.io.sdramLenBytes
+      qspiSdramBridge.io.byteIn      := qspiDec.io.sdramByteOut
+      qspiSdramBridge.io.byteValid   := qspiDec.io.sdramByteValid
+    }
     // #11246 F5: drain the upload byteFifo CONTINUOUSLY, not only in blanking. The
     // old !de gate stalled the bridge during active video, so at the production QSPI
     // rate the 16-deep byteFifo overflowed and silently dropped bytes
@@ -481,32 +521,11 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // Mode0 register bus is driven straight from the arbitrator's mixed output.
     video.io.regBus <> regBusArbiter.io.mixed
 
-    // === Lane P21: i80 parallel host front-end (drives regBus master(2)) =======
-    // Async strobes are CDC'd inside I80HostInterface (pixel domain). The 8-bit
-    // data bus is bidirectional via GowinIobuf (FPGA drives only on reg-read).
-    // master(2) is the otherwise-quiescent animator slot; gated post-boot exactly
-    // like the QSPI master so the bootstrap register sequence owns the bus first.
+    // Lane P21: i80 drives regBus master(2) (the quiescent animator slot), gated
+    // post-boot like the QSPI master. The i80 instance + its pad/bridge wiring are
+    // above (near the QSPI front-end); only the arbiter hookup lands here, after
+    // regBusArbiter is declared.
     if (hostI80) {
-      val i80 = I80HostInterface(8)
-      i80.io.cs := I_i80_cs
-      i80.io.wr := I_i80_wr
-      i80.io.rd := I_i80_rd
-      i80.io.dc := I_i80_dc
-      val i80Iobuf = Seq.tabulate(8) { i =>
-        val buf = GowinIobuf()
-        buf.I   := i80.io.dOut(i)
-        buf.OEN := !i80.io.dOutEn
-        buf
-      }
-      val i80DIn = Bits(8 bits)
-      for (i <- 0 until 8) {
-        i80Iobuf(i).IO <> IO_i80_d(i)
-        i80DIn(i) := i80Iobuf(i).O
-      }
-      i80.io.dIn := i80DIn
-      // Representative 16-bit read source so the read mux/IOBUF path is not pruned.
-      i80.io.readData     := RegNext(regBusArbiter.io.mixed.data) init 0
-      i80.io.blockWr.ready := True
       regBusArbiter.io.masters(2).addr   := i80.io.regBus.addr
       regBusArbiter.io.masters(2).data   := i80.io.regBus.data
       regBusArbiter.io.masters(2).enable := bootDoneR && i80.io.regBus.enable

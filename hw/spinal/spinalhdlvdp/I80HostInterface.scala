@@ -48,10 +48,12 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
     val readReq  = out Bool()               // pulse when a read addr is latched
 
     // ---- SDRAM block-write payload (TODO: drain to StreamFifoCC) ----
-    val blockWr       = master Stream(Bits(8 bits))
-    val blockAddr     = out UInt(23 bits)
-    val blockActive   = out Bool()
-    val blockOverflow = out Bool()          // sticky: a payload beat dropped (FIFO !ready)
+    val blockWr          = master Stream(Bits(8 bits))
+    val blockAddr        = out UInt(23 bits)   // = SDRAM byte addr (bridge addrInit)
+    val blockLen         = out UInt(16 bits)   // captured payload length (bridge lenBytes)
+    val blockHeaderValid = out Bool()          // 1-cycle pulse: addr+len ready, payload starting
+    val blockActive      = out Bool()
+    val blockOverflow    = out Bool()          // sticky: a payload beat dropped (FIFO !ready)
   }
 
   // ---------------------------------------------------------------------------
@@ -82,12 +84,15 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
 
   // Block-write (opcode 0x02): 23-bit SDRAM byte address + 16-bit length captured
   // on DC=0 beats, then `length` payload bytes on DC=1 streamed into io.blockWr.
-  val blkAddr     = Reg(UInt(23 bits)) init 0
-  val blkLen      = Reg(UInt(16 bits)) init 0     // payload bytes remaining
-  val blkWrValidR = Reg(Bool())  init False
-  val blkWrDataR  = Reg(Bits(8 bits)) init 0
-  val blkOverflow = Reg(Bool())  init False        // sticky: a payload beat dropped (FIFO !ready)
+  val blkAddr      = Reg(UInt(23 bits)) init 0
+  val blkLen       = Reg(UInt(16 bits)) init 0     // payload bytes remaining (counts down)
+  val blkLenFull   = Reg(UInt(16 bits)) init 0     // full captured length (held for bridge lenBytes)
+  val blkHeaderR   = Reg(Bool())  init False        // 1-cycle header pulse
+  val blkWrValidR  = Reg(Bool())  init False
+  val blkWrDataR   = Reg(Bits(8 bits)) init 0
+  val blkOverflow  = Reg(Bool())  init False        // sticky: a payload beat dropped (FIFO !ready)
   blkWrValidR := False
+  blkHeaderR  := False
   when(blkWrValidR && !io.blockWr.ready) { blkOverflow := True }
 
   // Opcode (TopazCliff #12022 / BronzeGate #12023): the FIRST DC=0 byte of EVERY
@@ -142,7 +147,9 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
     sBlkL1.whenIsActive {
       when(csActive && wrRise && !dcS) {
         val fullLen = (dInS(7 downto 0).asUInt ## blkLen(7 downto 0)).asUInt
-        blkLen := fullLen
+        blkLen     := fullLen
+        blkLenFull := fullLen
+        blkHeaderR := True                  // addr+len ready -> pulse bridge header
         when(fullLen === 0) { goto(sOpcode) }.otherwise { goto(sBlkDat) }   // zero-length -> no payload
       }
     }
@@ -176,7 +183,9 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
   // ---- block-write payload stream (CP-B) ----
   io.blockWr.valid   := blkWrValidR
   io.blockWr.payload := blkWrDataR
-  io.blockAddr       := blkAddr
-  io.blockActive     := fsm.isActive(fsm.sBlkDat)
-  io.blockOverflow   := blkOverflow
+  io.blockAddr        := blkAddr
+  io.blockLen         := blkLenFull
+  io.blockHeaderValid := blkHeaderR
+  io.blockActive      := fsm.isActive(fsm.sBlkDat)
+  io.blockOverflow    := blkOverflow
 }
