@@ -48,9 +48,10 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
     val readReq  = out Bool()               // pulse when a read addr is latched
 
     // ---- SDRAM block-write payload (TODO: drain to StreamFifoCC) ----
-    val blockWr     = master Stream(Bits(8 bits))
-    val blockAddr   = out UInt(23 bits)
-    val blockActive = out Bool()
+    val blockWr       = master Stream(Bits(8 bits))
+    val blockAddr     = out UInt(23 bits)
+    val blockActive   = out Bool()
+    val blockOverflow = out Bool()          // sticky: a payload beat dropped (FIFO !ready)
   }
 
   // ---------------------------------------------------------------------------
@@ -79,6 +80,16 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
   regWrR   := False
   readReqR := False
 
+  // Block-write (opcode 0x02): 23-bit SDRAM byte address + 16-bit length captured
+  // on DC=0 beats, then `length` payload bytes on DC=1 streamed into io.blockWr.
+  val blkAddr     = Reg(UInt(23 bits)) init 0
+  val blkLen      = Reg(UInt(16 bits)) init 0     // payload bytes remaining
+  val blkWrValidR = Reg(Bool())  init False
+  val blkWrDataR  = Reg(Bits(8 bits)) init 0
+  val blkOverflow = Reg(Bool())  init False        // sticky: a payload beat dropped (FIFO !ready)
+  blkWrValidR := False
+  when(blkWrValidR && !io.blockWr.ready) { blkOverflow := True }
+
   // Opcode (TopazCliff #12022 / BronzeGate #12023): the FIRST DC=0 byte of EVERY
   // transaction is an opcode — 0x00=reg write, 0x01=reg read, 0x02=block write.
   // Eliminates the first-byte addr-vs-command collision; control pins stay at 4.
@@ -88,7 +99,12 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
     val sAddrHi = new State
     val sDataLo = new State
     val sDataHi = new State
-    val sBlock  = new State
+    val sBlkA0  = new State    // block addr byte 0 (LSB), DC=0
+    val sBlkA1  = new State    // block addr byte 1
+    val sBlkA2  = new State    // block addr byte 2 (7 bits -> 23-bit addr)
+    val sBlkL0  = new State    // block length byte 0 (LSB), DC=0
+    val sBlkL1  = new State    // block length byte 1
+    val sBlkDat = new State    // payload bytes, DC=1
 
     always { when(!csActive) { goto(sOpcode) } }    // CS deassert ends/aborts txn
 
@@ -97,7 +113,7 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
         switch(dInS(7 downto 0)) {
           is(0x00) { isRead := False; goto(sAddrLo) }   // register write
           is(0x01) { isRead := True;  goto(sAddrLo) }   // register read
-          is(0x02) { goto(sBlock) }                      // SDRAM block write
+          is(0x02) { goto(sBlkA0) }                      // SDRAM block write
           default  { }                                   // unknown opcode -> ignore
         }
       }
@@ -118,8 +134,26 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
     sDataHi.whenIsActive {
       when(csActive && wrRise && dcS) { dataReg(15 downto 8) := dInS(7 downto 0); regWrR := True; goto(sOpcode) }
     }
-    sBlock.whenIsActive {
-      // TODO Checkpoint B: addr(3B)+len(2B) on DC=0, then DC=1 payload -> io.blockWr.
+    // ---- block-write address (3B) + length (2B), all on DC=0 beats ----
+    sBlkA0.whenIsActive { when(csActive && wrRise && !dcS) { blkAddr( 7 downto  0) := dInS(7 downto 0).asUInt; goto(sBlkA1) } }
+    sBlkA1.whenIsActive { when(csActive && wrRise && !dcS) { blkAddr(15 downto  8) := dInS(7 downto 0).asUInt; goto(sBlkA2) } }
+    sBlkA2.whenIsActive { when(csActive && wrRise && !dcS) { blkAddr(22 downto 16) := dInS(6 downto 0).asUInt; goto(sBlkL0) } }
+    sBlkL0.whenIsActive { when(csActive && wrRise && !dcS) { blkLen ( 7 downto  0) := dInS(7 downto 0).asUInt; goto(sBlkL1) } }
+    sBlkL1.whenIsActive {
+      when(csActive && wrRise && !dcS) {
+        val fullLen = (dInS(7 downto 0).asUInt ## blkLen(7 downto 0)).asUInt
+        blkLen := fullLen
+        when(fullLen === 0) { goto(sOpcode) }.otherwise { goto(sBlkDat) }   // zero-length -> no payload
+      }
+    }
+    // ---- payload: each DC=1 WR beat pushes one byte into io.blockWr ----
+    sBlkDat.whenIsActive {
+      when(csActive && wrRise && dcS) {
+        blkWrValidR := True
+        blkWrDataR  := dInS(7 downto 0)
+        blkLen      := blkLen - 1
+        when(blkLen === 1) { goto(sOpcode) }   // last byte just consumed
+      }
     }
   }
 
@@ -139,9 +173,10 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
   io.dOut   := (readHi ? io.readData(15 downto 8) | io.readData(7 downto 0)).resize(dataWidth)
   io.dOutEn := csActive && !rdS && dcS
 
-  // ---- block-write stub wiring ----
-  io.blockWr.valid   := False
-  io.blockWr.payload := 0
-  io.blockAddr       := 0
-  io.blockActive     := fsm.isActive(fsm.sBlock)
+  // ---- block-write payload stream (CP-B) ----
+  io.blockWr.valid   := blkWrValidR
+  io.blockWr.payload := blkWrDataR
+  io.blockAddr       := blkAddr
+  io.blockActive     := fsm.isActive(fsm.sBlkDat)
+  io.blockOverflow   := blkOverflow
 }
