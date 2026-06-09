@@ -453,7 +453,12 @@ case class Copper() extends Component {
   val entValid = curEntry(25)
   val entLine  = curEntry(24 downto 16).asUInt    // BH-3: 9-bit line field
   val entData  = curEntry(15 downto 0)
-  val hit      = entValid && (entLine === io.vCounter(8 downto 0))
+  // W4 fix (#12125): entLine is 9-bit (0..511) and the compare truncates vCounter
+  // to 9 bits, so a valid entry for line L also aliased onto vCounter L+512 (vblank
+  // in 480p, active video in 720p). Guard with !vCounter(9) (i.e. vCounter < 512) so
+  // entries only ever fire in their intended <512 range. Zero functional loss — a
+  // 9-bit line field cannot target >=512 anyway.
+  val hit      = entValid && (entLine === io.vCounter(8 downto 0)) && !io.vCounter(9)
 
   // BH-4: in indirect mode, the entry's `data` field is the pointer
   // into hdmaDataArray; the actual register value is the array word at
