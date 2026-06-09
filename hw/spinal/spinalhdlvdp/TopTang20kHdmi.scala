@@ -449,10 +449,8 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
         i80DIn(i) := i80Iobuf(i).O
       }
       i80.io.dIn := i80DIn
-      // Representative 16-bit read source (read-back of last write data) so the
-      // read mux/IOBUF path is not pruned by synthesis.
-      i80.io.readData      := RegNext(i80.io.regBus.data) init 0
       i80.io.blockWr.ready := True   // bridge byteValid is fire-and-forget (fifoOverflow handles backpressure)
+      // i80.io.readData is wired below, after debugSdramDataPix is defined (P22).
     }
 
     val qspiSdramBridge = QspiSdramBridge()
@@ -564,6 +562,21 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // Result wire driven from the sdram-domain read FSM via BufferCC (top level).
     val debugSdramDataPix = Bits(32 bits)
     qspiDec.io.debug_sdram_data := debugSdramDataPix
+
+    // === Lane P22: i80 reg-read access to the SDRAM debug readback surface =====
+    // P21's i80 reg-read was a last-write loopback. P22 needs byte-exact SDRAM
+    // readback over i80, so reg-reads at 0x0328/0x0329 return the 32-bit one-shot
+    // SDRAM debug word (armed via 0x0326/0x0327, same surface QSPI READ_STATUS
+    // sel=8 exposes). Every other read addr keeps the last-write loopback so the
+    // P21-proven reg-read discriminator (0xA55A/0x1234) still holds.
+    if (hostI80) {
+      val i80Loopback = RegNext(i80.io.regBus.data) init 0
+      i80.io.readData := i80.io.readAddr.mux(
+        U(0x0328, 15 bits) -> debugSdramDataPix(15 downto 0),
+        U(0x0329, 15 bits) -> debugSdramDataPix(31 downto 16),
+        default            -> i80Loopback
+      )
+    }
 
     // Sprite 0: bounces diagonally at 1px/frame.
     val s0X = Reg(UInt(10 bits)) init 100
