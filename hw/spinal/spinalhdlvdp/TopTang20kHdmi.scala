@@ -839,7 +839,7 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // CP-A2b (#11429/#11432): clientCount 5→6. Client 5 = DEBUG READ (lowest
     // priority), promoted from the ctrl.rd OR / ctrl.addr Mux side-path so the
     // dataCaptured snoop can't latch a fetch transaction (CyanPeak audit).
-    val arbiter = SdramArbiter(clientCount = 6, addrWidth = 23, dataWidth = 8)
+    val arbiter = SdramArbiter(clientCount = 6, addrWidth = 23, dataWidth = 8, burstRefresh = true)
 
     val activeBit   = BufferCC(pixelArea.bitmapRowFetch.io.sdramActive, False)
     // #11246 F1@712: cross grantClientId(2b) + slotValid + grant as ONE bundle so
