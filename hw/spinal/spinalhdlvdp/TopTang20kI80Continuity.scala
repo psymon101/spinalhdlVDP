@@ -16,7 +16,10 @@ import spinal.core._
   * Pins are the locked i80 map (tang20k_i80.cst): D0-7 = 25/26/27/28/29/30/31/41,
   * CS/WR/RD/DC = 76/77/80/85. Reuses those constraints via tang20k_i80_continuity.cst.
   */
-case class TopTang20kI80Continuity() extends Component {
+case class TopTang20kI80Continuity(stepShift: Int = 19) extends Component {
+  // stepShift sets the walking-1 step rate (cnt bit the step index starts at). 19 =
+  // ~19 ms/step at 27 MHz for the bench bitstream; sim overrides it small so the full
+  // 8-step walk is observable in a few dozen cycles.
   setDefinitionName("top_tang20k_i80_cont")
   noIoPrefix()
 
@@ -33,7 +36,7 @@ case class TopTang20kI80Continuity() extends Component {
       config = ClockDomainConfig(resetKind = BOOT))) {   // GSR power-up init, no reset pin
     val cnt  = Reg(UInt(27 bits)) init 0
     cnt := cnt + 1
-    val step = cnt(21 downto 19)              // 0..7, ~19 ms/step at 27 MHz
+    val step = cnt(stepShift + 2 downto stepShift)   // 0..7, ~19 ms/step at 27 MHz (bench)
     val walk = (B(1, 8 bits) |<< step)        // walking single 1 across D0..D7
   }
 
