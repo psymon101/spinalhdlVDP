@@ -21,8 +21,11 @@ set_option -top_module $TOP
 set_option -verilog_std sysv2017
 set_option -use_sspi_as_gpio 1
 set_option -multi_file_compilation_unit 0
-set_option -place_option 0
-set_option -route_option 0
+# Release/production: effort=2 recovers ~5 ns of clk_pixel margin vs the old
+# default 0 (P23, #12114/#12115). For quick iteration loops use 0 (much faster
+# builds): set_option -place_option 0 / -route_option 0.
+set_option -place_option 2
+set_option -route_option 2
 set_option -timing_driven 1
 set_option -correct_hold_violation 1
 

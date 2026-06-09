@@ -120,6 +120,9 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 
 | Task | Status | Reference |
 |---|---|---|
+| P23 Timing-Margin Recovery — burst-refresh re-enabled + place/route effort=2 (clk_pixel +5.709 ns, TNS 0) | **DONE** | #12107/#12114/#12115 |
+| P22 i80 Block-Write + SDRAM Upload — byte-exact HW proof through libvdp | **DONE** | #12072/#12084 |
+| P21 i80 Parallel Host Interface — full HW proof (continuity + transport + visible BORDER_CTRL) | **DONE** | #12010/#12071 |
 | Scanline-start 1-pixel Transient Fix | **DONE** | #10550 |
 | ESP32-S3 Host Bring-up | **DONE** | #10539 |
 | CLS Optimization — gate2 readAsync→readSync | **DONE** | #10497 |
