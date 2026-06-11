@@ -180,8 +180,12 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // primitive's generated wrap-tree.
     val l0MapWidth   = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640
     val l1MapWidth   = BasicPatternSource.MapTilesX * BasicPatternSource.TileWidth  // 640
-    val l0StepFrames = 1
-    val l1StepFrames = 2
+    // SCROLL-FIX-128 (owner-directed, mail #12169/#12181): default both layers to
+    // static. The wrapper previously auto-scrolled L0/L1 every vsync regardless of
+    // firmware, which made any static-tile scene (e.g. CP-D starfield) impossible to
+    // prove. Host scroll-step control (0x0358/0x0359) is a follow-up in this lane.
+    val l0StepFrames = 0
+    val l1StepFrames = 0
     val scrollL0 = Reg(UInt(log2Up(l0MapWidth) bits)) init 0
     val scrollL1 = Reg(UInt(log2Up(l1MapWidth) bits)) init 0
     val l0NextWrap = ScrollWrap(l0MapWidth)
