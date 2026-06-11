@@ -35,6 +35,13 @@ object BitmapRowFetchDirectColorSim extends App {
     dut.io.enable         #= false
     dut.io.directColor    #= false
     dut.io.tileBootDone   #= false
+    // BITMAP-PLUMB-129: defaults — stride 512 reproduces the legacy <<9
+    // direct-color row stride so the expected addresses are byte-identical.
+    dut.io.bitmapBase     #= 0x3000
+    dut.io.attrBase       #= 0x4000
+    dut.io.bitmapStride   #= 512
+    dut.io.attrStride     #= 512
+    dut.io.bitmapHeight   #= 240
 
     // Reactive SDRAM model: return (addr & 0xFF) with a few cycles latency.
     fork {

@@ -75,6 +75,16 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val enable         = in  Bool()    // pixel-domain bitmap-mode enable
     val directColor    = in  Bool()    // CP-1c: RGB565 directcolor fetch mode (2 bytes/pixel)
     val tileBootDone   = in  Bool()    // iter 6: tile-fetch init complete (safe to init our SDRAM regions)
+    // BITMAP-PLUMB-129 (#12169/#12205): host-programmable bitmap/attr SDRAM
+    // base, row stride, and source height. Driven (pixel domain) from the
+    // VdpTop register block at 0x0351..0x0357 and BufferCC'd into sdramCd
+    // below. Power-on defaults reproduce the former hardcoded constants
+    // (base 0x3000/0x4000, stride 512, height 240) byte-for-byte.
+    val bitmapBase     = in  UInt(23 bits)
+    val attrBase       = in  UInt(23 bits)
+    val bitmapStride   = in  UInt(16 bits)   // direct-color row stride in bytes
+    val attrStride     = in  UInt(16 bits)   // direct-color attr row stride in bytes
+    val bitmapHeight   = in  UInt(10 bits)   // source image height in rows
     val bitmapByte     = out Bits(8 bits)
     val attrByte       = out Bits(8 bits)
     val bootDone       = out Bool()
@@ -143,6 +153,16 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val enableSync     = BufferCC(io.enable, False)
     val directColorSync = BufferCC(io.directColor, False)
     val tileBootDoneSync = BufferCC(io.tileBootDone, False)
+    // BITMAP-PLUMB-129: quasi-static host config — these change only on a
+    // safe-boundary register commit (0x0351..0x0357) and are then held stable
+    // for many frames, so a plain multi-bit BufferCC is safe here (unlike the
+    // per-line fetchLine, which is gray-coded above). Reset values reproduce
+    // the legacy hardcoded constants until the host programs them.
+    val bitmapBaseCdc   = BufferCC(io.bitmapBase,   U(BitmapSdramBase, 23 bits))
+    val attrBaseCdc     = BufferCC(io.attrBase,     U(AttrSdramBase,   23 bits))
+    val bitmapStrideCdc = BufferCC(io.bitmapStride, U(1 << DirectRowStrideLog, 16 bits))
+    val attrStrideCdc   = BufferCC(io.attrStride,   U(1 << DirectRowStrideLog, 16 bits))
+    val bitmapHeightCdc = BufferCC(io.bitmapHeight, U(MaxLines, 10 bits))
 
     val cmdAddr = Reg(UInt(23 bits)) init 0
     val cmdDin  = Reg(Bits(8 bits))  init 0
@@ -158,9 +178,20 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     // fetches 320 bytes/row (one per source pixel) on a 512-byte stride;
     // indexed 1bpp/2bpp keep the legacy 80 bytes on a 128-byte stride.
     val fetchCount  = Mux(directColorSync, U(DirectColorPixels, 10 bits), U(80, 10 bits))
-    val rowByteBase = Mux(directColorSync,
-                          (lineReg << DirectRowStrideLog),
-                          (lineReg << 7))
+    // BITMAP-PLUMB-129: per-row byte offset. Direct-color now uses the host
+    // BITMAP_STRIDE/ATTR_STRIDE byte stride (default 512 == legacy <<9);
+    // indexed 1/2bpp keeps its hardwired 128-byte (<<7) legacy stride per the
+    // approved scope (#12205). The bitmap and attr offsets are split so the two
+    // strides are independent. The lineReg×stride product is registered to keep
+    // the 10×16 multiply off the SDRAM address critical path — lineReg is set in
+    // sIdle and held stable through the 16-cycle sFetchSettle window before
+    // sFetchBitmap/sFetchAttr consume these, so RegNext is settled in time.
+    val bitmapRowByteBase = RegNext(Mux(directColorSync,
+                          (lineReg * bitmapStrideCdc).resize(23),
+                          (lineReg << 7).resize(23))) init 0
+    val attrRowByteBase   = RegNext(Mux(directColorSync,
+                          (lineReg * attrStrideCdc).resize(23),
+                          (lineReg << 7).resize(23))) init 0
 
     // Task 44b iter 6d (CyanPeak audit correction): replace dividers with
     // counters to ensure timing closure at 64.8 MHz.
@@ -284,9 +315,9 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
-          when(bootCounter < U(TotalBitmapBytes, bootCounter.getWidth bits)) {
+          when(bootCounter < (bitmapHeightCdc << 7)) {
             cmdWr   := True
-            cmdAddr := (U(BitmapSdramBase, 23 bits) + bootCounter.resize(23)).resized
+            cmdAddr := (bitmapBaseCdc + bootCounter.resize(23)).resized
             cmdDin  := initBitmapByte
             bootCounter := bootCounter + 1
             // Advance counters
@@ -309,9 +340,9 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
-          when(bootCounter < U(TotalAttrBytes, bootCounter.getWidth bits)) {
+          when(bootCounter < (bitmapHeightCdc << 7)) {
             cmdWr   := True
-            cmdAddr := (U(AttrSdramBase, 23 bits) + bootCounter.resize(23)).resized
+            cmdAddr := (attrBaseCdc + bootCounter.resize(23)).resized
             cmdDin  := initAttrByte
             bootCounter := bootCounter + 1
             // Advance counters
@@ -361,8 +392,8 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         when(!io.sdramBusy) {
           when(byteIdx < fetchCount) {
             cmdRd   := True
-            cmdAddr := (U(BitmapSdramBase, 23 bits) +
-                        rowByteBase.resize(23) +
+            cmdAddr := (bitmapBaseCdc +
+                        bitmapRowByteBase +
                         byteIdx.resize(23)).resized
             inflightKind := False
             inflightIdx  := byteIdx
@@ -391,8 +422,8 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         when(!io.sdramBusy) {
           when(byteIdx < fetchCount) {
             cmdRd   := True
-            cmdAddr := (U(AttrSdramBase, 23 bits) +
-                        rowByteBase.resize(23) +
+            cmdAddr := (attrBaseCdc +
+                        attrRowByteBase +
                         byteIdx.resize(23)).resized
             inflightKind := True
             inflightIdx  := byteIdx
