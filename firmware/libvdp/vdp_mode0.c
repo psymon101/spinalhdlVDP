@@ -195,16 +195,17 @@ void vdp_mode0_set_affine(const vdp_mode0_affine_t *cfg)
 void vdp_mode0_set_bitmap_cfg(const vdp_mode0_bitmap_cfg_t *cfg)
 {
     if (!cfg) return;
-    const uint16_t words[7] = {
+    const uint16_t words[8] = {
         cfg->ctrl,
         (uint16_t)(cfg->bitmap_base & 0xFFFFu),
         (uint16_t)((cfg->bitmap_base >> 16) & 0xFFFFu),
         (uint16_t)(cfg->attr_base & 0xFFFFu),
         (uint16_t)((cfg->attr_base >> 16) & 0xFFFFu),
         cfg->bitmap_stride,
-        cfg->attr_stride
+        cfg->attr_stride,
+        cfg->height
     };
-    vdp_mode0_write_block(VDP_MODE0_REG_BITMAP_CTRL, words, 7);
+    vdp_mode0_write_block(VDP_MODE0_REG_BITMAP_CTRL, words, 8);
 }
 
 void vdp_mode0_set_bitmap_ctrl(uint16_t ctrl)

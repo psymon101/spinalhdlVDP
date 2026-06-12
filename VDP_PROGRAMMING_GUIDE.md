@@ -27,27 +27,29 @@ function_name(args);
 
 # Part I: libvdp API Guide
 
-The `libvdp` library is the authoritative host-side coordination layer. It handles QSPI transport, timing synchronization, and provides high-level helpers for the Mode0 display engine.
+The `libvdp` library is the authoritative host-side coordination layer. It handles the low-level hardware transport (i80 or QSPI), timing synchronization, and provides high-level helpers for the Mode0 display engine.
 
 ## 1. Initialization and Basic I/O
 
-### `vdp_qspi_init`
-**Description**: Initializes the host microcontroller's QSPI hardware. On the **Pico 2**, it configures the PIO (Programmable I/O) state machines and state; on **ESP32/ESP8266**, it initializes the GPIO pins for a custom high-speed nibble-wide protocol. This must be the first VDP-related function called in your `setup()` or `main()`.
+### `vdp_init` (formerly `vdp_qspi_init`)
+**Description**: Initializes the host microcontroller's interface to the VDP. 
+- **i80 (Primary)**: Configures the 8-bit parallel host interface used on the current Tang Nano 20K deployment. Provides the highest throughput and lowest latency.
+- **QSPI (Alternate)**: Configures the legacy nibble-wide serial link. Supported on Pico 2 and earlier ESP32/ESP8266 bench setups.
+
+This must be the first VDP-related function called in your `setup()` or `main()`.
 
 **Real World Use**: Use this at the very top of your program to "unlock" communication with the FPGA.
 
 ```c
-#include "vdp_qspi.h"
+#include "vdp_host.h"
 
 void setup() {
-    vdp_qspi_init(); // Establish the 2MHz QSPI link
+    vdp_init(); // Establish the host-to-FPGA link (i80 or QSPI)
 }
 ```
 
 ### `vdp_read_status`
-**Description**: Performs a synchronous read from the VDP status registers. It takes a `selector` (0-255) to choose which internal data word to return. 
-- `sel 0`: Magic Value (`0x51560002`).
-- `sel 5`: `STATUS_STICKY` bits (Raster Match, DMA Done, etc.).
+**Description**: Performs a synchronous read from the VDP status registers. It takes a `selector` (0-255) to choose which internal data word to return. On the current Tang Nano 20K deployment, this uses the primary i80 parallel interface for high-speed response.
 
 **Real World Use**: Use this to check if the FPGA is "alive" before starting a complex graphics sequence.
 
@@ -62,7 +64,7 @@ void check_vdp_status() {
 ```
 
 ### `vdp_reg_write`
-**Description**: Encapsulates a 6-byte QSPI command to write a single 16-bit value into the VDP register bus. It automatically handles the 15-bit address framing and little-endian data ordering.
+**Description**: Issues a single 16-bit write into the VDP register bus. It automatically handles the 15-bit address framing and little-endian data ordering required by the host interface (i80 or QSPI).
 
 **Real World Use**: Use for one-off configuration changes, such as enabling a specific display layer.
 
@@ -76,7 +78,7 @@ void hide_sprites() {
 ```
 
 ### `vdp_reg_write_burst`
-**Description**: The most efficient way to update multiple contiguous registers. It sends a single QSPI header followed by a stream of data words. The VDP's internal address counter automatically increments after each word.
+**Description**: The most efficient way to update multiple contiguous registers. It sends a single command header followed by a stream of data words. The VDP's internal address counter automatically increments after each word. 
 
 **Real World Use**: Use this to setup a "Window" or a "Color Math" block in one high-speed transaction.
 
@@ -310,11 +312,15 @@ vdp_mode0_set_logical_resolution(320, 240);
 | `0x0349` | `SCALE_CTRL` | bit[2:0]:scaleX, bit[6:4]:scaleY, bit[7]:autoCenter |
 | `0x034A` | `LOGIC_WIDTH` | 11-bit logical canvas width (1..640) |
 | `0x034B` | `LOGIC_HEIGHT` | 11-bit logical canvas height (1..480) |
-| `0x0350` | `BITMAP_CTRL` | *Deprecated* (no-op since `8b61a2e`) |
-| `0x0351..0x0356` | `BITMAP_BASE / STRIDE` | *Deprecated* (no-op since `8b61a2e`) |
+| `0x0350`          | `BITMAP_CTRL`          | bit[0]:enable, bits[2:1]:bpp, bits[6:3]:cellWidthLog2 |
+| `0x0351..0x0356` | `BITMAP_BASE / STRIDE` | Base/stride offsets for bitmap/attribute fetch (Task 129) |
+| `0x0357`          | `BITMAP_HEIGHT`        | Source bitmap height in rows (default 240) |
 | `0x0360` | `TRIGGER1_LINE` | Target scanline for Raster Trigger 1 |
 | `0x0B00` | `DMA_DST` | Destination address for DMA operation |
 | `0x0C00` | `BLIT_CTRL` | bit0:Go, bits[2:1]:Mode, bit3:Done Ack |
+
+> [!WARNING]
+> **Full-Screen RGB565 Bitmap Limitation**: The power-on reset (POR) default bases for the bitmap layer are `0x3000` (Bitmap) and `0x4000` (Attribute). These defaults overlap after 8 rows when rendering direct-color (RGB565) mode at a 512-byte stride. For full-screen RGB565 bitmaps, you **must** configure non-overlapping bases (e.g., `0x100000` and `0x200000`) using registers `0x0351..0x0354`. The defaults are retained for backward compatibility with legacy indexed 1/2bpp mode demos.
 
 ---
 *End of Guide.*

@@ -3,6 +3,7 @@
 *.bak
 *.cf
 *.json
+!firmware/libvdp/mode0_regs.json
 *.vcd
 *.fst
 

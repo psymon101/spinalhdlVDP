@@ -11,5 +11,11 @@ lazy val spinalhdlvdp = (project in file("."))
   .settings(
     name := "spinalhdlVDP",
     Compile / scalaSource := baseDirectory.value / "hw" / "spinal",
-    libraryDependencies ++= Seq(spinalCore, spinalLib, spinalIdslPlugin)
+    Test / scalaSource := baseDirectory.value / "hw" / "spinal",
+    libraryDependencies ++= Seq(
+      spinalCore, 
+      spinalLib, 
+      spinalIdslPlugin,
+      "org.scalatest" %% "scalatest" % "3.2.17"
+    )
   )

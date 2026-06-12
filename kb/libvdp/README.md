@@ -7,7 +7,7 @@ Canonical API reference for `firmware/libvdp/`.
 | Item | Value |
 |---|---|
 | Library path | `firmware/libvdp/` |
-| Platforms | Pico 2 (Authoritative), ESP32, ESP8266 |
+| Platforms | Pico 2 (Authoritative), ESP32, ESP8266, Tang Nano 20K (i80) |
 | Contract style | blocking C API |
 | Source of truth | public headers in `firmware/libvdp/*.h` |
 
@@ -15,7 +15,7 @@ Canonical API reference for `firmware/libvdp/`.
 
 | Module | Files | Purpose |
 |---|---|---|
-| Transport | `vdp_qspi.h`, `vdp_qspi.c` | QSPI register/status/SDRAM transactions |
+| Transport | `vdp_qspi.h`, `vdp_qspi.c` | QSPI/i80 register/status/SDRAM transactions |
 | Status | `vdp_status.h`, `vdp_status.c` | sticky-bit polling and vblank waits |
 | Upload | `vdp_upload.h`, `vdp_upload.c` | vblank-paced SDRAM asset upload |
 | Mode0 | `vdp_mode0.h`, `vdp_mode0.c` | generic Mode0 helper layer |
@@ -30,6 +30,17 @@ Canonical API reference for `firmware/libvdp/`.
 | `vdp_pio_wait_sm_idle` | `void vdp_pio_wait_sm_idle(void)` | drain Pico PIO TX path before CS/pin changes | Pico-only effect; no-op on Arduino targets |
 | `vdp_last_error` | `int vdp_last_error(void)` | read sticky host-library error state | library-side state only; FPGA-side errors come from status reads |
 | `vdp_qspi_set_speed_hz` | `void vdp_qspi_set_speed_hz(uint32_t hz)` | change QSPI SCK frequency at runtime | only effective on ESP32-S3 hardware SPI2 backend; no-op elsewhere |
+
+## Host Interface Policy
+
+The Tang Nano 20K deployment currently uses two mutually exclusive host interfaces:
+
+| Interface | Type | Usage | Pin Group |
+|---|---|---|---|
+| **i80 (Primary)** | 8-bit Parallel | Modern bench setup (ESP32-S3). Lowest latency. | I80 (GPIOs) |
+| **QSPI (Alternate)** | 4-bit Serial | Legacy/Pico 2 setup. Reliable for long distances. | QSPI (FSPI) |
+
+The `libvdp` API abstractions (`vdp_reg_write`, `vdp_sdram_write`) remain identical across both transports.
 
 ## QSPI Speed Policy
 

@@ -60,6 +60,7 @@ extern "C" {
 
 /* Bitmap fetch block */
 #define VDP_MODE0_REG_BITMAP_CTRL       0x0350u
+#define VDP_MODE0_REG_BITMAP_HEIGHT     0x0357u
 #define VDP_MODE0_REG_BITMAP_BASE_LO    0x0351u
 #define VDP_MODE0_REG_BITMAP_BASE_HI    0x0352u
 #define VDP_MODE0_REG_ATTR_BASE_LO      0x0353u
@@ -175,6 +176,7 @@ typedef struct {
     uint32_t attr_base;
     uint16_t bitmap_stride;
     uint16_t attr_stride;
+    uint16_t height;
 } vdp_mode0_bitmap_cfg_t;
 
 typedef struct {
