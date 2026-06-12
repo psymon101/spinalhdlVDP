@@ -643,6 +643,15 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // CP-1c: RGB565 directcolor fetch schedule (2 bytes/pixel) when
     // BITMAP_CTRL selects bpp=0b10.
     bitmapRowFetch.io.directColor := video.io.bitmapDirectColor
+    // BITMAP-PLUMB-129 (#12169/#12205): host-programmable bitmap/attr base,
+    // stride, and height (regs 0x0351..0x0357). BitmapRowFetch BufferCC's these
+    // into its SDRAM clock domain. Defaults reproduce the former hardcoded
+    // 0x3000/0x4000/512/240 so existing demos are unchanged.
+    bitmapRowFetch.io.bitmapBase   := video.io.bitmapBase
+    bitmapRowFetch.io.attrBase     := video.io.attrBase
+    bitmapRowFetch.io.bitmapStride := video.io.bitmapStride
+    bitmapRowFetch.io.attrStride   := video.io.attrStride
+    bitmapRowFetch.io.bitmapHeight := video.io.bitmapHeight
     // tileBootDone wired after `fetch` instantiation below (forward ref).
     video.io.bitmapSdramByte     := bitmapRowFetch.io.bitmapByte
     video.io.bitmapSdramAttrByte := bitmapRowFetch.io.attrByte

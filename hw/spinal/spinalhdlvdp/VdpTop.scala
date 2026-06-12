@@ -167,6 +167,15 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     val bitmapSdramAttrByte   = in  Bits(8 bits)
     val bitmapModeActive      = out Bool()   // Task 44b: BITMAP_CTRL[0]
     val bitmapDirectColor     = out Bool()   // CP-1c: BITMAP_CTRL enable & bpp=0b10 (RGB565)
+    // BITMAP-PLUMB-129 (#12169/#12205): host-programmable bitmap/attr fetch
+    // geometry. Decoded from 0x0351..0x0357 with the standard safe-boundary
+    // shadow/pend/commit pattern below; the top level routes these into
+    // BitmapRowFetch (replacing its formerly hardcoded 0x3000/0x4000/512/240).
+    val bitmapBase            = out UInt(23 bits)  // 0x0351 LO + 0x0352 HI
+    val attrBase              = out UInt(23 bits)  // 0x0353 LO + 0x0354 HI
+    val bitmapStride          = out UInt(16 bits)  // 0x0355 (direct-color bytes/row)
+    val attrStride            = out UInt(16 bits)  // 0x0356 (direct-color bytes/row)
+    val bitmapHeight          = out UInt(10 bits)  // 0x0357 (source rows)
 
     // R1 Raster Trigger Unit control/status. Stable naming so a later Mode0
     // register bus can adopt these without behavior change.
@@ -787,6 +796,47 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val bitmapEnable    = bitmapCtrlReg(0)
   val bitmapBpp       = bitmapCtrlReg(2 downto 1).asUInt
 
+  // BITMAP-PLUMB-129 (#12169/#12205) — bitmap/attr fetch geometry registers.
+  //   0x0351 BITMAP_BASE_LO   low 16 bits of bitmap SDRAM base
+  //   0x0352 BITMAP_BASE_HI   high 7 bits  (base = HI##LO, 23-bit byte addr)
+  //   0x0353 ATTR_BASE_LO     low 16 bits of attribute SDRAM base
+  //   0x0354 ATTR_BASE_HI     high 7 bits
+  //   0x0355 BITMAP_STRIDE    direct-color bytes per bitmap row
+  //   0x0356 ATTR_STRIDE      direct-color bytes per attribute row
+  //   0x0357 BITMAP_HEIGHT    source image height in rows (NEW)
+  // Same safe-boundary {shadow, pend, commit at hCounter===0} pattern as
+  // BITMAP_CTRL. Power-on defaults reproduce BitmapRowFetch's former hardcoded
+  // constants (base 0x3000/0x4000, stride 512, height 240) so existing demos
+  // do not regress.
+  val bitmapBaseLoReg  = Reg(UInt(16 bits)) init 0x3000
+  val bitmapBaseHiReg  = Reg(UInt(7 bits))  init 0
+  val attrBaseLoReg    = Reg(UInt(16 bits)) init 0x4000
+  val attrBaseHiReg    = Reg(UInt(7 bits))  init 0
+  val bitmapStrideReg  = Reg(UInt(16 bits)) init 512
+  val attrStrideReg    = Reg(UInt(16 bits)) init 512
+  val bitmapHeightReg  = Reg(UInt(10 bits)) init 240
+  val bitmapBaseLoPend = Reg(UInt(16 bits)) init 0x3000
+  val bitmapBaseHiPend = Reg(UInt(7 bits))  init 0
+  val attrBaseLoPend   = Reg(UInt(16 bits)) init 0x4000
+  val attrBaseHiPend   = Reg(UInt(7 bits))  init 0
+  val bitmapStridePend = Reg(UInt(16 bits)) init 512
+  val attrStridePend   = Reg(UInt(16 bits)) init 512
+  val bitmapHeightPend = Reg(UInt(10 bits)) init 240
+  val bitmapBaseLoPendHit = Reg(Bool()) init False
+  val bitmapBaseHiPendHit = Reg(Bool()) init False
+  val attrBaseLoPendHit   = Reg(Bool()) init False
+  val attrBaseHiPendHit   = Reg(Bool()) init False
+  val bitmapStridePendHit = Reg(Bool()) init False
+  val attrStridePendHit   = Reg(Bool()) init False
+  val bitmapHeightPendHit = Reg(Bool()) init False
+  when(effWrite && effAddr === U(0x0351, 15 bits)) { bitmapBaseLoPend := effData(15 downto 0).asUInt; bitmapBaseLoPendHit := True }
+  when(effWrite && effAddr === U(0x0352, 15 bits)) { bitmapBaseHiPend := effData(6 downto 0).asUInt;  bitmapBaseHiPendHit := True }
+  when(effWrite && effAddr === U(0x0353, 15 bits)) { attrBaseLoPend   := effData(15 downto 0).asUInt; attrBaseLoPendHit   := True }
+  when(effWrite && effAddr === U(0x0354, 15 bits)) { attrBaseHiPend   := effData(6 downto 0).asUInt;  attrBaseHiPendHit   := True }
+  when(effWrite && effAddr === U(0x0355, 15 bits)) { bitmapStridePend := effData(15 downto 0).asUInt; bitmapStridePendHit := True }
+  when(effWrite && effAddr === U(0x0356, 15 bits)) { attrStridePend   := effData(15 downto 0).asUInt; attrStridePendHit   := True }
+  when(effWrite && effAddr === U(0x0357, 15 bits)) { bitmapHeightPend := effData(9 downto 0).asUInt;  bitmapHeightPendHit := True }
+
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {
       layerEnableReg     := layerEnablePend
@@ -867,6 +917,14 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     when(affineCtrlPendHit) { affineCtrlReg := affineCtrlPend; affineCtrlPendHit := False }
     // Task 44 bitmap-fetch register commits.
     when(bitmapCtrlPendHit)    { bitmapCtrlReg    := bitmapCtrlPend;    bitmapCtrlPendHit    := False }
+    // BITMAP-PLUMB-129 bitmap/attr base/stride/height commits.
+    when(bitmapBaseLoPendHit)  { bitmapBaseLoReg  := bitmapBaseLoPend;  bitmapBaseLoPendHit  := False }
+    when(bitmapBaseHiPendHit)  { bitmapBaseHiReg  := bitmapBaseHiPend;  bitmapBaseHiPendHit  := False }
+    when(attrBaseLoPendHit)    { attrBaseLoReg    := attrBaseLoPend;    attrBaseLoPendHit    := False }
+    when(attrBaseHiPendHit)    { attrBaseHiReg    := attrBaseHiPend;    attrBaseHiPendHit    := False }
+    when(bitmapStridePendHit)  { bitmapStrideReg  := bitmapStridePend;  bitmapStridePendHit  := False }
+    when(attrStridePendHit)    { attrStrideReg    := attrStridePend;    attrStridePendHit    := False }
+    when(bitmapHeightPendHit)  { bitmapHeightReg  := bitmapHeightPend;  bitmapHeightPendHit  := False }
   }
   io.layer0TileDecodeMode := tileDecodeModeReg
   io.layer0AttributeMode  := attributeModeReg
@@ -1358,6 +1416,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // CP-1c: tell BitmapRowFetch to use the RGB565 directcolor fetch
   // schedule (2 bytes/pixel, 320 px/row) when bpp=0b10 is selected.
   io.bitmapDirectColor     := bitmapEnable && (bitmapBpp === U(2, 2 bits))
+  // BITMAP-PLUMB-129: assemble the 23-bit bases (HI##LO) and drive the
+  // geometry outputs to BitmapRowFetch via the top level.
+  io.bitmapBase            := (bitmapBaseHiReg ## bitmapBaseLoReg).asUInt
+  io.attrBase              := (attrBaseHiReg   ## attrBaseLoReg).asUInt
+  io.bitmapStride          := bitmapStrideReg
+  io.attrStride            := attrStrideReg
+  io.bitmapHeight          := bitmapHeightReg
 
   // Task 19: when affineEnable is high, the affine-texture lookup wins over
   // every other L0 source (test-pattern / SDRAM / on-chip). Task 44

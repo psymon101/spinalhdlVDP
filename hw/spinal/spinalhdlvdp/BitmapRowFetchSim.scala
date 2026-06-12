@@ -31,6 +31,13 @@ object BitmapRowFetchSim extends App {
     dut.io.enable         #= false
     dut.io.directColor    #= false
     dut.io.tileBootDone   #= false
+    // BITMAP-PLUMB-129: drive geometry regs at their power-on defaults so this
+    // legacy indexed-mode test exercises the byte-identical fetch path.
+    dut.io.bitmapBase     #= 0x3000
+    dut.io.attrBase       #= 0x4000
+    dut.io.bitmapStride   #= 512
+    dut.io.attrStride     #= 512
+    dut.io.bitmapHeight   #= 240
 
     // Use a fork for a reactive SDRAM model
     val sdramModel = fork {

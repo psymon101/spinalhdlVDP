@@ -117,6 +117,44 @@ object BitmapCtrlCommitSim extends App {
     assert(dc3, "Case 3: io.bitmapDirectColor expected True, got False")
     println(f"[sim] Case 3 combined sequence — bitmapCtrlReg=0x0085, layerEnableReg=0x01, bitmapDirectColor=True — OK")
 
-    println("[sim] BitmapCtrlCommitSim: PASS — BITMAP_CTRL 0x0350 commit path sound at the VdpTop boundary")
+    // --- Case 4: BITMAP-PLUMB-129 base/stride/height regs (0x0351..0x0357) ---
+    // 4a: power-on defaults reproduce the former hardcoded constants on the
+    //     VdpTop outputs (these regs were untouched by Cases 1-3).
+    val bbDef = dut.io.bitmapBase.toLong
+    val abDef = dut.io.attrBase.toLong
+    val bsDef = dut.io.bitmapStride.toLong
+    val asDef = dut.io.attrStride.toLong
+    val bhDef = dut.io.bitmapHeight.toLong
+    assert(bbDef == 0x3000, f"Case 4a: bitmapBase default expected 0x3000, got 0x$bbDef%X")
+    assert(abDef == 0x4000, f"Case 4a: attrBase default expected 0x4000, got 0x$abDef%X")
+    assert(bsDef == 512,    f"Case 4a: bitmapStride default expected 512, got $bsDef")
+    assert(asDef == 512,    f"Case 4a: attrStride default expected 512, got $asDef")
+    assert(bhDef == 240,    f"Case 4a: bitmapHeight default expected 240, got $bhDef")
+    println(f"[sim] Case 4a defaults — base 0x$bbDef%X/0x$abDef%X stride $bsDef/$asDef height $bhDef — OK")
+
+    // 4b: reprogram all seven addresses, expect assembled outputs after commit.
+    //   bitmapBase = (HI<<16)|LO = (0x05<<16)|0x1234 = 0x51234
+    //   attrBase   = (0x02<<16)|0x5678 = 0x25678
+    busPulse(0x0351, 0x1234) // BITMAP_BASE_LO
+    busPulse(0x0352, 0x0005) // BITMAP_BASE_HI (7-bit)
+    busPulse(0x0353, 0x5678) // ATTR_BASE_LO
+    busPulse(0x0354, 0x0002) // ATTR_BASE_HI
+    busPulse(0x0355, 0x0400) // BITMAP_STRIDE = 1024
+    busPulse(0x0356, 0x0300) // ATTR_STRIDE   = 768
+    busPulse(0x0357, 0x0064) // BITMAP_HEIGHT = 100
+    settleOneFrame()
+    val bb = dut.io.bitmapBase.toLong
+    val ab = dut.io.attrBase.toLong
+    val bs = dut.io.bitmapStride.toLong
+    val as = dut.io.attrStride.toLong
+    val bh = dut.io.bitmapHeight.toLong
+    assert(bb == 0x51234, f"Case 4b: bitmapBase expected 0x51234, got 0x$bb%X — 0x0351/0x0352 decode/commit broken")
+    assert(ab == 0x25678, f"Case 4b: attrBase expected 0x25678, got 0x$ab%X — 0x0353/0x0354 decode/commit broken")
+    assert(bs == 1024,    f"Case 4b: bitmapStride expected 1024, got $bs — 0x0355 decode/commit broken")
+    assert(as == 768,     f"Case 4b: attrStride expected 768, got $as — 0x0356 decode/commit broken")
+    assert(bh == 100,     f"Case 4b: bitmapHeight expected 100, got $bh — 0x0357 decode/commit broken")
+    println(f"[sim] Case 4b reprogram — base 0x$bb%X/0x$ab%X stride $bs/$as height $bh — OK")
+
+    println("[sim] BitmapCtrlCommitSim: PASS — BITMAP_CTRL 0x0350 + BITMAP-PLUMB-129 0x0351..0x0357 commit paths sound at the VdpTop boundary")
   }
 }
