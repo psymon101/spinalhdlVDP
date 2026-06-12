@@ -1,14 +1,14 @@
 # MODE0_REGISTER_BUS_SPEC.md
 
-**Status:** Stable contract — locked by Task 32a (commit landing this file), extended to v1.1 by post-Task 32a register additions
+**Status:** Stable contract — v1.5 Landed (Task 129 + ACK/NAK Phase 2)
 **Governing task:** Task 32a — Mode0 Register Bus: Spec & Naming Lock
-**Version:** v1.2 — deprecates RGB565 bitmap registers 0x0351..0x0356 and BITMAP_CTRL[7] per RTL cleanup `8b61a2e` (2026-05-23)
+**Version:** v1.6 — auto-generated register detail tables from `firmware/libvdp/mode0_regs.json`
 **Scope:** Write-path control surface for Mode0. The READ_STATUS response surface is defined by `QspiDecoder` sel mapping and is referenced here for completeness but is not part of the register bus itself.
 
 This document is the authoritative naming and semantic contract for the Mode0 write-path register bus.
 For high-level usage and examples, see the [**`VDP Programming Guide`**](../VDP_PROGRAMMING_GUIDE.md).
 Tasks 33 (Copper-lite), 34 (QSPI asset upload), 35 (Host IRQ / Status Registers), and 37 (Affine Sprite Path) MUST target this contract without ad-hoc drift.
- Task 32b is the separate lane that will refactor the HDL so all masters reference a common bundle; 32a defines WHAT they target, 32b defines HOW.
+Task 32b is the separate lane that will refactor the HDL so all masters reference a common bundle; 32a defines WHAT they target, 32b defines HOW.
 
 ---
 
@@ -37,17 +37,18 @@ The 3-tuple name pattern `regWrite{Addr,Data,Enable}` is the frozen naming. Futu
 | Master | Source | Active window | Notes |
 |---|---|---|---|
 | **Bootstrap** | `TopTang20kHdmi` `bootWrite` block | Power-on, ends when `bootDoneR=1` | Loads scenario-specific scene config; gates all other masters via `regWriteFromBoot` |
-| **QSPI Decoder** | `QspiDecoder.io.regWrite*` | `bootDoneR=1` and host issues REG_WRITE | Bit-exact write of host-supplied data |
-| **Animator** | `TopTang20kHdmi` `animWrite*` | Per-scenario, pixel-clock-periodic | In-FPGA register updates for Sc1..Sc17 animated scenes |
+| **i80 (Primary)** | `I80HostInterface.io.regBus` | `bootDoneR=1` and host issues write | **Primary transport for Tang Nano 20K**; bit-exact write of host-supplied data |
+| **QSPI Decoder** | `QspiDecoder.io.regWrite*` | `bootDoneR=1` and host issues REG_WRITE | Legacy/alternate transport; same bit-exact contract as i80 |
+| **Animator** | `TopTang20kHdmi` `animWrite*` | Per-scenario, pixel-clock-periodic | In-FPGA register updates for Sc1..Sc17 animated scenes (mutually exclusive with i80) |
 
-### 2.2 Master priority (mux at `TopTang20kHdmi.scala:534-539`)
+### 2.2 Master priority (mux at `TopTang20kHdmi.scala:500-530`)
 
-Priority is **bootstrap > qspi > animator**, implemented as two nested `Mux`es feeding `video.io.regWriteAddr` and `video.io.regWriteData`. `regWriteEnable` is the OR of the three masters' enables.
+Priority is **bootstrap > qspi > i80/animator**, implemented via `RegBusArbiter`. i80/animator occupy the same slot (Master 2) and are mutually exclusive based on the `hostI80` parameter.
 
 ```
-regWriteFromBoot   : highest — bootstrap wins during boot window
-qspiActive         : next — bootDoneR && qspiDec.regWriteEnable
-animWriteActive    : lowest — in-FPGA animator
+Master 0: regWriteFromBoot : highest — bootstrap wins during boot window
+Master 1: qspiActive       : next — post-boot QSPI writes
+Master 2: i80 / animator   : lowest — post-boot i80 host OR internal animator
 ```
 
 ### 2.3 QSPI Transport Performance (Bench-validated 2026-05-23)
@@ -60,17 +61,6 @@ The QSPI transport performance varies by host platform and direction:
 | **ESP32-S3** | Reads | **3 MHz** (hardware) | ~10k reads/s (~40 KB/s) |
 
 Note: Reads are capped at 3 MHz by the FPGA response FSM; writes support higher rates with SI limits. See `firmware/GOTCHAS.md` and `kb/libvdp/README.md` for platform-specific policies.
-
-### 2.4 Rules for new masters
-
-Any new master added by Task 33 (Copper-lite), Task 34 (asset upload side-writes), or Task 37 (affine sprite registers) MUST:
-
-1. Drive its own `regWriteAddr`/`regWriteData`/`regWriteEnable` signals with the same shape.
-2. Be added to the `TopTang20kHdmi` mux tree with an explicit priority ranking.
-3. Document its priority-vs-others in its artifact doc.
-4. Not override bootstrap under any circumstances — bootstrap is always highest.
-
-**Open question for Task 33:** Copper-lite is beam-synchronous and fires inside the active frame. Its priority relative to QSPI and animator is unspecified; the Task 33 artifact MUST decide. This spec does NOT predetermine that choice.
 
 ---
 
@@ -91,7 +81,9 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0312` | `VDP_ATTR_MODE` — 1-bit linear/packed-2×2 | Task R4.1c | `VdpTop.scala:61,240` |
 | `0x0313` | `MODE_SELECT` — `[3:0]=adapter mode ID`, `[7:4]=reserved`, `[15:8]=MODE_FLAGS` | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.2 |
 | `0x0314..0x031F` | **Reserved** — global-control expansion | — | — |
-| `0x0320..0x032F` | **Task 35** — status registers, IRQ enables, sticky bits (see §3.1.1) | Task 35, 29 | `VdpTop.scala:878-921` |
+| `0x0320..0x0322` | **Task 35** — status registers, IRQ enables, sticky bits (see §3.1.1) | Task 35, 29 | `VdpTop.scala:878-921` |
+| `0x0323` | `UPLOAD_STATUS_CLEAR` — write-1-to-clear for bridge sticky bits (see §3.1.2) | **Landed (Phase 2)** | `QspiDecoder.scala` |
+| `0x0324..0x032F` | **Reserved** — status expansion | — | — |
 | `0x0330..0x0334` | **Task 20** — Window 1 + Color Math (`WIN1_X0`, `WIN1_X1`, `WIN1_Y0`, `WIN1_Y1`, `COLOR_MATH_CTRL`) | Task 20 / R6 | `VdpTop.scala:249,255-263` |
 | `0x0335..0x033B` | **Task 20** — Window 2 + combine (`WIN2_X0`, `WIN2_X1`, `WIN2_Y0`, `WIN2_Y1`, `WIN2_CTRL`, `WIN_COMBINE`, `LAYER_MASK`) | Task 20 / R6 | `VdpTop.scala` |
 | `0x033C..0x033F` | **Task 20** — Border window (`BORDER_X0`, `BORDER_X1`, `BORDER_Y0`, `BORDER_Y1`) | Task 20 / R6 | `VdpTop.scala` |
@@ -106,8 +98,12 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x034E` | `INNER_BORDER_T` — 10-bit inner border thickness (logical pixels), top edge | Owner exception | `VdpTop.scala` |
 | `0x034F` | `INNER_BORDER_B` — 10-bit inner border thickness (logical pixels), bottom edge | Owner exception | `VdpTop.scala` |
 | `0x0350` | `BITMAP_CTRL` — `bit 7` is **deprecated** (no-op) | Task 44 / CP-1a | `VdpTop.scala`, `BitmapFetch.scala` |
-| `0x0351..0x0356` | **Reserved** — deprecated (formerly RGB565 base/stride registers) | — | — |
-| `0x0357..0x035F` | **Reserved** — Task 44 expansion / future host-surface registers | — | — |
+| `0x0351..0x0352` | `BITMAP_BASE` (23-bit) — assemble LO/HI for SDRAM bitmap base | **Landed (Task 129)** | `VdpTop.scala` |
+| `0x0353..0x0354` | `ATTR_BASE` (23-bit) — assemble LO/HI for SDRAM attribute base | **Landed (Task 129)** | `VdpTop.scala` |
+| `0x0355` | `BITMAP_STRIDE` — bytes per bitmap row (direct-color default 512) | **Landed (Task 129)** | `VdpTop.scala` |
+| `0x0356` | `ATTR_STRIDE` — bytes per attribute row (direct-color default 512) | **Landed (Task 129)** | `VdpTop.scala` |
+| `0x0357` | `BITMAP_HEIGHT` — 10-bit source bitmap height (default 240) | **Landed (Task 129)** | `VdpTop.scala` |
+| `0x0358..0x035F` | **Reserved** — bitmap expansion | — | — |
 | `0x0360..0x0362` | **Raster** — Trigger 1 (`TRIGGER1_LINE`, `TRIGGER1_PIXEL`, `TRIGGER1_CTRL`) | Task 35 / R6 | `VdpTop.scala`, `RasterTriggerUnit.scala` |
 | `0x0363` | **Reserved** — trigger alignment | — | — |
 | `0x0364..0x0366` | **Raster** — Trigger 2 (`TRIGGER2_LINE`, `TRIGGER2_PIXEL`, `TRIGGER2_CTRL`) | Task 35 / R6 | `VdpTop.scala`, `RasterTriggerUnit.scala` |
@@ -138,36 +134,14 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0D11` | `PATTERN_RAM_PTR` — sprite pattern RAM word index | Task 53 | `VdpTop.scala` |
 | `0x0D20..0x0D3F` | `SPRITE_HARD` — 32 slots x 1 word hardening extension | Phase 2 | `VdpTop.scala` |
 | `0x0D40..0x0D49` | `PLANE_BASE` — 5 planes x 2 words (lo/hi). SDRAM byte addresses. | Task 55 | `VdpTop.scala` |
-| `0x0D4A` | `PLANAR_CTRL` — bit 0: planar fetch enable | Task 55 | `VdpTop.scala` |
-| `0x0F00..0x0FFF` | **ZX Spectrum adapter** — adapter-local register shadow (256 bytes) | Task 50 | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
-| `0x1000..0x10FF` | **Reserved** — future adapter (NES proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
-| `0x1100..0x11FF` | **Reserved** — future adapter (SMS proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
-| `0x1200..0x12FF` | **Reserved** — future adapter (Genesis proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
-| `0x1300..0x13FF` | **Reserved** — future adapter (SNES proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
-| `0x1400..0x14FF` | **Reserved** — future adapter (Amiga proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
-| `0x1500..0x15FF` | **Reserved** — future adapter (Atari ST proposed) | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.3 |
-| `0x1600..0x7FFF` | **Reserved** — future Mode0 expansion (palette banks, sprite attr, etc.) | — | — |
+| `0x0D4A` | `PLANAR_CTRL` — bit[0] enable, bits[3:1] planeCount-1 | Task 55 | `VdpTop.scala` |
+| `0x0D4B..0x0D7F` | **Reserved** — planar expansion | — | — |
+| `0x0800..0x087F` | **Reserved** — Task 31 legacy scroll mapping (avoid using) | Task 31 | — |
+| `0x0900..0x097F` | Layer 0 H-scroll table (128 entries × 10 bits) | Task 31 | `VdpTop.scala:878+` |
+| `0x0980..0x09FF` | Layer 1 H-scroll table (128 entries × 10 bits) | Task 31 | `VdpTop.scala:884+` |
 
-### 3.1.a Layer Enable Precondition (Linestate vs LAYER_ENABLE)
-
-The VDP uses a **two-level** layer enable for L0 and L1:
-
-1. **Per-line linestate** (`0x0000..0x01DF`): Each scanline has a 12-bit record with a layer-specific enable bit (`bit 11` for L0, `bit 10` for L1). At power-on, **all linestate entries are 0** (all layers disabled on every line).
-2. **Global override** (`LAYER_ENABLE @ 0x0300`): A global bitmask with one bit per layer.
-
-The effective enable for a layer on a given line is the **logical AND** of both:
-
-```
-effectiveL0Enable = linestate[line].l0en  &&  LAYER_ENABLE.bit0
-effectiveL1Enable = linestate[line].l1en  &&  LAYER_ENABLE.bit1
-```
-
-**Consequence**: Setting `LAYER_ENABLE` alone is NOT sufficient. If linestate entries are still 0 (power-on default), the layer is forced to output **palette index 0** on every line, producing a uniform solid color regardless of what tiles, sprites, or planar data are configured. This is a common bring-up trap.
-
-**Recommended bring-up sequence**:
-1. Upload assets / configure fetch engines.
-2. Write linestate entries (`0x0800` for L0-only, `0x0C00` for L0+L1, etc.).
-3. Set `LAYER_ENABLE` global bitmask.
+> [!WARNING]
+> **BITMAP_BASE Overlap Note**: The hardware power-on defaults for `BITMAP_BASE` (`0x3000`) and `ATTR_BASE` (`0x4000`) were chosen for legacy 1/2bpp compatibility. When rendering in direct-color RGB565 mode with the default 512-byte stride, these bases overlap after just 8 rows. To display a full-screen RGB565 image, the host **must** reconfigure `0x0351..0x0354` to non-overlapping bases (e.g., `0x100000` and `0x200000`).
 
 ### 3.1.1 STATUS_STICKY bit layout (`0x0320`, write-1-to-clear)
 
@@ -181,11 +155,679 @@ effectiveL1Enable = linestate[line].l1en  &&  LAYER_ENABLE.bit1
 | 5 | `SPRITE_BG_HIT` | any sprite non-transparent over non-transparent BG | **Task 29** |
 | 8 | `DMA_DONE` | `DmaEngine.io.done` — sticky pulse on transfer complete | **Task 47** |
 | 9 | `BLIT_DONE` | `BlitterEngine.io.done` — sticky pulse on block transfer complete | **Task 49** |
-| 10 | `BLIT_BUSY` | `BlitterEngine.io.busy` — live read-only; **not routed into `statusStickyReg`** | **Task 49** |
+| 10 | `BLIT_BUSY` | `BlitterEngine.io.busy` — live status | **Task 49** |
 | 11 | `MODE_SELECT_CHANGED` | `MODE_SELECT` committed at `V=0` | **Task 51** |
 | 6..7, 12..15 | *reserved* | — | — |
 
 `STATUS_ENABLE` (`0x0321`) is the per-bit IRQ mask using the same bit layout; commit is safe-boundary at `hCounter === 0`.
+
+### 3.1.2 UPLOAD_STATUS (READ_STATUS sel=6) and `UPLOAD_STATUS_CLEAR` (`0x0323`, W1C)
+
+ACK/NAK lane (#11500 / #11508 / #11557). The bridge's upload status is surfaced on READ_STATUS sel=6 and is **physically separate** from `STATUS_STICKY` (`0x0320`) — a `0x0320` write does NOT clear it.
+
+| sel=6 byte0 bit | Name | Semantics | Host-clearable |
+|---|---|---|---|
+| 0 | `upload_busy` | bridge active OR uploadCc not fully drained | live (not sticky) |
+| 1 | `upload_done` | last SDRAM_WRITE handed off (latched) | live |
+| 2 | `upload_error` | CP-A1 watchdog abort (wedge / short frame) — sticky | **W1C via `0x0323` bit2** |
+| 3 | `upload_overflow` | CP-A4 ingress-FIFO overflow — sticky | **W1C via `0x0323` bit3** |
+| 4 | `txn_dropped` | **Phase 2 (PA-2 #11614/#11626)**: a new SDRAM_WRITE header arrived while the previous write still had bytes outstanding (drop / re-anchor) — sticky | **W1C via `0x0323` bit4** |
+| 5 | `short_frame` | RESERVED — Fix A framing-hardening lane (#11557); stays 0 until that logic lands | (W1C via `0x0323` bit5) |
+| 6..7 | reserved | 0 | — |
+
+byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
+
+**`UPLOAD_STATUS_CLEAR` (`0x0323`, write-1-to-clear)** — within the reserved `0x0320..0x032F` block. A host `REG_WRITE` whose data bits mirror the sel=6 byte0 positions clears the corresponding sticky bit (bit2→`upload_error`, bit3→`fifoOverflow`, **bit4→`txn_dropped`**; bit5→`short_frame` once Fix A lands). Decoded in the pixel domain by `QspiDecoder` (no CDC): bit2/bit3 strobe into the bridge's Regs (a genuine re-set the same cycle wins, so a live error is never lost); bit4 clears the decoder's own `txn_dropped` Reg. Fix B (#11557) sim-proven: `QspiAckNakSim` (D) + `QspiWriteStatusReproSim` (E). Phase 2 `txn_dropped` (PA-2 #11614/#11626) sim: `QspiWriteStatusReproSim` (F).
+
+### 3.1.3 Auto-Generated Register Detail Tables
+
+> **Generated from:** `firmware/libvdp/mode0_regs.json`  
+> **Generator:** `scripts/gen_reg_docs.py`  
+> **Note:** Regenerated after BronzeGate backfilled descriptions and normalized categories (`immediate` / `vblank-sensitive` / `stream` / `diagnostic`).
+
+### LAYER_ENABLE (`0x0300`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0300` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Enables visible Mode0 display layers. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[0]` | L0 | Enables layer 0 output. |
+| `[1]` | L1 | Enables layer 1 output. |
+| `[2]` | SPRITE | Enables sprite output. |
+| `[3]` | L2 | Enables layer 2 output. |
+| `[4]` | L3 | Enables layer 3 output. |
+
+### VDP_CTRL (`0x0310`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0310` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Controls global Mode0 runtime features. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[0]` | COPPER_ENABLE | Enables copper command execution. |
+| `[1]` | COPPER_SWAP_REQUEST | Requests a copper buffer swap. |
+
+### VDP_TILE_MODE (`0x0311`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0311` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Selects the tile pattern decode mode. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[1:0]` | MODE | Tile pattern decode mode selector. |
+
+### VDP_ATTR_MODE (`0x0312`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0312` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Selects the tile attribute decode mode. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[0]` | MODE | Tile attribute decode mode selector. |
+
+### MODE_SELECT (`0x0313`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0313` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Selects the active compatibility adapter mode. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[3:0]` | ADAPTER_MODE | Compatibility adapter mode selector. |
+| `[15:8]` | MODE_FLAGS | Adapter-specific mode option flags. |
+
+### STATUS_STICKY (`0x0320`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0320` |
+| Width | 16 |
+| Access | W1C |
+| Reset | `0x0000` |
+| Category | diagnostic |
+| Description | Sticky status and interrupt cause flags; write one to clear. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[0]` | RASTER_MATCH | Raster trigger match occurred. |
+| `[1]` | SPRITE_OVERFLOW | Sprite evaluation overflow occurred. |
+| `[2]` | QSPI_READY | Host bridge reported ready. |
+| `[3]` | QSPI_ERROR | Host bridge reported an error. |
+| `[4]` | SPRITE_0_HIT | Sprite 0 collision flag latched. |
+| `[5]` | SPRITE_BG_HIT | Sprite/background collision flag latched. |
+| `[8]` | DMA_DONE | DMA operation completed. |
+| `[9]` | BLIT_DONE | Blitter operation completed. |
+| `[10]` | BLIT_BUSY | Blitter busy state is latched. |
+| `[11]` | MODE_SELECT_CHANGED | Mode select value changed. |
+
+### STATUS_ENABLE (`0x0321`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0321` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | diagnostic |
+| Description | Enables reporting for selected sticky status sources. |
+
+### SPRITE_COLL_MASK (`0x0322`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0322` |
+| Width | 16 |
+| Access | W1C |
+| Reset | `0x0000` |
+| Category | diagnostic |
+| Description | Clears selected sprite collision sticky bits. |
+
+### UPLOAD_STATUS_CLEAR (`0x0323`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0323` |
+| Width | 16 |
+| Access | W1C |
+| Reset | `0x0000` |
+| Category | diagnostic |
+| Description | Clears sticky host upload bridge error flags. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[2]` | UPLOAD_ERROR | Clears upload error sticky flag. |
+| `[3]` | UPLOAD_OVERFLOW | Clears upload overflow sticky flag. |
+| `[4]` | TXN_DROPPED | Clears dropped transaction sticky flag. |
+| `[5]` | SHORT_FRAME | Clears short-frame sticky flag. |
+
+### WIN1_X0 (`0x0330`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0330` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Window 1 inclusive left X coordinate. |
+
+### WIN1_X1 (`0x0331`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0331` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Window 1 exclusive right X coordinate. |
+
+### WIN1_Y0 (`0x0332`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0332` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Window 1 inclusive top Y coordinate. |
+
+### WIN1_Y1 (`0x0333`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0333` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Window 1 exclusive bottom Y coordinate. |
+
+### COLOR_MATH_CTRL (`0x0334`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0334` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Controls windowed color math and blend behavior. |
+
+### WIN2_X0 (`0x0335`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0335` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Window 2 inclusive left X coordinate. |
+
+### WIN2_X1 (`0x0336`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0336` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Window 2 exclusive right X coordinate. |
+
+### WIN2_Y0 (`0x0337`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0337` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Window 2 inclusive top Y coordinate. |
+
+### WIN2_Y1 (`0x0338`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0338` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Window 2 exclusive bottom Y coordinate. |
+
+### WIN2_CTRL (`0x0339`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0339` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Controls Window 2 enable and selection behavior. |
+
+### WIN_COMBINE (`0x033A`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x033A` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Selects how Window 1 and Window 2 masks combine. |
+
+### LAYER_MASK (`0x033B`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x033B` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Selects which layers participate in window/color operations. |
+
+### BORDER_X0 (`0x033C`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x033C` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Outer border inclusive left X coordinate. |
+
+### BORDER_X1 (`0x033D`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x033D` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Outer border exclusive right X coordinate. |
+
+### BORDER_Y0 (`0x033E`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x033E` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Outer border inclusive top Y coordinate. |
+
+### BORDER_Y1 (`0x033F`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x033F` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Outer border exclusive bottom Y coordinate. |
+
+### AFFINE_A (`0x0340`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0340` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Affine matrix A coefficient for transformed fetches. |
+
+### AFFINE_B (`0x0341`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0341` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Affine matrix B coefficient for transformed fetches. |
+
+### AFFINE_C (`0x0342`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0342` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Affine matrix C coefficient for transformed fetches. |
+
+### AFFINE_D (`0x0343`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0343` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Affine matrix D coefficient for transformed fetches. |
+
+### AFFINE_X (`0x0344`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0344` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Affine transform X origin or translation term. |
+
+### AFFINE_Y (`0x0345`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0345` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Affine transform Y origin or translation term. |
+
+### AFFINE_CTRL (`0x0346`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0346` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Controls affine transform enable and options. |
+
+### BORDER_CTRL (`0x0347`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0347` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Enables border rendering and selects its palette index. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[0]` | ENABLE | Enables outer border rendering. |
+| `[1]` | INNER_BORDER_ENABLE | Enables inner border inset handling. |
+| `[12:8]` | PALETTE_INDEX | Palette index used for border pixels. |
+
+### BACKDROP_INDEX (`0x0348`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0348` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Selects the backdrop palette index. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[6:0]` | INDEX | Palette index used for backdrop pixels. |
+
+### SCALE_CTRL (`0x0349`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0349` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Controls logical-to-output pixel scaling. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[2:0]` | SCALE_X | Horizontal integer scale factor selector. |
+| `[6:4]` | SCALE_Y | Vertical integer scale factor selector. |
+| `[7]` | AUTO_CENTER | Centers the logical image in the output frame. |
+
+### LOGIC_WIDTH (`0x034A`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x034A` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0280` |
+| Category | vblank-sensitive |
+| Description | Logical source width used by the scaler. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[10:0]` | WIDTH | Logical source width in pixels. |
+
+### LOGIC_HEIGHT (`0x034B`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x034B` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x01E0` |
+| Category | vblank-sensitive |
+| Description | Logical source height used by the scaler. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[10:0]` | HEIGHT | Logical source height in pixels. |
+
+### INNER_BORDER_L (`0x034C`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x034C` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Inner border thickness on the left edge. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[9:0]` | THICKNESS | Left inner border thickness in logical pixels. |
+
+### INNER_BORDER_R (`0x034D`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x034D` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Inner border thickness on the right edge. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[9:0]` | THICKNESS | Right inner border thickness in logical pixels. |
+
+### INNER_BORDER_T (`0x034E`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x034E` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Inner border thickness on the top edge. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[9:0]` | THICKNESS | Top inner border thickness in logical pixels. |
+
+### INNER_BORDER_B (`0x034F`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x034F` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Inner border thickness on the bottom edge. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[9:0]` | THICKNESS | Bottom inner border thickness in logical pixels. |
+
+### BITMAP_CTRL (`0x0350`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0350` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | Enables SDRAM bitmap fetch and selects bitmap format. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[0]` | ENABLE | Enables SDRAM bitmap fetch. |
+| `[2:1]` | BPP | Bitmap bits-per-pixel mode selector; 0b10 selects RGB565 direct color. |
+| `[6:3]` | CELL_WIDTH_LOG2 | Log2 cell width for indexed bitmap addressing. |
+
+### BITMAP_BASE_LO (`0x0351`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0351` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x3000` |
+| Category | vblank-sensitive |
+| Description | Low 16 bits of the SDRAM bitmap byte-plane base address. |
+
+### BITMAP_BASE_HI (`0x0352`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0352` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | High 7 bits of the SDRAM bitmap byte-plane base address. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[6:0]` | ADDR_HI | Address bits 22:16 for bitmap base. |
+
+### ATTR_BASE_LO (`0x0353`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0353` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x4000` |
+| Category | vblank-sensitive |
+| Description | Low 16 bits of the SDRAM attribute or high-byte plane base address. |
+
+### ATTR_BASE_HI (`0x0354`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0354` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | vblank-sensitive |
+| Description | High 7 bits of the SDRAM attribute or high-byte plane base address. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[6:0]` | ADDR_HI | Address bits 22:16 for attribute or high-byte plane base. |
+
+### BITMAP_STRIDE (`0x0355`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0355` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0200` |
+| Category | vblank-sensitive |
+| Description | Direct-color bitmap byte-plane row stride in bytes. |
+
+### ATTR_STRIDE (`0x0356`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0356` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0200` |
+| Category | vblank-sensitive |
+| Description | Direct-color attribute or high-byte plane row stride in bytes. |
+
+### BITMAP_HEIGHT (`0x0357`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0357` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x00F0` |
+| Category | vblank-sensitive |
+| Description | Source bitmap height in rows; currently consumed by init-fill path only. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[10:0]` | HEIGHT | Source bitmap height in rows. |
+
 
 ### 3.2 Allocation rules
 
@@ -197,43 +839,37 @@ effectiveL1Enable = linestate[line].l1en  &&  LAYER_ENABLE.bit1
 
 ## 4. Semantics
 
-### 4.1 Write ordering and commit
+### 4.1 Commit Boundaries
 
-All register writes are **safe-boundary committed** at `hCounter === 0` (VdpTop.scala:348). A write pulsing at arbitrary pixel position lands in a shadow register; the shadow transfers to the live register at the start of the next scanline. This prevents mid-line artifacts when host / Copper / animator fire during active video.
+Most registers are **double-buffered**. Host writes go to a "prepare" (shadow) register. The "commit" to the live RTL register occurs at a specific boundary to prevent visual tearing or logic glitches.
 
-**Exception:** linestate prepare (`0x0000..0x01DF`) uses a different two-phase commit — prepare into line N+1, commit at end of line N (`hCounter === hTotal - 1`, see `VdpTop.scala:169`). This is intentional and predates Task 32a; Task 32a documents it, does not modify it.
+| Category | Commit Boundary | Examples |
+|---|---|---|
+| **Immediate** | Combinational / next-cycle | `UPLOAD_STATUS_CLEAR`, `DMA_CTRL.go` |
+| **H-Boundary** | `hCounter === 0` | `LAYER_ENABLE`, `BORDER_CTRL`, `WIN*_X0`, `BITMAP_CTRL` |
+| **V-Boundary** | `vCounter === 0 && hCounter === 0` | `MODE_SELECT`, `LOGIC_WIDTH` |
 
-### 4.2 Multi-master on the same cycle
+### 4.2 Write-1-to-Clear (W1C)
 
-Priority mux (§2.2) resolves address/data. If two masters pulse `regWriteEnable` in the same cycle:
-- OR of enables → single pulse visible to `VdpTop`.
-- Addr/data mux picks the higher-priority master's values.
-- Lower-priority master's write is silently dropped that cycle.
-
-**Task 36 (Register Write Concurrency Stress)** must prove this doesn't corrupt safe-boundary commits under max traffic.
-
-### 4.3 Write acknowledgement
-
-The bus has no hardware acknowledgement path. Masters pulse and assume the write lands. The legacy QSPI read-path (`READ_STATUS sel=1..3`) has been removed to save logic; `sel=4` (last_error) remains available for transport-layer diagnostics.
-
-### 4.4 Atomicity within a single register
-
-16-bit writes are atomic — the entire `regWriteData` word is captured in a single pulse. Host does not need to split writes.
+Registers marked W1C (e.g. `STATUS_STICKY` @ `0x0320`) are used to clear sticky event bits. 
+- Writing a `1` to a bit position clears that bit.
+- Writing a `0` to a bit position has no effect.
+- If an event occurs in the SAME cycle as a clear write, the **event wins** (the bit stays/becomes 1).
 
 ---
 
-## 5. Read-path companion (informational)
+## 5. QSPI READ_STATUS Response (Companion)
 
-The register bus is write-only. Read-back is provided by the QSPI READ_STATUS response surface, not by this bus. Per Task 38b:
+Host `READ_STATUS` returns a 32-bit word. The `sel` byte in the command picks the word:
 
-| sel | Response contents |
+| sel | Response Word [31:0] |
 |---|---|
 | `0` | Magic `0x51560002` (host transport ID) |
-| `1..3` | **Removed** (formerly rx_cmd_cnt, last_addr, last_data) — returns 0 |
-| `4` | `last_error[7:0]` |
+| `1..3` | **Removed** (Sc1..Sc4 legacy debug readback) |
+| `4` | committed live mode (post-safe-boundary `MODE_SELECT` and layer state) |
 | `5` | sticky status bits (`STATUS_STICKY` bit layout, §3.1.1) |
-| `6` | upload status (`busy`/`done` bits) |
-| `7` | committed live mode (post-safe-boundary `MODE_SELECT` and layer state) |
+| `6` | upload status (`busy`/`done`/`error`/`overflow`/`txn_dropped` bits, §3.1.2) |
+| `7` | **Reserved** — future diagnostic |
 | `8` | SDRAM readback — 32-bit word from debug address (0x0326/0x0327) |
 | `9..255` | Reserved — zero response |
 
@@ -248,50 +884,42 @@ Lock: use the prefixes below when adding new register addresses.
 | Prefix | Domain |
 |---|---|
 | `VDP_*` | Global Mode0 control (e.g. `VDP_CTRL`, `VDP_TILE_MODE`, `VDP_ATTR_MODE`) |
-| `LAYER_*` | Per-layer config (`LAYER_ENABLE`, future `LAYER_PRIORITY`) |
-| `STATUS_*` | Task 35 status + IRQ (`STATUS_ENABLE`, `STATUS_CLEAR`, `STATUS_STICKY`) |
-| `COPPER_*` | Task 33 Copper-lite control (`COPPER_RUN`, `COPPER_PC`) |
-| `SPRITE_*` | Task 37 sprite-side registers |
-| `ASSET_*` | Task 34 asset upload control (handshake, not bulk data itself) |
-
-Names MUST be uppercase, ASCII, underscore-separated, and MUST NOT conflict with any Scala identifier in `VdpTop`. A follow-up (optional) `object RegAddr { final val LAYER_ENABLE = 0x0300; ... }` constants file is a Task 32b candidate.
-
----
-
-## 7. Forward-compatibility notes
-
-### 7.1 Data width
-
-Locked at **16 bits**. Task 34 (asset upload) wanting wider bursts MUST use an out-of-band transport (e.g. a separate SDRAM burst path via QSPI bulk write), not this bus.
-
-### 7.2 Address width
-
-Locked at **15 bits**. If Mode0 evolves to need more, that's a v2 bus — opened via a new 32-series task, not an extension of 32a.
-
-### 7.3 Bus evolution rule
-
-Any change to §1 (Signal Contract) requires:
-1. A new task doc proposing the change
-2. Mutual-coverage review by CoralReef + CyanPeak
-3. PM sign-off
-4. A version bump of this spec with historical table
-
-Version bumps MUST preserve the existing allocated addresses in §3.1 unchanged.
+| `WIN*_` | Window unit coordinates / control |
+| `BORDER_` | Border window / unit control |
+| `AFFINE_` | Affine background transformation matrix / control |
+| `TRIGGER*_` | Raster trigger unit configuration |
+| `DMA_` | DMA engine control / status |
+| `BLIT_` | Blitter engine control / status |
+| `BITMAP_` | Bitmap-fetch unit control / status |
+| `ATTR_` | Attribute-fetch unit control / status |
+| `STATUS_` | Interrupts and event flags |
 
 ---
 
-## 8. Validation baseline
+## 7. Change History (v1.1+)
 
-At the time of this spec lock, the following simulations prove zero behavioral drift:
+### v1.1 — Affine Support
+Added `AFFINE_A..CTRL` (`0x0340..0x0346`). Claims part of the global expansion block.
 
-| Sim | Cases | Coverage |
-|---|---|---|
-| `QspiRegWriteSim` | 13 | Write-path regression + READ_STATUS sel=0..4 + snapshot |
-| `QspiSlaveSim` | 4 | Slave framing + Respond-state drive contract |
-| `AffineRegSim` | (existing) | Affine register writes via bus |
-| `AffineVdpTopSim` | (existing) | Full-stack bus routing |
+### v1.2 — RGB565 Transition
+Commit `8b61a2e` stripped the dedicated Task 2b RGB565 path in favor of the unified Task 44 fetcher. This initially deprecated `0x0351..0x0356`.
 
-All pass as of commit `4cee22e` (Task 38c closeout). Task 32a does not introduce HDL changes; these baselines remain green by construction.
+### v1.3 — ACK/NAK Phase 2
+Added `UPLOAD_STATUS_CLEAR` (`0x0323`) for host-side recovery. Defined `txn_dropped` bit in `sel=6`.
+
+### v1.4 — Task 129 Restoration
+Un-deprecated `0x0351..0x0356` as part of BITMAP-PLUMB-129. These registers are now ACTIVE and parameterize the bitmap/attribute base and stride. Added `0x0357 BITMAP_HEIGHT`.
+
+### v1.6 — Auto-Generated Register Tables
+Added §3.1.3 with per-register detail tables generated from `firmware/libvdp/mode0_regs.json` via `scripts/gen_reg_docs.py`. BronzeGate backfilled all register/field descriptions and normalized categories to `immediate` / `vblank-sensitive` / `stream` / `diagnostic`; tables regenerated to remove `*TBD*` placeholders.
+
+---
+
+## 8. Migration Notes for `libvdp`
+
+- **Scenario 45+**: Stop using Sc1..Sc4 debug selectors (sel=1..3); transition to sel=5 (`STATUS_STICKY`).
+- **Phase 2**: Use `vdp_qspi_upload_status()` to poll for `txn_dropped`. Clear via `vdp_reg_write(0x0323, 1 << 4)`.
+- **Task 129**: Bitmap base/stride/height are now host-programmable. Default reset values preserve legacy 0x3000/0x4000 layout.
 
 ---
 
@@ -305,11 +933,3 @@ All pass as of commit `4cee22e` (Task 38c closeout). Task 32a does not introduce
 - **Sprite descriptor capacity:** Approved redesign target is `descCount=32`, `visiblePerLine=8` (BrightForge #10360). The existing `0x0800..0x0FFF` Task 37 descriptor space (2048 words) is already sized for this target; no register-address changes are required. Live build remains `descCount=8` pending merge.
 
 ---
-
-### 10. Barebones build register conflict note
-
-The `TopTang20kBarebones` build (scroll + simple-sprite proofs) uses a **separate, incompatible** register surface at `0x0000..0x0005` (`L0_SCROLL_X`, `L0_SCROLL_Y`, `L1_SCROLL_X`, `L1_SCROLL_Y`, `SPRITE_X`, `SPRITE_Y`). These addresses overlap the standard `LINESTATE_BASE` (`0x0000..0x01DF`) used by the rich-top `VdpTop`. Host code MUST use `vdp_barebones_*` helpers (inline bit-bang, 40-bit SPI protocol) with barebones bitstreams and MUST NOT use `vdp_mode0_*` helpers. See `firmware/GOTCHAS.md` §Host Platform Fidelity and `kb/libvdp/README.md` §Migration & Naming Plan.
-
----
-
-*End of Mode0 Register Bus Spec v1.1.*
