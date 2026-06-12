@@ -20,11 +20,18 @@ import spinal.core.sim._
   * tile/planar/refresh only makes it worse.)
   */
 object RGB565FullFrameSim extends App {
-  // 2-scanline source-row budget in SDRAM cycles (line-doubled display).
-  val SCANLINE_PIX = 800
+  // Per-source-row SDRAM-cycle budget. Each source row displays for 2 scanlines
+  // (line doubling). BUT the bitmap fetch has NO dedicated scheduler slot — it
+  // borrows L0's slotValid window via the activeBit grant-id override
+  // (TopTang20kHdmi.scala:857-876), and L0 slot 1 is [0,399] (VdpTop:1116-1123).
+  // So the real per-line bus window is only ~400 pixel-clocks, not the full 800.
   val PIX_HZ = 25.2e6
   val SDRAM_HZ = 40.5e6
-  val rowBudgetCycles = math.round(2 * SCANLINE_PIX / PIX_HZ * SDRAM_HZ).toInt  // ~2572
+  val BITMAP_WINDOW_PIX = 400          // L0 slot 1 [0,399] that bitmap borrows
+  val FULL_LINE_PIX = 800
+  // Faithful budget = borrowed window × 2 lines, in SDRAM cycles.
+  val rowBudgetCycles = math.round(2 * BITMAP_WINDOW_PIX / PIX_HZ * SDRAM_HZ).toInt   // ~1286
+  val fullLineBudget  = math.round(2 * FULL_LINE_PIX   / PIX_HZ * SDRAM_HZ).toInt     // ~2571 if widened
 
   def measureRowFetchCycles(readLatency: Int): Long = {
     var result = 0L
@@ -76,12 +83,13 @@ object RGB565FullFrameSim extends App {
     result
   }
 
-  println(s"[sim] 2-scanline source-row SDRAM budget = $rowBudgetCycles cycles")
+  println(s"[sim] borrowed-window (L0 [0,399]) source-row budget = $rowBudgetCycles cycles")
+  println(s"[sim] full-line budget if bitmap gets a dedicated full-line slot = $fullLineBudget cycles")
   for (lat <- Seq(2, 4, 6)) {
     val c = measureRowFetchCycles(lat)
-    val ratio = c.toDouble / rowBudgetCycles
-    val verdict = if (c > rowBudgetCycles) "EXCEEDS budget -> rows drop" else "fits"
-    println(f"[sim] readLatency=$lat%d cyc/byte: one row fetch = $c%d SDRAM cycles  (${ratio}%.2fx budget) -> $verdict")
+    val r1 = c.toDouble / rowBudgetCycles
+    val r2 = c.toDouble / fullLineBudget
+    println(f"[sim] readLatency=$lat%d cyc/byte: row fetch = $c%d cyc  (${r1}%.2fx borrowed-window, ${r2}%.2fx full-line)")
   }
-  println("[sim] RGB565FullFrameSim: reproduction complete")
+  println("[sim] RGB565FullFrameSim: reproduction complete (current FSM exceeds both budgets)")
 }
