@@ -23,6 +23,7 @@ object BitmapRowFetchSim extends App {
 
     // Initialize IO
     dut.io.sdramDout      #= 0
+    dut.io.sdramDout32    #= 0
     dut.io.sdramDataReady #= false
     dut.io.sdramBusy      #= false
     dut.io.fetchGrant     #= false

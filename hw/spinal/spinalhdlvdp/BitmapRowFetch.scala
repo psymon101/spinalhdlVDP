@@ -67,6 +67,13 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val sdramRdNext    = out Bool()
     val sdramWrNext    = out Bool()
     val sdramDout      = in  Bits(8 bits)
+    // RGB565-FULLFRAME-132 (#12283): the SDRAM controller is 32-bit (sdram.v
+    // DATA_WIDTH=32); `sdramDout` is only a byte-select of this word. The
+    // direct-color fetch reads `sdramDout32` (4 bytes per ~5-cycle SDRAM read)
+    // instead of one byte, cutting 640 byte-reads/row to 160 word-reads/row so
+    // a full 320×240 frame fits the bus budget. Same aperture PlanarLineFetch
+    // already uses. Wired from ctrl.io.dout32 at the top level.
+    val sdramDout32    = in  Bits(32 bits)
     val sdramDataReady = in  Bool()
     val sdramBusy      = in  Bool()
     val fetchGrant     = in  Bool()
@@ -91,10 +98,14 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val sdramActive    = out Bool()    // pulses whenever SDRAM FSM wants the bus
   }
 
+  // RGB565-FULLFRAME-132: FIFO now carries one 32-bit SDRAM word (4 bytes) per
+  // entry. `idx` is the base line-buffer byte index for byte 0 of the word
+  // (word reads are 4-aligned). The pixel-domain pop side expands each word
+  // into 4 byte-writes into the line buffer.
   case class RowByte() extends Bundle {
     val kind = Bool()
     val idx  = UInt(log2Up(BitmapBufferDepth) bits)
-    val data = Bits(8 bits)
+    val data = Bits(32 bits)
   }
 
   val byteFifo = StreamFifoCC(
@@ -122,19 +133,33 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
   // co-timed with bitmapByte above; same per-pixel compositor read pattern.
   io.attrByte   := attrLineBuf.readAsync(lineRdAddr)
 
-  byteFifo.io.pop.ready := True
+  // RGB565-FULLFRAME-132: pop-side 4-byte expander. Each popped FIFO word holds
+  // 4 SDRAM bytes (little-endian, byte 0 = data[7:0] at idx+0). Stall the pop
+  // for 4 pixel-domain cycles while writing the 4 bytes into the line buffer.
+  // The pixel domain has ample cycles per line, so this is not a bandwidth path.
+  val popWord = Reg(Bits(32 bits)) init 0
+  val popIdx  = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
+  val popKind = Reg(Bool()) init False
+  val popCnt  = Reg(UInt(2 bits)) init 0
+  val popBusy = RegInit(False)
+  byteFifo.io.pop.ready := !popBusy
   when(byteFifo.io.pop.fire) {
-    when(byteFifo.io.pop.payload.kind) {
-      attrLineBuf.write(
-        address = byteFifo.io.pop.payload.idx,
-        data    = byteFifo.io.pop.payload.data,
-        enable  = True)
+    popWord := byteFifo.io.pop.payload.data
+    popIdx  := byteFifo.io.pop.payload.idx
+    popKind := byteFifo.io.pop.payload.kind
+    popCnt  := 0
+    popBusy := True
+  }
+  when(popBusy) {
+    val expByte = popWord.subdivideIn(8 bits)(popCnt)
+    val expAddr = (popIdx + popCnt).resize(log2Up(BitmapBufferDepth))
+    when(popKind) {
+      attrLineBuf.write(address = expAddr, data = expByte, enable = True)
     } otherwise {
-      bitmapLineBuf.write(
-        address = byteFifo.io.pop.payload.idx,
-        data    = byteFifo.io.pop.payload.data,
-        enable  = True)
+      bitmapLineBuf.write(address = expAddr, data = expByte, enable = True)
     }
+    popCnt := popCnt + 1
+    when(popCnt === 3) { popBusy := False }
   }
 
   val sd = new ClockingArea(sdramCd) {
@@ -217,7 +242,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val pushPending = RegInit(False)
     val pendingKind = Reg(Bool())     init False
     val pendingIdx  = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
-    val pendingData = Reg(Bits(8 bits)) init 0
+    val pendingData = Reg(Bits(32 bits)) init 0   // RGB565-FULLFRAME-132: full dout32 word
 
     // Forward-declared so the always-on latch below can reference it
     // before the FSM block defines its state transitions.
@@ -239,7 +264,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     when(io.sdramDataReady && sdramActiveR && !pushPending) {
       pendingKind := inflightKind
       pendingIdx  := inflightIdx
-      pendingData := io.sdramDout
+      pendingData := io.sdramDout32   // RGB565-FULLFRAME-132: capture all 4 bytes
       pushPending := True
     }
 
@@ -411,7 +436,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         // Latch done at component scope (see above). Just wait for push.fire
         // to advance byteIdx and re-enter sFetchBitmap.
         when(byteFifo.io.push.fire) {
-          byteIdx := byteIdx + 1
+          byteIdx := byteIdx + 4   // RGB565-FULLFRAME-132: one dout32 word = 4 bytes
           goto(sFetchBitmap)
         }
       }
@@ -438,7 +463,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         sdramActiveR := True
         cmdRd := False
         when(byteFifo.io.push.fire) {
-          byteIdx := byteIdx + 1
+          byteIdx := byteIdx + 4   // RGB565-FULLFRAME-132: one dout32 word = 4 bytes
           goto(sFetchAttr)
         }
       }

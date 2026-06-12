@@ -902,6 +902,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   sdramArbiter.io.clientAddr(1) := pixelArea.bitmapRowFetch.io.sdramAddr
   sdramArbiter.io.clientDin(1)  := pixelArea.bitmapRowFetch.io.sdramDin
   pixelArea.bitmapRowFetch.io.sdramDout      := sdramArea.ctrl.io.dout
+  // RGB565-FULLFRAME-132 (#12283): feed the 32-bit aperture so the direct-color
+  // fetch reads 4 bytes per SDRAM transaction (same broadcast dout32 the tile/
+  // planar fetches already consume). Cuts 640 byte-reads/row to 160 word-reads.
+  pixelArea.bitmapRowFetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
   pixelArea.bitmapRowFetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready
   pixelArea.bitmapRowFetch.io.sdramBusy      := sdramArea.ctrl.io.busy
   // Client 2 — Task 3 PlanarLineFetch SDRAM master (gated on

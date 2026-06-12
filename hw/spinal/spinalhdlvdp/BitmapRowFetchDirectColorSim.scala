@@ -27,6 +27,7 @@ object BitmapRowFetchDirectColorSim extends App {
     dut.sdramCd.forkStimulus(period = 10)
 
     dut.io.sdramDout      #= 0
+    dut.io.sdramDout32    #= 0
     dut.io.sdramDataReady #= false
     dut.io.sdramBusy      #= false
     dut.io.fetchGrant     #= false
@@ -50,6 +51,11 @@ object BitmapRowFetchDirectColorSim extends App {
           val addr = dut.io.sdramAddr.toLong
           dut.sdramCd.waitSampling(5)
           dut.io.sdramDout #= (addr & 0xFF).toInt
+          // dout32 = 4 LE bytes (addr+0..3)&0xFF so the pop-side deinterleave
+          // reproduces the same per-byte addr&0xFF contract the test asserts.
+          val w = (addr & 0xFF) | (((addr + 1) & 0xFF) << 8) |
+                  (((addr + 2) & 0xFF) << 16) | (((addr + 3) & 0xFF) << 24)
+          dut.io.sdramDout32 #= w
           dut.io.sdramDataReady #= true
           dut.sdramCd.waitSampling()
           dut.io.sdramDataReady #= false

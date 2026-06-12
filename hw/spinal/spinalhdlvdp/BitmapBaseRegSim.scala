@@ -38,6 +38,7 @@ object BitmapBaseRegSim extends App {
     dut.io.enable         #= false
     dut.io.directColor    #= false
     dut.io.tileBootDone   #= false
+    dut.io.sdramDout32    #= 0
     dut.io.bitmapBase     #= 0x3000
     dut.io.attrBase       #= 0x4000
     dut.io.bitmapStride   #= 512
@@ -45,13 +46,15 @@ object BitmapBaseRegSim extends App {
     dut.io.bitmapHeight   #= 240
 
     // Reactive SDRAM read model: return (addr & 0xFF) after a short latency so
-    // the FSM keeps advancing byteIdx through the row.
+    // the FSM keeps advancing through the row. dout32 carries the 4-byte word.
     fork {
       while (true) {
         if (dut.io.sdramRd.toBoolean) {
           val addr = dut.io.sdramAddr.toLong
           dut.sdramCd.waitSampling(5)
           dut.io.sdramDout #= (addr & 0xFF).toInt
+          dut.io.sdramDout32 #= (addr & 0xFF) | (((addr + 1) & 0xFF) << 8) |
+                                (((addr + 2) & 0xFF) << 16) | (((addr + 3) & 0xFF) << 24)
           dut.io.sdramDataReady #= true
           dut.sdramCd.waitSampling()
           dut.io.sdramDataReady #= false

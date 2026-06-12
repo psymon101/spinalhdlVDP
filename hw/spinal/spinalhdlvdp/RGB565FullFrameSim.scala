@@ -41,23 +41,26 @@ object RGB565FullFrameSim extends App {
     }.doSim { dut =>
       dut.clockDomain.forkStimulus(period = 10)
       dut.sdramCd.forkStimulus(period = 10)
-      dut.io.sdramDout #= 0; dut.io.sdramDataReady #= false; dut.io.sdramBusy #= false
+      dut.io.sdramDout #= 0; dut.io.sdramDout32 #= 0x55555555L; dut.io.sdramDataReady #= false; dut.io.sdramBusy #= false
       dut.io.fetchGrant #= false; dut.io.fetchLine #= 0; dut.io.col #= 0
       dut.io.enable #= false; dut.io.directColor #= false; dut.io.tileBootDone #= false
       dut.io.bitmapBase #= 0x100000; dut.io.attrBase #= 0x200000
       dut.io.bitmapStride #= 512; dut.io.attrStride #= 512; dut.io.bitmapHeight #= 240
 
-      // SDRAM read model with parameterised latency; also count bytes delivered.
+      // SDRAM read model with parameterised latency. Each read now returns a
+      // 32-bit dout32 word = 4 bytes (RGB565-FULLFRAME-132). Count bytes so the
+      // row completes at 640 bytes = 160 word-reads.
       var bytesDelivered = 0
       fork {
         while (true) {
           if (dut.io.sdramRd.toBoolean) {
             dut.sdramCd.waitSampling(readLatency)
             dut.io.sdramDout #= 0x55
+            dut.io.sdramDout32 #= 0x55555555L
             dut.io.sdramDataReady #= true
             dut.sdramCd.waitSampling()
             dut.io.sdramDataReady #= false
-            bytesDelivered += 1
+            bytesDelivered += 4
           } else dut.sdramCd.waitSampling()
         }
       }
@@ -85,11 +88,19 @@ object RGB565FullFrameSim extends App {
 
   println(s"[sim] borrowed-window (L0 [0,399]) source-row budget = $rowBudgetCycles cycles")
   println(s"[sim] full-line budget if bitmap gets a dedicated full-line slot = $fullLineBudget cycles")
+  // RGB565-FULLFRAME-132 fix: BitmapRowFetch now reads dout32 (4 bytes/read) →
+  // 160 word-reads/row instead of 640 byte-reads. ACCEPTANCE: cycles/row must be
+  // under the borrowed-window budget (the fix must work even WITHOUT a dedicated
+  // full-line slot).
+  var worst = 0L
   for (lat <- Seq(2, 4, 6)) {
     val c = measureRowFetchCycles(lat)
+    if (c > worst) worst = c
     val r1 = c.toDouble / rowBudgetCycles
     val r2 = c.toDouble / fullLineBudget
-    println(f"[sim] readLatency=$lat%d cyc/byte: row fetch = $c%d cyc  (${r1}%.2fx borrowed-window, ${r2}%.2fx full-line)")
+    val v = if (c < rowBudgetCycles) "FITS borrowed window" else if (c < fullLineBudget) "fits full-line only" else "OVER"
+    println(f"[sim] readLatency=$lat%d cyc/read: row fetch = $c%d cyc  (${r1}%.2fx borrowed, ${r2}%.2fx full-line) -> $v")
   }
-  println("[sim] RGB565FullFrameSim: reproduction complete (current FSM exceeds both budgets)")
+  assert(worst < fullLineBudget, s"dout32 fetch must fit the full-line budget ($fullLineBudget); worst=$worst")
+  println(f"[sim] RGB565FullFrameSim: PASS — dout32 fetch fits (worst $worst%d < full-line $fullLineBudget%d)")
 }
