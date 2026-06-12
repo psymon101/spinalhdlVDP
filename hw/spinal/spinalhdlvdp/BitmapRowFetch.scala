@@ -1,6 +1,7 @@
 package spinalhdlvdp
 
 import spinal.core._
+import spinal.core.sim._
 import spinal.lib._
 import spinal.lib.fsm._
 
@@ -230,8 +231,8 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     // Task 44b iter 6d (CyanPeak audit correction): pipeline metadata.
     // Latch the kind and index of the IN-FLIGHT request so we don't
     // rely on FSM registers being stable when dataReady eventually pulses.
-    val inflightKind = Reg(Bool())     init False
-    val inflightIdx  = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
+    val inflightKind = (Reg(Bool())     init False).simPublic()
+    val inflightIdx  = (Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0).simPublic()
 
     // Registered-push pattern (per BronzeGate #8039, mirrors
     // SdramTileAttributeFetch's FIFO push). When sdramDataReady fires
@@ -239,10 +240,10 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     // and assert pushPending. pushPending holds until push.fire
     // clears it. This removes the same-cycle `dataReady && push.ready`
     // dependency that silently dropped every read in earlier iters.
-    val pushPending = RegInit(False)
-    val pendingKind = Reg(Bool())     init False
-    val pendingIdx  = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
-    val pendingData = Reg(Bits(32 bits)) init 0   // RGB565-FULLFRAME-132: full dout32 word
+    val pushPending = RegInit(False).simPublic()
+    val pendingKind = (Reg(Bool())     init False).simPublic()
+    val pendingIdx  = (Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0).simPublic()
+    val pendingData = (Reg(Bits(32 bits)) init 0).simPublic()   // RGB565-FULLFRAME-132: full dout32 word
 
     // Forward-declared so the always-on latch below can reference it
     // before the FSM block defines its state transitions.
