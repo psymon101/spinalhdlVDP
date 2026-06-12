@@ -94,13 +94,15 @@ object BitmapRowFetchConcurrentSim extends App {
         if (h < hActive && (h % 2 == 0)) {
           sleep(1)
           val got = dut.io.bitmapByte.toInt
+          val gotAttr = dut.io.attrByte.toInt
           val pixel = h / 2
           val exp = srcByte(dispLine, pixel)
+          val expAttr = ((0x200000 + dispLine * stride + pixel) ^ ((0x200000 + dispLine * stride + pixel) >> 8) ^ ((0x200000 + dispLine * stride + pixel) >> 16)) & 0xFF
           checks += 1
           if (got != exp) {
             mismatches += 1
             if (firstMismatch.size < 6)
-              firstMismatch += f"line=$dispLine pixel=$pixel col=$h got=0x$got%02X exp=0x$exp%02X"
+              firstMismatch += f"line=$dispLine px=$pixel: bitmapByte got=0x$got%02X exp=0x$exp%02X | attrByte got=0x$gotAttr%02X exp=0x$expAttr%02X (bmExp=0x$exp%02X)"
           }
         }
       }
