@@ -1,5 +1,8 @@
 # Tech Spec: VDP Host Interface & Copper Coprocessor
 
+> [!WARNING]
+> **Implementation Note (2026-06-12)**: The register address map in Section 3.3 is an architectural proposal and is **STALE**. Refer to [`MODE0_REGISTER_BUS_SPEC.md`](MODE0_REGISTER_BUS_SPEC.md) for the authoritative hardware-proven address map.
+
 **Version:** 0.1  
 **Date:** 2026-04-13  
 **Author:** CoralReef  

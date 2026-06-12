@@ -1,5 +1,20 @@
 # spinalhdlVDP Changelog
 
+## 2026-06-12 — Bitmap Stride/Base Restoration & ACK/NAK Phase 2 (DONE)
+
+- **Bitmap Fetch Restoration (Task 129)** — DONE (#12169)
+  - Un-deprecated `0x0351..0x0356` and added `0x0357 BITMAP_HEIGHT`.
+  - Bitmap/Attribute SDRAM bases and row strides are now host-programmable.
+  - Direct-color (RGB565) mode defaults to 512-byte stride (preserving legacy behavior).
+  - Programmable source height (default 240) plumbed into RTL.
+- **ACK/NAK Phase 2 (txnDropped)** — DONE (#11626)
+  - Added sticky `txn_dropped` detection to `QspiDecoder`.
+  - Surfaced on `READ_STATUS` sel=6 bit 4.
+  - Added `UPLOAD_STATUS_CLEAR` (0x0323) W1C register for host-side recovery.
+- **i80 Transport Priority** — DONE (#12209)
+  - Restructured documentation to reflect i80 as the primary deployment transport for Tang Nano 20K.
+  - Updated `MODE0_REGISTER_BUS_SPEC.md` and `VDP_PROGRAMMING_GUIDE.md` to prioritize i80-centric wording.
+
 ## 2026-05-24 — RTL Platform-Agnosticism Purge & 1-Pixel Fix (IN-PROGRESS)
 
 - **Scanline-start 1-pixel Transient Fix** — DONE (#10550)

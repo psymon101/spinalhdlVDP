@@ -227,7 +227,7 @@ The old per-scenario `c64Demo`/`zxDemo` animator paths are replaced by always-in
 
 **Frame-atomic commit at `V=0` (BronzeGate #8687 §1 / CyanPeak #8684):**
 
-1. **Host writes `MODE_SELECT`** via QSPI REG_WRITE to `0x0313`.
+1. **Host issues register write** to `0x0313` (MODE_SELECT).
 2. **Shadow register latches** the new mode immediately in `VdpTop`.
 3. **Frame-atomic commit** transfers the shadow to the live register at the next `V=0` (vsync rising edge). `MODE_SELECT_CHANGED` sticky bit sets at this moment.
 4. **Copper auto-disable:** `copperEnable` is forced to `0` at `V=0` commit (mode switch stops the old copper program). The host must upload a new copper program before re-enabling.
