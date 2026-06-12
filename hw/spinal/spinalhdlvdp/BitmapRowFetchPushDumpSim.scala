@@ -52,13 +52,43 @@ object BitmapRowFetchPushDumpSim extends App {
       }
     }
 
+    // Monitor bitmap-buffer writes (pixel domain). Should be exactly 320, all
+    // bitmap data. Any with attr-range data, or count > 320, is the bug.
+    var bmWrites = 0; var bmWritesAttrData = 0
+    fork {
+      while (true) {
+        if (dut.dbgBmWrEn.toBoolean) {
+          val d = dut.dbgBmWrData.toInt
+          if (bmWrites < 6) println(f"[sim] bmWrite#$bmWrites data=0x$d%02X (bitmap idx $bmWrites expects 0x${(0x100000+bmWrites)^((0x100000+bmWrites)>>8)^((0x100000+bmWrites)>>16) & 0xFF}%02X)")
+          bmWrites += 1
+          if (d >= 0x20 && d < 0x40) bmWritesAttrData += 1
+        }
+        dut.clockDomain.waitSampling()
+      }
+    }
+
     dut.sdramCd.waitSampling(10); dut.clockDomain.waitSampling(10)
     dut.io.enable #= true; dut.io.directColor #= true; dut.io.tileBootDone #= true
     var t = 2000
     while (!dut.io.bootDone.toBoolean && t > 0) { dut.sdramCd.waitSampling(); t -= 1 }
     dut.io.fetchLine #= 0
     dut.io.fetchGrant #= true; dut.clockDomain.waitSampling(4); dut.io.fetchGrant #= false
-    dut.sdramCd.waitSampling(2000)
+    dut.sdramCd.waitSampling(2000); dut.clockDomain.waitSampling(500)
+    // SINGLE-fetch buffer read (no concurrency). bitmap idx p source = 0x100000+p,
+    // attr idx p = 0x200000+p, with the (a^a>>8^a>>16)&0xFF signature.
+    def sig(a: Int) = ((a ^ (a >> 8) ^ (a >> 16)) & 0xFF)
+    var bad = 0
+    for (p <- Seq(0, 1, 4, 16, 100, 200, 319)) {
+      dut.io.col #= p * 2; dut.clockDomain.waitSampling(); sleep(1)
+      val bm = dut.io.bitmapByte.toInt; val at = dut.io.attrByte.toInt
+      val ebm = sig(0x100000 + p); val eat = sig(0x200000 + p)
+      val ok = bm == ebm && at == eat
+      if (!ok) bad += 1
+      println(f"[sim] read p=$p%3d bitmap got=0x$bm%02X exp=0x$ebm%02X | attr got=0x$at%02X exp=0x$eat%02X ${if(ok)"OK" else "<<< MISMATCH"}")
+    }
+    println(if (bad == 0) "[sim] SINGLE-FETCH BUFFER: correct -> bug is multi-fetch/harness"
+            else "[sim] SINGLE-FETCH BUFFER: WRONG -> pop-expander/readAsync bug")
+    println(f"[sim] bitmapLineBuf writes total=$bmWrites (expect 320); with attr-range data=$bmWritesAttrData (expect 0)")
     println("[sim] BitmapRowFetchPushDumpSim done")
   }
 }

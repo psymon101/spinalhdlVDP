@@ -151,6 +151,8 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     popCnt  := 0
     popBusy := True
   }
+  val dbgBmWrEn = (popBusy && !popKind).simPublic()
+  val dbgBmWrData = popWord.subdivideIn(8 bits)(popCnt).simPublic()
   when(popBusy) {
     val expByte = popWord.subdivideIn(8 bits)(popCnt)
     val expAddr = (popIdx + popCnt).resize(log2Up(BitmapBufferDepth))
