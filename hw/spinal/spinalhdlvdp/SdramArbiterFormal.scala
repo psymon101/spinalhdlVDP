@@ -78,7 +78,11 @@ class SdramArbiterFormal extends Component {
   }
 }
 
-// Test suite skeleton for sbt run
-object SdramArbiterFormalTest extends App {
-  FormalConfig.withBMC(20).doVerify(new SdramArbiterFormal)
+import org.scalatest.funsuite.AnyFunSuite
+
+// Test suite skeleton for sbt test
+class SdramArbiterFormalTest extends AnyFunSuite {
+  test("SdramArbiter properties") {
+    FormalConfig.withBMC(20).doVerify(new SdramArbiterFormal)
+  }
 }
