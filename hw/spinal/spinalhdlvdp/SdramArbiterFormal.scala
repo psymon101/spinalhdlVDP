@@ -31,6 +31,8 @@ class SdramArbiterFormal extends Component {
       val clientWr   = in Vec(Bool(), clientCount)
       val clientAddr = in Vec(UInt(addrWidth bits), clientCount)
       val clientDin  = in Vec(Bits(dataWidth bits), clientCount)
+      // RGB565-FULLFRAME-132: per-client read burst length (added to the arbiter).
+      val clientBurstLen = in Vec(UInt(4 bits), clientCount)
 
       val vblankActive = in Bool()
     }
@@ -50,6 +52,7 @@ class SdramArbiterFormal extends Component {
     dut.io.clientWr      := io.clientWr
     dut.io.clientAddr    := io.clientAddr
     dut.io.clientDin     := io.clientDin
+    dut.io.clientBurstLen := io.clientBurstLen
     dut.io.vblankActive  := io.vblankActive
 
     assert(CountOne(dut.io.clientGrant) <= 1)
@@ -68,6 +71,7 @@ class SdramArbiterFormal extends Component {
     assert(dut.io.sdramWr   === io.clientWr(sel))
     assert(dut.io.sdramAddr === io.clientAddr(sel))
     assert(dut.io.sdramDin  === io.clientDin(sel))
+    assert(dut.io.sdramBurstLen === io.clientBurstLen(sel))
 
     for (i <- 0 until clientCount) {
       assert(dut.io.clientGrant(i) === (io.grant && (sel === i)))
