@@ -55,14 +55,14 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
   val MemtestSize = 256
   def memtestByte(i: UInt): Bits = (i.resize(8) ^ U(0xA5, 8 bits)).asBits
 
-  // Refresh cadence: 15 µs at 64.8 MHz = 972 cycles. Use 950 for margin.
-  // #11204: this is the RETIRED 3bpp engine — NOT in TopTang20kHdmi (production
-  // uses SdramTileAttributeFetch). It is only built/simulated standalone at its
-  // documented 64.8 MHz class, so it is OUT OF SCOPE for the 40.5 MHz SDRAM-clock
-  // lane and keeps 950 (rescaling it to 593 starves the near-wrap hscroll line
-  // fetch — SdramTileFetchSim fails — and would only matter on a 40.5 MHz build,
-  // which this engine never sees). The production rescale lives in
-  // SdramTileAttributeFetch.RefreshPeriodCycles.
+  // Refresh cadence for this RETIRED 64.8 MHz-only engine: ~15 µs interval =
+  // 972 cycles @ 64.8 MHz, use 950 for margin. #11204: this 3bpp engine is NOT
+  // used in TopTang20kHdmi (production uses SdramTileAttributeFetch). It is only
+  // built/simulated standalone at its documented 64.8 MHz clock and is therefore
+  // OUT OF SCOPE for the 40.5 MHz SDRAM-clock lane. Rescaling to 593 would starve
+  // the near-wrap hscroll line fetch (SdramTileFetchSim fails) and only matters on
+  // a 40.5 MHz build, which this retired engine never sees. The production 40.5 MHz
+  // rescale lives in SdramTileAttributeFetch.RefreshPeriodCycles.
   val RefreshPeriodCycles = 950
 
   // Async FIFO depth: 32-bit words, two per tile (low half / high half of 48-bit row).
