@@ -61,8 +61,8 @@ case class SdramTileAttributeFetch(
   def memtestByte(i: UInt): Bits = (i.resize(8) ^ U(0xA5, 8 bits)).asBits
 
   // #11204 (TopazCliff): scaled 950 -> 593 for the 40.5 MHz SDRAM clock. The
-  // divisor counts sdramCd cycles; 950 @ 40.5 MHz = 23.46 µs > 15.6 µs refresh
-  // requirement. 593 cyc preserves the proven 64.8 MHz interval (14.66 -> 14.64 µs).
+  // divisor counts sdramCd cycles; 593 @ 40.5 MHz = 14.64 µs, preserving the
+  // ~15 µs refresh interval (equivalent to 950 cycles @ the retired 64.8 MHz).
   val RefreshPeriodCycles = 593
   val FifoDepth = 32              // 4 words per tile now, double the previous depth
   val PixelLineBits = 8           // {priority[7], bank[6:4], index[3:0]}

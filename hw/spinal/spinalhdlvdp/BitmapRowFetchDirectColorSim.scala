@@ -27,6 +27,7 @@ object BitmapRowFetchDirectColorSim extends App {
     dut.sdramCd.forkStimulus(period = 10)
 
     dut.io.sdramDout      #= 0
+    dut.io.sdramDout32    #= 0
     dut.io.sdramDataReady #= false
     dut.io.sdramBusy      #= false
     dut.io.fetchGrant     #= false
@@ -43,15 +44,25 @@ object BitmapRowFetchDirectColorSim extends App {
     dut.io.attrStride     #= 512
     dut.io.bitmapHeight   #= 240
 
-    // Reactive SDRAM model: return (addr & 0xFF) with a few cycles latency.
+    // Reactive SDRAM model: 5-cycle latency, then BURST out `sdramBurstLen` consecutive
+    // 32-bit words (one data_ready pulse/cycle), word k = bytes (addr+k*4+0..3)&0xFF —
+    // matching the real sdram.v manual-burst path. RGB565-FULLFRAME-132: direct-color
+    // requests burstLen=8, so a single-word response would stall the burst FSM.
     fork {
       while (true) {
         if (dut.io.sdramRd.toBoolean) {
           val addr = dut.io.sdramAddr.toLong
+          val n    = math.max(1, dut.io.sdramBurstLen.toInt)
           dut.sdramCd.waitSampling(5)
-          dut.io.sdramDout #= (addr & 0xFF).toInt
-          dut.io.sdramDataReady #= true
-          dut.sdramCd.waitSampling()
+          for (k <- 0 until n) {
+            val wa = addr + k * 4
+            val w = (wa & 0xFF) | (((wa + 1) & 0xFF) << 8) |
+                    (((wa + 2) & 0xFF) << 16) | (((wa + 3) & 0xFF) << 24)
+            dut.io.sdramDout32 #= w
+            dut.io.sdramDout   #= (wa & 0xFF).toInt
+            dut.io.sdramDataReady #= true
+            dut.sdramCd.waitSampling()
+          }
           dut.io.sdramDataReady #= false
         } else {
           dut.sdramCd.waitSampling()
@@ -75,15 +86,20 @@ object BitmapRowFetchDirectColorSim extends App {
     assert(timeout > 0, "Timed out waiting for bootDone (skipSdramInit)")
     println("[sim] bootDone reached (directcolor, skipSdramInit)")
 
-    // Pulse fetchGrant for source line 0.
-    dut.io.fetchLine #= 0
-    dut.io.fetchGrant #= true
-    dut.clockDomain.waitSampling(4)
-    dut.io.fetchGrant #= false
-
-    // Let the FSM fetch 320 bitmap + 320 attr bytes and the FIFO drain.
-    dut.sdramCd.waitSampling(40000)
-    dut.clockDomain.waitSampling(2000)
+    // Drive several per-SOURCE-ROW grants so all three line-buffer banks fill and the
+    // displayed bank (dispBank advances once per grant) holds a completed row. Every
+    // row has the SAME low-byte content here — entry k = (base + byteIdx)&0xFF = k&0xFF,
+    // since base 0x3000 and stride 512 are both 256-aligned — so any filled bank yields
+    // the per-pixel-addressing contract this test checks. (One lone grant would leave
+    // dispBank pointing at a not-yet-filled bank under the triple-buffer rotation.)
+    for (row <- 0 until 6) {
+      dut.io.fetchLine #= row * 2
+      dut.io.fetchGrant #= true
+      dut.clockDomain.waitSampling(4)
+      dut.io.fetchGrant #= false
+      dut.sdramCd.waitSampling(6000)     // let the burst row fetch complete
+      dut.clockDomain.waitSampling(300)  // and the FIFO drain into the line buffer
+    }
 
     // Read back: directcolor read address is col/2, so io.bitmapByte at
     // column `col` must equal buffer entry (col/2), i.e. (col/2)&0xFF.

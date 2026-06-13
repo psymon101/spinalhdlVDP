@@ -1076,7 +1076,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // Task 15 fetch-control outputs. Atomic CDC pattern per 6626/6628:
   //   1) Pulse-harden fetchStart: widen to 4 pixel cycles so the SDRAM-side
   //      BufferCC (2-stage synchronizer) reliably samples it despite routing
-  //      delay and phase alignment with the 64.8 MHz SDRAM clock.
+  //      delay and phase alignment with the 40.5 MHz SDRAM clock.
   //   2) Atomic latch: capture fetchLine/scrolls into registers ONCE on the
   //      line-boundary strobe so the multi-bit CDC sees stable values between
   //      pulses. Sampling `(vCounter+3)` combinationally through BufferCC would
@@ -1408,10 +1408,17 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // Export coupling signals to BitmapRowFetch at top level.
   io.bitmapSdramCol        := hCounter.resize(10)
   io.bitmapSdramFetchLine  := fillLine.resize(10)
-  // Task 44b iter 6f: move fetch-grant pulse to start of blanking (hActive) so
-  // SDRAM switching noise lands at the start of hblank and has maximum time
-  // to settle before the next active line begins.
-  io.bitmapSdramFetchGrant := hCounter === U(hActive, log2Up(hTotal) bits)
+  // RGB565-FULLFRAME-132 B.2 (CoralReef #12355 cond.4): grant ONCE PER SOURCE ROW,
+  // not once per output line. Each source row is displayed on two output lines
+  // (line-doubling: fillLine = vCounter+1, lineReg = pendingLine>>1), so the bank
+  // rotation + fill-ahead geometry is only correct when the grant advances every
+  // SECOND output line. Fire at hCounter==hTotal-1 (end of line, so the freshly
+  // filled bank lands for the next line's pixel 0) gated on odd output lines
+  // (vCounter(0)) and only within the active region (vCounter < vActive). The old
+  // once-per-line hActive grant double-counted rows and broke the cadence.
+  io.bitmapSdramFetchGrant := (hCounter === U(hTotal - 1, log2Up(hTotal) bits)) &&
+                              (vCounter(0) === True) &&
+                              (vCounter < U(vActive, log2Up(vTotal) bits))
   io.bitmapModeActive      := bitmapEnable
   // CP-1c: tell BitmapRowFetch to use the RGB565 directcolor fetch
   // schedule (2 bytes/pixel, 320 px/row) when bpp=0b10 is selected.

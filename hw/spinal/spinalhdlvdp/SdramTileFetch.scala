@@ -9,7 +9,8 @@ import spinal.lib.fsm._
   * Replaces the earlier single-clock-domain / byte-at-a-time scaffold.
   *
   * Architecture:
-  *   - the fetch FSM runs in an explicit SDRAM clock domain (`sdramCd`, 64.8 MHz class)
+  *   - the fetch FSM runs in an explicit SDRAM clock domain (`sdramCd`, 40.5 MHz; was
+  *     64.8 MHz before #11197 Option A lowered the SDRAM clock)
   *   - reads from the reused `fpga/tang20k/third_party/sdram/sdram.v` controller via its
   *     32-bit `dout32` port (still ~5-cycle per transaction, but 32-bit wide)
   *   - external refresh scheduler (~15 µs tick) drives the controller's `refresh` input,
@@ -24,7 +25,7 @@ import spinal.lib.fsm._
   *       tile `t` row `y` at 0x1000 + ((t * 16) + y) * 8
   *
   * Open items (to be resolved in simulation):
-  *   - exact PLL math for 64.8 MHz CLKOUT + 180° CLKOUTP (GT-006)
+  *   - exact PLL math for 40.5 MHz CLKOUT + 180° CLKOUTP (GT-006; was 64.8 MHz)
   *   - registered handoff for data_ready / dout32 (GT-012)
   *   - memtest bounded range choice
   */
@@ -54,14 +55,14 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
   val MemtestSize = 256
   def memtestByte(i: UInt): Bits = (i.resize(8) ^ U(0xA5, 8 bits)).asBits
 
-  // Refresh cadence: 15 µs at 64.8 MHz = 972 cycles. Use 950 for margin.
-  // #11204: this is the RETIRED 3bpp engine — NOT in TopTang20kHdmi (production
-  // uses SdramTileAttributeFetch). It is only built/simulated standalone at its
-  // documented 64.8 MHz class, so it is OUT OF SCOPE for the 40.5 MHz SDRAM-clock
-  // lane and keeps 950 (rescaling it to 593 starves the near-wrap hscroll line
-  // fetch — SdramTileFetchSim fails — and would only matter on a 40.5 MHz build,
-  // which this engine never sees). The production rescale lives in
-  // SdramTileAttributeFetch.RefreshPeriodCycles.
+  // Refresh cadence for this RETIRED 64.8 MHz-only engine: ~15 µs interval =
+  // 972 cycles @ 64.8 MHz, use 950 for margin. #11204: this 3bpp engine is NOT
+  // used in TopTang20kHdmi (production uses SdramTileAttributeFetch). It is only
+  // built/simulated standalone at its documented 64.8 MHz clock and is therefore
+  // OUT OF SCOPE for the 40.5 MHz SDRAM-clock lane. Rescaling to 593 would starve
+  // the near-wrap hscroll line fetch (SdramTileFetchSim fails) and only matters on
+  // a 40.5 MHz build, which this retired engine never sees. The production 40.5 MHz
+  // rescale lives in SdramTileAttributeFetch.RefreshPeriodCycles.
   val RefreshPeriodCycles = 950
 
   // Async FIFO depth: 32-bit words, two per tile (low half / high half of 48-bit row).
@@ -104,7 +105,7 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
   // Pixel-domain side: line buffer + FIFO pop
   // --------------------------------------------------------------------------
   // Ping-pong line buffers. The single-buffer design raced on hardware because
-  // SDRAM-domain fetch (64.8 MHz) overtakes pixel-domain read (25.2 MHz) within
+  // SDRAM-domain fetch (40.5 MHz) overtakes pixel-domain read (25.2 MHz) within
   // ~30 pixels of each line, so L0 saw next-line data for most of the line.
   // writeBuf selects the buffer being overwritten by the current fetch; L0
   // always reads the OTHER buffer (which was just filled by the previous fetch

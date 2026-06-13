@@ -53,10 +53,21 @@ module sdram_model #(
   reg [31:0] mem [0:2097151];
   reg [10:0] act_row [0:3];        // active row per bank (latched at ACTIVATE)
 
-  // Read-data pipeline: drive DQ exactly CAS cycles after the READ command.
+  // Read-data pipeline: drive DQ CAS cycles after the READ command, one word per
+  // cycle. RGB565-FULLFRAME-132: a CAS-deep delay line replaces the former single
+  // rd_word reg so BURST reads (back-to-back RD commands from one open row) stream
+  // each word at the controller's per-word data_ready cadence instead of clobbering a
+  // shared latch. A RD loads mem[col] at the tail (index CAS-1); it shifts down one
+  // stage per cycle and "emerges" at index 0 exactly CAS cycles later, where it is
+  // latched as the driven word + (re)arms the wide hold. For a lone/last read the wide
+  // hold keeps DQ stable across the controller's capture+dout_buf window, so the proven
+  // single-read timing is byte-for-byte preserved (the cosim readback phase checks it).
   reg [31:0] rd_word;
   reg [3:0]  rd_timer;
   reg        rd_active;
+  reg [31:0] rd_q  [0:CAS-1];      // read-data delay line (index 0 = emerging word)
+  reg        rd_qv [0:CAS-1];      // per-stage valid
+  integer    qi;
   reg        refreshed;            // sticky: at least one AUTO_REFRESH seen
 
   function [20:0] word_addr;
@@ -67,6 +78,7 @@ module sdram_model #(
   integer i;
   initial begin
     rd_active = 1'b0; rd_timer = 0; rd_word = 0; refreshed = 1'b0;
+    for (i = 0; i < CAS; i = i + 1) begin rd_q[i] = 0; rd_qv[i] = 1'b0; end
     for (i = 0; i < 4; i = i + 1) act_row[i] = 0;
     // EM638325 powers up undefined; init to a NON-zero, NON-0xFFFF sentinel so a
     // "stuck/uninitialised read" is visibly distinct from real written data.
@@ -76,6 +88,14 @@ module sdram_model #(
   wire [7:0] col = SDRAM_A[7:0];   // column = A[7:0] (sdram.v puts addr[9:2] here)
 
   always @(posedge clk) begin
+    // Advance the CAS-deep read-data delay line toward the output (index 0). The
+    // freshly-decoded read word is loaded at the tail by the CMD_RD case below
+    // (its NBA overrides this default-invalid on the tail stage).
+    for (qi = 0; qi < CAS-1; qi = qi + 1) begin
+      rd_q[qi]  <= rd_q[qi+1];
+      rd_qv[qi] <= rd_qv[qi+1];
+    end
+    rd_qv[CAS-1] <= 1'b0;
     case (cmd)
       CMD_ACT: act_row[SDRAM_BA] <= SDRAM_A[10:0];
       CMD_WR: begin
@@ -87,14 +107,22 @@ module sdram_model #(
         if (!SDRAM_DQM[3]) mem[word_addr(SDRAM_BA, act_row[SDRAM_BA], col)][31:24] <= SDRAM_DQ[31:24];
       end
       CMD_RD: begin
-        rd_word   <= mem[word_addr(SDRAM_BA, act_row[SDRAM_BA], col)];
-        rd_timer  <= CAS + 3;      // hold the read word across a wide window so
-        rd_active <= 1'b1;         // the controller's capture edge (registered
-      end                          // dq_in_r after #11168 FIX A, +1 latency) sees it
+        // Load the read word at the delay-line tail; it emerges CAS cycles later.
+        rd_q[CAS-1]  <= mem[word_addr(SDRAM_BA, act_row[SDRAM_BA], col)];
+        rd_qv[CAS-1] <= 1'b1;
+      end
       CMD_REF: refreshed <= 1'b1;
       default: ;
     endcase
-    if (rd_active) begin
+    // A word emerging from the delay line (CAS cycles after its RD) becomes the driven
+    // word and (re)arms the wide hold. Consecutive RDs emerge on consecutive cycles ->
+    // one word per cycle on DQ (burst); a lone read is held wide for the controller's
+    // capture+dout_buf window (registered dq_in_r, #11168 FIX A, +1 latency).
+    if (rd_qv[0]) begin
+      rd_word   <= rd_q[0];
+      rd_timer  <= CAS + 3;
+      rd_active <= 1'b1;
+    end else if (rd_active) begin
       if (rd_timer > 0) rd_timer <= rd_timer - 1;
       else              rd_active <= 1'b0;
     end

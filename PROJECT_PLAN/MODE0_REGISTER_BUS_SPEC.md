@@ -2,7 +2,7 @@
 
 **Status:** Stable contract — v1.5 Landed (Task 129 + ACK/NAK Phase 2)
 **Governing task:** Task 32a — Mode0 Register Bus: Spec & Naming Lock
-**Version:** v1.6 — auto-generated register detail tables from `firmware/libvdp/mode0_regs.json`
+**Version:** v1.7 — auto-generated register detail tables from `firmware/libvdp/mode0_regs.json`; added RGB565 direct-color burst-read 32-byte alignment note.
 **Scope:** Write-path control surface for Mode0. The READ_STATUS response surface is defined by `QspiDecoder` sel mapping and is referenced here for completeness but is not part of the register bus itself.
 
 This document is the authoritative naming and semantic contract for the Mode0 write-path register bus.
@@ -141,7 +141,9 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0980..0x09FF` | Layer 1 H-scroll table (128 entries × 10 bits) | Task 31 | `VdpTop.scala:884+` |
 
 > [!WARNING]
-> **BITMAP_BASE Overlap Note**: The hardware power-on defaults for `BITMAP_BASE` (`0x3000`) and `ATTR_BASE` (`0x4000`) were chosen for legacy 1/2bpp compatibility. When rendering in direct-color RGB565 mode with the default 512-byte stride, these bases overlap after just 8 rows. To display a full-screen RGB565 image, the host **must** reconfigure `0x0351..0x0354` to non-overlapping bases (e.g., `0x100000` and `0x200000`).
+> **BITMAP_BASE Overlap / Alignment Note**: The hardware power-on defaults for `BITMAP_BASE` (`0x3000`) and `ATTR_BASE` (`0x4000`) were chosen for legacy 1/2bpp compatibility. When rendering in direct-color RGB565 mode with the default 512-byte stride, these bases overlap after just 8 rows. To display a full-screen RGB565 image, the host **must** reconfigure `0x0351..0x0354` to non-overlapping bases (e.g., `0x100000` and `0x200000`).
+>
+> In RGB565 direct-color mode the hardware additionally masks the low 5 bits of `BITMAP_BASE`, `ATTR_BASE`, `BITMAP_STRIDE`, and `ATTR_STRIDE` to zero, so all four values **must be 32-byte aligned**. Writes to bits `[4:0]` of those registers are ignored in direct-color mode. The power-on defaults and the recommended `0x100000`/`0x200000` bases are already 32-byte aligned; only custom values need alignment checking.
 
 ### 3.1.1 STATUS_STICKY bit layout (`0x0320`, write-1-to-clear)
 
@@ -748,7 +750,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x3000` |
 | Category | vblank-sensitive |
-| Description | Low 16 bits of the SDRAM bitmap byte-plane base address. |
+| Description | Low 16 bits of the SDRAM bitmap byte-plane base address. In RGB565 direct-color mode (BITMAP_CTRL mode 0b10) the effective base is forced 32-byte aligned by the hardware; writes to bits [4:0] are ignored in that mode. |
 
 ### BITMAP_BASE_HI (`0x0352`)
 
@@ -759,7 +761,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x0000` |
 | Category | vblank-sensitive |
-| Description | High 7 bits of the SDRAM bitmap byte-plane base address. |
+| Description | High 7 bits of the SDRAM bitmap byte-plane base address. Combined with BITMAP_BASE_LO to form a 23-bit byte address; the low 5 bits are masked to zero in RGB565 direct-color burst mode. |
 
 | Bits | Field | Description |
 |---|---|---|
@@ -774,7 +776,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x4000` |
 | Category | vblank-sensitive |
-| Description | Low 16 bits of the SDRAM attribute or high-byte plane base address. |
+| Description | Low 16 bits of the SDRAM attribute or high-byte plane base address. In RGB565 direct-color mode the effective base is forced 32-byte aligned by the hardware; writes to bits [4:0] are ignored in that mode. |
 
 ### ATTR_BASE_HI (`0x0354`)
 
@@ -785,7 +787,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x0000` |
 | Category | vblank-sensitive |
-| Description | High 7 bits of the SDRAM attribute or high-byte plane base address. |
+| Description | High 7 bits of the SDRAM attribute or high-byte plane base address. Combined with ATTR_BASE_LO to form a 23-bit byte address; the low 5 bits are masked to zero in RGB565 direct-color burst mode. |
 
 | Bits | Field | Description |
 |---|---|---|
@@ -800,7 +802,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x0200` |
 | Category | vblank-sensitive |
-| Description | Direct-color bitmap byte-plane row stride in bytes. |
+| Description | Direct-color bitmap byte-plane row stride in bytes. In RGB565 direct-color mode the hardware masks bits [4:0] to zero, so the stride must be a multiple of 32 bytes. The default 0x0200 (512) is 32-byte aligned. |
 
 ### ATTR_STRIDE (`0x0356`)
 
@@ -811,7 +813,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x0200` |
 | Category | vblank-sensitive |
-| Description | Direct-color attribute or high-byte plane row stride in bytes. |
+| Description | Direct-color attribute or high-byte plane row stride in bytes. In RGB565 direct-color mode the hardware masks bits [4:0] to zero, so the stride must be a multiple of 32 bytes. The default 0x0200 (512) is 32-byte aligned. |
 
 ### BITMAP_HEIGHT (`0x0357`)
 

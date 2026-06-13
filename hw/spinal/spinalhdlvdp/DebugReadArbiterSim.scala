@@ -37,6 +37,7 @@ object DebugReadArbiterSim extends App {
       val dbgInFlight = out Bool()
     }
     val arbiter = SdramArbiter(clientCount = 6, addrWidth = 23, dataWidth = 8)
+    for (i <- 0 until 6) arbiter.io.clientBurstLen(i) := U(1, 4 bits)  // single-read sim
     arbiter.io.slotValid := True
     arbiter.io.grant     := False
     // Client 0 = fetch read at FETCH_A while io.fetchRd held.

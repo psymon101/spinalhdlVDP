@@ -20,6 +20,7 @@ case class SdramWithModel(freq: Int = 1000000) extends BlackBox {
     val rd         = in  Bool()
     val wr         = in  Bool()
     val refresh    = in  Bool()
+    val burstLen   = in  UInt(4 bits)   // RGB565-FULLFRAME-132: read burst length (words); 0/1 = single read
     val addr       = in  UInt(23 bits)
     val din        = in  Bits(8 bits)
     val dout       = out Bits(8 bits)
@@ -54,6 +55,7 @@ object SdramCoSimProbe extends App {
     bb.io.rd        := io.rd
     bb.io.wr        := io.wr
     bb.io.refresh   := io.refresh
+    bb.io.burstLen  := U(1, 4 bits)   // single-read handshake probe
     bb.io.addr      := io.addr
     bb.io.din       := io.din
     io.dout32     := bb.io.dout32

@@ -56,6 +56,7 @@ object SdramHandshakeProofSim extends App {
     io.initBusy := sdram.io.busy
 
     val arbiter = SdramArbiter(clientCount = 6, addrWidth = 23, dataWidth = 8, refreshPeriodCycles = 64)
+    for (i <- 0 until 6) arbiter.io.clientBurstLen(i) := U(1, 4 bits)  // single-read sim
 
     // ---- upload bridge + CC FIFO (single clock here) ----
     val bridge = QspiSdramBridge()
@@ -123,6 +124,7 @@ object SdramHandshakeProofSim extends App {
                         (!inFlight || arbiter.io.grantClientId === U(5, arbiter.idBits bits))
     sdram.io.wr      := arbiter.io.sdramWr
     sdram.io.refresh := doRefresh
+    sdram.io.burstLen := arbiter.io.sdramBurstLen   // RGB565-FULLFRAME-132: single reads here (all clients drive 1)
     sdram.io.addr    := arbiter.io.sdramAddr
     sdram.io.din     := arbiter.io.sdramDin
 

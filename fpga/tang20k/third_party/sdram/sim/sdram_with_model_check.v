@@ -35,7 +35,7 @@ module sdram_with_model_check #(
     .SDRAM_nWE(SDRAM_nWE), .SDRAM_nRAS(SDRAM_nRAS), .SDRAM_nCAS(SDRAM_nCAS),
     .SDRAM_CLK(SDRAM_CLK), .SDRAM_CKE(SDRAM_CKE), .SDRAM_DQM(SDRAM_DQM),
     .clk(clk), .clk_sdram(clk_sdram), .resetn(resetn),
-    .rd(rd), .wr(wr), .refresh(refresh), .addr(addr), .din(din),
+    .rd(rd), .wr(wr), .refresh(refresh), .burstLen(4'd1), .addr(addr), .din(din),
     .dout(dout), .dout32(dout32), .data_ready(data_ready), .busy(busy));
 
   // Behavioral chip with the timing-assertion layer ENABLED.
