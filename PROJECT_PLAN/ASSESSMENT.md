@@ -264,7 +264,7 @@ Based on `MODE0_STOPLINES.md` baseline:
 ### 6.3 SDRAM Bandwidth Budget
 
 Current baseline (per line at 640×480@60):
-- ~2050 SDRAM cycles available per line (@ 64.8 MHz, ~800 pixel cycles @ 25.2 MHz)
+- ~1286 SDRAM cycles available per line (@ 40.5 MHz, ~800 pixel cycles @ 25.2 MHz). The 64.8 MHz figure was a retired target and is kept here only as historical context.
 - Current tile fetch: ~164 transactions/line × ~5 cycles = ~820 SDRAM cycles
 
 Proposed 5-plane bitplane fetch (320×200 active window within 640×480 frame):

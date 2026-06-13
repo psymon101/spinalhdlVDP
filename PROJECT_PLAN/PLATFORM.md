@@ -65,36 +65,56 @@ Important note:
 ## SDRAM
 
 Integrated SDR SDRAM SiP (64 Mbit, 32-bit bus, 4 banks).
-- **Controller:** `SdramTileFetch.scala`.
-- **Use:** L0 tile/attr fetch, asset uploads.
-- **Proof:** Tasks 15, 34, 36 (stability under concurrent QSPI/HDMA load).
+- **Controller:** `SdramTileFetch.scala` (tile/attr); `BitmapRowFetch.scala` (RGB565 direct-color burst).
+- **Use:** L0/L1 tile/attr fetch, bitmap/attribute planes, asset uploads.
+- **Clock:** 40.5 MHz SDRAM domain (`TopTang20kI80` / `TopTang20kHdmi`).
+- **Proof:** Tasks 15, 34, 36, RGB565-FULLFRAME-132 (stability under concurrent host/HDMA load).
 
-## QSPI Host Control
+## i80 Host Control (Canonical)
 
-4-wire quad-mode lane. 
+8-bit parallel Intel-8080-style bus. This is the **current canonical host path** for the Tang Nano 20K deployment, driven by an ESP32-S3.
+
+| Host Platform | Status | Implementation | Notes |
+|---|---|---|---|
+| **ESP32-S3** | Canonical | GPIO bit-bang / LCD_CAM i80 | Primary development and proof target |
+| **Pi Pico 2** | Legacy/Retired path | PIO QSPI | Still supported by `vdp_qspi.h`; no longer the canonical path |
+| **ESP8266** | Legacy/Retired path | Bit-bang QSPI | Still supported by `vdp_qspi.h`; very low throughput |
+
+- **Protocol:** single-byte opcode, two address bytes, two data bytes. DC# distinguishes opcode/address/data phases.
+  - `0x00` — register write
+  - `0x01` — register read (loopback for most addresses; debug data for `0x0328`/`0x0329`)
+  - `0x02` — SDRAM block write
+- **Proof:** WHOLE-VDP-134 i80 smoke, RGB565-FULLFRAME-132 HW proof.
+- **Library facade:** `firmware/libvdp/vdp_i80.h` (`vdp_host_init`, `vdp_reg_write`, `vdp_reg_read`, `vdp_sdram_write`, etc.).
+
+### i80 Pin Assignments (ESP32-S3)
+
+Defined in `firmware/libvdp/vdp_platform.h` and wired in `fpga/tang20k/tang20k_i80.cst`:
+
+| Signal | Tang Pin | ESP32-S3 GPIO | Function |
+|--------|----------|---------------|----------|
+| D0     | 25       | 4             | Data bit 0 |
+| D1     | 26       | 5             | Data bit 1 |
+| D2     | 27       | 6             | Data bit 2 |
+| D3     | 28       | 7             | Data bit 3 |
+| D4     | 29       | 8             | Data bit 4 |
+| D5     | 30       | 9             | Data bit 5 |
+| D6     | 31       | 10            | Data bit 6 |
+| D7     | 41       | 11            | Data bit 7 |
+| DC#    | 85       | 15            | 0 = opcode/address, 1 = data |
+| CS#    | 76       | 16            | Active-low chip select |
+| WR#    | 77       | 17            | Active-low write strobe |
+| RD#    | 80       | 18            | Active-low read strobe |
+
+## Retired QSPI Host Control
+
+4-wire quad-mode lane. Retired from the canonical ESP32-S3 path; retained for historical Pico 2 / ESP8266 bench setups. Detailed history moved to [`archive/QSPI_HOST_CONTROL_PLAN.md`](archive/QSPI_HOST_CONTROL_PLAN.md).
 
 | Host Platform | Status | Implementation | Production SCK |
 |---|---|---|---|
-| **Pi Pico 2** | Authoritative | PIO | 2 MHz |
-| **ESP32-S3** | Validated | Hardware SPI2 + DMA | 60 MHz (Write) / 3 MHz (Read) |
-| **ESP8266** | Functional | Bit-bang | ~500 kHz |
-
-- **Protocol:** 6-byte header `[CMD:1][ADDR:3][LEN:2]`.
-- **Proof:** Tasks 26, 38, 34, 36, ESP32-S3 Bring-up (#10539).
-- **Two-Speed Policy:** ESP32-S3 uses 60 MHz for writes to maximize throughput (~6.8 MB/s) and 3 MHz for reads to ensure FPGA response reliability.
-
-## Pin Assignments
-
-Validated in `fpga/tang20k/tang20k_hdmi.cst`:
-
-| Signal | Tang Pin | Pico (GP) | ESP32-S3 (FSPI) |
-|--------|----------|-----------|-----------------|
-| SCK    | 41       | 8         | 12              |
-| CS_N   | 42       | 9         | 10              |
-| IO0    | 48       | 10        | 11              |
-| IO1    | 49       | 11        | 13              |
-| IO2    | 51       | 12        | 14              |
-| IO3    | 54       | 13        | 9               |
+| **Pi Pico 2** | Historical | PIO | 2 MHz |
+| **ESP32-S3** | Historical | Hardware SPI2 + DMA | 60 MHz (Write) / 3 MHz (Read) |
+| **ESP8266** | Historical | Bit-bang | ~500 kHz |
 
 ## Toolchain & Programming
 
@@ -115,5 +135,6 @@ cd fpga/tang20k && make flash LOADER_ARGS="--ftdi-serial 2025030317"
 
 - The current known-good slice depends on board-specific TMDS transport in `fpga/tang20k/`.
 - Headless Gowin builds on this workstation require a software/minimal Qt path; the repo Makefile already encodes that workaround.
-- SDRAM and the full-quad QSPI host-control lane are validated and in active use — see the respective sections above for controller sources and the task list that proved each one.
-- Palette RAM and line buffers remain in the `VdpTop` pipeline and are considered established; bus-master concurrency across them is proven under stress (Task 36).
+- SDRAM and the i80 host-control interface are validated and in active use — see the respective sections above for controller sources and the task list that proved each one.
+- Palette RAM and line buffers remain in the `VdpTop` pipeline and are considered established; bus-master concurrency across them is proven under stress (Task 36 and RGB565-FULLFRAME-132).
+

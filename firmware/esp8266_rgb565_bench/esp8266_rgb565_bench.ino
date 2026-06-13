@@ -3,6 +3,17 @@
  *
  * BrightForge fix: single BITMAP_CTRL=0x0085 write, no copper override,
  * no extra 0x0350 touches.
+ *
+ * WARNING: This sketch uses the POR default bases 0x3000/0x4000. At the
+ * default 512-byte stride those bases overlap after 8 rows, so this sketch
+ * is only suitable for a small-pattern bench, NOT for a full 320x240 RGB565
+ * image. For full-screen RGB565 use non-overlapping bases such as 0x100000
+ * and 0x200000 (see firmware/esp32s3_rgb565_fullframe/).
+ *
+ * NOTE: BITMAP_CTRL=0x0085 sets bit 7, which is deprecated/no-op in the
+ * current register spec. The canonical RGB565 value is 0x0005 (enable + BPP=0b10).
+ * This sketch keeps 0x0085 for historical bench compatibility with the ESP8266
+ * QSPI path.
  */
 #include <Arduino.h>
 #include <vdp_qspi.h>

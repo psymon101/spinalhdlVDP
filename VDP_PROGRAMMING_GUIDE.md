@@ -1,7 +1,7 @@
 # VDP Programming Guide
 
-**Version:** 1.3 (Draft)  
-**Date:** 2026-05-23  
+**Version:** 1.4 (Draft)  
+**Date:** 2026-06-13  
 **Target Platform:** Tang Nano 20K (Mode0)  
 **Host Libraries:** `libvdp` (C/C++)
 
@@ -319,8 +319,86 @@ vdp_mode0_set_logical_resolution(320, 240);
 | `0x0B00` | `DMA_DST` | Destination address for DMA operation |
 | `0x0C00` | `BLIT_CTRL` | bit0:Go, bits[2:1]:Mode, bit3:Done Ack |
 
+---
+
+## 10. RGB565 Full-Frame Bitmap Mode
+
+Mode0 supports a direct-color RGB565 bitmap layer. In this mode the bitmap data is split into two SDRAM byte planes:
+- **Low byte plane** — pointed to by `BITMAP_BASE` (`0x0351`/`0x0352`).
+- **High byte plane** — pointed to by `ATTR_BASE` (`0x0353`/`0x0354`).
+
+Each logical row is `BITMAP_STRIDE` bytes wide. For a 320×240 RGB565 image, the visible portion consumes 320 bytes per row; the canonical stride is **512 bytes**.
+
+### Memory layout example
+
+```text
+Row 0:   BITMAP_BASE + 0            -> low bytes of pixels 0..319
+         ATTR_BASE   + 0            -> high bytes of pixels 0..319
+Row 1:   BITMAP_BASE + 512          -> low bytes of row 1
+         ATTR_BASE   + 512          -> high bytes of row 1
+...
+Row 239: BITMAP_BASE + 239*512      -> low bytes of row 239
+         ATTR_BASE   + 239*512      -> high bytes of row 239
+```
+
+### Required configuration
+
+| Register | Recommended value | Why |
+|---|---|---|
+| `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | Non-overlapping with attribute plane |
+| `ATTR_BASE_LO` / `ATTR_BASE_HI` | `0x0000` / `0x0020` → base `0x200000` | Non-overlapping with bitmap plane |
+| `BITMAP_STRIDE` / `ATTR_STRIDE` | `512` | 32-byte aligned; matches 320-byte visible width with padding |
+| `BITMAP_HEIGHT` | `240` | Source bitmap height in rows |
+| `BITMAP_CTRL` | `0x0005` | enable (`bit0=1`) + BPP=`0b10` (`bits[2:1]=2`) |
+| `LAYER_ENABLE` | `0x0001` | Enable bitmap layer 0 |
+
 > [!WARNING]
-> **Full-Screen RGB565 Bitmap Limitation**: The power-on reset (POR) default bases for the bitmap layer are `0x3000` (Bitmap) and `0x4000` (Attribute). These defaults overlap after 8 rows when rendering direct-color (RGB565) mode at a 512-byte stride. For full-screen RGB565 bitmaps, you **must** configure non-overlapping bases (e.g., `0x100000` and `0x200000`) using registers `0x0351..0x0354`. The defaults are retained for backward compatibility with legacy indexed 1/2bpp mode demos.
+> **POR default base overlap:** The power-on reset defaults are `BITMAP_BASE=0x3000` and `ATTR_BASE=0x4000`. At a 512-byte stride these overlap after just 8 rows. A full 320×240 RGB565 image **must** use non-overlapping bases such as `0x100000` and `0x200000`.
+>
+> **32-byte alignment:** In RGB565 direct-color burst mode the hardware masks the low 5 bits of `BITMAP_BASE`, `ATTR_BASE`, `BITMAP_STRIDE`, and `ATTR_STRIDE`. All four values must be multiples of 32 bytes. The recommended bases and the default 512-byte stride are already aligned.
+>
+> **Deprecated bit:** `BITMAP_CTRL` bit 7 is deprecated and has no effect. Use `0x0005`, not `0x0085`.
+
+### Uploading the image
+
+For each row, pack the low bytes of two consecutive pixels into one 16-bit word, and the high bytes into another 16-bit word, then upload to the respective planes. The canonical example `firmware/esp32s3_rgb565_fullframe/esp32s3_rgb565_fullframe.ino` demonstrates the full sequence.
+
+### Code example
+
+```c
+#include "vdp_host.h"
+#include "vdp_mode0.h"
+
+void setup_rgb565_fullscreen(void) {
+    vdp_host_init();
+
+    // Upload pattern to SDRAM first (omitted: row-by-row plane packing)
+    // ...
+
+    vdp_mode0_set_bitmap_base(0x100000u);
+    vdp_mode0_set_attr_base(0x200000u);
+    vdp_mode0_set_bitmap_stride(512u);
+    vdp_mode0_set_attr_stride(512u);
+    vdp_mode0_set_bitmap_height(240u);
+
+    // enable + BPP=0b10 (RGB565 direct-color)
+    vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL, 0x0005u);
+
+    vdp_mode0_set_layer_enable(0x0001u);
+}
+```
+
+## 11. i80 Host Interface Notes
+
+The canonical ESP32-S3 host path uses the i80 8-bit parallel bus:
+- Register writes use opcode `0x00`.
+- Register reads use opcode `0x01` and return the **last-written value** for most addresses (loopback), not a full register-file readback.
+- SDRAM block writes use opcode `0x02`.
+
+Use `firmware/libvdp/vdp_i80.h` for transport-agnostic calls such as `vdp_reg_write()`, `vdp_reg_read()`, and `vdp_sdram_write()`.
+
+> [!WARNING]
+> **Full-Screen RGB565 Bitmap Limitation (legacy warning):** The power-on reset (POR) default bases for the bitmap layer are `0x3000` (Bitmap) and `0x4000` (Attribute). These defaults overlap after 8 rows when rendering direct-color (RGB565) mode at a 512-byte stride. For full-screen RGB565 bitmaps, you **must** configure non-overlapping bases (e.g., `0x100000` and `0x200000`) using registers `0x0351..0x0354`. The defaults are retained for backward compatibility with legacy indexed 1/2bpp mode demos.
 
 ---
 *End of Guide.*

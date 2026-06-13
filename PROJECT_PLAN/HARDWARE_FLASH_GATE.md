@@ -109,8 +109,10 @@ pacing with host delays keeps bit2=0.
   `t` is a tight-poll data-path matrix that may set sticky sel=6 bit2; use manual `w`+`u` pacing
   for status-clean checks, and clear the sticky bit host-side between `t` runs.
 - **Disposition:** DOWNGRADED from Phase A blocker to a follow-up lane —
-  **"QSPI ingress framing hardening"** (candidate fixes: decoder transaction-completion gate, or
-  QspiSlave start-edge/nibble hardening). Scoped after Phase B/C per #11496; no RTL fix coded yet.
+  **"host ingress framing hardening"** (candidate fixes: decoder transaction-completion gate, or
+  start-edge/nibble hardening). Scoped after Phase B/C per #11496; no RTL fix coded yet.
+
+> **Host-path note:** The historical examples above cite the QSPI transport because that was the active host path at the time. The flash-gate rule itself is transport-agnostic and applies equally to the current i80/ESP32-S3 canonical path.
 
 ---
 
@@ -120,7 +122,5 @@ The project owner may explicitly override this gate by direct instruction. The o
 - Documented in writing
 - Scoped to a specific flash event
 - Reviewed in post-mortem
-
----
 
 *This document is mandatory reading for all FPGA/RTL work. Updates require owner approval.*

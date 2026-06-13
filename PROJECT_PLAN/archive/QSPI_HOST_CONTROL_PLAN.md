@@ -1,6 +1,7 @@
-# QSPI Host-Control Frontend — Phase Artifact
+# QSPI Host-Control Frontend — Retired Historical Artifact
 
-**Status:** DONE — QSPI host control implemented, audited, and hardware-proven (Tasks 26–27, 38A–38C)  
+**Status:** RETIRED — QSPI host control was implemented, audited, and hardware-proven (Tasks 26–27, 38A–38C), but it is **no longer the canonical Tang Nano 20K host path**. The project baseline has moved to the **i80/ESP32-S3** parallel host interface. This document is preserved for historical reference and for the legacy Pico 2 / ESP8266 QSPI code paths. See `PROJECT_PLAN/PLATFORM.md` and `PROJECT_PLAN/TECH_SPEC_HOST_INTERFACE_AND_COPPER.md` for the current i80 contract.
+
 **Depends on:** Mode0 substrate closure (Tasks 1–23, Scenarios 26–42 DONE)  
 **Out of scope for first lane:** bulk asset streaming, protocol expansion, new rendering primitives, FIFO model redesign  
 

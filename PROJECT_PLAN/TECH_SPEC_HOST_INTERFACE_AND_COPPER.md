@@ -1,7 +1,7 @@
 # Tech Spec: VDP Host Interface & Copper Coprocessor
 
 > [!WARNING]
-> **Implementation Note (2026-06-12)**: The register address map in Section 3.3 is an architectural proposal and is **STALE**. Refer to [`MODE0_REGISTER_BUS_SPEC.md`](MODE0_REGISTER_BUS_SPEC.md) for the authoritative hardware-proven address map.
+> **Implementation Note (2026-06-13)**: The register address map in Section 3.4 is an architectural summary and is **STALE**. Refer to [`MODE0_REGISTER_BUS_SPEC.md`](MODE0_REGISTER_BUS_SPEC.md) for the authoritative hardware-proven address map. Section 3.2 and 3.3 describe the current i80 protocol and readback semantics.
 
 **Version:** 0.1  
 **Date:** 2026-04-13  
@@ -14,7 +14,7 @@
 
 This document translates findings from an open-source FPGA GPU/graphics survey (RasterIX, icestation-32, Gameduino, Project F, f32c) into concrete architecture decisions for `spinalhdlVDP`. It covers two major areas:
 
-1. **Host Interface Architecture** — how the external host (QSPI / MCU) communicates with the VDP
+1. **Host Interface Architecture** — how the external host (i80 / QSPI / MCU) communicates with the VDP
 2. **Copper Coprocessor** — a minimal mid-frame register-write engine for raster effects
 
 A third section defines a **Working-Set Caching Policy** for upcoming planar/shuffled fetch modes.
@@ -23,13 +23,13 @@ A third section defines a **Working-Set Caching Policy** for upcoming planar/shu
 
 ## 2. Background & Motivation
 
-Our current VDP (`VdpTop`) exposes raw linestate registers directly. When Task 24 (QSPI Control Surface) is implemented, a naive memory-mapped approach creates several risks:
+Our current VDP (`VdpTop`) exposes raw linestate registers directly. When the host control surface was first implemented (Task 24, originally QSPI), a naive memory-mapped approach created several risks:
 
 - **Host can corrupt state mid-line** — no timing isolation
 - **Host must stall for VDP timing** — every write is synchronous
 - **No burst efficiency** — host must arbitrate per register
 
-The surveyed projects solve this with an **indirect register access model** (icestation-32, Gameduino) or a **command FIFO** (RasterIX). Both approaches decouple the host from the pixel pipeline.
+The surveyed projects solve this with an **indirect register access model** (icestation-32, Gameduino) or a **command FIFO** (RasterIX). Both approaches decouple the host from the pixel pipeline. The current canonical Tang Nano 20K implementation uses the i80 8-bit parallel bus with the same indirect register model.
 
 Additionally, every advanced 2D VDP in the survey (icestation-32, Gameduino, Sega Genesis) includes a **copper** or coprocessor for mid-frame register updates. Our R1 Raster Trigger Unit is the seed of this capability. Formalizing it now prevents a later rewrite when raster effects expand beyond simple linestate commits.
 
@@ -39,42 +39,58 @@ Additionally, every advanced 2D VDP in the survey (icestation-32, Gameduino, Seg
 
 ### 3.1 Design Principle
 
-> The host **writes** VDP state through an indirect (address + data + auto-increment) interface. Reads are limited to a small status register set. The VDP applies writes at safe boundaries (line start or vblank), never mid-line.
+> The host **writes** VDP state through an 8-bit parallel i80 bus. Reads are limited to loopback of the last-written register value and a small set of debug/status words. The VDP applies writes at safe boundaries (line start or vblank), never mid-line.
 
-### 3.2 Register Interface
+The canonical implementation uses an ESP32-S3 driving the i80 bus. The legacy QSPI path (Pico 2, older ESP32/ESP8266) is retired from active development but remains documented in [`archive/QSPI_HOST_CONTROL_PLAN.md`](archive/QSPI_HOST_CONTROL_PLAN.md).
 
-The QSPI adapter presents the following MMIO registers to the host:
+### 3.2 i80 Protocol
 
-| Offset | Name | Width | Access | Description |
-|--------|------|-------|--------|-------------|
-| 0x00 | `VDP_ADDR` | 16 | RW | Target address in VDP address space |
-| 0x02 | `VDP_DATA` | 16 | W | Write data; triggers FIFO enqueue |
-| 0x04 | `VDP_INC` | 8 | RW | Auto-increment value after each write (default = 1) |
-| 0x06 | `VDP_STATUS` | 8 | R | `{fifo_full, fifo_empty, vblank, line[9:2]}` |
-| 0x08 | `HOST_CTRL` (`VDP_CTRL` in current code) | 8 | RW | `{irq_enable, copper_enable, flush_fifo}` — host-side control shadow register |
+The host interface is an Intel-8080-style parallel bus: 8 data lines (`D0..D7`), chip-select (`CS#`), read strobe (`RD#`), write strobe (`WR#`), and data/command select (`DC#`). `DC#` is low during opcode/address phases and high during data phases.
 
-> **Layering clarification:** `hostAddr` selects **host-side shadow/status registers** (`VDP_ADDR`, `VDP_DATA`, `VDP_INC`, `VDP_STATUS`, `HOST_CTRL`). Only writes to `VDP_DATA` enqueue entries into the internal VDP register-space FIFO. The target address for those queued writes is the value held in the host-side `VDP_ADDR` shadow register. The internal VDP register space (accessed by the pixel-domain `CommandParser`) is a separate 15-bit address map; `0x0310` inside that map is the VDP register-space control register consumed by `VdpTop`.
+**Transaction opcodes** (sent on D0..D7 while DC#=0, WR# pulsed):
 
-### 3.3 VDP Address Space
+| Opcode | Name | Direction | Payload phases | Description |
+|--------|------|-----------|----------------|-------------|
+| `0x00` | `REG_WRITE` | Host → VDP | addr[15:0] (DC=0), data[15:0] (DC=1) | Write one 16-bit word to the 15-bit VDP register bus. |
+| `0x01` | `REG_READ`  | Host ← VDP | addr[15:0] (DC=0), data[15:0] (DC=1) | Read back data for the given address. |
+| `0x02` | `SDRAM_WRITE` | Host → VDP | addr[15:0], len[15:0], then `len+1` data words | Block write to SDRAM via the upload path. |
 
-Addresses 0x0000–0x7FFF map into the VDP's internal register space (the destination of queued FIFO writes):
+A register write is therefore: `opcode` → `addr_lo` → `addr_hi` → `data_lo` → `data_hi`. The library facade in `firmware/libvdp/vdp_i80.h` hides this byte-level framing.
+
+### 3.3 Readback Semantics
+
+The i80 read path is **loopback-oriented**, not a full register-file readback:
+
+- **Most register addresses** return the **last value written to that register** (latched `regBus.data`). This is sufficient for host shadow verification.
+- **Address-independent readback is expected** for many registers; do not compare POR defaults across unrelated addresses.
+- **`0x0328` / `0x0329`** return armed SDRAM debug data (read-only debug aperture).
+- **Status readback** is performed through the `READ_STATUS` response surface (selector-based), not through the register bus. See `MODE0_REGISTER_BUS_SPEC.md` for the status selector mapping.
+
+> **Note:** Because reads return the last-written value, a write followed immediately by a read to the **same** address should return the value just written. This is the criterion used by `firmware/esp32s3_i80_smoke`.
+
+### 3.4 VDP Address Space
+
+> [!WARNING]
+> **Section 3.3 address map is an architectural proposal and is STALE.** Refer to [`MODE0_REGISTER_BUS_SPEC.md`](MODE0_REGISTER_BUS_SPEC.md) for the authoritative hardware-proven address map.
+
+The authoritative register map is canonically defined in `firmware/libvdp/mode0_regs.json` and rendered into `MODE0_REGISTER_BUS_SPEC.md` §3.1. Key regions include:
 
 | Range | Resource |
 |-------|----------|
-| 0x0000–0x0FFF | Linestate table (480 lines × 16-bit words) |
-| 0x1000–0x17FF | Palette RAM (128 entries × 16-bit, A1R4G4B4 or R4G4B4) |
-| 0x2000–0x27FF | Scroll table / raster config |
-| 0x3000–0x3FFF | Copper program RAM |
-| 0x4000–0x4FFF | Sprite attribute RAM |
-| 0x5000–0x5FFF | Tile map / VRAM window |
-| 0x6000–0x7FFF | Reserved |
+| `0x0300..0x031F` | Global control (`LAYER_ENABLE`, `VDP_CTRL`, `STATUS_STICKY`, ...) |
+| `0x0320..0x032F` | Status / sticky / upload status |
+| `0x0330..0x034F` | Window / color / affine |
+| `0x0350..0x037F` | Bitmap / fetch / raster config |
+| `0x0380..0x0AFF` | Automation / tables (Copper, HDMA, scroll, sprite tables) |
+| `0x0B00..0x0DFF` | DMA / Blitter |
+| `0x1000..0x17FF` | Palette RAM |
 
-### 3.4 Command FIFO
+### 3.5 Command FIFO
 
-A small FIFO (8–16 entries) sits between the QSPI clock domain and the VDP pixel clock domain. This allows the host to burst multiple `(addr, data)` pairs without stalling.
+A small CDC FIFO sits between the i80 host clock domain and the VDP pixel clock domain. This allows the host to issue multiple register writes in quick succession without stalling.
 
 ```
-Host (QSPI clock) → QSPI adapter → Command FIFO → VDP parser (pixel clock)
+Host (i80 clock) → i80 adapter → Command FIFO → VDP CommandParser (pixel clock)
 ```
 
 FIFO entry format: `{addr[14:0], data[15:0]}` = 31 bits.
@@ -82,12 +98,11 @@ FIFO entry format: `{addr[14:0], data[15:0]}` = 31 bits.
 **FIFO / CommandParser Contract:**
 
 1. **Queue contents**: The FIFO holds only **register-write queue entries** (`{addr[14:0], data[15:0]}`), not a generic command stream.
-2. **Ordering**: Host writes preserve strict FIFO order. A `VDP_DATA` write enqueues the current `VDP_ADDR` value paired with the data word.
+2. **Ordering**: Host writes preserve strict FIFO order.
 3. **Drain rate**: The pixel-domain `CommandParser` emits **one write per cycle** while the drain window is open (`hCounter === 0` or during vblank).
 4. **Vblank behavior**: During vertical blanking, writes may drain continuously without buffering.
-5. **`flush_fifo`**: The bit is named in the `HOST_CTRL` register map but is **not yet implemented** in the current codebase. When implemented, the intended semantics are host-domain FIFO reset (discard all queued entries). Until then, hosts must avoid overflow by monitoring `fifo_full`.
 
-### 3.5 Safe-Boundary Application
+### 3.6 Safe-Boundary Application
 
 A `CommandParser` module in the pixel clock domain consumes the FIFO:
 
@@ -97,7 +112,7 @@ A `CommandParser` module in the pixel clock domain consumes the FIFO:
 
 This guarantees that no host write can change linestate mid-line. The boundary was moved from `hTotal-1` to `hCounter === 0` to avoid a race with the R4.1 fetch-slot scheduler grant, which fires at `hTotal-1`.
 
-### 3.6 Benefits
+### 3.7 Benefits
 
 | Concern | How this solves it |
 |---------|-------------------|
@@ -105,6 +120,11 @@ This guarantees that no host write can change linestate mid-line. The boundary w
 | Host stalling | FIFO absorbs burst writes |
 | CDC safety | FIFO is the sole crossing point |
 | Code simplicity | Host uploads data with simple loops; VDP owns timing |
+| Throughput | 8-bit parallel i80 is faster than the retired QSPI nibble path for bulk uploads |
+
+### 3.8 Retired QSPI Path
+
+The original host interface was a 4-wire QSPI bus with a 6-byte header `[CMD:1][ADDR:3][LEN:2]`. It was proven on Pico 2, ESP32-S3, and ESP8266, but was retired as the canonical path when i80/ESP32-S3 became the baseline. Detailed QSPI history is preserved in [`archive/QSPI_HOST_CONTROL_PLAN.md`](archive/QSPI_HOST_CONTROL_PLAN.md).
 
 ---
 
@@ -228,41 +248,41 @@ The cache is **read-only** during the active line. It is only updated during:
 
 ## 6. Impact on Existing Code
 
-### 6.1 Files to Create
-- `HostInterface.scala` — QSPI adapter + Command FIFO + CommandParser
+### 6.1 Files Created / Implemented
+- `I80HostInterface.scala` / `I80Pads.scala` — i80 adapter + Command FIFO + CommandParser
 - `Copper.scala` — copper core + program RAM interface
-- `HostInterfaceSim.scala` / `CopperSim.scala` — simulation entries
+- `TopTang20kI80.scala` — i80 top-level instantiation
+- `firmware/libvdp/vdp_i80.h`, `vdp_i80.c` — ESP32-S3 i80 transport facade
 
-### 6.2 Files to Modify
-- `TopTang20kHdmi.scala` — instantiate `HostInterface` and `Copper`, wire to VDP
-- `VdpTop.scala` — replace raw linestate write ports with unified register-write bus from CommandParser/Copper
-- `FetchSlotScheduler.scala` — optionally widen slot windows for cache-burst loads
+### 6.2 Files Modified
+- `TopTang20kHdmi.scala` / `TopTang20kI80.scala` — instantiate host interface and Copper, wire to VDP
+- `VdpTop.scala` — unified register-write bus from CommandParser/Copper
+- `FetchSlotScheduler.scala` — widened slot windows for cache-burst loads as needed
 
 ### 6.3 Backward Compatibility
 
-- When `HostInterface` is disabled, VDP falls back to internal defaults (same behavior as today)
-- The existing `layer0TestPatternEnable` / `layer0TestPatternSelect` interface remains unchanged
-- All existing simulations continue to pass
+- The i80 and legacy QSPI host interfaces share the same internal register-write path.
+- The existing `layer0TestPatternEnable` / `layer0TestPatternSelect` interface remains unchanged.
+- All existing simulations continue to pass.
 
 ---
 
 ## 7. Open Questions
 
-1. **QSPI vs. SPI bitrate**: What is the expected host clock? If the host is much slower than 25.2 MHz, the FIFO can be smaller. If it is faster, we may need a 16- or 32-entry FIFO.
+1. **i80 clock rate**: The ESP32-S3 GPIO bit-bang backend is validated at the cadence used by `vdp_i80.h`. A hardware LCD_CAM i80 backend may allow higher throughput but is not yet the documented baseline.
 2. **Palette width**: Should we upgrade the palette from 24-bit RGB to 16-bit A1R4G4B4 (matching icestation-32) to save BRAM? Or keep 24-bit for color fidelity?
 3. **Copper RAM size**: Is 1KB (512 instructions) sufficient, or should we allocate 2KB?
-4. **Task ordering**: Should the copper be implemented **before** or **together with** the QSPI host interface? They share the same register-write path, so implementing them together is efficient.
+4. **Task ordering**: Copper and the host interface share the same safe-boundary register-write path and were implemented together.
 
 ---
 
 ## 8. Recommendations
 
-### Immediate (next task)
-- **Implement Host Interface + Copper as a single bounded task** (call it **R5** or fold into Task 24). They share the safe-boundary register-write path and should not be split.
-- Adopt the indirect address+data+auto-increment register model for host access.
-- Provide 8-entry Command FIFO with safe-boundary application.
+### Immediate (current state)
+- The i80 host interface + Copper are implemented and proven. Use `firmware/libvdp/vdp_i80.h` for new ESP32-S3 firmware.
+- Use the 8-entry Command FIFO with safe-boundary application.
 
-### Near-term (following 1–2 tasks)
+### Near-term
 - Apply the Working-Set Caching Policy to planar/shuffled mode implementations.
 - Begin unifying sprite and background tile memory formats.
 

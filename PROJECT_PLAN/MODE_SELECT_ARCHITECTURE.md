@@ -3,6 +3,8 @@
 **Status:** **HISTORICAL / DEPRECATED** (2026-05-24)  
 **Reason:** The runtime adapter-selection mux has been superseded by the **RTL Platform-Agnosticism Purge (#10567)**. Platform-specific adapters have been removed from the RTL tree; platform personality is now managed entirely in `libvdp`. This document remains for architectural archaeology only.
 
+> **Host-path note:** References in this document to QSPI as the host path are historical. The current canonical Tang Nano 20K host interface is **i80/ESP32-S3** (see `PLATFORM.md`). QSPI remains supported as a legacy path on Pico 2 and older ESP boards.
+
 ---
 
 ## 1. Executive Summary

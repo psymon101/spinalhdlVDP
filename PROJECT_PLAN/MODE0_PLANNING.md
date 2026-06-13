@@ -71,7 +71,7 @@ For high-level usage and examples, see the [**`VDP Programming Guide`**](../VDP_
 ### 6.2 Register Bus & Timing
 - **Signal Contract:** 15-bit Addr / 16-bit Data / 1-cycle Pulse
 - **Commit Boundary:** `hCounter === 0` (standard) / `hCounter === hTotal - 1` (linestate)
-- **Master Priority:** `bootstrap > QSPI > animator`
+- **Master Priority:** `bootstrap > host > animator` (historically `bootstrap > QSPI > animator` before the i80 host path became canonical)
 - **Source:** `MODE0_REGISTER_BUS_SPEC.md`
 
 ### 6.3 Layer & Fetch Capabilities

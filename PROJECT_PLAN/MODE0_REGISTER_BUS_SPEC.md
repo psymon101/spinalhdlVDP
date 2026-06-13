@@ -3,11 +3,11 @@
 **Status:** Stable contract — v1.5 Landed (Task 129 + ACK/NAK Phase 2)
 **Governing task:** Task 32a — Mode0 Register Bus: Spec & Naming Lock
 **Version:** v1.7 — auto-generated register detail tables from `firmware/libvdp/mode0_regs.json`; added RGB565 direct-color burst-read 32-byte alignment note.
-**Scope:** Write-path control surface for Mode0. The READ_STATUS response surface is defined by `QspiDecoder` sel mapping and is referenced here for completeness but is not part of the register bus itself.
+**Scope:** Write-path control surface for Mode0. The `READ_STATUS` response surface is defined by the i80/QSPI status multiplexer and is referenced here for completeness but is not part of the register bus itself.
 
 This document is the authoritative naming and semantic contract for the Mode0 write-path register bus.
 For high-level usage and examples, see the [**`VDP Programming Guide`**](../VDP_PROGRAMMING_GUIDE.md).
-Tasks 33 (Copper-lite), 34 (QSPI asset upload), 35 (Host IRQ / Status Registers), and 37 (Affine Sprite Path) MUST target this contract without ad-hoc drift.
+Tasks 33 (Copper-lite), 34 (host asset upload), 35 (Host IRQ / Status Registers), and 37 (Affine Sprite Path) MUST target this contract without ad-hoc drift.
 Task 32b is the separate lane that will refactor the HDL so all masters reference a common bundle; 32a defines WHAT they target, 32b defines HOW.
 
 ---
@@ -23,7 +23,7 @@ The register bus is a single-cycle pulse-based write contract. Every master driv
 | `regWriteEnable` | `Bool()` | in to `VdpTop.io.regWriteEnable` | pixel clock |
 
 - **Address width is 15 bits** — covers `0x0000..0x7FFF`. Larger spaces (bulk SDRAM asset upload per Task 34) use a different transport, not this bus.
-- **Data width is 16 bits** — a single register slot. Wider registers use multiple consecutive addresses (e.g. `last_addr` in the QSPI READ_STATUS response is 16 bits of the 32-bit response word, reserved for Task 34 to extend if needed).
+- **Data width is 16 bits** — a single register slot. Wider registers use multiple consecutive addresses (e.g. `last_addr` in the `READ_STATUS` response is 16 bits of the 32-bit response word, reserved for Task 34 to extend if needed).
 - **Enable is a one-cycle pulse**, not a level. A master asserts it for exactly one pixel-clock cycle when `regWriteAddr`/`regWriteData` carry a valid write.
 
 The 3-tuple name pattern `regWrite{Addr,Data,Enable}` is the frozen naming. Future masters MUST use this exact naming at the top level of `VdpTop` integration. Internal module-level signals may use different names (e.g. `qspiDec.io.regWriteEnable`, `bootWrite`) as long as they fold into this 3-tuple at the mux boundary.
@@ -43,16 +43,32 @@ The 3-tuple name pattern `regWrite{Addr,Data,Enable}` is the frozen naming. Futu
 
 ### 2.2 Master priority (mux at `TopTang20kHdmi.scala:500-530`)
 
-Priority is **bootstrap > qspi > i80/animator**, implemented via `RegBusArbiter`. i80/animator occupy the same slot (Master 2) and are mutually exclusive based on the `hostI80` parameter.
+Priority is **bootstrap > host > i80/animator**, implemented via `RegBusArbiter`. i80/animator occupy the same slot (Master 2) and are mutually exclusive based on the `hostI80` parameter. The legacy QSPI decoder occupies Master 1 when the QSPI top is built; on the canonical i80 top, Master 1 is unused.
 
 ```
 Master 0: regWriteFromBoot : highest — bootstrap wins during boot window
-Master 1: qspiActive       : next — post-boot QSPI writes
+Master 1: qspiActive       : next — post-boot QSPI writes (legacy, i80 builds leave unused)
 Master 2: i80 / animator   : lowest — post-boot i80 host OR internal animator
 ```
 
-### 2.3 QSPI Transport Performance (Bench-validated 2026-05-23)
-The QSPI transport performance varies by host platform and direction:
+### 2.3 i80 Transport Protocol (Canonical)
+
+The primary host interface is an 8-bit parallel Intel-8080-style bus driven by an ESP32-S3. `firmware/libvdp/vdp_i80.h` is the C/C++ facade.
+
+| Opcode (DC=0) | Transaction | Direction | Phase sequence |
+|---|---|---|---|
+| `0x00` | Register write | Host → VDP | `opcode` → `addr_lo` → `addr_hi` → `data_lo` → `data_hi` |
+| `0x01` | Register read  | Host ← VDP | `opcode` → `addr_lo` → `addr_hi` → read `data_lo` → read `data_hi` |
+| `0x02` | SDRAM block write | Host → VDP | `opcode` → `addr_lo` → `addr_hi` → `len_lo` → `len_hi` → `len+1` data words |
+
+- `CS#` frames the entire transaction.
+- `DC#` low = opcode or address byte; `DC#` high = data byte.
+- `WR#` rising edge latches host output; `RD#` rising edge samples host input.
+
+**Readback semantics:** Most register reads return the **last value written to that address** (loopback). This is sufficient for host shadow verification but is not a full register-file readback. `0x0328`/`0x0329` return armed SDRAM debug data. Status snapshots use the `READ_STATUS` selector mechanism described in §5.
+
+### 2.4 QSPI Transport Performance (Bench-validated 2026-05-23) — Retired
+The QSPI transport performance below is historical; QSPI is no longer the canonical Tang Nano 20K host path. See `archive/QSPI_HOST_CONTROL_PLAN.md` for the full QSPI history.
 
 | Platform | Direction | Production SCK | Effective Throughput |
 |---|---|---|---|
@@ -151,8 +167,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 |---|---|---|---|
 | 0 | `RASTER_MATCH` | `RasterTriggerUnit.triggerPulse` | Task 35 |
 | 1 | `SPRITE_OVERFLOW` | `SpriteEvaluator.overflowFlag` | Task 35 |
-| 2 | `QSPI_READY` | decoder cmd_valid pulse | Task 35 |
-| 3 | `QSPI_ERROR` | decoder last_error ≠ 0 | Task 35 |
+| 2 | `QSPI_READY` | decoder `cmd_valid` pulse (historical name; fires on host write validity) | Task 35 |
+| 3 | `QSPI_ERROR` | decoder `last_error ≠ 0` (historical name; host transport error) | Task 35 |
 | 4 | `SPRITE_0_HIT` | sprite slot 0 non-transparent over non-transparent BG | **Task 29** |
 | 5 | `SPRITE_BG_HIT` | any sprite non-transparent over non-transparent BG | **Task 29** |
 | 8 | `DMA_DONE` | `DmaEngine.io.done` — sticky pulse on transfer complete | **Task 47** |
@@ -179,7 +195,7 @@ ACK/NAK lane (#11500 / #11508 / #11557). The bridge's upload status is surfaced 
 
 byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 
-**`UPLOAD_STATUS_CLEAR` (`0x0323`, write-1-to-clear)** — within the reserved `0x0320..0x032F` block. A host `REG_WRITE` whose data bits mirror the sel=6 byte0 positions clears the corresponding sticky bit (bit2→`upload_error`, bit3→`fifoOverflow`, **bit4→`txn_dropped`**; bit5→`short_frame` once Fix A lands). Decoded in the pixel domain by `QspiDecoder` (no CDC): bit2/bit3 strobe into the bridge's Regs (a genuine re-set the same cycle wins, so a live error is never lost); bit4 clears the decoder's own `txn_dropped` Reg. Fix B (#11557) sim-proven: `QspiAckNakSim` (D) + `QspiWriteStatusReproSim` (E). Phase 2 `txn_dropped` (PA-2 #11614/#11626) sim: `QspiWriteStatusReproSim` (F).
+**`UPLOAD_STATUS_CLEAR` (`0x0323`, write-1-to-clear)** — within the reserved `0x0320..0x032F` block. A host `REG_WRITE` whose data bits mirror the sel=6 byte0 positions clears the corresponding sticky bit (bit2→`upload_error`, bit3→`fifoOverflow`, **bit4→`txn_dropped`**; bit5→`short_frame` once Fix A lands). Decoded in the pixel domain by the host bridge (`QspiDecoder` on legacy QSPI builds, equivalent i80 decoder on i80 builds; no CDC): bit2/bit3 strobe into the bridge's Regs (a genuine re-set the same cycle wins, so a live error is never lost); bit4 clears the decoder's own `txn_dropped` Reg. Fix B (#11557) sim-proven: `QspiAckNakSim` (D) + `QspiWriteStatusReproSim` (E). Phase 2 `txn_dropped` (PA-2 #11614/#11626) sim: `QspiWriteStatusReproSim` (F).
 
 ### 3.1.3 Auto-Generated Register Detail Tables
 
@@ -283,8 +299,8 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 |---|---|---|
 | `[0]` | RASTER_MATCH | Raster trigger match occurred. |
 | `[1]` | SPRITE_OVERFLOW | Sprite evaluation overflow occurred. |
-| `[2]` | QSPI_READY | Host bridge reported ready. |
-| `[3]` | QSPI_ERROR | Host bridge reported an error. |
+| `[2]` | QSPI_READY | Host bridge reported ready (historical name; applies to i80 and QSPI). |
+| `[3]` | QSPI_ERROR | Host bridge reported an error (historical name; applies to i80 and QSPI). |
 | `[4]` | SPRITE_0_HIT | Sprite 0 collision flag latched. |
 | `[5]` | SPRITE_BG_HIT | Sprite/background collision flag latched. |
 | `[8]` | DMA_DONE | DMA operation completed. |
@@ -860,9 +876,9 @@ Registers marked W1C (e.g. `STATUS_STICKY` @ `0x0320`) are used to clear sticky 
 
 ---
 
-## 5. QSPI READ_STATUS Response (Companion)
+## 5. READ_STATUS Response (Companion)
 
-Host `READ_STATUS` returns a 32-bit word. The `sel` byte in the command picks the word:
+Host `READ_STATUS` returns a 32-bit word over the active host transport (i80 opcode `0x01`, or the legacy QSPI status command). The `sel` byte in the command picks the word:
 
 | sel | Response Word [31:0] |
 |---|---|
@@ -927,7 +943,7 @@ Added §3.1.3 with per-register detail tables generated from `firmware/libvdp/mo
 
 ## 9. Open questions deferred to later tasks
 
-- **§2.3:** Copper-lite master priority relative to QSPI / animator — Task 33 artifact.
+- **§2.2:** Copper-lite master priority relative to host / animator — Task 33 artifact.
 - **§3.1:** Palette bank addressing (currently hardcoded in `VdpTop.scala:755+`) — future task if palette animation moves to host control.
 - **§5:** Status register clear semantics (write-1-to-clear vs read-to-clear vs auto-clear) — Task 35 artifact.
 - **§7.1:** If Task 34 bulk asset upload needs a sideband write register (e.g. `ASSET_ADDR` pointer), its placement at `0x0350..0x035F` is suggested but not locked.

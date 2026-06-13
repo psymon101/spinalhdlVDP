@@ -1,6 +1,6 @@
 # PROJECT_PLAN.md
 
-**Updated:** 2026-06-04 (ACK/NAK Phase 2 DONE — hardware proof PASS. Lane-closeout complete. Awaiting owner direction for next lane. QSPI throughput investigation closed. CyanPeak doc audit PASS.)
+**Updated:** 2026-06-12 (RGB565-FULLFRAME-132 active; VOODOO-ADOPTION plan drafted; FORMAL-131 and REGINFRA-130 closed.)
 **Purpose:** Entry point for the `PROJECT_PLAN/` documentation set.
 
 ## Reading Order
@@ -11,11 +11,12 @@
 4. `ASSESSMENT.md`
 5. `TASK_TEMPLATE.md`
 6. `TASKS.md`
-7. `CONVENTIONS.md`
-8. `PLATFORM.md`
-9. `REPO_STRUCTURE.md`
-10. `GLOSSARY.md`
-11. `DESIGN_NOTE_CHUNKY_CORE_PLANAR_COMPAT.md`
+7. `VOODOO_ADOPTION_PLAN.md`
+8. `CONVENTIONS.md`
+9. `PLATFORM.md`
+10. `REPO_STRUCTURE.md`
+11. `GLOSSARY.md`
+12. `DESIGN_NOTE_CHUNKY_CORE_PLANAR_COMPAT.md`
 
 If these documents disagree:
 
@@ -28,14 +29,21 @@ If these documents disagree:
 
 This is a **full Mode0 rendering substrate** (SDRAM-backed tile, planar, bitmap, affine, sprites, Copper, HDMA, etc.) with 20+ hardware-proven scenarios on Tang Nano 20K.
 
-The project has **one active critical-path lane**: **Planar Bitplane Source -> L0 Layer Render Proof** (PLANAR-L0-HW), opened per owner direction and reframed to 5-plane (32-color) depth-agnostic proof per BrightForge #11706. The most recently closed lane is **ACK/NAK Phase 2** (txnDropped detection), proven in hardware. Lane-closeout team check is complete; all CoralReef audit findings are closed.
+The project has one recently closed critical-path RTL lane and one active docs/example lane:
+- **RGB565-FULLFRAME-132** — closed. RGB565 full-frame direct-color display correctness proven on silicon (burst-read SDRAM controller @ 40.5 MHz, merged to `main` @ `c8129bd` / `d668e01`).
+- **RGB565-FULLFRAME-DOCS-133** — active. Host-facing documentation and examples are being updated so the RGB565 feature is usable without reading RTL.
+
+The long-term strategic roadmap is in [`VOODOO_ADOPTION_PLAN.md`](VOODOO_ADOPTION_PLAN.md).
+
+**Host interface:** the canonical Tang Nano 20K host path is **i80/ESP32-S3**. The legacy QSPI path remains supported on Pico 2 and older ESP8266/ESP32 bench setups but is retired as the primary development target.
 
 Authoritative execution status: [`TASKS.md`](TASKS.md).
 Summary of recent closeouts:
-- **ACK/NAK Phase 1** — Fix B W1C clear path validated on silicon (2× 32-tile discriminator PASS with NAK recovery at tile[01] and tile[21]). Persistent bitstream `5282d33f` @ `3647f2e`. CyanPeak doc audit PASS #11638/#11639.
-- **ACK/NAK Phase 2** — DONE. txnDropped detection implemented in `QspiDecoder.scala`; `QspiWriteStatusReproSim` CASE F proves overlap sets the sticky flag and W1C clears it. Original candidate `f18cd55` had thin margin (+0.036%); registered-path fix landed @ `b3880f2`, restoring `clk_pixel` Fmax to 25.584 MHz (~1.5% margin). Hardware proof PASS on bitstream sha1 `4097ac24...`: before=0x00, after overlap=0x15 (bit4=1), after W1C=0x04 (bit4=0).
-- **QSPI Throughput Investigation** — Closed as answered research. BrightForge and BronzeGate reports converge: FPGA is the limiter, not the ESP32-S3 host. Read hard cap ~3 MHz, write safe ceiling ~6.3 MHz, sustained sink bounded by SDRAM byte controller. Proposed benchmark RTL held until after Phase 2 closes.
-- **Mode2optimized Feature Strip** — Bitstream fits Tang Nano with 51% headroom.
+- **FORMAL-131** — SdramArbiter formal verification closed; all 5 properties proven at BMC depth 20 (`cyanpeak/formal-131` @ `e9ead7c`, merged to main @ `c7a1ca1`).
+- **REGINFRA-130** — Canonical `firmware/libvdp/mode0_regs.json` with 49 registers, descriptions, normalized categories, and generators `gen_mode0_regs.py` / `gen_reg_docs.py`. Spec §3.1.3 regenerated and TBD-free.
+- **BITMAP-PLUMB-129** — Register-driven bitmap/attribute base, stride, and height implemented, sim/STA/HW proven.
+- **ACK/NAK Phase 2** — txnDropped detection implemented in `QspiDecoder.scala`; hardware proof PASS on bitstream sha1 `4097ac24...`.
+- **QSPI Throughput Investigation** — Closed as answered research. FPGA is the read limiter (~3 MHz), ESP32-S3 not the bottleneck.
 - **Copper Double-Buffer (3b)** — Atomic bank-swap proven on silicon.
 - **libvdp Mode0 Surface** — Full register-map helper coverage.
 
