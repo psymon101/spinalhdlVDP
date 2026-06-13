@@ -187,8 +187,6 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 > **Generator:** `scripts/gen_reg_docs.py`  
 > **Note:** Regenerated after BronzeGate backfilled descriptions and normalized categories (`immediate` / `vblank-sensitive` / `stream` / `diagnostic`).
 
-## Mode0 Register Tables (generated from JSON)
-
 ### LAYER_ENABLE (`0x0300`)
 
 | Attribute | Value |
@@ -832,3 +830,108 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 |---|---|---|
 | `[10:0]` | HEIGHT | Source bitmap height in rows. |
 
+
+### 3.2 Allocation rules
+
+- Any new task that adds register addresses MUST reserve a contiguous block in its artifact and reference that block here via a commit touching this spec.
+- Single-register additions outside a task's reserved block are forbidden — pick up a reserved range or open 32a (or a named extension of it) to claim one.
+- Task 32b refactor MAY rename the existing HDL signals but MUST NOT change any address above.
+
+---
+
+## 4. Semantics
+
+### 4.1 Commit Boundaries
+
+Most registers are **double-buffered**. Host writes go to a "prepare" (shadow) register. The "commit" to the live RTL register occurs at a specific boundary to prevent visual tearing or logic glitches.
+
+| Category | Commit Boundary | Examples |
+|---|---|---|
+| **Immediate** | Combinational / next-cycle | `UPLOAD_STATUS_CLEAR`, `DMA_CTRL.go` |
+| **H-Boundary** | `hCounter === 0` | `LAYER_ENABLE`, `BORDER_CTRL`, `WIN*_X0`, `BITMAP_CTRL` |
+| **V-Boundary** | `vCounter === 0 && hCounter === 0` | `MODE_SELECT`, `LOGIC_WIDTH` |
+
+### 4.2 Write-1-to-Clear (W1C)
+
+Registers marked W1C (e.g. `STATUS_STICKY` @ `0x0320`) are used to clear sticky event bits. 
+- Writing a `1` to a bit position clears that bit.
+- Writing a `0` to a bit position has no effect.
+- If an event occurs in the SAME cycle as a clear write, the **event wins** (the bit stays/becomes 1).
+
+---
+
+## 5. QSPI READ_STATUS Response (Companion)
+
+Host `READ_STATUS` returns a 32-bit word. The `sel` byte in the command picks the word:
+
+| sel | Response Word [31:0] |
+|---|---|
+| `0` | Magic `0x51560002` (host transport ID) |
+| `1..3` | **Removed** (Sc1..Sc4 legacy debug readback) |
+| `4` | committed live mode (post-safe-boundary `MODE_SELECT` and layer state) |
+| `5` | sticky status bits (`STATUS_STICKY` bit layout, §3.1.1) |
+| `6` | upload status (`busy`/`done`/`error`/`overflow`/`txn_dropped` bits, §3.1.2) |
+| `7` | **Reserved** — future diagnostic |
+| `8` | SDRAM readback — 32-bit word from debug address (0x0326/0x0327) |
+| `9..255` | Reserved — zero response |
+
+Task 35 status registers MUST be readable both by mapping into this sel table (extending to sel=5+) AND by appearing in the allocated `0x0320..0x032F` write-path block for clear-on-write semantics.
+
+---
+
+## 6. Naming Conventions
+
+Lock: use the prefixes below when adding new register addresses.
+
+| Prefix | Domain |
+|---|---|
+| `VDP_*` | Global Mode0 control (e.g. `VDP_CTRL`, `VDP_TILE_MODE`, `VDP_ATTR_MODE`) |
+| `WIN*_` | Window unit coordinates / control |
+| `BORDER_` | Border window / unit control |
+| `AFFINE_` | Affine background transformation matrix / control |
+| `TRIGGER*_` | Raster trigger unit configuration |
+| `DMA_` | DMA engine control / status |
+| `BLIT_` | Blitter engine control / status |
+| `BITMAP_` | Bitmap-fetch unit control / status |
+| `ATTR_` | Attribute-fetch unit control / status |
+| `STATUS_` | Interrupts and event flags |
+
+---
+
+## 7. Change History (v1.1+)
+
+### v1.1 — Affine Support
+Added `AFFINE_A..CTRL` (`0x0340..0x0346`). Claims part of the global expansion block.
+
+### v1.2 — RGB565 Transition
+Commit `8b61a2e` stripped the dedicated Task 2b RGB565 path in favor of the unified Task 44 fetcher. This initially deprecated `0x0351..0x0356`.
+
+### v1.3 — ACK/NAK Phase 2
+Added `UPLOAD_STATUS_CLEAR` (`0x0323`) for host-side recovery. Defined `txn_dropped` bit in `sel=6`.
+
+### v1.4 — Task 129 Restoration
+Un-deprecated `0x0351..0x0356` as part of BITMAP-PLUMB-129. These registers are now ACTIVE and parameterize the bitmap/attribute base and stride. Added `0x0357 BITMAP_HEIGHT`.
+
+### v1.6 — Auto-Generated Register Tables
+Added §3.1.3 with per-register detail tables generated from `firmware/libvdp/mode0_regs.json` via `scripts/gen_reg_docs.py`. BronzeGate backfilled all register/field descriptions and normalized categories to `immediate` / `vblank-sensitive` / `stream` / `diagnostic`; tables regenerated to remove `*TBD*` placeholders.
+
+---
+
+## 8. Migration Notes for `libvdp`
+
+- **Scenario 45+**: Stop using Sc1..Sc4 debug selectors (sel=1..3); transition to sel=5 (`STATUS_STICKY`).
+- **Phase 2**: Use `vdp_qspi_upload_status()` to poll for `txn_dropped`. Clear via `vdp_reg_write(0x0323, 1 << 4)`.
+- **Task 129**: Bitmap base/stride/height are now host-programmable. Default reset values preserve legacy 0x3000/0x4000 layout.
+
+---
+
+## 9. Open questions deferred to later tasks
+
+- **§2.3:** Copper-lite master priority relative to QSPI / animator — Task 33 artifact.
+- **§3.1:** Palette bank addressing (currently hardcoded in `VdpTop.scala:755+`) — future task if palette animation moves to host control.
+- **§5:** Status register clear semantics (write-1-to-clear vs read-to-clear vs auto-clear) — Task 35 artifact.
+- **§7.1:** If Task 34 bulk asset upload needs a sideband write register (e.g. `ASSET_ADDR` pointer), its placement at `0x0350..0x035F` is suggested but not locked.
+- **§7.2:** Task 19 Affine Background registers (`0x0340..0x0346`) were omitted in v1.0; corrected in v1.1. Task 33 Copper-lite relocated from `0x0340..0x034F` (erroneous) to `0x0380..0x03DF`.
+- **Sprite descriptor capacity:** Approved redesign target is `descCount=32`, `visiblePerLine=8` (BrightForge #10360). The existing `0x0800..0x0FFF` Task 37 descriptor space (2048 words) is already sized for this target; no register-address changes are required. Live build remains `descCount=8` pending merge.
+
+---
