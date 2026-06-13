@@ -40,8 +40,12 @@ fi
 # (the default) since its object is TopTang20kHdmiVerilog (no scenario id).
 if [[ -z "${SCENARIOS:-}" ]]; then
     ids="$(grep -oE 'TopTang20kHdmiScenario[0-9]+Verilog' "$TOP_SCALA" \
-          | sed 's/TopTang20kHdmiScenario//; s/Verilog//' | sort -n -u)"
-    SCENARIOS="0 $ids"
+          | sed 's/TopTang20kHdmiScenario//; s/Verilog//' | sort -n -u || true)"
+    if [[ -z "$ids" ]]; then
+        SCENARIOS="0"
+    else
+        SCENARIOS="0 $ids"
+    fi
 fi
 
 : "${REGRESSION_DIR:=$REPO_ROOT/captures/regression_$(date +%Y%m%d)}"
@@ -85,7 +89,12 @@ for N in $SCENARIOS; do
     if [[ "${REGRESS_SYNTH:-0}" == "1" ]] && [[ "$GEN_STATUS" == "pass" ]]; then
         echo "[sc$N] synth"
         pushd fpga/tang20k >/dev/null
-        if SCENARIO="$N" xvfb-run -a make >>"$LOG" 2>&1; then
+        # Scenario 0 == the DEFAULT top (TopTang20kHdmiVerilog), which the Makefile
+        # selects only when SCENARIO is EMPTY. Passing SCENARIO=0 makes the Makefile
+        # look for a nonexistent TopTang20kHdmiScenario0Verilog (ClassNotFound) and
+        # abort at `gen` before gw_sh runs. Map 0 -> empty so the default builds.
+        SCEN_ARG=""; [[ "$N" != "0" ]] && SCEN_ARG="$N"
+        if SCENARIO="$SCEN_ARG" xvfb-run -a make >>"$LOG" 2>&1; then
             SYNTH_STATUS=pass
         else
             SYNTH_STATUS=fail
