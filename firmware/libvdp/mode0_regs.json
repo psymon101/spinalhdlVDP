@@ -1,0 +1,749 @@
+{
+  "registers": [
+    {
+      "name": "LAYER_ENABLE",
+      "addr": "0x0300",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "L0",
+          "lsb": 0,
+          "width": 1,
+          "description": "Enables layer 0 output."
+        },
+        {
+          "name": "L1",
+          "lsb": 1,
+          "width": 1,
+          "description": "Enables layer 1 output."
+        },
+        {
+          "name": "SPRITE",
+          "lsb": 2,
+          "width": 1,
+          "description": "Enables sprite output."
+        },
+        {
+          "name": "L2",
+          "lsb": 3,
+          "width": 1,
+          "description": "Enables layer 2 output."
+        },
+        {
+          "name": "L3",
+          "lsb": 4,
+          "width": 1,
+          "description": "Enables layer 3 output."
+        }
+      ],
+      "description": "Enables visible Mode0 display layers."
+    },
+    {
+      "name": "VDP_CTRL",
+      "addr": "0x0310",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "COPPER_ENABLE",
+          "lsb": 0,
+          "width": 1,
+          "description": "Enables copper command execution."
+        },
+        {
+          "name": "COPPER_SWAP_REQUEST",
+          "lsb": 1,
+          "width": 1,
+          "description": "Requests a copper buffer swap."
+        }
+      ],
+      "description": "Controls global Mode0 runtime features."
+    },
+    {
+      "name": "VDP_TILE_MODE",
+      "addr": "0x0311",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "MODE",
+          "lsb": 0,
+          "width": 2,
+          "description": "Tile pattern decode mode selector."
+        }
+      ],
+      "description": "Selects the tile pattern decode mode."
+    },
+    {
+      "name": "VDP_ATTR_MODE",
+      "addr": "0x0312",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "MODE",
+          "lsb": 0,
+          "width": 1,
+          "description": "Tile attribute decode mode selector."
+        }
+      ],
+      "description": "Selects the tile attribute decode mode."
+    },
+    {
+      "name": "MODE_SELECT",
+      "addr": "0x0313",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "ADAPTER_MODE",
+          "lsb": 0,
+          "width": 4,
+          "description": "Compatibility adapter mode selector."
+        },
+        {
+          "name": "MODE_FLAGS",
+          "lsb": 8,
+          "width": 8,
+          "description": "Adapter-specific mode option flags."
+        }
+      ],
+      "description": "Selects the active compatibility adapter mode."
+    },
+    {
+      "name": "STATUS_STICKY",
+      "addr": "0x0320",
+      "width": 16,
+      "access": "W1C",
+      "reset": "0x0000",
+      "category": "diagnostic",
+      "fields": [
+        {
+          "name": "RASTER_MATCH",
+          "lsb": 0,
+          "width": 1,
+          "description": "Raster trigger match occurred."
+        },
+        {
+          "name": "SPRITE_OVERFLOW",
+          "lsb": 1,
+          "width": 1,
+          "description": "Sprite evaluation overflow occurred."
+        },
+        {
+          "name": "QSPI_READY",
+          "lsb": 2,
+          "width": 1,
+          "description": "Host bridge reported ready."
+        },
+        {
+          "name": "QSPI_ERROR",
+          "lsb": 3,
+          "width": 1,
+          "description": "Host bridge reported an error."
+        },
+        {
+          "name": "SPRITE_0_HIT",
+          "lsb": 4,
+          "width": 1,
+          "description": "Sprite 0 collision flag latched."
+        },
+        {
+          "name": "SPRITE_BG_HIT",
+          "lsb": 5,
+          "width": 1,
+          "description": "Sprite/background collision flag latched."
+        },
+        {
+          "name": "DMA_DONE",
+          "lsb": 8,
+          "width": 1,
+          "description": "DMA operation completed."
+        },
+        {
+          "name": "BLIT_DONE",
+          "lsb": 9,
+          "width": 1,
+          "description": "Blitter operation completed."
+        },
+        {
+          "name": "BLIT_BUSY",
+          "lsb": 10,
+          "width": 1,
+          "description": "Blitter busy state is latched."
+        },
+        {
+          "name": "MODE_SELECT_CHANGED",
+          "lsb": 11,
+          "width": 1,
+          "description": "Mode select value changed."
+        }
+      ],
+      "description": "Sticky status and interrupt cause flags; write one to clear."
+    },
+    {
+      "name": "STATUS_ENABLE",
+      "addr": "0x0321",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "diagnostic",
+      "description": "Enables reporting for selected sticky status sources."
+    },
+    {
+      "name": "SPRITE_COLL_MASK",
+      "addr": "0x0322",
+      "width": 16,
+      "access": "W1C",
+      "reset": "0x0000",
+      "category": "diagnostic",
+      "description": "Clears selected sprite collision sticky bits."
+    },
+    {
+      "name": "UPLOAD_STATUS_CLEAR",
+      "addr": "0x0323",
+      "width": 16,
+      "access": "W1C",
+      "reset": "0x0000",
+      "category": "diagnostic",
+      "fields": [
+        {
+          "name": "UPLOAD_ERROR",
+          "lsb": 2,
+          "width": 1,
+          "description": "Clears upload error sticky flag."
+        },
+        {
+          "name": "UPLOAD_OVERFLOW",
+          "lsb": 3,
+          "width": 1,
+          "description": "Clears upload overflow sticky flag."
+        },
+        {
+          "name": "TXN_DROPPED",
+          "lsb": 4,
+          "width": 1,
+          "description": "Clears dropped transaction sticky flag."
+        },
+        {
+          "name": "SHORT_FRAME",
+          "lsb": 5,
+          "width": 1,
+          "description": "Clears short-frame sticky flag."
+        }
+      ],
+      "description": "Clears sticky host upload bridge error flags."
+    },
+    {
+      "name": "WIN1_X0",
+      "addr": "0x0330",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Window 1 inclusive left X coordinate."
+    },
+    {
+      "name": "WIN1_X1",
+      "addr": "0x0331",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Window 1 exclusive right X coordinate."
+    },
+    {
+      "name": "WIN1_Y0",
+      "addr": "0x0332",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Window 1 inclusive top Y coordinate."
+    },
+    {
+      "name": "WIN1_Y1",
+      "addr": "0x0333",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Window 1 exclusive bottom Y coordinate."
+    },
+    {
+      "name": "COLOR_MATH_CTRL",
+      "addr": "0x0334",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Controls windowed color math and blend behavior."
+    },
+    {
+      "name": "WIN2_X0",
+      "addr": "0x0335",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Window 2 inclusive left X coordinate."
+    },
+    {
+      "name": "WIN2_X1",
+      "addr": "0x0336",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Window 2 exclusive right X coordinate."
+    },
+    {
+      "name": "WIN2_Y0",
+      "addr": "0x0337",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Window 2 inclusive top Y coordinate."
+    },
+    {
+      "name": "WIN2_Y1",
+      "addr": "0x0338",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Window 2 exclusive bottom Y coordinate."
+    },
+    {
+      "name": "WIN2_CTRL",
+      "addr": "0x0339",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Controls Window 2 enable and selection behavior."
+    },
+    {
+      "name": "WIN_COMBINE",
+      "addr": "0x033A",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Selects how Window 1 and Window 2 masks combine."
+    },
+    {
+      "name": "LAYER_MASK",
+      "addr": "0x033B",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Selects which layers participate in window/color operations."
+    },
+    {
+      "name": "BORDER_X0",
+      "addr": "0x033C",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Outer border inclusive left X coordinate."
+    },
+    {
+      "name": "BORDER_X1",
+      "addr": "0x033D",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Outer border exclusive right X coordinate."
+    },
+    {
+      "name": "BORDER_Y0",
+      "addr": "0x033E",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Outer border inclusive top Y coordinate."
+    },
+    {
+      "name": "BORDER_Y1",
+      "addr": "0x033F",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Outer border exclusive bottom Y coordinate."
+    },
+    {
+      "name": "AFFINE_A",
+      "addr": "0x0340",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Affine matrix A coefficient for transformed fetches."
+    },
+    {
+      "name": "AFFINE_B",
+      "addr": "0x0341",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Affine matrix B coefficient for transformed fetches."
+    },
+    {
+      "name": "AFFINE_C",
+      "addr": "0x0342",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Affine matrix C coefficient for transformed fetches."
+    },
+    {
+      "name": "AFFINE_D",
+      "addr": "0x0343",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Affine matrix D coefficient for transformed fetches."
+    },
+    {
+      "name": "AFFINE_X",
+      "addr": "0x0344",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Affine transform X origin or translation term."
+    },
+    {
+      "name": "AFFINE_Y",
+      "addr": "0x0345",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Affine transform Y origin or translation term."
+    },
+    {
+      "name": "AFFINE_CTRL",
+      "addr": "0x0346",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "description": "Controls affine transform enable and options."
+    },
+    {
+      "name": "BORDER_CTRL",
+      "addr": "0x0347",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "ENABLE",
+          "lsb": 0,
+          "width": 1,
+          "description": "Enables outer border rendering."
+        },
+        {
+          "name": "INNER_BORDER_ENABLE",
+          "lsb": 1,
+          "width": 1,
+          "description": "Enables inner border inset handling."
+        },
+        {
+          "name": "PALETTE_INDEX",
+          "lsb": 8,
+          "width": 5,
+          "description": "Palette index used for border pixels."
+        }
+      ],
+      "description": "Enables border rendering and selects its palette index."
+    },
+    {
+      "name": "BACKDROP_INDEX",
+      "addr": "0x0348",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "INDEX",
+          "lsb": 0,
+          "width": 7,
+          "description": "Palette index used for backdrop pixels."
+        }
+      ],
+      "description": "Selects the backdrop palette index."
+    },
+    {
+      "name": "SCALE_CTRL",
+      "addr": "0x0349",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "SCALE_X",
+          "lsb": 0,
+          "width": 3,
+          "description": "Horizontal integer scale factor selector."
+        },
+        {
+          "name": "SCALE_Y",
+          "lsb": 4,
+          "width": 3,
+          "description": "Vertical integer scale factor selector."
+        },
+        {
+          "name": "AUTO_CENTER",
+          "lsb": 7,
+          "width": 1,
+          "description": "Centers the logical image in the output frame."
+        }
+      ],
+      "description": "Controls logical-to-output pixel scaling."
+    },
+    {
+      "name": "LOGIC_WIDTH",
+      "addr": "0x034A",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0280",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "WIDTH",
+          "lsb": 0,
+          "width": 11,
+          "description": "Logical source width in pixels."
+        }
+      ],
+      "description": "Logical source width used by the scaler."
+    },
+    {
+      "name": "LOGIC_HEIGHT",
+      "addr": "0x034B",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x01E0",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "HEIGHT",
+          "lsb": 0,
+          "width": 11,
+          "description": "Logical source height in pixels."
+        }
+      ],
+      "description": "Logical source height used by the scaler."
+    },
+    {
+      "name": "INNER_BORDER_L",
+      "addr": "0x034C",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "THICKNESS",
+          "lsb": 0,
+          "width": 10,
+          "description": "Left inner border thickness in logical pixels."
+        }
+      ],
+      "description": "Inner border thickness on the left edge."
+    },
+    {
+      "name": "INNER_BORDER_R",
+      "addr": "0x034D",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "THICKNESS",
+          "lsb": 0,
+          "width": 10,
+          "description": "Right inner border thickness in logical pixels."
+        }
+      ],
+      "description": "Inner border thickness on the right edge."
+    },
+    {
+      "name": "INNER_BORDER_T",
+      "addr": "0x034E",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "THICKNESS",
+          "lsb": 0,
+          "width": 10,
+          "description": "Top inner border thickness in logical pixels."
+        }
+      ],
+      "description": "Inner border thickness on the top edge."
+    },
+    {
+      "name": "INNER_BORDER_B",
+      "addr": "0x034F",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "THICKNESS",
+          "lsb": 0,
+          "width": 10,
+          "description": "Bottom inner border thickness in logical pixels."
+        }
+      ],
+      "description": "Inner border thickness on the bottom edge."
+    },
+    {
+      "name": "BITMAP_CTRL",
+      "addr": "0x0350",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "ENABLE",
+          "lsb": 0,
+          "width": 1,
+          "description": "Enables SDRAM bitmap fetch."
+        },
+        {
+          "name": "BPP",
+          "lsb": 1,
+          "width": 2,
+          "description": "Bitmap bits-per-pixel mode selector; 0b10 selects RGB565 direct color."
+        },
+        {
+          "name": "CELL_WIDTH_LOG2",
+          "lsb": 3,
+          "width": 4,
+          "description": "Log2 cell width for indexed bitmap addressing."
+        }
+      ],
+      "description": "Enables SDRAM bitmap fetch and selects bitmap format."
+    },
+    {
+      "name": "BITMAP_BASE_LO",
+      "addr": "0x0351",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x3000",
+      "category": "vblank-sensitive",
+      "description": "Low 16 bits of the SDRAM bitmap byte-plane base address. In RGB565 direct-color mode (BITMAP_CTRL mode 0b10) the effective base is forced 32-byte aligned by the hardware; writes to bits [4:0] are ignored in that mode."
+    },
+    {
+      "name": "BITMAP_BASE_HI",
+      "addr": "0x0352",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "ADDR_HI",
+          "lsb": 0,
+          "width": 7,
+          "description": "Address bits 22:16 for bitmap base."
+        }
+      ],
+      "description": "High 7 bits of the SDRAM bitmap byte-plane base address. Combined with BITMAP_BASE_LO to form a 23-bit byte address; the low 5 bits are masked to zero in RGB565 direct-color burst mode."
+    },
+    {
+      "name": "ATTR_BASE_LO",
+      "addr": "0x0353",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x4000",
+      "category": "vblank-sensitive",
+      "description": "Low 16 bits of the SDRAM attribute or high-byte plane base address. In RGB565 direct-color mode the effective base is forced 32-byte aligned by the hardware; writes to bits [4:0] are ignored in that mode."
+    },
+    {
+      "name": "ATTR_BASE_HI",
+      "addr": "0x0354",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "ADDR_HI",
+          "lsb": 0,
+          "width": 7,
+          "description": "Address bits 22:16 for attribute or high-byte plane base."
+        }
+      ],
+      "description": "High 7 bits of the SDRAM attribute or high-byte plane base address. Combined with ATTR_BASE_LO to form a 23-bit byte address; the low 5 bits are masked to zero in RGB565 direct-color burst mode."
+    },
+    {
+      "name": "BITMAP_STRIDE",
+      "addr": "0x0355",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0200",
+      "category": "vblank-sensitive",
+      "description": "Direct-color bitmap byte-plane row stride in bytes. In RGB565 direct-color mode the hardware masks bits [4:0] to zero, so the stride must be a multiple of 32 bytes. The default 0x0200 (512) is 32-byte aligned."
+    },
+    {
+      "name": "ATTR_STRIDE",
+      "addr": "0x0356",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x0200",
+      "category": "vblank-sensitive",
+      "description": "Direct-color attribute or high-byte plane row stride in bytes. In RGB565 direct-color mode the hardware masks bits [4:0] to zero, so the stride must be a multiple of 32 bytes. The default 0x0200 (512) is 32-byte aligned."
+    },
+    {
+      "name": "BITMAP_HEIGHT",
+      "addr": "0x0357",
+      "width": 16,
+      "access": "RW",
+      "reset": "0x00F0",
+      "category": "vblank-sensitive",
+      "fields": [
+        {
+          "name": "HEIGHT",
+          "lsb": 0,
+          "width": 11,
+          "description": "Source bitmap height in rows."
+        }
+      ],
+      "description": "Source bitmap height in rows; currently consumed by init-fill path only."
+    }
+  ]
+}
