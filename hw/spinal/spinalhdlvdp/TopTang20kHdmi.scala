@@ -113,7 +113,8 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // --------------------------------------------------------------------------
   // SDRAM PLL + controller (new for Task 15)
   // --------------------------------------------------------------------------
-  // 27 MHz → 64.8 MHz CLKOUT + 64.8 MHz 180° CLKOUTP (see tang20k_sdram_pll.v).
+  // 27 MHz → 40.5 MHz CLKOUT + 40.5 MHz 180° CLKOUTP (see tang20k_sdram_pll.v; the
+  // SDRAM clock was lowered from 64.8 to 40.5 MHz under #11197 Option A).
   val sdramPll = Tang20kSdramPll()
   sdramPll.clkin := I_clk
 
@@ -896,11 +897,16 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   sdramArbiter.io.clientWr(0)   := pixelArea.fetch.io.sdramWr
   sdramArbiter.io.clientAddr(0) := pixelArea.fetch.io.sdramAddr
   sdramArbiter.io.clientDin(0)  := pixelArea.fetch.io.sdramDin
+  // RGB565-FULLFRAME-132 Phase 0: per-client read burst length. Every client except
+  // the bitmap direct-color client (1, wired below) uses single reads; only client 1
+  // ever bursts. (Each index assigned exactly once — no SpinalHDL assignment overlap.)
+  for (i <- Seq(0, 2, 3, 4, 5)) sdramArbiter.io.clientBurstLen(i) := U(1, 4 bits)
   // Client 1 — Task 44b bitmap SDRAM fetch.
   sdramArbiter.io.clientRd(1)   := pixelArea.bitmapRowFetch.io.sdramRd
   sdramArbiter.io.clientWr(1)   := pixelArea.bitmapRowFetch.io.sdramWr
   sdramArbiter.io.clientAddr(1) := pixelArea.bitmapRowFetch.io.sdramAddr
   sdramArbiter.io.clientDin(1)  := pixelArea.bitmapRowFetch.io.sdramDin
+  sdramArbiter.io.clientBurstLen(1) := pixelArea.bitmapRowFetch.io.sdramBurstLen
   pixelArea.bitmapRowFetch.io.sdramDout      := sdramArea.ctrl.io.dout
   // RGB565-FULLFRAME-132 (#12283): feed the 32-bit aperture so the direct-color
   // fetch reads 4 bytes per SDRAM transaction (same broadcast dout32 the tile/
@@ -1108,6 +1114,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // Mux side-path is gone; ctrl is driven by a single arbitrated source.
   sdramArea.ctrl.io.addr    := sdramArbiter.io.sdramAddr
   sdramArea.ctrl.io.din     := sdramArbiter.io.sdramDin
+  // RGB565-FULLFRAME-132 Phase 0: forward the granted client's read burst length to
+  // the controller. Only the bitmap direct-color client (1) requests bursts (8 words);
+  // every other client uses single reads (burstLen=1, bit-identical to legacy).
+  sdramArea.ctrl.io.burstLen := sdramArbiter.io.sdramBurstLen
   pixelArea.fetch.io.sdramDout      := sdramArea.ctrl.io.dout
   pixelArea.fetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
   pixelArea.fetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready

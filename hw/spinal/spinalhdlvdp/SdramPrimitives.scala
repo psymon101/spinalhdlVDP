@@ -23,7 +23,10 @@ case class SdramController() extends BlackBox {
   // init counter (FREQ/1000*200/1000 cycles) still yields the 200us power-on
   // delay. FREQ ONLY drives that init counter — not the T_xx op latencies.
   addGeneric("FREQ", 40_500_000)
-  // #11123 FIX 3 (CyanPeak #11122): at 64.8 MHz (15.43 ns/cycle), T_RCD=1/T_RP=1
+  // #11123 FIX 3 (CyanPeak #11122) — historical rationale (the SDRAM clock is now
+  // 40.5 MHz per FREQ above; at 40.5 MHz, 24.69 ns/cycle, T_RCD=2/T_RP=2 give 49.4 ns,
+  // an even larger margin over the 18 ns spec, so the fix below still holds):
+  // at the original 64.8 MHz (15.43 ns/cycle), T_RCD=1/T_RP=1
   // give only 15.43 ns < EM638325 spec (tRCD/tRP = 18 ns). Raise both to 2
   // (30.86 ns >= 18 ns). T_RC stays at the sdram.v default 4 — CRITICAL: the
   // CONFIG sequence matches {CONFIG, T_RP+2*T_RC+T_MRD} on a 4-bit cycle counter
@@ -55,6 +58,10 @@ case class SdramController() extends BlackBox {
     val rd         = in Bool()
     val wr         = in Bool()
     val refresh    = in Bool()
+    // RGB565-FULLFRAME-132: per-transaction read burst length (words). 0/1 = legacy
+    // single read (bit-identical). Bitmap directcolor row fetch drives 8; the mux
+    // in SdramArbiter forwards the granted client's value here.
+    val burstLen   = in UInt(4 bits)
     val addr       = in UInt(23 bits)
     val din        = in Bits(8 bits)
     val dout       = out Bits(8 bits)

@@ -50,6 +50,11 @@ case class SdramArbiter(
     val clientWr   = in Vec(Bool(), clientCount)
     val clientAddr = in Vec(UInt(addrWidth bits), clientCount)
     val clientDin  = in Vec(Bits(dataWidth bits), clientCount)
+    // RGB565-FULLFRAME-132: per-client SDRAM read burst length (words). Muxed by
+    // grantClientId exactly like clientAddr. 0/1 = legacy single read. The bitmap
+    // directcolor client drives 8; all other clients drive 1. Undriven (0) on a
+    // standalone-DUT compile is treated as a single read by sdram.v.
+    val clientBurstLen = in Vec(UInt(4 bits), clientCount)
 
     // Per-client grant / slot-valid fan-out.
     val clientGrant     = out Vec(Bool(), clientCount)
@@ -60,6 +65,7 @@ case class SdramArbiter(
     val sdramWr   = out Bool()
     val sdramAddr = out UInt(addrWidth bits)
     val sdramDin  = out Bits(dataWidth bits)
+    val sdramBurstLen = out UInt(4 bits)   // RGB565-FULLFRAME-132: granted client's burst length
 
     // CP-A3 (Phase A #11438/#11439, Option B): central refresh cadence. The arbiter
     // owns the single refresh timer (Priority-0 accounting); `refreshDue` pulses one
@@ -102,8 +108,9 @@ case class SdramArbiter(
   }
 
   // Mux client signals to SDRAM based on grantClientId.
-  io.sdramRd   := io.clientRd(io.grantClientId)
-  io.sdramWr   := io.clientWr(io.grantClientId)
-  io.sdramAddr := io.clientAddr(io.grantClientId)
-  io.sdramDin  := io.clientDin(io.grantClientId)
+  io.sdramRd       := io.clientRd(io.grantClientId)
+  io.sdramWr       := io.clientWr(io.grantClientId)
+  io.sdramAddr     := io.clientAddr(io.grantClientId)
+  io.sdramDin      := io.clientDin(io.grantClientId)
+  io.sdramBurstLen := io.clientBurstLen(io.grantClientId)
 }

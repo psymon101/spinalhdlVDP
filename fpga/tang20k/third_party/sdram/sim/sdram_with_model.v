@@ -13,6 +13,7 @@ module sdram_with_model #(parameter FREQ = 1_000_000) (
   input             rd,
   input             wr,
   input             refresh,
+  input  [3:0]      burstLen,   // RGB565-FULLFRAME-132: read burst length (words); 0/1 = single read
   input  [22:0]     addr,
   input  [7:0]      din,
   output [7:0]      dout,
@@ -34,7 +35,7 @@ module sdram_with_model #(parameter FREQ = 1_000_000) (
     .SDRAM_nWE(SDRAM_nWE), .SDRAM_nRAS(SDRAM_nRAS), .SDRAM_nCAS(SDRAM_nCAS),
     .SDRAM_CLK(SDRAM_CLK), .SDRAM_CKE(SDRAM_CKE), .SDRAM_DQM(SDRAM_DQM),
     .clk(clk), .clk_sdram(clk_sdram), .resetn(resetn),
-    .rd(rd), .wr(wr), .refresh(refresh), .addr(addr), .din(din),
+    .rd(rd), .wr(wr), .refresh(refresh), .burstLen(burstLen), .addr(addr), .din(din),
     .dout(dout), .dout32(dout32), .data_ready(data_ready), .busy(busy));
 
   // Behavioral chip; samples on clk_sdram (180-deg), exactly as the controller intends.

@@ -1,7 +1,9 @@
 // PLL for SDRAM clock generation on Tang Nano 20K.
 //
-// Task 15: generates 64.8 MHz main clock + 64.8 MHz 180-degree phase-shifted
-// clock for sdram.v's clk / clk_sdram inputs.
+// Generates the 40.5 MHz SDRAM main clock + its 180-degree phase-shifted companion
+// for sdram.v's clk / clk_sdram inputs. (Originally 64.8 MHz under Task 15; lowered to
+// 40.5 MHz under #11197 Option A — see the defparam block below — to widen the analog
+// address-capture window. The "64.8 MHz" Task-15 wording was stale.)
 //
 // Parameter reconciliation (tool-proven formula from Gowin EX0311, msg 6601):
 //   VCO    = FCLKIN * (FBDIV_SEL+1) * ODIV_SEL / (IDIV_SEL+1)

@@ -63,6 +63,12 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val sdramDin       = out Bits(8 bits)
     val sdramRd        = out Bool()
     val sdramWr        = out Bool()
+    // RGB565-FULLFRAME-132 Phase 0: SDRAM read burst length (words) for THIS client's
+    // reads, forwarded to the arbiter (which muxes it to sdram.v). Direct-color row
+    // fetch drives 8 (one Activate → 8 consecutive column reads, ~4× the throughput of
+    // single reads → closes the 40.5 MHz refresh-ON bandwidth wall); indexed/1bpp/2bpp
+    // drives 1 (bit-identical legacy single read).
+    val sdramBurstLen  = out UInt(4 bits)
     // #11246 F2 (defensive look-ahead, PM #11260): next-cycle value of the cmd regs
     // so the top upload gate avoids the registered-rd collision for this client too.
     val sdramRdNext    = out Bool()
@@ -96,17 +102,32 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val bitmapByte     = out Bits(8 bits)
     val attrByte       = out Bits(8 bits)
     val bootDone       = out Bool()
-    val sdramActive    = out Bool()    // pulses whenever SDRAM FSM wants the bus
+    val sdramActive    = out Bool()    // pulses whenever SDRAM FSM wants the bus (pixel domain, BufferCC'd)
+    // RGB565-FULLFRAME-132 Phase 0: raw sdramCd-domain fetch-active level (= sd.sdramActiveR,
+    // no CDC). High across every fetch/init state, low only when the FSM is idle between
+    // source rows. A same-domain refresh sequencer uses this to insert AUTO_REFRESH ONLY at
+    // an idle (safe) boundary — never racing the FSM's registered cmdRd mid-fetch.
+    val sdramActiveRaw = out Bool()
   }
 
-  // RGB565-FULLFRAME-132: FIFO now carries one 32-bit SDRAM word (4 bytes) per
-  // entry. `idx` is the base line-buffer byte index for byte 0 of the word
-  // (word reads are 4-aligned). The pixel-domain pop side expands each word
-  // into 4 byte-writes into the line buffer.
+  // RGB565-FULLFRAME-132 B.2 (#12309): the FIFO carries one 32-bit SDRAM word
+  // (4 bytes) per entry. `idx` is the base line-buffer BYTE index of byte 0 of
+  // the word (word reads are 4-aligned). The line buffers are now 32-bit wide so
+  // the pop side stores one whole word per cycle — the old 4-byte expander cost
+  // ~4 pixel-clocks/word and made a full line take ~920 pixel-clocks vs the 800
+  // available (the bandwidth wall measured in #12306). They are also
+  // double-buffered (readSync) so the compositor never reads the bank the
+  // fetcher is filling.
   case class RowByte() extends Bundle {
     val kind = Bool()
     val idx  = UInt(log2Up(BitmapBufferDepth) bits)
     val data = Bits(32 bits)
+    // RGB565-FULLFRAME-132 B.2 (#12350): target line-buffer BANK travels WITH the
+    // word through the FIFO. With the grant queue the FSM fetch (sdramCd) is
+    // decoupled from the pixel-domain display-bank rotation, so the fill bank must
+    // be the one the FSM chose when it fetched this row — carried here, not a
+    // separate pixel-side register that could drift out of sync.
+    val bank = UInt(2 bits)
   }
 
   val byteFifo = StreamFifoCC(
@@ -115,54 +136,64 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     pushClock = sdramCd,
     popClock  = ClockDomain.current)
 
-  val bitmapLineBuf = Mem(Bits(8 bits), BitmapBufferDepth)
-  val attrLineBuf   = Mem(Bits(8 bits), AttrBufferDepth)
+  // 32-bit-wide, TRIPLE-buffered line buffers (Option B, #12346). WordDepth =
+  // byte depth / 4. Three banks per plane so a source row is fetched TWO rows
+  // ahead of its display: at any time one bank displays, one holds the next row
+  // already complete, and one is filling. That gives the ~1566-pixel-clock fetch
+  // up to ~2 source-row windows (~3200 pixel-clocks) of lead — ample slack so an
+  // AUTO_REFRESH landing inside the fetch cannot push it past the budget (the
+  // failure mode that sank the 2-bank/2-line-window Option A under refresh).
+  val WordDepth = BitmapBufferDepth / 4
+  require(WordDepth * 4 == BitmapBufferDepth)
+  val NBanks    = 3
+  val bitmapBuf = Seq.fill(NBanks)(Mem(Bits(32 bits), WordDepth))
+  val attrBuf   = Seq.fill(NBanks)(Mem(Bits(32 bits), WordDepth))
 
-  // Indexed 1bpp/2bpp pack 8 hCounter values per byte → byte = col/8.
-  // Directcolor stores one byte per source pixel; 320 source pixels are
-  // shown at 2 HDMI columns each → byte = col/2. CP-1c muxes the read
-  // address so each directcolor column gets a distinct buffer entry
-  // (CP-1b read col/8, repeating each value across an 8-column span).
+  // Bank rotation (pixel domain). The fetchGrant pulse (driven from VdpTop once
+  // per SOURCE ROW at hTotal-1) advances `dispBank` mod 3 to present the row that
+  // finished filling, while `fillBankReg` (held 2 banks ahead) targets the bank
+  // for the row two ahead. Advancing at hTotal-1 lands the new bank in `dispBankD`
+  // (RegNext) exactly for the next row's pixel 0, absorbing the readSync latency.
+  def inc3(x: UInt): UInt = Mux(x === U(NBanks - 1, 2 bits), U(0, 2 bits), x + 1)
+  val fetchGrantPixPrev = RegNext(io.fetchGrant) init False
+  val fetchGrantPixEdge = io.fetchGrant && !fetchGrantPixPrev
+  val dispBank = RegInit(U(0, 2 bits))
+  when(fetchGrantPixEdge) {
+    dispBank := inc3(dispBank)
+  }
+
+  // Compositor read. Indexed 1bpp/2bpp pack 8 hCounter values per byte → byte =
+  // col/8; directcolor stores one byte per source pixel shown at 2 HDMI columns
+  // → byte = col/2. The byte index splits into a 32-bit word address and a byte
+  // lane. readSync adds one cycle of latency, so the byte-lane and bank selects
+  // are delayed one cycle to stay aligned with the registered word.
   val indexedRdAddr = io.col(9 downto 3).resize(log2Up(BitmapBufferDepth))
   val directRdAddr  = io.col(9 downto 1).resize(log2Up(BitmapBufferDepth))
-  val lineRdAddr    = Mux(io.directColor, directRdAddr, indexedRdAddr)
-  // readAsync — AUDIT #10772: Class 2 (per-pixel) — bitmap byte fetched
-  // every active pixel and driven combinationally to io.bitmapByte for the
-  // compositor. Candidate for readSync conversion + downstream RegNext.
-  io.bitmapByte := bitmapLineBuf.readAsync(lineRdAddr)
-  // readAsync — AUDIT #10772: Class 2 (per-pixel) — bitmap-attribute byte
-  // co-timed with bitmapByte above; same per-pixel compositor read pattern.
-  io.attrByte   := attrLineBuf.readAsync(lineRdAddr)
+  val lineRdByte    = Mux(io.directColor, directRdAddr, indexedRdAddr)
+  val rdWordAddr    = (lineRdByte >> 2).resize(log2Up(WordDepth))
+  val rdLane        = lineRdByte(1 downto 0)
+  val bmW = Vec(bitmapBuf.map(_.readSync(rdWordAddr)))
+  val atW = Vec(attrBuf.map(_.readSync(rdWordAddr)))
+  val rdLaneD   = RegNext(rdLane) init 0
+  val dispBankD = RegNext(dispBank) init 0
+  val bmWord = bmW(dispBankD)
+  val atWord = atW(dispBankD)
+  io.bitmapByte := bmWord.subdivideIn(8 bits)(rdLaneD)
+  io.attrByte   := atWord.subdivideIn(8 bits)(rdLaneD)
 
-  // RGB565-FULLFRAME-132: pop-side 4-byte expander. Each popped FIFO word holds
-  // 4 SDRAM bytes (little-endian, byte 0 = data[7:0] at idx+0). Stall the pop
-  // for 4 pixel-domain cycles while writing the 4 bytes into the line buffer.
-  // The pixel domain has ample cycles per line, so this is not a bandwidth path.
-  val popWord = Reg(Bits(32 bits)) init 0
-  val popIdx  = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
-  val popKind = Reg(Bool()) init False
-  val popCnt  = Reg(UInt(2 bits)) init 0
-  val popBusy = RegInit(False)
-  byteFifo.io.pop.ready := !popBusy
-  when(byteFifo.io.pop.fire) {
-    popWord := byteFifo.io.pop.payload.data
-    popIdx  := byteFifo.io.pop.payload.idx
-    popKind := byteFifo.io.pop.payload.kind
-    popCnt  := 0
-    popBusy := True
-  }
-  val dbgBmWrEn = (popBusy && !popKind).simPublic()
-  val dbgBmWrData = popWord.subdivideIn(8 bits)(popCnt).simPublic()
-  when(popBusy) {
-    val expByte = popWord.subdivideIn(8 bits)(popCnt)
-    val expAddr = (popIdx + popCnt).resize(log2Up(BitmapBufferDepth))
-    when(popKind) {
-      attrLineBuf.write(address = expAddr, data = expByte, enable = True)
-    } otherwise {
-      bitmapLineBuf.write(address = expAddr, data = expByte, enable = True)
-    }
-    popCnt := popCnt + 1
-    when(popCnt === 3) { popBusy := False }
+  // Pop side: one 32-bit word per cycle into the fill bank, routed by kind.
+  // No 4-cycle byte expansion and no stale-state startup write — the old popBusy
+  // expander emitted one spurious write (idx 116) before the first real word.
+  byteFifo.io.pop.ready := True
+  val popFire     = byteFifo.io.pop.fire
+  val popData     = byteFifo.io.pop.payload.data
+  val popKind     = byteFifo.io.pop.payload.kind
+  val popBank     = byteFifo.io.pop.payload.bank   // FSM-chosen target bank, carried with the word
+  val popWordAddr = (byteFifo.io.pop.payload.idx >> 2).resize(log2Up(WordDepth))
+  for (b <- 0 until NBanks) {
+    val isFillBank = popBank === U(b, 2 bits)
+    bitmapBuf(b).write(popWordAddr, popData, enable = popFire && !popKind && isFillBank)
+    attrBuf(b).write  (popWordAddr, popData, enable = popFire &&  popKind && isFillBank)
   }
 
   val sd = new ClockingArea(sdramCd) {
@@ -192,6 +223,26 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val attrStrideCdc   = BufferCC(io.attrStride,   U(1 << DirectRowStrideLog, 16 bits))
     val bitmapHeightCdc = BufferCC(io.bitmapHeight, U(MaxLines, 10 bits))
 
+    // RGB565-FULLFRAME-132 (CoralReef #12355 cond.5, Option a): a burst-8 read must
+    // start on a 32-byte boundary and stay inside one 1KB SDRAM row. Direct-color is
+    // the only burst client, so when directColor is active we hard-enforce 32-byte
+    // alignment on the host-programmable base AND stride by masking their low 5 bits.
+    // (The POR defaults — base 0x3000/0x4000, stride 512 — are already aligned, so
+    // this is a no-op for the demo; it only guards a mis-programmed host.) Indexed
+    // 1bpp/2bpp uses single reads (no alignment requirement) and is left untouched.
+    // Documented in MODE0_REGISTER_BUS_SPEC §3.1.3 (CoralReef owns the doc update).
+    val Align32Mask     = ~U(0x1F, 23 bits)
+    val bitmapBaseAln   = bitmapBaseCdc & Align32Mask
+    val attrBaseAln     = attrBaseCdc   & Align32Mask
+    val bitmapStrideAln = bitmapStrideCdc & ~U(0x1F, 16 bits)
+    val attrStrideAln   = attrStrideCdc   & ~U(0x1F, 16 bits)
+    // Base used by the row fetch: 32-byte-aligned in direct-color (burst), raw
+    // otherwise (indexed single reads have no alignment constraint).
+    val bitmapBaseUse   = Mux(directColorSync, bitmapBaseAln, bitmapBaseCdc)
+    val attrBaseUse     = Mux(directColorSync, attrBaseAln,   attrBaseCdc)
+    // Burst length for THIS client's reads: 8 words in direct-color, 1 otherwise.
+    val burstWords      = Mux(directColorSync, U(8, 4 bits), U(1, 4 bits))
+
     val cmdAddr = Reg(UInt(23 bits)) init 0
     val cmdDin  = Reg(Bits(8 bits))  init 0
     val cmdRd   = RegInit(False)
@@ -215,14 +266,14 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     // sIdle and held stable through the 16-cycle sFetchSettle window before
     // sFetchBitmap/sFetchAttr consume these, so RegNext is settled in time.
     val bitmapRowByteBase = RegNext(Mux(directColorSync,
-                          (lineReg * bitmapStrideCdc).resize(23),
+                          (lineReg * bitmapStrideAln).resize(23),
                           (lineReg << 7).resize(23))) init 0
     val attrRowByteBase   = RegNext(Mux(directColorSync,
-                          (lineReg * attrStrideCdc).resize(23),
+                          (lineReg * attrStrideAln).resize(23),
                           (lineReg << 7).resize(23))) init 0
 
     // Task 44b iter 6d (CyanPeak audit correction): replace dividers with
-    // counters to ensure timing closure at 64.8 MHz.
+    // counters to ensure timing closure at the 40.5 MHz SDRAM clock.
     val initLineReg = Reg(UInt(8 bits)) init 0
     val initColReg  = Reg(UInt(8 bits)) init 0
     val initBitmapByte = (initLineReg + initColReg).resize(8).asBits
@@ -236,40 +287,48 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     val inflightKind = (Reg(Bool())     init False).simPublic()
     val inflightIdx  = (Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0).simPublic()
 
-    // Registered-push pattern (per BronzeGate #8039, mirrors
-    // SdramTileAttributeFetch's FIFO push). When sdramDataReady fires
-    // we latch the payload into {pendingKind, pendingIdx, pendingData}
-    // and assert pushPending. pushPending holds until push.fire
-    // clears it. This removes the same-cycle `dataReady && push.ready`
-    // dependency that silently dropped every read in earlier iters.
-    val pushPending = RegInit(False).simPublic()
-    val pendingKind = (Reg(Bool())     init False).simPublic()
-    val pendingIdx  = (Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0).simPublic()
-    val pendingData = (Reg(Bits(32 bits)) init 0).simPublic()   // RGB565-FULLFRAME-132: full dout32 word
+    // RGB565-FULLFRAME-132 Phase 0: BURST capture. A burst-N read returns N words on
+    // N consecutive `data_ready` pulses (one per sdramCd cycle). The previous depth-1
+    // `pushPending` latch held only ONE word, so the 2nd pulse of a burst arrived while
+    // pushPending was still set and was silently dropped. Instead push each word
+    // straight into byteFifo: it is a StreamFifoCC of depth 256 whose pop side drains a
+    // word every pixel-clk, so it is never near full during a ≤8-word burst and
+    // push.ready stays high. `burstCnt` counts words within the current read and
+    // offsets the target line-buffer index by 4 bytes per word. A push refused mid-burst
+    // would drop a word and is caught by the proof gate (cosim 0-mismatch). The single
+    // read (indexed/1bpp/2bpp, burstWords=1) is the N=1 special case — bit-for-bit the
+    // old one-word-per-read behavior, minus the now-unnecessary 1-cycle latch delay.
+    val burstCnt = (Reg(UInt(4 bits)) init 0).simPublic()  // words received in current read
 
-    // Forward-declared so the always-on latch below can reference it
-    // before the FSM block defines its state transitions.
+    // Forward-declared so the FSM (below) and the push logic can reference it.
     val sdramActiveR = RegInit(False)
-    byteFifo.io.push.valid         := pushPending
-    byteFifo.io.push.payload.kind  := pendingKind
-    byteFifo.io.push.payload.idx   := pendingIdx
-    byteFifo.io.push.payload.data  := pendingData
-    when(byteFifo.io.push.ready) { pushPending := False }
+    // `fetchBank` = the line-buffer bank for the row the FSM is currently fetching;
+    // advanced once per fetch in sIdle (below), 2 banks ahead of the display bank.
+    val fetchBank = Reg(UInt(2 bits)) init 2   // 2 banks ahead of dispBank (init 0)
 
-    // Iter 5: evaluate the dataReady → pushPending latch every sdramCd
-    // cycle (not only when `sFetchBitmapWait` is active). Iter-4 canary
-    // evidence showed `dataReady` fired while sdramActive was True but
-    // pushPending never asserted — implying dataReady arrived one cycle
-    // before the FSM transitioned to sFetchBitmapWait, so the old
-    // guard inside `whenIsActive` never caught the event. This
-    // component-scope guard still gates on `sdramActiveR` so only our
-    // own fetch windows latch data.
-    when(io.sdramDataReady && sdramActiveR && !pushPending) {
-      pendingKind := inflightKind
-      pendingIdx  := inflightIdx
-      pendingData := io.sdramDout32   // RGB565-FULLFRAME-132: capture all 4 bytes
-      pushPending := True
-    }
+    // Push is enabled only in the fetch-WAIT states (set True there in the FSM). The
+    // controller registers `rd` one cycle AFTER the issue state asserts cmdRd, by which
+    // point the FSM is already in the WAIT state, so data_ready (≥ T_RCD+CAS+1 cycles
+    // later) is always observed with pushEnable high — no early-data race.
+    val pushEnable = Bool()
+    pushEnable := False
+    byteFifo.io.push.valid         := io.sdramDataReady && sdramActiveR && pushEnable
+    byteFifo.io.push.payload.kind  := inflightKind
+    byteFifo.io.push.payload.idx   := (inflightIdx + (burstCnt << 2)).resize(log2Up(BitmapBufferDepth))
+    byteFifo.io.push.payload.data  := io.sdramDout32   // current burst word (dq_in_r), valid at data_ready
+    byteFifo.io.push.payload.bank  := fetchBank        // FSM-chosen target bank, carried with the word
+
+    // RGB565-FULLFRAME-132 B.2 (#12350): grant QUEUE. At 40.5 MHz a row fetch
+    // (1566 pixel-clocks) + an AUTO_REFRESH can overrun the ~1600 pixel-clock
+    // per-source-row grant period. Without a queue the FSM (busy, not in sIdle)
+    // DROPS that grant and the row is never fetched. Here every fetchGrant pulse is
+    // latched into `grantPending`/`pendingLine`; sIdle consumes it (immediately, no
+    // wait for a fresh pulse) so the FSM does a back-to-back catch-up fetch. Depth
+    // 1: a 2nd grant arriving while one is already pending is a true bandwidth
+    // collapse — counted in `grantOverflow` (and surfaces as a sim mismatch).
+    val grantPending  = (RegInit(False)).simPublic()
+    val pendingLine   = Reg(UInt(10 bits)) init 0
+    val grantOverflow = (Reg(UInt(8 bits)) init 0).simPublic()
 
     val fsm = new StateMachine {
       val sWaitEnable      = new State with EntryPoint
@@ -391,10 +450,14 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
       sIdle.whenIsActive {
         cmdRd := False; cmdWr := False
         sdramActiveR := False
-        when(fetchGrantEdge) {
+        // Consume a QUEUED grant (latched below) — services both a fresh grant and
+        // a grant that arrived while the previous fetch was still running.
+        when(grantPending) {
           // Each source row is displayed for two screen lines so a 240-row
           // bitmap fills the 480-line HDMI output without adding a scaler.
-          lineReg := (fetchLineSync >> 1).resize(10)
+          lineReg := (pendingLine >> 1).resize(10)
+          fetchBank := inc3(fetchBank)   // advance to this fetch's target bank
+          grantPending := False
           byteIdx := 0
           bootCounter := 0
           sdramActiveR := True
@@ -414,21 +477,37 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         }
       }
 
+      // RGB565-FULLFRAME-132 B.2 (#12318): INTERLEAVED bitmap/attr fetch —
+      // bm@idx, at@idx, idx+=4, repeat. The old serial order (all 80 bitmap words
+      // then all 80 attr words) left attr as the fetch tail, so the scanout beam
+      // read attr's early pixels before they were fetched (cosim attr-lag, #12317).
+      // Interleaving keeps both planes at the same fill-ahead distance; the total
+      // line fetch time (~373 pixel-cycles) is unchanged.
+      // RGB565-FULLFRAME-132 B.2 (#12318) + Phase 0 burst: INTERLEAVED bitmap/attr
+      // fetch at BURST granularity — bm-burst@idx, at-burst@idx, idx += 8 words,
+      // repeat. Direct-color issues 10 burst-8 reads/plane (byteIdx 0,32,..,288);
+      // indexed issues single-word reads as before (byteIdx 0,4,..). Interleaving at
+      // burst granularity keeps both planes at the same fill-ahead distance (the old
+      // serial order left attr as a tail the beam outran, #12317). One burst-8 read
+      // delivers 8 words back-to-back, so the whole 320×240 row fetch drops from
+      // ~1566 to ~370 pixel-clocks — comfortably inside the ~1600/source-row budget
+      // even with an AUTO_REFRESH landing mid-row.
       sFetchBitmap.whenIsActive {
         sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
           when(byteIdx < fetchCount) {
             cmdRd   := True
-            cmdAddr := (bitmapBaseCdc +
+            cmdAddr := (bitmapBaseUse +
                         bitmapRowByteBase +
                         byteIdx.resize(23)).resized
             inflightKind := False
             inflightIdx  := byteIdx
+            burstCnt     := 0          // first word of this burst lands at idx+0
             goto(sFetchBitmapWait)
           } otherwise {
-            byteIdx := 0
-            goto(sFetchAttr)
+            // Both planes for the whole row are done (attr was fetched in lockstep).
+            goto(sIdle)
           }
         }
       }
@@ -436,11 +515,16 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
       sFetchBitmapWait.whenIsActive {
         sdramActiveR := True
         cmdRd := False
-        // Latch done at component scope (see above). Just wait for push.fire
-        // to advance byteIdx and re-enter sFetchBitmap.
+        pushEnable := True   // capture each burst word as data_ready pulses arrive
+        // Count words within the burst; after the LAST word the bitmap burst is done —
+        // fetch the attr burst at the SAME idx before advancing, so the planes fill together.
         when(byteFifo.io.push.fire) {
-          byteIdx := byteIdx + 4   // RGB565-FULLFRAME-132: one dout32 word = 4 bytes
-          goto(sFetchBitmap)
+          when(burstCnt === (burstWords - 1)) {
+            burstCnt := 0
+            goto(sFetchAttr)
+          } otherwise {
+            burstCnt := burstCnt + 1
+          }
         }
       }
 
@@ -448,28 +532,44 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         sdramActiveR := True
         cmdRd := False; cmdWr := False
         when(!io.sdramBusy) {
-          when(byteIdx < fetchCount) {
-            cmdRd   := True
-            cmdAddr := (attrBaseCdc +
-                        attrRowByteBase +
-                        byteIdx.resize(23)).resized
-            inflightKind := True
-            inflightIdx  := byteIdx
-            goto(sFetchAttrWait)
-          } otherwise {
-            goto(sIdle)
-          }
+          cmdRd   := True
+          cmdAddr := (attrBaseUse +
+                      attrRowByteBase +
+                      byteIdx.resize(23)).resized
+          inflightKind := True
+          inflightIdx  := byteIdx
+          burstCnt     := 0
+          goto(sFetchAttrWait)
         }
       }
 
       sFetchAttrWait.whenIsActive {
         sdramActiveR := True
         cmdRd := False
+        pushEnable := True
+        // After the LAST attr word, advance the word index by one burst (burstWords*4
+        // bytes) and loop back to the bitmap read, interleaving the two planes.
         when(byteFifo.io.push.fire) {
-          byteIdx := byteIdx + 4   // RGB565-FULLFRAME-132: one dout32 word = 4 bytes
-          goto(sFetchAttr)
+          when(burstCnt === (burstWords - 1)) {
+            burstCnt := 0
+            byteIdx  := byteIdx + (burstWords << 2).resize(byteIdx.getWidth)
+            goto(sFetchBitmap)
+          } otherwise {
+            burstCnt := burstCnt + 1
+          }
         }
       }
+    }
+
+    // Depth-1 grant queue latch. Placed AFTER the FSM so that on a cycle where
+    // sIdle consumes the pending grant (grantPending := False) AND a new grant edge
+    // arrives, this block's `grantPending := True` wins — i.e. serve the old grant
+    // and queue the new one. A grant edge while a grant is ALREADY pending is a
+    // depth-1 overflow (the FSM fell two rows behind) — counted for the proof.
+    when(fetchGrantEdge) {
+      when(grantPending) { grantOverflow := grantOverflow + 1 }
+      grantPending := True
+      pendingLine  := fetchLineSync
     }
 
     io.sdramAddr := cmdAddr
@@ -478,6 +578,10 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     io.sdramWr   := cmdWr
     io.sdramRdNext := cmdRd.getAheadValue()   // #11246 F2 defensive look-ahead
     io.sdramWrNext := cmdWr.getAheadValue()
+    // RGB565-FULLFRAME-132 Phase 0: this client's read burst length (quasi-static with
+    // directColor). The arbiter forwards the granted client's value to sdram.v, which
+    // latches it at the rd pulse. burstWords=1 outside direct-color → legacy single read.
+    io.sdramBurstLen := burstWords
 
     // Level-high sdramActive: True across all non-idle states. Pulsing
     // on cmdRd/cmdWr alone is too narrow for the top-level pixelCd
@@ -489,4 +593,5 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
 
   io.bootDone    := BufferCC(sd.bootDoneR, False)
   io.sdramActive := BufferCC(sd.sdramActiveR, False)
+  io.sdramActiveRaw := sd.sdramActiveR   // raw sdramCd-domain level (no CDC) for same-domain refresh gating
 }

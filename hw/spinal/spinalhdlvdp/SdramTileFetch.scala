@@ -9,7 +9,8 @@ import spinal.lib.fsm._
   * Replaces the earlier single-clock-domain / byte-at-a-time scaffold.
   *
   * Architecture:
-  *   - the fetch FSM runs in an explicit SDRAM clock domain (`sdramCd`, 64.8 MHz class)
+  *   - the fetch FSM runs in an explicit SDRAM clock domain (`sdramCd`, 40.5 MHz; was
+  *     64.8 MHz before #11197 Option A lowered the SDRAM clock)
   *   - reads from the reused `fpga/tang20k/third_party/sdram/sdram.v` controller via its
   *     32-bit `dout32` port (still ~5-cycle per transaction, but 32-bit wide)
   *   - external refresh scheduler (~15 µs tick) drives the controller's `refresh` input,
@@ -24,7 +25,7 @@ import spinal.lib.fsm._
   *       tile `t` row `y` at 0x1000 + ((t * 16) + y) * 8
   *
   * Open items (to be resolved in simulation):
-  *   - exact PLL math for 64.8 MHz CLKOUT + 180° CLKOUTP (GT-006)
+  *   - exact PLL math for 40.5 MHz CLKOUT + 180° CLKOUTP (GT-006; was 64.8 MHz)
   *   - registered handoff for data_ready / dout32 (GT-012)
   *   - memtest bounded range choice
   */
@@ -104,7 +105,7 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
   // Pixel-domain side: line buffer + FIFO pop
   // --------------------------------------------------------------------------
   // Ping-pong line buffers. The single-buffer design raced on hardware because
-  // SDRAM-domain fetch (64.8 MHz) overtakes pixel-domain read (25.2 MHz) within
+  // SDRAM-domain fetch (40.5 MHz) overtakes pixel-domain read (25.2 MHz) within
   // ~30 pixels of each line, so L0 saw next-line data for most of the line.
   // writeBuf selects the buffer being overwritten by the current fetch; L0
   // always reads the OTHER buffer (which was just filled by the previous fetch

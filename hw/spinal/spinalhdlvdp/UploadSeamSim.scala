@@ -94,6 +94,7 @@ case class UploadSeamHarness(preFix: Boolean) extends Component {
   val sdramArea = new ClockingArea(sdramCd) {
     // CP-A2: clientCount 4→5 (client 4 = upload). idBits 2→3.
     val arbiter = SdramArbiter(clientCount = 5, addrWidth = 23, dataWidth = 8)
+    for (i <- 0 until 5) arbiter.io.clientBurstLen(i) := U(1, 4 bits)  // single-read sim
     arbiter.io.slotValid     := True
     arbiter.io.grant         := BufferCC(io.fetchGrant, False)
     arbiter.io.clientRd(0)   := fetch.io.sdramRd

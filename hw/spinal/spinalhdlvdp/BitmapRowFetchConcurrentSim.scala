@@ -33,7 +33,10 @@ object BitmapRowFetchConcurrentSim extends App {
     val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(40500000 Hz))
     BitmapRowFetch(sdramCd, skipSdramInit = true)
   }.doSim { dut =>
-    // pixel clock 25.2 MHz (period ~40 in 10-unit ticks -> use 16), sdram 40.5 (~10)
+    // Real HW clocks: pixel 25.2 MHz (period 16), SDRAM 40.5 MHz (period ~10).
+    // The SDRAM PLL is 40.5 MHz (tang20k_sdram_pll.v: 27*3/2; SDC clk_sdram period
+    // 24.691 ns), NOT the stale "64.8 MHz" header comment. period 10 / period 16 =
+    // 0.625, matching 40.5/25.2 * (16/10)... i.e. 40.5 MHz vs 25.2 MHz.
     dut.clockDomain.forkStimulus(period = 16)
     dut.sdramCd.forkStimulus(period = 10)
 
@@ -44,21 +47,28 @@ object BitmapRowFetchConcurrentSim extends App {
     dut.io.bitmapBase #= base; dut.io.attrBase #= 0x200000
     dut.io.bitmapStride #= stride; dut.io.attrStride #= stride; dut.io.bitmapHeight #= 240
 
-    // SDRAM read model: 5-cycle latency, return dout32 = 4 line-distinguishing
-    // bytes for the requested word address.
+    // SDRAM read model: 5-cycle latency, then BURST out `sdramBurstLen` consecutive
+    // 32-bit words (one data_ready pulse per cycle), word k = the 4 line-distinguishing
+    // bytes at addr + k*4 — exactly what the real sdram.v manual-burst path delivers.
+    // RGB565-FULLFRAME-132: direct-color fetch now requests burstLen=8, so a single-word
+    // response would stall the FSM (it waits for 8 push.fire per burst).
     fork {
       while (true) {
         if (dut.io.sdramRd.toBoolean) {
           val addr = dut.io.sdramAddr.toLong.toInt
+          val n    = math.max(1, dut.io.sdramBurstLen.toInt)
           dut.sdramCd.waitSampling(5)
-          def b(o: Int): Long = {
-            val a = addr + o
+          def b(base: Int, o: Int): Long = {
+            val a = base + o
             ((a ^ (a >> 8) ^ (a >> 16)) & 0xFF).toLong
           }
-          dut.io.sdramDout32 #= b(0) | (b(1) << 8) | (b(2) << 16) | (b(3) << 24)
-          dut.io.sdramDout #= b(0).toInt
-          dut.io.sdramDataReady #= true
-          dut.sdramCd.waitSampling()
+          for (k <- 0 until n) {
+            val wa = addr + k * 4
+            dut.io.sdramDout32 #= b(wa, 0) | (b(wa, 1) << 8) | (b(wa, 2) << 16) | (b(wa, 3) << 24)
+            dut.io.sdramDout #= b(wa, 0).toInt
+            dut.io.sdramDataReady #= true
+            dut.sdramCd.waitSampling()
+          }
           dut.io.sdramDataReady #= false
         } else dut.sdramCd.waitSampling()
       }
@@ -70,46 +80,52 @@ object BitmapRowFetchConcurrentSim extends App {
     while (!dut.io.bootDone.toBoolean && t > 0) { dut.sdramCd.waitSampling(); t -= 1 }
     assert(t > 0, "bootDone timeout")
 
-    // Run several full lines. On each line: drive col=hCounter through the line,
-    // pulse fetchGrant at hCounter==hActive (prefetch next line), and during the
-    // active region sample io.bitmapByte and compare to the CURRENT line's source.
-    var mismatches = 0; var checks = 0
+    // Drive BitmapRowFetch with the SAME per-SOURCE-ROW cadence VdpTop uses (and the
+    // integration cosim proves): each source row is shown on two output lines, the
+    // triple-buffer fetches two rows ahead, and the grant fires at hTotal-1 of the ODD
+    // output line (fetchLine = screenLine+5 → row+2). The first `warmup` lines fill the
+    // deeper pipeline and are not checked. Sample io.bitmapByte/attrByte CONCURRENTLY
+    // with the fetch during the active region.
+    var mismatches = 0; var checks = 0; var attrMismatches = 0
     val firstMismatch = scala.collection.mutable.ArrayBuffer[String]()
-    // prime: prefetch line 0 before its display line
-    dut.io.fetchLine #= 0
-    dut.io.fetchGrant #= true; dut.clockDomain.waitSampling(4); dut.io.fetchGrant #= false
-    dut.clockDomain.waitSampling(900) // let line 0 fetch land
+    def attrByteOf(line: Int, pixel: Int): Int = {
+      val a = 0x200000 + line * stride + pixel
+      (a ^ (a >> 8) ^ (a >> 16)) & 0xFF
+    }
+    val warmup  = 8
+    val nScreen = warmup + 8
+    dut.io.fetchGrant #= false; dut.io.fetchLine #= 0
 
-    for (dispLine <- 0 until 4) {
+    for (screenLine <- 0 until nScreen) {
+      val srcRow = screenLine >> 1
       for (h <- 0 until hTotal) {
         dut.io.col #= h
-        // prefetch next line at hActive
-        if (h == hActive) {
-          dut.io.fetchLine #= ((dispLine + 1) * 2) // VdpTop fillLine ~ next display line; source = >>1
-          dut.io.fetchGrant #= true
+        if (h == 4) dut.io.fetchGrant #= false
+        if (h == hTotal - 1 && (screenLine % 2 == 1)) {
+          dut.io.fetchLine #= (screenLine + 5); dut.io.fetchGrant #= true
         }
-        if (h == hActive + 4) dut.io.fetchGrant #= false
         dut.clockDomain.waitSampling()
         // sample during active region, at even columns (one source pixel / 2 cols)
-        if (h < hActive && (h % 2 == 0)) {
+        if (screenLine >= warmup && h < hActive && (h % 2 == 0)) {
           sleep(1)
           val got = dut.io.bitmapByte.toInt
           val gotAttr = dut.io.attrByte.toInt
           val pixel = h / 2
-          val exp = srcByte(dispLine, pixel)
-          val expAttr = ((0x200000 + dispLine * stride + pixel) ^ ((0x200000 + dispLine * stride + pixel) >> 8) ^ ((0x200000 + dispLine * stride + pixel) >> 16)) & 0xFF
+          val exp = srcByte(srcRow, pixel)
+          val expAttr = attrByteOf(srcRow, pixel)
           checks += 1
+          if (gotAttr != expAttr) attrMismatches += 1
           if (got != exp) {
             mismatches += 1
             if (firstMismatch.size < 6)
-              firstMismatch += f"line=$dispLine px=$pixel: bitmapByte got=0x$got%02X exp=0x$exp%02X | attrByte got=0x$gotAttr%02X exp=0x$expAttr%02X (bmExp=0x$exp%02X)"
+              firstMismatch += f"screen=$screenLine row=$srcRow px=$pixel: bitmapByte got=0x$got%02X exp=0x$exp%02X | attrByte got=0x$gotAttr%02X exp=0x$expAttr%02X"
           }
         }
       }
     }
-    println(f"[sim] concurrent checks=$checks mismatches=$mismatches (${100.0*mismatches/checks}%.1f%%)")
+    println(f"[sim] concurrent checks=$checks bitmapMismatches=$mismatches attrMismatches=$attrMismatches")
     firstMismatch.foreach(m => println(s"[sim]   $m"))
-    if (mismatches == 0) println("[sim] BitmapRowFetchConcurrentSim: PASS — full-frame fill/scanout coherent")
+    if (mismatches == 0 && attrMismatches == 0) println("[sim] BitmapRowFetchConcurrentSim: PASS — full-frame fill/scanout coherent (both planes)")
     else println("[sim] BitmapRowFetchConcurrentSim: FAIL — reproduces the HW wrong-content race")
   }
 }

@@ -45,18 +45,23 @@ object BitmapBaseRegSim extends App {
     dut.io.attrStride     #= 512
     dut.io.bitmapHeight   #= 240
 
-    // Reactive SDRAM read model: return (addr & 0xFF) after a short latency so
-    // the FSM keeps advancing through the row. dout32 carries the 4-byte word.
+    // Reactive SDRAM read model: 5-cycle latency, then BURST out `sdramBurstLen`
+    // consecutive 32-bit words (one data_ready pulse/cycle) so the burst FSM keeps
+    // advancing through the row. dout32 word k = bytes (addr+k*4+0..3)&0xFF.
     fork {
       while (true) {
         if (dut.io.sdramRd.toBoolean) {
           val addr = dut.io.sdramAddr.toLong
+          val n    = math.max(1, dut.io.sdramBurstLen.toInt)
           dut.sdramCd.waitSampling(5)
-          dut.io.sdramDout #= (addr & 0xFF).toInt
-          dut.io.sdramDout32 #= (addr & 0xFF) | (((addr + 1) & 0xFF) << 8) |
-                                (((addr + 2) & 0xFF) << 16) | (((addr + 3) & 0xFF) << 24)
-          dut.io.sdramDataReady #= true
-          dut.sdramCd.waitSampling()
+          for (k <- 0 until n) {
+            val wa = addr + k * 4
+            dut.io.sdramDout #= (wa & 0xFF).toInt
+            dut.io.sdramDout32 #= (wa & 0xFF) | (((wa + 1) & 0xFF) << 8) |
+                                  (((wa + 2) & 0xFF) << 16) | (((wa + 3) & 0xFF) << 24)
+            dut.io.sdramDataReady #= true
+            dut.sdramCd.waitSampling()
+          }
           dut.io.sdramDataReady #= false
         } else {
           dut.sdramCd.waitSampling()

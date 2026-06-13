@@ -63,6 +63,13 @@ module sdram
     input             rd,           // command: read
     input             wr,           // command: write
     input             refresh,      // command: auto refresh. 4096 refresh cycles in 64ms. Once per 15us.
+    // RGB565-FULLFRAME-132: manual open-row burst. burstLen = literal word count
+    // latched at the rd pulse (1..8; 0 treated as 1). burstLen<=1 is bit-identical
+    // to the legacy single-read+auto-precharge path. The SDRAM mode register stays
+    // burst-length-1 (see MODE_REG below); the burst is N consecutive column reads
+    // from one open row, auto-precharge on the FINAL read only. Single-read clients
+    // (tile/planar/L0/L1) drive burstLen=1 and are completely unaffected.
+    input       [3:0] burstLen,     // command: read burst length in 32-bit words
     input      [22:0] addr,         // byte address, buffered at rd/wr pulse time
     input       [7:0] din,          // data input, buffered at wr pulse time
     output      [7:0] dout,         // data output, available 4 cycles after rd becomes 1
@@ -117,9 +124,13 @@ localparam BURST_MODE = 1'b0;           // sequential
 localparam [10:0] MODE_REG = {4'b0, CAS[2:0], BURST_MODE, BURST_LEN};
 
 reg cfg_now;            // pulse for configuration
-reg [3:0] cycle;        // each operation (config/read/write) are max 7 cycles
+reg [3:0] cycle;        // each operation (config/read/write) are max 7 cycles. burst-8 read ends at cycle 12 < 15.
 reg [7:0] din_buf;      // set at wr=1 pulse time
 reg [22:0] addr_buf;
+reg [3:0] rd_burst;     // RGB565-FULLFRAME-132: latched read burst length (words, 1..8)
+// Column for the read command issued this cycle = base column + (cycle - T_RCD).
+// Only consumed inside the burst issue window (cycle in [T_RCD, T_RCD+rd_burst-1]).
+wire [COL_WIDTH-1:0] burst_col = addr_buf[COL_WIDTH-1+2:2] + (cycle - T_RCD);
 
 //
 // SDRAM state machine
@@ -171,6 +182,9 @@ always @(posedge clk) begin
             state <= rd ? READ : WRITE;
             addr_buf <= addr;
             if (wr) din_buf <= din;
+            // Latch + clamp the read burst length (0 -> 1, cap at 8).
+            if (rd) rd_burst <= (burstLen == 4'd0) ? 4'd1 :
+                                (burstLen >  4'd8) ? 4'd8 : burstLen;
             cycle <= 4'd1;
             busy <= 1'b1;
         end else if (refresh) begin
@@ -182,29 +196,37 @@ always @(posedge clk) begin
             busy <= 1'b1;
         end
 
-        // read sequence
-        //  cycle  / 0 \___/ 1 \___/ 2 \___/ 3 \___/ 4 \___/ 5 \___
-        //  rd     /       \_______________________________
-        //  cmd            |Active | Read  |  NOP  |  NOP  | _Next_
-        //  DQ                                     |  Dout |
-        //  data_ready ____________________________/       \_______   
-        //  busy   ________/                               \_______
-        //                 `-T_RCD-'------CAS------'
-        {READ, T_RCD}: begin
-            {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_Read;
-            SDRAM_A[10] <= 1'b1;        // set auto precharge
-            SDRAM_A[9:0] <= {1'b0, addr_buf[COL_WIDTH-1+2:2]};  // column address
-            SDRAM_DQM <= 4'b0;
-            off <= addr_buf[1:0];
-        end
-        {READ, T_RCD+CAS+4'd1}: begin   // #11168 FIX A: +1 for registered dq_in_r
-            data_ready <= 1'b1;
-        end
-        {READ, T_RCD+CAS+4'd2}: begin
-            data_ready <= 1'b0;
-            dout_buf <= next_dout;
-            busy <= 0;
-            state <= IDLE;
+        // read sequence (manual open-row burst, rd_burst words; legacy single read = rd_burst==1)
+        //  cycle  / 0 \_/ 1 \_/ 2 \_/ 3 \_/ 4 \_/ 5 \_ ... (single read, rd_burst==1)
+        //  rd     /     \_____________________________
+        //  cmd          |Active| Read |  NOP |  NOP | _Next_
+        //  DQ                                |  D0  |
+        //  data_ready ______________________/      \_____
+        //  busy   ______/                          \_____
+        //               `-T_RCD'-----CAS-----'   (+1 for registered dq_in_r, #11168 FIX A)
+        //
+        //  For rd_burst==N: N back-to-back Read commands are issued at cycles
+        //  T_RCD..T_RCD+N-1 (column auto-increments), A[10]=0 on all but the last
+        //  and A[10]=1 (auto precharge) on the last. data_ready then pulses once per
+        //  word over cycles [T_RCD+CAS+1 .. T_RCD+CAS+N]. busy stays high for the
+        //  whole burst. dout32 (=dq_in_r) carries the current word at each pulse.
+        {READ, 4'bxxxx}: begin
+            // 1) Issue the consecutive column reads from the open row.
+            if (cycle >= T_RCD && cycle <= T_RCD + rd_burst - 4'd1) begin
+                {SDRAM_nRAS, SDRAM_nCAS, SDRAM_nWE} <= CMD_Read;
+                SDRAM_A[10] <= (cycle == T_RCD + rd_burst - 4'd1);  // auto precharge on FINAL read only
+                SDRAM_A[9:0] <= {2'b00, burst_col};                 // column = base + read index
+                SDRAM_DQM <= 4'b0;
+                if (cycle == T_RCD) off <= addr_buf[1:0];
+            end
+            // 2) One data_ready pulse per returned word (#11168 FIX A: +1 for registered dq_in_r).
+            data_ready <= (cycle >= T_RCD + CAS + 4'd1) && (cycle <= T_RCD + CAS + rd_burst);
+            // 3) Complete one cycle after the last word.
+            if (cycle == T_RCD + CAS + rd_burst + 4'd1) begin
+                dout_buf <= next_dout;
+                busy <= 0;
+                state <= IDLE;
+            end
         end
 
         // write sequence

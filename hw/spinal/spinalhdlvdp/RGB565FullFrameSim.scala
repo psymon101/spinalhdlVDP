@@ -39,28 +39,32 @@ object RGB565FullFrameSim extends App {
       val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(SDRAM_HZ.toLong Hz))
       BitmapRowFetch(sdramCd, skipSdramInit = true)
     }.doSim { dut =>
-      dut.clockDomain.forkStimulus(period = 10)
-      dut.sdramCd.forkStimulus(period = 10)
+      dut.clockDomain.forkStimulus(period = 16)   // pixel 25.2 MHz
+      dut.sdramCd.forkStimulus(period = 10)        // SDRAM 40.5 MHz
       dut.io.sdramDout #= 0; dut.io.sdramDout32 #= 0x55555555L; dut.io.sdramDataReady #= false; dut.io.sdramBusy #= false
       dut.io.fetchGrant #= false; dut.io.fetchLine #= 0; dut.io.col #= 0
       dut.io.enable #= false; dut.io.directColor #= false; dut.io.tileBootDone #= false
       dut.io.bitmapBase #= 0x100000; dut.io.attrBase #= 0x200000
       dut.io.bitmapStride #= 512; dut.io.attrStride #= 512; dut.io.bitmapHeight #= 240
 
-      // SDRAM read model with parameterised latency. Each read now returns a
-      // 32-bit dout32 word = 4 bytes (RGB565-FULLFRAME-132). Count bytes so the
-      // row completes at 640 bytes = 160 word-reads.
+      // SDRAM read model with parameterised CAS latency to the first word, then a
+      // BURST of `sdramBurstLen` 32-bit words at one word/cycle (RGB565-FULLFRAME-132).
+      // Each word = 4 bytes; the row completes at 640 bytes = 20 burst-8 reads (or 160
+      // single reads if burstLen=1). Count bytes so the loop terminates at row end.
       var bytesDelivered = 0
       fork {
         while (true) {
           if (dut.io.sdramRd.toBoolean) {
+            val n = math.max(1, dut.io.sdramBurstLen.toInt)
             dut.sdramCd.waitSampling(readLatency)
-            dut.io.sdramDout #= 0x55
-            dut.io.sdramDout32 #= 0x55555555L
-            dut.io.sdramDataReady #= true
-            dut.sdramCd.waitSampling()
+            for (k <- 0 until n) {
+              dut.io.sdramDout #= 0x55
+              dut.io.sdramDout32 #= 0x55555555L
+              dut.io.sdramDataReady #= true
+              dut.sdramCd.waitSampling()
+              bytesDelivered += 4
+            }
             dut.io.sdramDataReady #= false
-            bytesDelivered += 4
           } else dut.sdramCd.waitSampling()
         }
       }
