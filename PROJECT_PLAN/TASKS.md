@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-05-29 (P3 closed, P4 queued. BrightForge replied to team check #10853. Three active sub-lanes/action items in flight.)
+**Updated:** 2026-06-14 (BSRAM at ~92%; whole-VDP regression baseline #1–3 PASS; docs merged.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,21 +22,28 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(none — last closed: Priority 3 Planar Hardening)* |
-| **Status** | **NO ACTIVE LANE** |
-| **Task ID** | — |
-| **Owner** | BrightForge |
-| **Baseline Commit** | `1efa9c1` (main, post-P3 merge) |
-| **Latest Auth Mail** | TopazCliff #10815 (lane-closeout team check sent) |
-| **Summary** | Defensive checks on planar read path. 6 risks identified, runtime asserts landed, sim discriminators in flight. |
-| **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): DONE (`50fcced`, `aa4b1d0`, `89ec7e9`). B(3): DONE (`4123604`). C: DONE (CyanPeak doc audit PASS #10814, fixes merged `60a6f03`). |
-| **Next Step** | Await team check replies (#10815) → review → open P4 (Reset-pin) lane. BrightForge standing by for PM priority assignment between active sub-lanes. |
+| **Task** | Whole-VDP regression baseline before BSRAM optimization |
+| **Status** | **IN-PROGRESS** |
+| **Task ID** | WHOLE-VDP-134 |
+| **Owner** | BrightForge (RTL/build/regression) / BronzeGate (firmware scenario suite) / CyanPeak (audit) |
+| **Baseline Commit** | `c98ec03` (main after RGB565-FULLFRAME-DOCS-133 merge; prior baseline `7a1d5da`) |
+| **Latest Auth Mail** | TopazCliff #12500 (scenario #5 PASS; commit corrected helper sketches and proceed to #6) |
+| **Summary** | BSRAM usage is ~92% (36 SDPB + 6 SDPX9B weighted). Before starting BSRAM optimization, establish a known-good whole-system baseline by running the regression harness and an i80/ESP32-S3 firmware-driven scenario suite on the generic Mode0 IP. QSPI is retired as the canonical host path. Scenario #2 root cause confirmed as missing 480-line linestate fill. Scenario #5 copper-over-i80 PASS verified on raw-i80 and libvdp-helper paths after removing the full-screen border-window trap. |
+| **Checkpoints** | A: Fix regression harness to work with generic-IP (no per-scenario tops) and run Verilog/synthesis baseline — DONE. B: Port/run i80/ESP32-S3 firmware scenario suite covering L0/L1 tile, sprite, planar, affine, copper/HDMA, color-math, scaler/border, RGB565 — **IN PROGRESS** (i80 smoke PASS; scenarios #2 RGB565 full-frame, #3 scaler/border, #4 sprite/mask PASS; scenario #5 copper raster-bands PASS via raw i80 probe and helper-path PASS after border-window fix). C: BSRAM consumer audit to feed optimization planning — DONE. D: CyanPeak audit of regression results. |
+| **Next Step** | Scenario #6 definition is missing from `TASKS.md`; request PM clarification before coding. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
 ---
 
 ## Next Up / Open Queue
+
+### Priority 0 — RGB565 Full-Frame Docs and Canonical Example
+- **Status:** **DONE**
+- **Owner:** CoralReef (docs) / BronzeGate (example)
+- **Scope:** Finish `VDP_PROGRAMMING_GUIDE.md` RGB565 section, sweep docs/examples for stale data, CyanPeak doc audit.
+- **Depends on:** RGB565-FULLFRAME-132 DONE
+- **Validation:** Docs consistent with `mode0_regs.json`; canonical example compiles; CyanPeak audit PASS (#12437); branch merged to `main` @ `c98ec03`.
 
 ### Priority 1 — libvdp Scaler Register Exposure
 - **Status:** **DONE**
@@ -120,6 +127,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 
 | Task | Status | Reference |
 |---|---|---|
+| RGB565-FULLFRAME-132 — full-frame RGB565 direct-color burst-read controller, sim + STA + HW proof | **DONE** | merge `c8129bd`, formal fix `d668e01`, closeout #12378 |
 | P23 Timing-Margin Recovery — burst-refresh re-enabled + place/route effort=2 (clk_pixel +5.709 ns, TNS 0) | **DONE** | #12107/#12114/#12115 |
 | P22 i80 Block-Write + SDRAM Upload — byte-exact HW proof through libvdp | **DONE** | #12072/#12084 |
 | P21 i80 Parallel Host Interface — full HW proof (continuity + transport + visible BORDER_CTRL) | **DONE** | #12010/#12071 |
