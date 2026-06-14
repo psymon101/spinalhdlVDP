@@ -64,6 +64,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     // bounded reset sequence completes (host polls this; i80 register reads
     // are otherwise last-write loopback). See the soft-reset controller below.
     val softResetBusy = out Bool()
+    // VDP-SOFT-RESET-135 #3: SDRAM zero-fill stage handshake to TopTang. After
+    // the on-chip Mem clear sweep, the controller raises `sdramFillStart` (level)
+    // and holds busy until TopTang's sdram-domain fill FSM returns
+    // `sdramFillDone` (both crossed by BufferCC in TopTang). On single-clock
+    // sims with no fill engine, tie sdramFillDone high so the stage passes through.
+    val sdramFillStart = out Bool()
+    val sdramFillDone  = in  Bool() default True
     // R5: unified register-write bus. Replaces the raw lsWrite* ports.
     //   0x0000-0x01DF  linestate prepare (addr low 9 bits = line; data low 12 bits = {l0en, l1en, l0scrollX[9:0]})
     //   0x0300         LAYER_ENABLE (data[0]=L0, data[1]=L1, data[2]=sprite) — global override
@@ -296,6 +303,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val softResetBusy     = Reg(Bool()) init False
   val softResetMemClear = Reg(Bool()) init False
   val softResetMemAddr  = Reg(UInt(14 bits)) init 0
+  // #3: SDRAM zero-fill stage — high after the on-chip Mem clear, while the
+  // controller waits for TopTang's sdram-domain fill FSM (sdramFillDone).
+  val softResetFillStage = Reg(Bool()) init False
   // #2b: linestate clears BOTH prepare+commit in one pass — a same-cycle
   // prepare-write + commit at the same address hits the BH-6 collision path,
   // which writes the (zero) writeData into commit. Active for addr < lineCount.
@@ -583,33 +593,41 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // core-reset partition) so the controller survives the reset it drives and
   // can hold/clear the request + drive the busy status throughout.
   //
-  // Until [#2..#4] land, the sequence is a bounded placeholder wait so the
-  // handshake is provable in sim and BronzeGate's wrapper (write 0x0004, poll
-  // bit2) can be developed against the real contract. NOT a functional reset
-  // yet — do not flash as a working soft reset until [#2..#4] are merged.
-  // (softResetRequest/softResetBusy/softResetMemClear/softResetMemAddr declared
-  // above the 0x0310 decode.)
+  // Sequence: stage 1 = on-chip Mem clear sweep (#2a-#2e, done); stage 2 = SDRAM
+  // zero-fill via TopTang's fill FSM (#3); stage 3 = core register reset (#4,
+  // pending). Busy is held across all stages; the request auto-clears at the end.
+  // (softResetRequest/softResetBusy/softResetMemClear/softResetMemAddr/
+  //  softResetFillStage declared above the 0x0310 decode.)
   // Sweep covers addr [0, 16383] (full 14-bit sprite-pattern depth). palette
   // (PaletteDepth=128) clears only while addr < PaletteDepth; pattern RAM clears
   // across the whole sweep. The per-Mem write muxes live at each Mem below.
   val softResetSweepLast = U((1 << 14) - 1, 14 bits)
   when(softResetRequest && !softResetBusy) {
-    softResetBusy     := True            // accept the request; begin the sequence
-    softResetMemClear := True            // stage 1: local on-chip memory clear
-    softResetMemAddr  := 0
+    softResetBusy      := True           // accept the request; begin the sequence
+    softResetMemClear  := True           // stage 1: on-chip memory clear sweep
+    softResetMemAddr   := 0
+    softResetFillStage := False
   }
   when(softResetBusy && softResetMemClear) {
     when(softResetMemAddr === softResetSweepLast) {
-      softResetMemClear := False
-      // ---- stage-chaining point: #2b submodule mems / #3 SDRAM fill / #4 core
-      // register reset insert HERE before completion. For #2a (local mem clear
-      // only) the sequence ends now. ----
-      softResetBusy    := False          // sequence complete: drop busy ...
-      softResetRequest := False          // ... and auto-clear the request bit
+      softResetMemClear  := False
+      // stage 2: SDRAM zero-fill. Raise the fill request and hold busy until
+      // TopTang's sdram-domain fill FSM reports done (BufferCC-crossed). #4
+      // (core register reset) will chain after the fill stage when it lands.
+      softResetFillStage := True
     } otherwise {
       softResetMemAddr := softResetMemAddr + 1
     }
   }
+  when(softResetBusy && softResetFillStage) {
+    when(io.sdramFillDone) {             // SDRAM zero-fill complete ...
+      softResetFillStage := False
+      softResetBusy      := False        // ... drop busy and ...
+      softResetRequest   := False        // ... auto-clear the request bit
+    }
+  }
+  // SDRAM-fill request to TopTang (level; CDC'd in TopTang to sdramClockDomain).
+  io.sdramFillStart := softResetFillStage
   io.softResetBusy := softResetBusy
 
   // MODE_SELECT @ 0x0313: 16-bit register — [3:0] = MODE_SELECT,
