@@ -25,8 +25,19 @@ extern "C" {
 #define VDP_UPLOAD_STATUS_DONE      0x0002u
 #define VDP_UPLOAD_STATUS_ERROR     0x0004u
 #define VDP_UPLOAD_STATUS_OVERFLOW  0x0008u
+#define VDP_UPLOAD_STATUS_TXN_DROPPED 0x0010u
 #define VDP_UPLOAD_STATUS_CLEAR_MASK \
-    (VDP_UPLOAD_STATUS_ERROR | VDP_UPLOAD_STATUS_OVERFLOW)
+    (VDP_UPLOAD_STATUS_ERROR | VDP_UPLOAD_STATUS_OVERFLOW | \
+     VDP_UPLOAD_STATUS_TXN_DROPPED)
+
+#define VDP_QSPI_ERR_NONE 0
+#define VDP_QSPI_ERR_INVALID_ARG 2
+#define VDP_QSPI_ERR_BUS_INIT 3
+#define VDP_QSPI_ERR_DEVICE 4
+#define VDP_QSPI_ERR_TX 5
+#define VDP_QSPI_ERR_RX 6
+#define VDP_QSPI_ERR_NOT_INITIALIZED 7
+#define VDP_QSPI_ERR_INVALID_SELECTOR 8
 
 /**
  * One-time bring-up of the QSPI pins, PIO program, and clock divider.
@@ -34,6 +45,7 @@ extern "C" {
  * library call. Idempotent after first call (subsequent calls no-op).
  */
 void vdp_qspi_init(void);
+void vdp_host_init(void);
 
 /**
  * Issue a REG_WRITE (CMD=0x01) transaction writing a single 16-bit
@@ -73,6 +85,7 @@ void vdp_clear_upload_status(uint16_t mask);
  * @return 32-bit response assembled from 4 bit-banged bytes (byte 0 = LSB)
  */
 uint32_t vdp_read_status(uint8_t sel);
+uint16_t vdp_reg_read(uint32_t addr);
 
 /**
  * Issue an SDRAM_WRITE (CMD=0x02) transaction streaming `num_words`

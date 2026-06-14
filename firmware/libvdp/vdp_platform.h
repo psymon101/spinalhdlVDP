@@ -28,26 +28,41 @@
 #elif defined(CONFIG_IDF_TARGET_ESP32S3) || defined(ARDUINO_ESP32S3_DEV) || defined(ARDUINO_ESP32S3_DEV_KIT_C_1)
 #include <Arduino.h>
 
-/* ESP32-S3-DevKitC-1 (WROOM-1) native FSPI group → Tang Nano 20K
- * (rewired 2026-05-23). Prefer the dedicated FSPI pins over a GPIO-matrix
- * mapping for the lowest-ambiguity quad-SPI test path.
+/* ESP32-S3-DevKitC-1 8-bit i80 host harness.
  *
- *   GPIO10 -> CS#   -> Tang pin 42
- *   GPIO12 -> SCK   -> Tang pin 41
- *   GPIO11 -> IO0   -> Tang pin 48
- *   GPIO13 -> IO1   -> Tang pin 49
- *   GPIO14 -> IO2   -> Tang pin 51
- *   GPIO9  -> IO3   -> Tang pin 54
+ * i80 is the active ESP32-S3 backend. The older QSPI pin symbols remain for
+ * legacy sketches on other paths, but ESP32-S3 library builds select the i80
+ * GPIO backend by default.
+ *
+ *   D0..D7 GPIO4..11 -> Tang pins 25/26/27/28/29/30/31/41
+ *   DC     GPIO15    -> Tang pin 85
+ *   CS#    GPIO16    -> Tang pin 76
+ *   WR#    GPIO17    -> Tang pin 77
+ *   RD#    GPIO18    -> Tang pin 80
  */
+#define VDP_PIN_I80_D0     4
+#define VDP_PIN_I80_D1     5
+#define VDP_PIN_I80_D2     6
+#define VDP_PIN_I80_D3     7
+#define VDP_PIN_I80_D4     8
+#define VDP_PIN_I80_D5     9
+#define VDP_PIN_I80_D6    10
+#define VDP_PIN_I80_D7    11
+#define VDP_PIN_I80_DC    15
+#define VDP_PIN_I80_CS_N  16
+#define VDP_PIN_I80_WR_N  17
+#define VDP_PIN_I80_RD_N  18
+
+#ifndef VDP_HOST_BACKEND_I80_GPIO
+#define VDP_HOST_BACKEND_I80_GPIO 1
+#endif
+
 #define VDP_PIN_QSPI_CS_N  10
 #define VDP_PIN_QSPI_SCK   12
 #define VDP_PIN_QSPI_IO0   11
 #define VDP_PIN_QSPI_IO1   13
 #define VDP_PIN_QSPI_IO2   14
 #define VDP_PIN_QSPI_IO3    9
-
-/* Use hardware SPI2 (quad mode, DMA) instead of bit-bang. */
-#define VDP_QSPI_BACKEND_SPI2  1
 
 #elif defined(ESP32)
 #include <Arduino.h>
