@@ -107,17 +107,23 @@ void start_nes_game() {
 ```
 
 ### `vdp_mode0_set_layer_enable`
-**Description**: A high-level helper for the `LAYER_ENABLE` register. It uses a bitmask where:
+**Description**: A high-level helper for the global `LAYER_ENABLE` register. It uses a bitmask where:
 - `bit 0`: Layer 0 (Bottom)
 - `bit 1`: Layer 1 (Top)
 - `bit 2`: Sprites
 
-**Real World Use**: Use this to toggle UI overlays or to create "fading" effects by disabling layers during a transition.
+> [!IMPORTANT]
+> Setting a global `LAYER_ENABLE` bit is **necessary but not sufficient**. Each output line also has a per-line **linestate** record that gates the layer. A layer is visible on a line only when **both** the global `LAYER_ENABLE` bit and the line's linestate enable bit are 1. For a simple full-screen L0 bitmap you must write `0x0800` to every active line's linestate entry (addresses `0x0000..0x01DF`).
+>
+> See the RGB565 full-frame example in §10 for the canonical linestate setup.
+
+**Real World Use**: Use this to toggle UI overlays or to create "fading" effects by disabling layers during a transition. Remember that any line whose linestate enable is 0 will stay blank regardless of this register.
 
 ```c
 void toggle_ui(bool show) {
     if (show) {
-        vdp_mode0_set_layer_enable(0x07); // Enable L0, L1, and Sprites
+        vdp_mode0_set_layer_enable(0x07); // Enable L0, L1, and Sprites globally
+        // Per-line linestate must also be enabled (e.g. via vdp_mode0_write_linestate)
     } else {
         vdp_mode0_set_layer_enable(0x05); // Disable L1 (UI layer), keep L0 and Sprites
     }
@@ -303,7 +309,7 @@ vdp_mode0_set_logical_resolution(320, 240);
 
 | Address | Name | Description |
 |---|---|---|
-| `0x0300` | `LAYER_ENABLE` | bit0:L0, bit1:L1, bit2:Sprite, bit3:L2, bit4:L3 |
+| `0x0300` | `LAYER_ENABLE` | bit0:L0, bit1:L1, bit2:Sprite, bit3:L2, bit4:L3. **Global enable only** — each bit is ANDed with the per-line linestate enable bit (addresses `0x0000..0x01DF`). |
 | `0x0310` | `VDP_CTRL` | bit0:Copper Enable, bit1:Copper Swap Request |
 | `0x0320` | `STATUS_STICKY` | bit0:Raster Match, bit8:DMA Done, bit9:Blit Done |
 | `0x0330` | `WIN1_X0` | Window 1 Left Boundary |
@@ -359,6 +365,25 @@ Row 239: BITMAP_BASE + 239*512      -> low bytes of row 239
 >
 > **Deprecated bit:** `BITMAP_CTRL` bit 7 is deprecated and has no effect. Use `0x0005`, not `0x0085`.
 
+### Linestate precondition
+
+Enabling the global `LAYER_ENABLE` bit 0 is **not enough** to make the bitmap visible. The render pipeline also reads a per-line **linestate** record that gates layer 0 for that line.
+
+- Linestate entries live at addresses `0x0000..0x01DF` (one 16-bit word per active display line; 480 lines for 480p output).
+- Record format: `{l0en[11], l1en[10], l0scrollX[9:0]}`.
+- For a simple full-screen L0 bitmap, write `0x0800` to all 480 entries: L0 enabled, L1 disabled, `layer0ScrollX = 0`.
+- `effectiveL0Enable = linestate.layer0Enable && LAYER_ENABLE(0)`.
+
+The canonical example initializes linestate like this:
+
+```c
+for (uint16_t line = 0; line < VDP_MODE0_LINESTATE_COUNT; ++line) {
+    vdp_mode0_write_linestate(line, 0x0800u); // L0 on, L1 off, scrollX = 0
+}
+```
+
+Without this step the screen will show only the backdrop color, even though `LAYER_ENABLE` is set.
+
 ### Uploading the image
 
 For each row, pack the low bytes of two consecutive pixels into one 16-bit word, and the high bytes into another 16-bit word, then upload to the respective planes. The canonical example `firmware/esp32s3_rgb565_fullframe/esp32s3_rgb565_fullframe.ino` demonstrates the full sequence.
@@ -383,6 +408,11 @@ void setup_rgb565_fullscreen(void) {
 
     // enable + BPP=0b10 (RGB565 direct-color)
     vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL, 0x0005u);
+
+    // Per-line linestate precondition: L0 on, L1 off, scrollX = 0
+    for (uint16_t line = 0; line < VDP_MODE0_LINESTATE_COUNT; ++line) {
+        vdp_mode0_write_linestate(line, 0x0800u);
+    }
 
     vdp_mode0_set_layer_enable(0x0001u);
 }

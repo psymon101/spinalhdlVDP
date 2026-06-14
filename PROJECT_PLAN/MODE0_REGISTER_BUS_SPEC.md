@@ -212,15 +212,18 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x0000` |
 | Category | vblank-sensitive |
-| Description | Enables visible Mode0 display layers. |
+| Description | **Global** layer-enable mask. A layer renders on a given output line only when the corresponding bit here **and** the per-line linestate enable bit are both 1. |
 
 | Bits | Field | Description |
 |---|---|---|
-| `[0]` | L0 | Enables layer 0 output. |
-| `[1]` | L1 | Enables layer 1 output. |
-| `[2]` | SPRITE | Enables sprite output. |
-| `[3]` | L2 | Enables layer 2 output. |
-| `[4]` | L3 | Enables layer 3 output. |
+| `[0]` | L0 | Enables layer 0 output globally. |
+| `[1]` | L1 | Enables layer 1 output globally. |
+| `[2]` | SPRITE | Enables sprite output globally. |
+| `[3]` | L2 | Enables layer 2 output globally. |
+| `[4]` | L3 | Enables layer 3 output globally. |
+
+> [!IMPORTANT]
+> `LAYER_ENABLE` is a global override only. The render pipeline computes `effectiveL0Enable = linestate.layer0Enable && LAYER_ENABLE(0)` (and similarly for L1). Host code that sets `LAYER_ENABLE` must also populate the linestate entries at `0x0000..0x01DF` (see §3.1).
 
 ### VDP_CTRL (`0x0310`)
 
