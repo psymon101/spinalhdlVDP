@@ -22,15 +22,15 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | *(none — last closed: Priority 3 Planar Hardening)* |
-| **Status** | **NO ACTIVE LANE** |
-| **Task ID** | — |
-| **Owner** | BrightForge |
-| **Baseline Commit** | `1efa9c1` (main, post-P3 merge) |
-| **Latest Auth Mail** | TopazCliff #10815 (lane-closeout team check sent) |
-| **Summary** | Defensive checks on planar read path. 6 risks identified, runtime asserts landed, sim discriminators in flight. |
-| **Checkpoints** | A: DONE (#10790). B(1): DONE (`4ff92d5`). B(2): DONE (`50fcced`, `aa4b1d0`, `89ec7e9`). B(3): DONE (`4123604`). C: DONE (CyanPeak doc audit PASS #10814, fixes merged `60a6f03`). |
-| **Next Step** | Await team check replies (#10815) → review → open P4 (Reset-pin) lane. BrightForge standing by for PM priority assignment between active sub-lanes. |
+| **Task** | Priority 4 — Soft Reset via VDP_CTRL[2] |
+| **Status** | **QUEUED** (owner go-ahead pending) |
+| **Task ID** | VDP-SOFT-RESET-135 |
+| **Owner** | BrightForge (RTL), BronzeGate (libvdp) |
+| **Baseline Commit** | `bbbc966` (main, post-i80-firmware merge) |
+| **Latest Auth Mail** | — |
+| **Summary** | Host-triggered soft reset: VDP_CTRL bit 2 resets registers, clears BSRAM, and zero-fills SDRAM. No physical pin change. |
+| **Checkpoints** | A: RTL reset/clear engine. B: Sim proof. C: Hardware proof + libvdp wrapper. D: Docs + audit. |
+| **Next Step** | Owner confirmation → BrightForge starts RTL; BronzeGate prepares libvdp wrapper in parallel after register contract is stable. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -78,12 +78,19 @@ This section tracks the active lane.
   - **C:** DONE — CyanPeak doc audit PASS #10814, fixes merged `60a6f03`.
 - **Closeout:** DONE — lane-closeout team check sent #10815, awaiting replies before P4.
 
-### Priority 4 — Reset-pin Lane
+### Priority 4 — Soft Reset via VDP_CTRL[2]
 - **Status:** **QUEUED**
-- **Owner:** BrightForge
-- **Scope:** Physical reset button / pin for Tang Nano 20K.
+- **Owner:** BrightForge (RTL), BronzeGate (libvdp wrapper)
+- **Scope:** Add a host-triggered soft reset using spare bit 2 of `VDP_CTRL @ 0x0310`. Writing `1` to bit 2 triggers the same global reset/clear engine as a physical POR: all registers return to their `init` values, all BSRAM memories are zeroed, and an SDRAM zero-fill engine clears SDRAM. The request bit auto-clears when reset completes. No physical pin or wiring change.
 - **Depends on:** None
-- **Validation:** Hardware proof: reset pin returns system to known state without power cycle.
+- **Validation:**
+  - Simulation: after writing `VDP_CTRL = 0x0004`, observable registers and memories read back as reset values.
+  - Hardware: host can call `vdp_mode0_soft_reset()` and verify the VDP returns to a known baseline state without power-cycling.
+- **Checkpoints:**
+  - A: RTL global reset + BSRAM clear engine + SDRAM zero-fill engine.
+  - B: Simulation proof.
+  - C: Hardware proof + libvdp `vdp_mode0_soft_reset()` wrapper.
+  - D: Doc update (`VDP_CTRL` detail table, `VDP_PROGRAMMING_GUIDE.md` usage note) and CyanPeak audit.
 
 ### Sub-lane: 2bpp Planar FPGA Hardware Proof
 - **Status:** **IN-PROGRESS**
