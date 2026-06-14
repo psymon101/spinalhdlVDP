@@ -111,6 +111,20 @@ This section tracks the active lane.
 - **Scope:** Add integer pixel-repetition scaling to VdpTop output path + libvdp resolution APIs.
 - **Closeout:** Merged to main @ `d69d404`. Hardware proof v3 validated by BrightForge #10731, merged by TopazCliff #10732.
 
+### Priority 6 — Host-Loadable Affine Texture
+- **Status:** **QUEUED**
+- **Owner:** BrightForge (RTL), BronzeGate (libvdp + test), CoralReef (docs), CyanPeak (audit)
+- **Scope:** Remove the fixed `affineTexture` ROM in `VdpTop` and replace it with a host-loadable memory path. The affine/Mode7 background texture must be uploadable by the user at runtime, not hardcoded in RTL. Reset implication: once host-loadable, `VDP_SOFT_RESET_REQUEST` must also clear this texture (the existing 16384-cycle sweep already fits it).
+- **Depends on:** VDP-SOFT-RESET-135 Stage 4 complete (so the reset sweep contract is stable).
+- **Validation:**
+  - Simulation: host can upload a new texture and the affine layer displays it.
+  - Hardware: uploaded texture visible on Tang Nano 20K output.
+- **Checkpoints:**
+  - A: RTL change — add write port to affine texture memory, host register interface, and reset-sweep inclusion.
+  - B: Simulation proof.
+  - C: libvdp helper and hardware proof.
+  - D: Docs + audit.
+
 ### RGB565 Hardware Bench Framing Investigation
 - **Status:** **DEFERRED** (#10503 follow-up). 
 - **Scope:** Superseded by ESP32-S3 host bring-up and 1-pixel fix.
