@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-14 (BSRAM at ~92%; whole-VDP regression baseline #1–3 PASS; docs merged.)
+**Updated:** 2026-06-11 (BSRAM at ~92%; WHOLE-VDP-134 closed at scenario #5; VDP-SOFT-RESET-135 is live lane.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,15 +22,15 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | Whole-VDP regression baseline before BSRAM optimization |
+| **Task** | Host-triggered soft reset via `VDP_CTRL[2]` |
 | **Status** | **IN-PROGRESS** |
-| **Task ID** | WHOLE-VDP-134 |
-| **Owner** | BrightForge (RTL/build/regression) / BronzeGate (firmware scenario suite) / CyanPeak (audit) |
-| **Baseline Commit** | `c98ec03` (main after RGB565-FULLFRAME-DOCS-133 merge; prior baseline `7a1d5da`) |
-| **Latest Auth Mail** | TopazCliff #12500 (scenario #5 PASS; commit corrected helper sketches and proceed to #6) |
-| **Summary** | BSRAM usage is ~92% (36 SDPB + 6 SDPX9B weighted). Before starting BSRAM optimization, establish a known-good whole-system baseline by running the regression harness and an i80/ESP32-S3 firmware-driven scenario suite on the generic Mode0 IP. QSPI is retired as the canonical host path. Scenario #2 root cause confirmed as missing 480-line linestate fill. Scenario #5 copper-over-i80 PASS verified on raw-i80 and libvdp-helper paths after removing the full-screen border-window trap. |
-| **Checkpoints** | A: Fix regression harness to work with generic-IP (no per-scenario tops) and run Verilog/synthesis baseline — DONE. B: Port/run i80/ESP32-S3 firmware scenario suite covering L0/L1 tile, sprite, planar, affine, copper/HDMA, color-math, scaler/border, RGB565 — **IN PROGRESS** (i80 smoke PASS; scenarios #2 RGB565 full-frame, #3 scaler/border, #4 sprite/mask PASS; scenario #5 copper raster-bands PASS via raw i80 probe and helper-path PASS after border-window fix). C: BSRAM consumer audit to feed optimization planning — DONE. D: CyanPeak audit of regression results. |
-| **Next Step** | Scenario #6 definition is missing from `TASKS.md`; request PM clarification before coding. |
+| **Task ID** | VDP-SOFT-RESET-135 |
+| **Owner** | BrightForge (RTL + SDRAM fill engine) / BronzeGate (libvdp wrapper) / CyanPeak (ClockDomain partitioning review + code-to-spec) / CoralReef (docs) |
+| **Baseline Commit** | `d42bac8` (main after copper-docs merge and affine-texture backlog task) |
+| **Latest Auth Mail** | TopazCliff #12539 (SDRAM zero-fill rulings: 1000 ms timeout, interleaved refresh, Option C controller-direct fill) |
+| **Summary** | Add a host-triggered soft reset that returns the VDP to a POR-equivalent state without a power cycle. Stage 1 (handshake + i80 `0x0310` live readback) and Stage 2 (on-chip host-writable Mem zero-sweep) are sim-proven. Stage 3 zeros all 8 MB of SDRAM via a controller-direct fill FSM in `sdramClockDomain`. Stage 4 will partition the core ClockDomain so registers reset while the controller + host interface survive. `affineTexture` and immutable tile ROMs remain excluded from reset scope. |
+| **Checkpoints** | A: `VDP_CTRL[2]` request/busy handshake + i80 live readback — DONE (`095a507`). B: On-chip Mem clear sweep — DONE (`a2043fc`). C: SDRAM zero-fill engine — **IN PROGRESS** (design approved; implement + SDRAM-model cosim). D: Core register ClockDomain partition — **PENDING** (CyanPeak review before build). E: libvdp `vdp_mode0_soft_reset()` wrapper + docs — **PENDING** (timeout update after Stage 3). |
+| **Next Step** | BrightForge implements Stage 3 SDRAM fill with interleaved refresh and proves it in cosim; CyanPeak stands by for Stage 4 partitioning review. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -141,6 +141,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 
 | Task | Status | Reference |
 |---|---|---|
+| WHOLE-VDP-134 — whole-system i80/ESP32-S3 regression baseline before BSRAM optimization (scenarios #1–#5) | **DONE** | scenario #5 PASS on raw-i80 + libvdp-helper paths; copper docs merged `36adcbc`; closeout #12543 |
 | RGB565-FULLFRAME-132 — full-frame RGB565 direct-color burst-read controller, sim + STA + HW proof | **DONE** | merge `c8129bd`, formal fix `d668e01`, closeout #12378 |
 | P23 Timing-Margin Recovery — burst-refresh re-enabled + place/route effort=2 (clk_pixel +5.709 ns, TNS 0) | **DONE** | #12107/#12114/#12115 |
 | P22 i80 Block-Write + SDRAM Upload — byte-exact HW proof through libvdp | **DONE** | #12072/#12084 |
