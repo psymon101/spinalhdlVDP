@@ -283,9 +283,27 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // Commit at line boundary: at the start of each line, the prepare entry for
   // the current fillLine is copied to the commit side.
   val linestate = LinestateStore(lineCount = vActive)
+
+  // VDP-SOFT-RESET-135: soft-reset controller state. Declared here (before the
+  // linestate/scroll/palette/pattern write ports that the clear-sweep muxes
+  // reference) — the request-latch decode + FSM logic follow further below.
+  // #2a/#2b: on-chip memory clear sweep over host-writable Mems. Single shared
+  // address counter; each Mem's EXISTING single write port is MUXED to the
+  // sweep when active (NOT a second write port — that broke Gowin BSRAM
+  // inference before). Sized to the largest swept Mem (sprite pattern RAM =
+  // 16384 entries = 14b). affineTexture excluded (no write port; immutable POR).
+  val softResetRequest  = Reg(Bool()) init False
+  val softResetBusy     = Reg(Bool()) init False
+  val softResetMemClear = Reg(Bool()) init False
+  val softResetMemAddr  = Reg(UInt(14 bits)) init 0
+  // #2b: linestate clears BOTH prepare+commit in one pass — a same-cycle
+  // prepare-write + commit at the same address hits the BH-6 collision path,
+  // which writes the (zero) writeData into commit. Active for addr < lineCount.
+  val lsSweepWr = softResetMemClear && (softResetMemAddr < U(vActive, 14 bits))
+
   linestate.io.readAddr := fillLine.resized
-  linestate.io.commitLine := fillLine.resized
-  linestate.io.commitStrobe := hCounter === hTotal - 1
+  linestate.io.commitLine   := Mux(lsSweepWr, softResetMemAddr.resize(log2Up(vActive)), fillLine.resized)
+  linestate.io.commitStrobe := Mux(lsSweepWr, True, hCounter === hTotal - 1)
   // Prepare-side write interface exposed for simulation testing.
   // R5 Copper coprocessor, fed by the regWrite bus for program uploads and by
   // `copperCtrlReg(0)` (VDP_CTRL @ 0x0310) for run control — R5.3 unifies the
@@ -399,9 +417,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // take the low 9 bits of effAddr as line index and the low 12 bits of
   // effData as the packed record. LAYER_ENABLE latches at 0x0300.
   val lsRangeHit = effWrite && (effAddr < U(480, 15 bits))
-  linestate.io.writeAddr := effAddr(log2Up(480) - 1 downto 0)
-  linestate.io.writeData := effData(11 downto 0)
-  linestate.io.writeEnable := lsRangeHit
+  // VDP-SOFT-RESET-135 #2b: prepare-side write muxed between host and the
+  // zero-sweep. writeAddr/writeData here pair with the commitLine/commitStrobe
+  // override above so each swept line zeroes prepare AND commit (BH-6 collision).
+  linestate.io.writeAddr   := Mux(lsSweepWr, softResetMemAddr.resize(log2Up(480)), effAddr(log2Up(480) - 1 downto 0))
+  linestate.io.writeData   := Mux(lsSweepWr, B(0, 12 bits), effData(11 downto 0))
+  linestate.io.writeEnable := Mux(lsSweepWr, True, lsRangeHit)
 
   // R5.1 stutter fix (#7080): latch pending LAYER_ENABLE write into a shadow
   // register and apply it to `layerEnableReg` only at `hCounter === 0`.
@@ -522,19 +543,6 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // commit. Last-write-wins precedence below: swap-commit and disable-clear
   // both override the host set, so a request that lands the same cycle as
   // disable or the commit pulse resolves cleanly.
-  // VDP-SOFT-RESET-135: soft-reset controller state (declared before the 0x0310
-  // decode that latches the request; FSM logic follows the decode below).
-  val softResetRequest = Reg(Bool()) init False
-  val softResetBusy    = Reg(Bool()) init False
-  // #2a: on-chip memory clear sweep over VdpTop-local host-writable Mems
-  // (palette + its mirror regs, sprite pattern RAM). Single shared address
-  // counter; each Mem's existing single write port is MUXED to the sweep when
-  // active (NOT a second write port — that broke Gowin BSRAM inference before).
-  // Sized to the largest swept Mem (sprite pattern RAM = 16384 entries = 14b).
-  // affineTexture is excluded: it has no write port (immutable POR asset).
-  val softResetMemClear = Reg(Bool()) init False
-  val softResetMemAddr  = Reg(UInt(14 bits)) init 0
-
   when(effWrite && effAddr === U(0x0310, 15 bits)) {
     copperCtrlPend    := effData(0 downto 0)
     copperCtrlPendHit := True
@@ -1010,12 +1018,15 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val scrollTableSub  = (effAddr - U(0x0900, 15 bits))(7 downto 0)
   val scrollTableEntry = scrollTableSub(6 downto 0)    // 7 bits
   val scrollTableLayer = scrollTableSub(7)             // 0 = L0, 1 = L1
-  scrollTable0.io.wrAddr := scrollTableEntry
-  scrollTable0.io.wrData := effData(9 downto 0).asUInt
-  scrollTable0.io.wr     := scrollTableRangeHit && !scrollTableLayer
-  scrollTable1.io.wrAddr := scrollTableEntry
-  scrollTable1.io.wrData := effData(9 downto 0).asUInt
-  scrollTable1.io.wr     := scrollTableRangeHit && scrollTableLayer
+  // VDP-SOFT-RESET-135 #2b: scroll tables (128 entries each) zeroed by the sweep
+  // for addr < 128 — both H-scroll and V-scroll tables share this gate below.
+  val scrollSweepWr = softResetMemClear && (softResetMemAddr < U(128, 14 bits))
+  scrollTable0.io.wrAddr := Mux(scrollSweepWr, softResetMemAddr.resize(7), scrollTableEntry)
+  scrollTable0.io.wrData := Mux(scrollSweepWr, U(0, 10 bits), effData(9 downto 0).asUInt)
+  scrollTable0.io.wr     := Mux(scrollSweepWr, True, scrollTableRangeHit && !scrollTableLayer)
+  scrollTable1.io.wrAddr := Mux(scrollSweepWr, softResetMemAddr.resize(7), scrollTableEntry)
+  scrollTable1.io.wrData := Mux(scrollSweepWr, U(0, 10 bits), effData(9 downto 0).asUInt)
+  scrollTable1.io.wr     := Mux(scrollSweepWr, True, scrollTableRangeHit && scrollTableLayer)
 
   val scrollTable0Addr = hCounter(9 downto 3).resize(7)
   val scrollTable1Addr = hCounter(9 downto 3).resize(7)
@@ -1039,12 +1050,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val vScrollTableSub   = (effAddr - U(0x0A00, 15 bits))(7 downto 0)
   val vScrollTableEntry = vScrollTableSub(6 downto 0)    // 7 bits = 128 entries
   val vScrollTableLayer = vScrollTableSub(7)             // 0 = L0, 1 = L1
-  vScrollTable0.io.wrAddr := vScrollTableEntry
-  vScrollTable0.io.wrData := effData(9 downto 0).asUInt
-  vScrollTable0.io.wr     := vScrollTableRangeHit && !vScrollTableLayer
-  vScrollTable1.io.wrAddr := vScrollTableEntry
-  vScrollTable1.io.wrData := effData(9 downto 0).asUInt
-  vScrollTable1.io.wr     := vScrollTableRangeHit && vScrollTableLayer
+  // VDP-SOFT-RESET-135 #2b: V-scroll tables zeroed by the sweep (shared gate).
+  vScrollTable0.io.wrAddr := Mux(scrollSweepWr, softResetMemAddr.resize(7), vScrollTableEntry)
+  vScrollTable0.io.wrData := Mux(scrollSweepWr, U(0, 10 bits), effData(9 downto 0).asUInt)
+  vScrollTable0.io.wr     := Mux(scrollSweepWr, True, vScrollTableRangeHit && !vScrollTableLayer)
+  vScrollTable1.io.wrAddr := Mux(scrollSweepWr, softResetMemAddr.resize(7), vScrollTableEntry)
+  vScrollTable1.io.wrData := Mux(scrollSweepWr, U(0, 10 bits), effData(9 downto 0).asUInt)
+  vScrollTable1.io.wr     := Mux(scrollSweepWr, True, vScrollTableRangeHit && vScrollTableLayer)
 
   val vScrollTable0Addr = hCounter(9 downto 3).resize(7)
   val vScrollTable1Addr = hCounter(9 downto 3).resize(7)

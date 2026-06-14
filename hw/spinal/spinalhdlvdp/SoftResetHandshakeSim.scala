@@ -35,6 +35,9 @@ case class SoftResetDut() extends Component {
   val vdp = VdpTop()
   vdp.palette.simPublic()
   vdp.spritePatternRams.head.simPublic()
+  vdp.scrollTable0.mem.simPublic(); vdp.scrollTable1.mem.simPublic()
+  vdp.vScrollTable0.mem.simPublic(); vdp.vScrollTable1.mem.simPublic()
+  vdp.linestate.prepare.simPublic(); vdp.linestate.commit.simPublic()
   vdp.io.regBus.addr   := io.regAddr
   vdp.io.regBus.data   := io.regData
   vdp.io.regBus.enable := io.regEnable
@@ -95,8 +98,15 @@ object SoftResetHandshakeSim extends App {
     // and verify they read back zero. Indices sampled across each Mem's depth.
     val palIdx = Seq(0, 1, 64, 127)                  // PaletteDepth = 128
     val patIdx = Seq(0, 100, 8000, 16383)            // pattern RAM = 16384
+    val sclIdx = Seq(0, 50, 127)                      // scroll tables = 128
+    val lsIdx  = Seq(0, 100, 300, 479)                // linestate = 480 (vActive)
     for (i <- palIdx) dut.vdp.palette.setBigInt(i, BigInt("ABCDEF", 16))
     for (i <- patIdx) dut.vdp.spritePatternRams.head.setBigInt(i, BigInt(0xF))
+    for (i <- sclIdx) {
+      dut.vdp.scrollTable0.mem.setBigInt(i, BigInt(0x3AA)); dut.vdp.scrollTable1.mem.setBigInt(i, BigInt(0x355))
+      dut.vdp.vScrollTable0.mem.setBigInt(i, BigInt(0x2CC)); dut.vdp.vScrollTable1.mem.setBigInt(i, BigInt(0x199))
+    }
+    for (i <- lsIdx) { dut.vdp.linestate.prepare.setBigInt(i, BigInt(0xFFF)); dut.vdp.linestate.commit.setBigInt(i, BigInt(0xFFF)) }
     dut.clockDomain.waitSampling(2)
     // sanity: presets took
     for (i <- palIdx) if (dut.vdp.palette.getBigInt(i) == 0) { println(s"[sim] FAIL: palette[$i] preset did not take"); fail = true }
@@ -105,9 +115,15 @@ object SoftResetHandshakeSim extends App {
     val d1 = triggerAndMeasure("first")
 
     // verify the swept Mems are now zero
-    for (i <- palIdx) { val v = dut.vdp.palette.getBigInt(i); if (v != 0) { println(f"[sim] FAIL: palette[$i] = 0x$v%X after reset (expected 0)"); fail = true } }
-    for (i <- patIdx) { val v = dut.vdp.spritePatternRams.head.getBigInt(i); if (v != 0) { println(f"[sim] FAIL: pattern[$i] = 0x$v%X after reset (expected 0)"); fail = true } }
-    if (!fail) println("[sim] palette + sprite-pattern RAM zeroed by the sweep")
+    def chk(name: String, v: BigInt, i: Int): Unit = if (v != 0) { println(f"[sim] FAIL: $name[$i] = 0x$v%X after reset (expected 0)"); fail = true }
+    for (i <- palIdx) chk("palette", dut.vdp.palette.getBigInt(i), i)
+    for (i <- patIdx) chk("pattern", dut.vdp.spritePatternRams.head.getBigInt(i), i)
+    for (i <- sclIdx) {
+      chk("scrollTable0", dut.vdp.scrollTable0.mem.getBigInt(i), i); chk("scrollTable1", dut.vdp.scrollTable1.mem.getBigInt(i), i)
+      chk("vScrollTable0", dut.vdp.vScrollTable0.mem.getBigInt(i), i); chk("vScrollTable1", dut.vdp.vScrollTable1.mem.getBigInt(i), i)
+    }
+    for (i <- lsIdx) { chk("ls.prepare", dut.vdp.linestate.prepare.getBigInt(i), i); chk("ls.commit", dut.vdp.linestate.commit.getBigInt(i), i) }
+    if (!fail) println("[sim] palette + pattern RAM + scroll tables + linestate(prepare+commit) zeroed by the sweep")
 
     // (d) AUTO-CLEAR proof: with no new write, busy must STAY low. A request bit
     // that failed to auto-clear would immediately re-assert busy here.
@@ -122,6 +138,6 @@ object SoftResetHandshakeSim extends App {
     if (dut.io.softResetBusy.toBoolean) { println("[sim] FAIL: busy still high at end"); fail = true }
 
     println(if (fail) "[sim] SoftResetHandshakeSim: FAIL"
-            else "[sim] SoftResetHandshakeSim: PASS — handshake (bounded/auto-clear/re-armable) + #2a palette & pattern-RAM zeroed")
+            else "[sim] SoftResetHandshakeSim: PASS — handshake (bounded/auto-clear/re-armable) + #2a/#2b mem zeroing (palette, pattern, scroll x4, linestate prepare+commit)")
   }
 }
