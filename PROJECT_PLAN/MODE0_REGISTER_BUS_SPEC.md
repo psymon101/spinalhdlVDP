@@ -129,7 +129,9 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0380..0x03DF` | **Reserved for Task 33** — Copper-lite / HDMA control and table RAM | Task 33 | — |
 | `0x03E0..0x03FF` | **Reserved** — future expansion | — | — |
 | `0x0400..0x05FF` | Copper program RAM (2×512 × 16-bit instructions, double-banked) | Task R5 / R5.4 | `VdpTop.scala:45,182` |
-| `0x0600..0x07FF` | **Reserved** — Copper secondary tables (HDMA-style, Task 33) | Task 33 | — |
+| `0x0600` | `PALETTE_DATA` — write one 16-bit palette half; auto-increments internal pointer | Color/Window Hardening | `VdpTop.scala` |
+| `0x0601` | `PALETTE_PTR` — sets the half-pointer for the next `PALETTE_DATA` write | Color/Window Hardening | `VdpTop.scala` |
+| `0x0602..0x07FF` | **Reserved** — Copper secondary tables (HDMA-style, Task 33) | Task 33 | — |
 | `0x0800..0x0FFF` | **Reserved for Task 37** — affine sprite descriptors | Task 37 | — |
 | `0x0A00..0x0AFF` | V-scroll table (128 entries × 2 layers × 10-bit offset) | Task 46 | `VdpTop.scala` |
 | `0x0B00` | `DMA_DST` — destination start address (15 bits) | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
@@ -849,6 +851,47 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 |---|---|---|
 | `[10:0]` | HEIGHT | Source bitmap height in rows. |
 
+
+### PALETTE_DATA (`0x0600`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0600` |
+| Width | 16 |
+| Access | W (write-only via register bus; commits 24-bit entry after the high half) |
+| Reset | — |
+| Category | immediate |
+| Description | Writes one 16-bit half of a palette entry and auto-increments `PALETTE_PTR`. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[15:0]` | HALF | See write sequence below. |
+
+**Write sequence:**
+
+1. Write `PALETTE_PTR = entry_index * 2` to set the half-pointer to the **low half** of the entry.
+2. Write `PALETTE_DATA = (G << 8) | B` (even pointer). This stores `{G,B}` in the accumulator and increments the pointer.
+3. Write `PALETTE_DATA = R` (odd pointer). This commits the 24-bit `{R,G,B}` value into `palette[entry_index]` and increments the pointer.
+
+After step 3 the pointer points to the low half of `entry_index + 1`, so bulk uploads can continue with back-to-back `PALETTE_DATA` writes.
+
+> [!NOTE]
+> Pointer units are **half-entries** (one byte of the 24-bit color). Valid starting values are even byte offsets `0, 2, 4, …, 254` for entries `0..127`. The pointer wraps modulo 256.
+
+### PALETTE_PTR (`0x0601`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0601` |
+| Width | 16 |
+| Access | W |
+| Reset | `0x0000` |
+| Category | immediate |
+| Description | Sets the internal half-pointer used by the next `PALETTE_DATA` write. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[7:0]` | PTR | Half-pointer. `entry * 2` selects the low half of `entry`; `entry * 2 + 1` selects the high half. |
 
 ### 3.2 Allocation rules
 

@@ -165,6 +165,45 @@ void set_sunset_lighting() {
 }
 ```
 
+### Raw palette register access
+
+If you are not using the helper, palette entries are written through two registers. Each entry is **24-bit RGB888**; border and sprite indices reference the same palette RAM directly.
+
+| Register | Address | Purpose |
+|---|---|---|
+| `PALETTE_PTR` | `0x0601` | Sets the half-pointer for the next `PALETTE_DATA` write. |
+| `PALETTE_DATA` | `0x0600` | Writes one 16-bit half of an entry; auto-increments the pointer. |
+
+**Pointer units:** The pointer counts **half-entries**. A complete 24-bit color needs two 16-bit writes:
+- `ptr = entry_index * 2` selects the low half of `entry_index`.
+- `ptr = entry_index * 2 + 1` selects the high half.
+
+**Write sequence for one RGB888 entry:**
+
+```c
+void raw_palette_write_rgb888(uint8_t entry, uint8_t r, uint8_t g, uint8_t b) {
+    vdp_reg_write(0x0601, (uint16_t)(entry * 2u));     // PALETTE_PTR -> low half
+    vdp_reg_write(0x0600, ((uint16_t)g << 8) | b);     // low half: G:B
+    vdp_reg_write(0x0600, (uint16_t)r);                // high half: R (commits entry)
+}
+```
+
+**Writing RGB565 source colors:** The palette stores RGB888, so convert RGB565 to RGB888 first. The common conversion is bit-replication:
+
+```c
+uint16_t rgb565 = 0x07E0;                       // green in RGB565
+uint8_t r5 = (rgb565 >> 11) & 0x1F;
+uint8_t g6 = (rgb565 >>  5) & 0x3F;
+uint8_t b5 =  rgb565        & 0x1F;
+uint8_t r = (r5 << 3) | (r5 >> 2);              // 5 -> 8 bits
+uint8_t g = (g6 << 2) | (g6 >> 4);              // 6 -> 8 bits
+uint8_t b = (b5 << 3) | (b5 >> 2);              // 5 -> 8 bits
+raw_palette_write_rgb888(1, r, g, b);
+```
+
+> [!IMPORTANT]
+> `BORDER_CTRL` bits `[12:8]` and sprite `pal_bank` select palette entries directly. If you set the border to palette index `N`, the border color is exactly `palette[N]`.
+
 ---
 
 ## 5. Sprites
@@ -335,6 +374,29 @@ void copper_border_split_demo(void) {
     vdp_copper_enable(true);
 }
 ```
+
+### Raw i80 fallback (debug)
+
+If you suspect a firmware-helper bug, you can bypass the helpers and drive the i80 bus directly. The byte sequence for a single register write is:
+
+```text
+DC=0: opcode 0x00          // REG_WRITE
+DC=0: addr_lo              // low byte of 16-bit register address
+DC=0: addr_hi              // high byte of address
+DC=1: data_lo              // low byte of data
+DC=1: data_hi              // high byte of data
+```
+
+Copper-specific raw addresses:
+
+| Register | Address | Typical data |
+|---|---|---|
+| `VDP_CTRL` | `0x0310` | `0x0001` to enable copper; `0x0003` to enable + request swap. |
+| Copper program RAM | `0x0400 + i` | Program word `i` (0..511). |
+
+A minimal copper enable from scratch therefore emits: `0x00 0x10 0x03 0x01 0x00`.
+
+Use this raw path only for debugging; normal code should use the helpers above so the hardware can evolve without host-side changes.
 
 ### `vdp_mode0_dma_config`
 **Description**: Triggers the FPGA's **Direct Memory Access** engine. It can rapidly fill a block of VDP RAM with a constant value or copy data from a host-supplied staging buffer. This is significantly faster than using `vdp_reg_write` in a loop.
