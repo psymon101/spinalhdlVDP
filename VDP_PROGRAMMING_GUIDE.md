@@ -202,23 +202,137 @@ void fire_bullet(int x, int y, const uint16_t *bullet_gfx) {
 
 ---
 
-## 6. Automation Engines
+## 6. Copper (Beam Coprocessor)
 
-### `vdp_copper_upload_and_swap`
-**Description**: The **Copper** is a dedicated "beam coprocessor" that can change VDP registers at specific raster lines without host CPU intervention. This helper writes your Copper program into the inactive RAM bank and signals the hardware to swap to the new program at the next VBlank.
+The **Copper** is a dedicated raster coprocessor that writes VDP registers at exact scanline positions without host CPU intervention. It is useful for split-screen effects, per-scanline palette swaps, raster bars, and mid-frame register changes.
 
-**Real World Use**: Use the Copper to create "Split-Screen" effects where the top half of the screen has a different scroll position or background color than the bottom half.
+### Program memory
+
+- **Address range:** `0x0400..0x05FF` (512 words, 1 KiB).
+- **Double-buffered:** two 512-word banks. One bank is **active** (executed by the copper), the other is **inactive** (written by the host).
+- **Maximum program size:** 512 words per bank. For larger programs use `JUMP` loops.
+
+### Instruction helpers
+
+Copper opcodes are 16-bit words. The helpers below encode them for you.
+
+| Helper | Purpose |
+|---|---|
+| `vdp_copper_wait(y)` | Stall until `vCounter == y && hCounter == 0`. Match window is one cycle per frame; miss it and you wait a full frame. |
+| `vdp_copper_wait_xy(x)` | Two-word pixel-precise `WAIT(X,Y)` header; append `y` as the next word. |
+| `vdp_copper_write_op(addr)` | Single 16-bit `WRITE` header. The **data word must follow** immediately in the program stream. |
+| `vdp_copper_write_seq_hdr(addr, n-1)` | Burst `WRITE_SEQ` header for `n` data words (`1..8`); append the data words next. |
+| `vdp_copper_jump(pc)` | Unconditional jump to program word `pc`. |
+| `vdp_copper_skip_op(cond, offset)` | Conditional skip (advanced). |
+
+> [!WARNING]
+> `vdp_copper_write_op(addr)` returns only the **header** word. You must place the data word after it in the array. This is the most common mistake when hand-assembling copper programs.
+
+### Two-phase operation
+
+The copper has two distinct programming phases. Using the wrong helper for the phase corrupts the active program.
+
+#### Phase 1 — initial program (copper disabled)
+
+When the copper is disabled, writes to `0x0400..0x05FF` land in the **active** bank. The canonical first-time sequence is:
+
+1. Make sure the copper is disabled (`VDP_CTRL = 0x0000`).
+2. Upload the program with `vdp_copper_upload(prog, nwords)`.
+3. Enable the copper with `vdp_copper_enable(true)`.
+4. Wait at least one full frame for the enable to commit and the first raster match to occur.
 
 ```c
 #include "vdp_copper.h"
 
-void create_water_reflection() {
-    uint16_t water_fx[] = {
-        vdp_copper_wait(160),           // At scanline 160 (waterline)...
-        vdp_copper_write_op(0x0347), 4, // Change Border to 'water' color
-        vdp_copper_jump(0)              // Loop
+void copper_first_load(void) {
+    uint16_t prog[] = {
+        vdp_copper_wait(100),               // Wait for scanline 100
+        vdp_copper_write_op(0x0347),        // WRITE header: BORDER_CTRL
+        vdp_mode0_border_ctrl(true, 2),     // Data word: enable border, palette entry 2
+        vdp_copper_jump(0)                  // Loop forever
     };
-    vdp_copper_upload_and_swap(water_fx, 3);
+
+    vdp_copper_enable(false);               // ensure disabled
+    vdp_copper_upload(prog, 4);             // lands in active bank
+    vdp_copper_enable(true);                // PC resets to 0, execution starts
+    vdp_wait_vblank(100000);                // wait ≥1 frame for visible effect
+}
+```
+
+#### Phase 2 — live update (copper enabled)
+
+Once the copper is running, writes to `0x0400..0x05FF` are automatically routed to the **inactive** bank. To switch programs without tearing:
+
+1. Prepare the new program.
+2. Call `vdp_copper_upload_and_swap(prog, nwords)` (or `vdp_copper_upload` followed by `vdp_copper_swap_request()`).
+3. Wait at least one full frame for the swap to commit at the next `vSyncStart`.
+
+> [!IMPORTANT]
+> `vdp_copper_upload_and_swap()` **requires the copper to already be enabled**. If the copper is disabled, writes land in the active bank and the swap request is ignored.
+
+```c
+void copper_live_update(void) {
+    uint16_t prog2[] = {
+        vdp_copper_wait(200),
+        vdp_copper_write_op(0x0347),
+        vdp_mode0_border_ctrl(true, 3),
+        vdp_copper_jump(0)
+    };
+
+    // Precondition: copper is already enabled and running.
+    vdp_copper_upload_and_swap(prog2, 4);   // write inactive bank + request swap
+    vdp_wait_vblank(100000);                // swap commits at vSyncStart
+}
+```
+
+### Timing and commit boundaries
+
+| Action | Commit point | Host guidance |
+|---|---|---|
+| `vdp_copper_enable(true)` | `hCounter == 0` (line boundary) | Wait ≥1 frame before assuming the copper is running. |
+| `vdp_copper_swap_request()` | `vSyncStart && hCounter == 0` | Wait ≥1 full frame for the swap to take effect. |
+| Copper `WRITE` instructions | Drained from copper FIFO at `hCounter == 0`, one per line | A WAIT on line `y` followed by a WRITE means the WRITE's effect is visible no earlier than line `y+1`. |
+
+> [!TIP]
+> Do not rely on reading back `VDP_CTRL` to confirm enable/swap. i80 readback returns the **last value written by the host** (loopback), not the live committed state. Verify visually or with a raster-trigger/status read.
+
+### Minimal working example: border color split
+
+This example changes the border color at scanline 160. It assumes the border window has been set to cover the full screen and palette entries 1 and 2 have been loaded.
+
+```c
+#include "vdp_copper.h"
+#include "vdp_mode0.h"
+
+static const uint32_t palette[] = {
+    0x00000000, // 0: black
+    0x00FF0000, // 1: red
+    0x0000FF00, // 2: green
+};
+
+void copper_border_split_demo(void) {
+    // 1. Seed the border so something is visible before the copper runs.
+    vdp_mode0_rect_t full = { .x = 0, .y = 0, .w = 640, .h = 480 };
+    vdp_mode0_set_border_window(&full, vdp_mode0_border_ctrl(true, 1));
+
+    for (uint8_t i = 0; i < 3; ++i) {
+        vdp_mode0_palette_write_rgb888(i,
+            (palette[i] >> 16) & 0xFF,
+            (palette[i] >> 8) & 0xFF,
+            palette[i] & 0xFF);
+    }
+
+    // 2. First copper program: red above line 160, green below.
+    uint16_t prog[] = {
+        vdp_copper_wait(160),
+        vdp_copper_write_op(0x0347),        // BORDER_CTRL
+        vdp_mode0_border_ctrl(true, 2),     // green
+        vdp_copper_jump(0)
+    };
+
+    vdp_copper_enable(false);
+    vdp_copper_upload(prog, 4);
+    vdp_copper_enable(true);
 }
 ```
 

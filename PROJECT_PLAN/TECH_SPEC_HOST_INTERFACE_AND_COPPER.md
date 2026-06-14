@@ -160,10 +160,13 @@ Copper instructions are 16 bits.
 
 ### 4.3 Copper Program RAM
 
-- Size: 2 kB (**1024** × 16-bit words)
-- Mapped to host address space at 0x0400–0x07FF
-- Host writes programs when `copper_enable = 0`
-- Copper reads programs when `copper_enable = 1`
+- Size: **1 KiB** — two banks of **512** × 16-bit words each.
+- Bank A/B are mapped to host address space at **0x0400–0x05FF**.
+- Host writes always use the `0x0400..0x05FF` aperture; the hardware routes them based on the copper enable state:
+  - **Copper disabled:** writes land in the **active** bank (the bank that will execute when enabled).
+  - **Copper enabled:** writes land in the **inactive** bank (the bank that will execute after the next swap).
+- Copper fetches from the active bank when `copper_enable = 1`.
+- Maximum visible program is 512 words; use `JUMP` loops for longer effects.
 
 ### 4.4 Execution Model
 

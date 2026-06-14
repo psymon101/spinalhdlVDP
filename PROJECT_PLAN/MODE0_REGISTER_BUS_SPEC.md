@@ -233,13 +233,13 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Width | 16 |
 | Access | RW |
 | Reset | `0x0000` |
-| Category | vblank-sensitive |
+| Category | mixed (see bit descriptions) |
 | Description | Controls global Mode0 runtime features. |
 
-| Bits | Field | Description |
-|---|---|---|
-| `[0]` | COPPER_ENABLE | Enables copper command execution. |
-| `[1]` | COPPER_SWAP_REQUEST | Requests a copper buffer swap. |
+| Bits | Field | Category | Description |
+|---|---|---|---|
+| `[0]` | COPPER_ENABLE | H-boundary | Enables copper command execution. Commits at `hCounter == 0`; PC resets to 0 on the rising edge. |
+| `[1]` | COPPER_SWAP_REQUEST | V-boundary | Requests an atomic copper bank swap. Only honored while `COPPER_ENABLE = 1`. Commits at `vSyncStart && hCounter == 0`, flips the active bank, resets PC to 0, and auto-clears. |
 
 ### VDP_TILE_MODE (`0x0311`)
 
@@ -868,7 +868,8 @@ Most registers are **double-buffered**. Host writes go to a "prepare" (shadow) r
 |---|---|---|
 | **Immediate** | Combinational / next-cycle | `UPLOAD_STATUS_CLEAR`, `DMA_CTRL.go` |
 | **H-Boundary** | `hCounter === 0` | `LAYER_ENABLE`, `BORDER_CTRL`, `WIN*_X0`, `BITMAP_CTRL` |
-| **V-Boundary** | `vCounter === 0 && hCounter === 0` | `MODE_SELECT`, `LOGIC_WIDTH` |
+| **V-Boundary** | `vSyncStart && hCounter === 0` (or `vCounter === 0 && hCounter === 0`) | `MODE_SELECT`, `LOGIC_WIDTH`, `COPPER_SWAP_REQUEST` |
+| **Mixed** | Per-bit boundary (see detail table) | `VDP_CTRL` (`COPPER_ENABLE` is H-boundary, `COPPER_SWAP_REQUEST` is V-boundary) |
 
 ### 4.2 Write-1-to-Clear (W1C)
 
