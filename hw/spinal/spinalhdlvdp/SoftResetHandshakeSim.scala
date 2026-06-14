@@ -33,6 +33,8 @@ case class SoftResetDut() extends Component {
     val softResetBusy = out Bool ()
   }
   val vdp = VdpTop()
+  vdp.palette.simPublic()
+  vdp.spritePatternRams.head.simPublic()
   vdp.io.regBus.addr   := io.regAddr
   vdp.io.regBus.data   := io.regData
   vdp.io.regBus.enable := io.regEnable
@@ -81,14 +83,31 @@ object SoftResetHandshakeSim extends App {
       while (!dut.io.softResetBusy.toBoolean && guard < 10) { dut.clockDomain.waitSampling(); guard += 1 }
       if (!dut.io.softResetBusy.toBoolean) { println(s"[sim] FAIL ($tag): busy never asserted after 0x0004"); fail = true; return -1 }
       var cyc = 0
-      while (dut.io.softResetBusy.toBoolean && cyc < 5000) { dut.clockDomain.waitSampling(); cyc += 1 }
-      if (dut.io.softResetBusy.toBoolean) { println(s"[sim] FAIL ($tag): busy stuck high (deadlock) > 5000 cyc"); fail = true; return -1 }
+      while (dut.io.softResetBusy.toBoolean && cyc < 20000) { dut.clockDomain.waitSampling(); cyc += 1 }
+      if (dut.io.softResetBusy.toBoolean) { println(s"[sim] FAIL ($tag): busy stuck high (deadlock) > 20000 cyc"); fail = true; return -1 }
       println(f"[sim] ($tag) busy duration = $cyc cycles")
       cyc
     }
 
+    // ===== #2a memory-zeroing proof =====
+    // Preset palette + sprite-pattern Mems to non-zero via the sim API (tests the
+    // zero-sweep directly, no host write protocol as a discriminator), then reset
+    // and verify they read back zero. Indices sampled across each Mem's depth.
+    val palIdx = Seq(0, 1, 64, 127)                  // PaletteDepth = 128
+    val patIdx = Seq(0, 100, 8000, 16383)            // pattern RAM = 16384
+    for (i <- palIdx) dut.vdp.palette.setBigInt(i, BigInt("ABCDEF", 16))
+    for (i <- patIdx) dut.vdp.spritePatternRams.head.setBigInt(i, BigInt(0xF))
+    dut.clockDomain.waitSampling(2)
+    // sanity: presets took
+    for (i <- palIdx) if (dut.vdp.palette.getBigInt(i) == 0) { println(s"[sim] FAIL: palette[$i] preset did not take"); fail = true }
+
     // (b)+(c) first reset asserts and completes (bounded)
     val d1 = triggerAndMeasure("first")
+
+    // verify the swept Mems are now zero
+    for (i <- palIdx) { val v = dut.vdp.palette.getBigInt(i); if (v != 0) { println(f"[sim] FAIL: palette[$i] = 0x$v%X after reset (expected 0)"); fail = true } }
+    for (i <- patIdx) { val v = dut.vdp.spritePatternRams.head.getBigInt(i); if (v != 0) { println(f"[sim] FAIL: pattern[$i] = 0x$v%X after reset (expected 0)"); fail = true } }
+    if (!fail) println("[sim] palette + sprite-pattern RAM zeroed by the sweep")
 
     // (d) AUTO-CLEAR proof: with no new write, busy must STAY low. A request bit
     // that failed to auto-clear would immediately re-assert busy here.
@@ -103,6 +122,6 @@ object SoftResetHandshakeSim extends App {
     if (dut.io.softResetBusy.toBoolean) { println("[sim] FAIL: busy still high at end"); fail = true }
 
     println(if (fail) "[sim] SoftResetHandshakeSim: FAIL"
-            else "[sim] SoftResetHandshakeSim: PASS — request->busy->auto-clear handshake holds: bounded, re-armable, no spurious busy")
+            else "[sim] SoftResetHandshakeSim: PASS — handshake (bounded/auto-clear/re-armable) + #2a palette & pattern-RAM zeroed")
   }
 }

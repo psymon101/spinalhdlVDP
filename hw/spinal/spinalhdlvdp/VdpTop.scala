@@ -526,7 +526,14 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // decode that latches the request; FSM logic follows the decode below).
   val softResetRequest = Reg(Bool()) init False
   val softResetBusy    = Reg(Bool()) init False
-  val softResetSeqCnt  = Reg(UInt(16 bits)) init 0
+  // #2a: on-chip memory clear sweep over VdpTop-local host-writable Mems
+  // (palette + its mirror regs, sprite pattern RAM). Single shared address
+  // counter; each Mem's existing single write port is MUXED to the sweep when
+  // active (NOT a second write port — that broke Gowin BSRAM inference before).
+  // Sized to the largest swept Mem (sprite pattern RAM = 16384 entries = 14b).
+  // affineTexture is excluded: it has no write port (immutable POR asset).
+  val softResetMemClear = Reg(Bool()) init False
+  val softResetMemAddr  = Reg(UInt(14 bits)) init 0
 
   when(effWrite && effAddr === U(0x0310, 15 bits)) {
     copperCtrlPend    := effData(0 downto 0)
@@ -563,18 +570,27 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // handshake is provable in sim and BronzeGate's wrapper (write 0x0004, poll
   // bit2) can be developed against the real contract. NOT a functional reset
   // yet — do not flash as a working soft reset until [#2..#4] are merged.
-  // (softResetRequest/softResetBusy/softResetSeqCnt declared above the 0x0310 decode.)
-  // Placeholder sequence length; replaced by the real stage completions in #2..#4.
-  val softResetSeqDone = softResetSeqCnt === U(255, 16 bits)
+  // (softResetRequest/softResetBusy/softResetMemClear/softResetMemAddr declared
+  // above the 0x0310 decode.)
+  // Sweep covers addr [0, 16383] (full 14-bit sprite-pattern depth). palette
+  // (PaletteDepth=128) clears only while addr < PaletteDepth; pattern RAM clears
+  // across the whole sweep. The per-Mem write muxes live at each Mem below.
+  val softResetSweepLast = U((1 << 14) - 1, 14 bits)
   when(softResetRequest && !softResetBusy) {
-    softResetBusy   := True              // accept the request; begin the sequence
-    softResetSeqCnt := 0
+    softResetBusy     := True            // accept the request; begin the sequence
+    softResetMemClear := True            // stage 1: local on-chip memory clear
+    softResetMemAddr  := 0
   }
-  when(softResetBusy) {
-    softResetSeqCnt := softResetSeqCnt + 1
-    when(softResetSeqDone) {
+  when(softResetBusy && softResetMemClear) {
+    when(softResetMemAddr === softResetSweepLast) {
+      softResetMemClear := False
+      // ---- stage-chaining point: #2b submodule mems / #3 SDRAM fill / #4 core
+      // register reset insert HERE before completion. For #2a (local mem clear
+      // only) the sequence ends now. ----
       softResetBusy    := False          // sequence complete: drop busy ...
       softResetRequest := False          // ... and auto-clear the request bit
+    } otherwise {
+      softResetMemAddr := softResetMemAddr + 1
     }
   }
   io.softResetBusy := softResetBusy
@@ -1751,11 +1767,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   }
   // Broadcast write — every per-slot Mem must observe the same write so the
   // logical pattern table stays consistent across slots.
+  // VDP-SOFT-RESET-135 #2a: pattern RAM write port muxed between host streaming
+  // writes and the soft-reset zero-sweep (full 16384-entry clear).
   for (mem <- spritePatternRams) {
     mem.write(
-      address = patternRamPtr,
-      data    = effData(3 downto 0),
-      enable  = patternRamDataWriteHit
+      address = Mux(softResetMemClear, softResetMemAddr, patternRamPtr),
+      data    = Mux(softResetMemClear, B(0, 4 bits), effData(3 downto 0)),
+      enable  = softResetMemClear || patternRamDataWriteHit
     )
   }
 
@@ -1983,11 +2001,21 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   when(paletteCommitNow && paletteEntryIdx < 32) {
     paletteMirror(paletteEntryIdx.resize(5)) := paletteCommitData
   }
+  // VDP-SOFT-RESET-135 #2a: zero the low-32 palette mirror regs during the sweep
+  // (overrides the host commit above — host is mid-reset, polling completion).
+  when(softResetMemClear && softResetMemAddr < U(32, 14 bits)) {
+    paletteMirror(softResetMemAddr.resize(5)) := B(0, 24 bits)
+  }
 
+  // VDP-SOFT-RESET-135 #2a: palette write port muxed between host commit and the
+  // soft-reset zero-sweep (single write port preserved for BSRAM inference).
+  val paletteSweepWr = softResetMemClear && (softResetMemAddr < U(TileAttributeAssets.PaletteDepth, 14 bits))
   palette.write(
-    address = paletteEntryIdx.resize(log2Up(TileAttributeAssets.PaletteDepth)),
-    data    = paletteCommitData,
-    enable  = paletteCommitNow
+    address = Mux(softResetMemClear,
+                  softResetMemAddr.resize(log2Up(TileAttributeAssets.PaletteDepth)),
+                  paletteEntryIdx.resize(log2Up(TileAttributeAssets.PaletteDepth))),
+    data    = Mux(softResetMemClear, B(0, 24 bits), paletteCommitData),
+    enable  = Mux(softResetMemClear, paletteSweepWr, paletteCommitNow)
   )
   val paletteRgb = palette.readSync(paletteAddr)
 
