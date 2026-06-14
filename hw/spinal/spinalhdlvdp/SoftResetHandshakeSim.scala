@@ -107,6 +107,7 @@ object SoftResetHandshakeSim extends App {
     val tblIdx  = Seq(0, 15, 31)                      // tbl = NUM_CH*NUM_ENT = 32
     val stgIdx  = Seq(0, 32, 63)                      // DMA staging = 64
     val srcIdx  = Seq(0, 256, 511)                    // blitter srcRam = 512
+    val spIdx   = Seq(0, 14, 27)                      // sprite ext descriptors = extCount = 28
     for (i <- palIdx) dut.vdp.palette.setBigInt(i, BigInt("ABCDEF", 16))
     for (i <- patIdx) dut.vdp.spritePatternRams.head.setBigInt(i, BigInt(0xF))
     for (i <- sclIdx) {
@@ -119,6 +120,10 @@ object SoftResetHandshakeSim extends App {
     for (i <- tblIdx)  dut.vdp.copper.tbl.setBigInt(i, BigInt("3FFFFFF", 16))
     for (i <- stgIdx)  dut.vdp.dmaEngine.staging.setBigInt(i, BigInt(0xDA7A))
     for (i <- srcIdx)  dut.vdp.blitterEngine.srcRam.setBigInt(i, BigInt(0x5A5A))
+    val spriteMems = Seq(dut.vdp.spriteEval.infoMemW0, dut.vdp.spriteEval.infoMemW1, dut.vdp.spriteEval.infoMemW8,
+                         dut.vdp.spriteEval.matAMem, dut.vdp.spriteEval.matBMem, dut.vdp.spriteEval.matCMem,
+                         dut.vdp.spriteEval.matDMem, dut.vdp.spriteEval.transXMem, dut.vdp.spriteEval.transYMem)
+    for (m <- spriteMems; i <- spIdx) m.setBigInt(i, BigInt(0x5))
     dut.clockDomain.waitSampling(2)
     // sanity: presets took
     for (i <- palIdx) if (dut.vdp.palette.getBigInt(i) == 0) { println(s"[sim] FAIL: palette[$i] preset did not take"); fail = true }
@@ -140,7 +145,11 @@ object SoftResetHandshakeSim extends App {
     for (i <- tblIdx)  chk("copper.tbl", dut.vdp.copper.tbl.getBigInt(i), i)
     for (i <- stgIdx)  chk("dma.staging", dut.vdp.dmaEngine.staging.getBigInt(i), i)
     for (i <- srcIdx)  chk("blitter.srcRam", dut.vdp.blitterEngine.srcRam.getBigInt(i), i)
-    if (!fail) println("[sim] palette+pattern+scroll x4+linestate+copper(prog/hdma/tbl)+dma.staging+blitter.srcRam zeroed by the sweep")
+    val spriteNames = Seq("infoW0","infoW1","infoW8","matA","matB","matC","matD","transX","transY")
+    for ((m, n) <- spriteMems.zip(spriteNames); i <- spIdx) chk(s"sprite.$n", m.getBigInt(i), i)
+    // regAffineEnable DFFs (cleared by the sweep; init False — confirm 0 post-reset)
+    for (i <- spIdx) if (dut.vdp.spriteEval.regAffineEnable(i).toBoolean) { println(s"[sim] FAIL: regAffineEnable[$i] set after reset"); fail = true }
+    if (!fail) println("[sim] palette+pattern+scroll x4+linestate+copper+dma+blitter+sprite(info/affine) zeroed by the sweep")
 
     // (d) AUTO-CLEAR proof: with no new write, busy must STAY low. A request bit
     // that failed to auto-clear would immediately re-assert busy here.
@@ -155,6 +164,6 @@ object SoftResetHandshakeSim extends App {
     if (dut.io.softResetBusy.toBoolean) { println("[sim] FAIL: busy still high at end"); fail = true }
 
     println(if (fail) "[sim] SoftResetHandshakeSim: FAIL"
-            else "[sim] SoftResetHandshakeSim: PASS — handshake + #2a-#2d mem zeroing (palette, pattern, scroll x4, linestate, copper prog/hdma/tbl, dma staging, blitter srcRam)")
+            else "[sim] SoftResetHandshakeSim: PASS — handshake + #2a-#2e mem zeroing (palette, pattern, scroll x4, linestate, copper, dma, blitter, sprite info/affine)")
   }
 }

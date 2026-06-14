@@ -30,8 +30,8 @@ to preserve Gowin BSRAM inference).
 | `tbl` (HDMA channel table) | Copper | NUM_CH·NUM_ENT × 26 | `tblWrEn` | **#2c** |
 | `staging` (DMA copy buffer) | DmaEngine | 64 × 16 | `stagingHit` (0x0B10-0x0B4F) | **#2d ✅** |
 | `srcRam` (blitter source) | BlitterEngine | 512 × 16 | `srcRamHit` (bus) | **#2d ✅** |
-| `infoMemW0/W1/W8` (**sprite descriptors**) | SpriteEvaluator | extCount × … | `isExtBus` | **#2e** |
-| `matAMem/B/C/D`, `transXMem/transYMem` (sprite affine) | SpriteEvaluator | extCount × 16 | `isExtBus` | **#2e** |
+| `infoMemW0/W1/W8` (**sprite descriptors**) | SpriteEvaluator | extCount(28) × … | `isExtBus` (0x0800-0x08FF) | **#2e ✅** |
+| `matAMem/B/C/D`, `transXMem/transYMem` (sprite affine) + `regAffineEnable` DFFs | SpriteEvaluator | extCount(28) × 16 | `isExtBus` | **#2e ✅** |
 
 ## B. Non-host-writable Mems → EXCLUDED from the reset
 Not reachable by any host write; clearing them is wrong (immutable assets) or

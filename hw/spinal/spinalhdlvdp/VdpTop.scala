@@ -1722,6 +1722,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
                                                      spriteBusWord8)
   spriteEval.io.busData := effData
   spriteEval.io.busWr   := spriteBusRangeHit || spriteExtBusRangeHit
+  // VDP-SOFT-RESET-135 #2e: drive the sprite ext-descriptor clear from the sweep.
+  spriteEval.io.softClear     := softResetMemClear
+  spriteEval.io.softClearAddr := softResetMemAddr
 
   // Pass 1 strobe at end of line — evaluator takes descCount cycles to
   // complete (well under hBlank = 160 cycles at 640×480@60).
