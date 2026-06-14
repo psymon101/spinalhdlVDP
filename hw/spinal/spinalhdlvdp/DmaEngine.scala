@@ -59,6 +59,11 @@ case class DmaEngine() extends Component {
     // Status.
     val busy = out Bool()    // live — non-sticky
     val done = out Bool()    // one-cycle pulse on transfer complete; OR into evBus
+
+    // VDP-SOFT-RESET-135 #2d: soft-reset clear of the staging buffer. Defaulted
+    // so other instantiations are unaffected; driven by VdpTop's clear sweep.
+    val softClear     = in Bool() default False
+    val softClearAddr = in UInt(14 bits) default U(0, 14 bits)
   }
 
   // Control registers.
@@ -98,7 +103,13 @@ case class DmaEngine() extends Component {
 
   // Staging buffer write port — drives Mem directly from bus.
   val stagingWrAddr = (io.busAddr - U(stagingBaseAddr, 15 bits))(stagingAddrBits - 1 downto 0)
-  staging.write(address = stagingWrAddr, data = io.busData, enable = stagingHit)
+  // VDP-SOFT-RESET-135 #2d: staging-buffer write muxed to the zero-sweep.
+  val stagingClearWr = io.softClear && (io.softClearAddr < U(stagingWords, 14 bits))
+  staging.write(
+    address = Mux(io.softClear, io.softClearAddr.resize(stagingAddrBits), stagingWrAddr),
+    data    = Mux(io.softClear, B(0, 16 bits), io.busData),
+    enable  = stagingHit || stagingClearWr
+  )
 
   // ------------------------------------------------------------------
   // FSM: idle → running → (done-pulse) → idle.

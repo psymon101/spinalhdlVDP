@@ -39,6 +39,7 @@ case class SoftResetDut() extends Component {
   vdp.vScrollTable0.mem.simPublic(); vdp.vScrollTable1.mem.simPublic()
   vdp.linestate.prepare.simPublic(); vdp.linestate.commit.simPublic()
   vdp.copper.prog.simPublic(); vdp.copper.hdmaDataArray.simPublic(); vdp.copper.tbl.simPublic()
+  vdp.dmaEngine.staging.simPublic(); vdp.blitterEngine.srcRam.simPublic()
   vdp.io.regBus.addr   := io.regAddr
   vdp.io.regBus.data   := io.regData
   vdp.io.regBus.enable := io.regEnable
@@ -104,6 +105,8 @@ object SoftResetHandshakeSim extends App {
     val progIdx = Seq(0, 200, 511, 512, 1023)         // copper prog = 1024 (BOTH banks)
     val hdmaIdx = Seq(0, 128, 255)                    // hdmaDataArray = 256
     val tblIdx  = Seq(0, 15, 31)                      // tbl = NUM_CH*NUM_ENT = 32
+    val stgIdx  = Seq(0, 32, 63)                      // DMA staging = 64
+    val srcIdx  = Seq(0, 256, 511)                    // blitter srcRam = 512
     for (i <- palIdx) dut.vdp.palette.setBigInt(i, BigInt("ABCDEF", 16))
     for (i <- patIdx) dut.vdp.spritePatternRams.head.setBigInt(i, BigInt(0xF))
     for (i <- sclIdx) {
@@ -114,6 +117,8 @@ object SoftResetHandshakeSim extends App {
     for (i <- progIdx) dut.vdp.copper.prog.setBigInt(i, BigInt(0xBEEF))
     for (i <- hdmaIdx) dut.vdp.copper.hdmaDataArray.setBigInt(i, BigInt(0xC0DE))
     for (i <- tblIdx)  dut.vdp.copper.tbl.setBigInt(i, BigInt("3FFFFFF", 16))
+    for (i <- stgIdx)  dut.vdp.dmaEngine.staging.setBigInt(i, BigInt(0xDA7A))
+    for (i <- srcIdx)  dut.vdp.blitterEngine.srcRam.setBigInt(i, BigInt(0x5A5A))
     dut.clockDomain.waitSampling(2)
     // sanity: presets took
     for (i <- palIdx) if (dut.vdp.palette.getBigInt(i) == 0) { println(s"[sim] FAIL: palette[$i] preset did not take"); fail = true }
@@ -133,7 +138,9 @@ object SoftResetHandshakeSim extends App {
     for (i <- progIdx) chk("copper.prog", dut.vdp.copper.prog.getBigInt(i), i)
     for (i <- hdmaIdx) chk("copper.hdmaDataArray", dut.vdp.copper.hdmaDataArray.getBigInt(i), i)
     for (i <- tblIdx)  chk("copper.tbl", dut.vdp.copper.tbl.getBigInt(i), i)
-    if (!fail) println("[sim] palette + pattern + scroll x4 + linestate + copper(prog 2-bank/hdma/tbl) zeroed by the sweep")
+    for (i <- stgIdx)  chk("dma.staging", dut.vdp.dmaEngine.staging.getBigInt(i), i)
+    for (i <- srcIdx)  chk("blitter.srcRam", dut.vdp.blitterEngine.srcRam.getBigInt(i), i)
+    if (!fail) println("[sim] palette+pattern+scroll x4+linestate+copper(prog/hdma/tbl)+dma.staging+blitter.srcRam zeroed by the sweep")
 
     // (d) AUTO-CLEAR proof: with no new write, busy must STAY low. A request bit
     // that failed to auto-clear would immediately re-assert busy here.
@@ -148,6 +155,6 @@ object SoftResetHandshakeSim extends App {
     if (dut.io.softResetBusy.toBoolean) { println("[sim] FAIL: busy still high at end"); fail = true }
 
     println(if (fail) "[sim] SoftResetHandshakeSim: FAIL"
-            else "[sim] SoftResetHandshakeSim: PASS — handshake + #2a/#2b/#2c mem zeroing (palette, pattern, scroll x4, linestate, copper prog/hdma/tbl)")
+            else "[sim] SoftResetHandshakeSim: PASS — handshake + #2a-#2d mem zeroing (palette, pattern, scroll x4, linestate, copper prog/hdma/tbl, dma staging, blitter srcRam)")
   }
 }

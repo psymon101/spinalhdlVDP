@@ -62,6 +62,11 @@ case class BlitterEngine() extends Component {
     // Status.
     val busy = out Bool()    // live — non-sticky
     val done = out Bool()    // one-cycle pulse on transfer complete
+
+    // VDP-SOFT-RESET-135 #2d: soft-reset clear of the blitter source RAM.
+    // Defaulted so other instantiations are unaffected; driven by VdpTop sweep.
+    val softClear     = in Bool() default False
+    val softClearAddr = in UInt(14 bits) default U(0, 14 bits)
   }
 
   // Mode encoding.
@@ -119,7 +124,13 @@ case class BlitterEngine() extends Component {
 
   // Source-RAM write port — driven by host bus writes to 0x0C10..0x0D0F.
   val srcRamWrAddr = (io.busAddr - U(srcRamBaseAddr, 15 bits))(srcRamAddrBits - 1 downto 0)
-  srcRam.write(address = srcRamWrAddr, data = io.busData, enable = srcRamHit)
+  // VDP-SOFT-RESET-135 #2d: source-RAM write muxed to the zero-sweep.
+  val srcRamClearWr = io.softClear && (io.softClearAddr < U(srcRamWords, 14 bits))
+  srcRam.write(
+    address = Mux(io.softClear, io.softClearAddr.resize(srcRamAddrBits), srcRamWrAddr),
+    data    = Mux(io.softClear, B(0, 16 bits), io.busData),
+    enable  = srcRamHit || srcRamClearWr
+  )
 
   // ------------------------------------------------------------------
   // FSM: idle → run → done → idle.

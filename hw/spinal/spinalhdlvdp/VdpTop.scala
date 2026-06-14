@@ -395,6 +395,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   dmaEngine.io.busAddr := effAddr
   dmaEngine.io.busData := effData
   dmaEngine.io.busWr   := effWrite && dmaRangeHit
+  // VDP-SOFT-RESET-135 #2d: drive the DMA staging clear from the shared sweep.
+  dmaEngine.io.softClear     := softResetMemClear
+  dmaEngine.io.softClearAddr := softResetMemAddr
   dmaEngine.io.busBusy := extHit || copperPopped
 
   // Task 49 — Blitter bus-write decode. Control registers at 0x0C00..0x0C07
@@ -407,6 +410,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   blitterEngine.io.busData := effData
   blitterEngine.io.busWr   := effWrite && blitRangeHit
   blitterEngine.io.busBusy := extHit || copperPopped || dmaWr
+  // VDP-SOFT-RESET-135 #2d: drive the blitter srcRam clear from the shared sweep.
+  blitterEngine.io.softClear     := softResetMemClear
+  blitterEngine.io.softClearAddr := softResetMemAddr
 
   // Task 33 HDMA control decode (see forward-declared comment above).
   val copperHdmaRangeHit = effWrite &&

@@ -28,8 +28,8 @@ to preserve Gowin BSRAM inference).
 | `prog` (copper program, 2 banks) | Copper | 1024 × 16 | `progWr` (0x0400-0x05FF) | **#2c** |
 | `hdmaDataArray` | Copper | 256 × 16 | `hdmaDataWriteHit` | **#2c** |
 | `tbl` (HDMA channel table) | Copper | NUM_CH·NUM_ENT × 26 | `tblWrEn` | **#2c** |
-| `staging` (DMA copy buffer) | DmaEngine | 64 × 16 | `stagingHit` (0x0B10-0x0B4F) | **#2d** |
-| `srcRam` (blitter source) | BlitterEngine | srcRamWords × 16 | `srcRamHit` (bus) | **#2d** |
+| `staging` (DMA copy buffer) | DmaEngine | 64 × 16 | `stagingHit` (0x0B10-0x0B4F) | **#2d ✅** |
+| `srcRam` (blitter source) | BlitterEngine | 512 × 16 | `srcRamHit` (bus) | **#2d ✅** |
 | `infoMemW0/W1/W8` (**sprite descriptors**) | SpriteEvaluator | extCount × … | `isExtBus` | **#2e** |
 | `matAMem/B/C/D`, `transXMem/transYMem` (sprite affine) | SpriteEvaluator | extCount × 16 | `isExtBus` | **#2e** |
 
