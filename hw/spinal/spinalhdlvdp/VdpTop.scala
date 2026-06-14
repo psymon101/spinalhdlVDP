@@ -59,6 +59,11 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
     // R2 diagnostic: sprite-per-line overflow flag (sticky within line).
     val spriteOverflow = out Bool()
+    // VDP-SOFT-RESET-135: live SOFT_RESET_BUSY status for the i80 0x0310
+    // readback. High from the cycle a soft reset is accepted until the
+    // bounded reset sequence completes (host polls this; i80 register reads
+    // are otherwise last-write loopback). See the soft-reset controller below.
+    val softResetBusy = out Bool()
     // R5: unified register-write bus. Replaces the raw lsWrite* ports.
     //   0x0000-0x01DF  linestate prepare (addr low 9 bits = line; data low 12 bits = {l0en, l1en, l0scrollX[9:0]})
     //   0x0300         LAYER_ENABLE (data[0]=L0, data[1]=L1, data[2]=sprite) — global override
@@ -517,15 +522,62 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // commit. Last-write-wins precedence below: swap-commit and disable-clear
   // both override the host set, so a request that lands the same cycle as
   // disable or the commit pulse resolves cleanly.
+  // VDP-SOFT-RESET-135: soft-reset controller state (declared before the 0x0310
+  // decode that latches the request; FSM logic follows the decode below).
+  val softResetRequest = Reg(Bool()) init False
+  val softResetBusy    = Reg(Bool()) init False
+  val softResetSeqCnt  = Reg(UInt(16 bits)) init 0
+
   when(effWrite && effAddr === U(0x0310, 15 bits)) {
     copperCtrlPend    := effData(0 downto 0)
     copperCtrlPendHit := True
     when(effData(1)) { copperSwapPending := True }
+    // VDP-SOFT-RESET-135: bit[2] = SOFT_RESET_REQUEST (latch-on-write, like the
+    // copper-swap bit[1]). Honored by the soft-reset controller below.
+    when(effData(2)) { softResetRequest := True }
   }
   // R5.4: auto-clear on commit, and clear if copper is disabled (pending
   // swap is dropped because requests are only honored while enabled).
   when(copperSwapNowPulse)   { copperSwapPending := False }
   when(!copperCtrlReg(0))    { copperSwapPending := False }
+
+  // ===== VDP-SOFT-RESET-135: host-triggered soft-reset controller =====
+  // Host writes VDP_CTRL @ 0x0310 bit[2]=1 to request a POR-equivalent soft
+  // reset; HW runs a bounded, deadlock-free sequence and AUTO-CLEARS the
+  // request + drops `softResetBusy` when complete. The host polls completion
+  // by reading 0x0310 (i80 readback returns bit2=SOFT_RESET_BUSY; see TopTang).
+  //
+  // INCREMENTAL BUILD (lane VDP-SOFT-RESET-135): this increment (#1) wires the
+  // request/busy/auto-clear handshake + the i80 status readback only. The
+  // reset *actions* land in later increments, each slotting into the staged
+  // sequence below WITHOUT changing this host-facing contract:
+  //   [#2] on-chip MEM clear sweep (copper RAM, palette, sprite pattern/desc,
+  //        linestate, scroll tables, affine texture) — zero per TopazCliff Q1.
+  //   [#3] SDRAM zero-fill engine (TopTang arbiter client) — all of SDRAM (Q2).
+  //   [#4] core register reset (ClockDomain soft-reset partition) — regs->init.
+  // These controller regs live in the NORMAL clock domain (NOT the future
+  // core-reset partition) so the controller survives the reset it drives and
+  // can hold/clear the request + drive the busy status throughout.
+  //
+  // Until [#2..#4] land, the sequence is a bounded placeholder wait so the
+  // handshake is provable in sim and BronzeGate's wrapper (write 0x0004, poll
+  // bit2) can be developed against the real contract. NOT a functional reset
+  // yet — do not flash as a working soft reset until [#2..#4] are merged.
+  // (softResetRequest/softResetBusy/softResetSeqCnt declared above the 0x0310 decode.)
+  // Placeholder sequence length; replaced by the real stage completions in #2..#4.
+  val softResetSeqDone = softResetSeqCnt === U(255, 16 bits)
+  when(softResetRequest && !softResetBusy) {
+    softResetBusy   := True              // accept the request; begin the sequence
+    softResetSeqCnt := 0
+  }
+  when(softResetBusy) {
+    softResetSeqCnt := softResetSeqCnt + 1
+    when(softResetSeqDone) {
+      softResetBusy    := False          // sequence complete: drop busy ...
+      softResetRequest := False          // ... and auto-clear the request bit
+    }
+  }
+  io.softResetBusy := softResetBusy
 
   // MODE_SELECT @ 0x0313: 16-bit register — [3:0] = MODE_SELECT,
   // [7:4] = reserved, [15:8] = MODE_FLAGS. Host/QSPI-write only.

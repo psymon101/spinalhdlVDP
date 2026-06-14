@@ -576,9 +576,13 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // P21-proven reg-read discriminator (0xA55A/0x1234) still holds.
     if (hostI80) {
       val i80Loopback = RegNext(i80.io.regBus.data) init 0
+      // VDP-SOFT-RESET-135: a read of VDP_CTRL @ 0x0310 returns LIVE status, not
+      // the last-write loopback, so the host can poll bit[2]=SOFT_RESET_BUSY for
+      // soft-reset completion (write 0x0004, then poll until bit2 reads 0).
       i80.io.readData := i80.io.readAddr.mux(
         U(0x0328, 15 bits) -> debugSdramDataPix(15 downto 0),
         U(0x0329, 15 bits) -> debugSdramDataPix(31 downto 16),
+        U(0x0310, 15 bits) -> Mux(video.io.softResetBusy, B(0x0004, 16 bits), B(0, 16 bits)),
         default            -> i80Loopback
       )
     }
