@@ -63,6 +63,23 @@ ClockDomain soft-reset in increment #4 — NOT by the memory sweep.
 > nothing to reset inside VdpTop. The host-writable sprite descriptors that DO
 > live in VdpTop state are SpriteEvaluator's `infoMem*` (section A, #2e).
 
+## D. Host-write surface audit — "should be host-writable but isn't"
+Before finalizing the reset scope, every excluded area was re-checked against the
+register spec for *missing* host-write paths (a gap there would later become reset
+scope). Result:
+
+| Area | Current state | Host-writable today? | Verdict |
+|------|---------------|----------------------|---------|
+| `affineTexture` (16384×8 affine/Mode7 bg texture) | fixed `.init`, no write port | **NO** | **GAP** — `MODE0_REGISTER_BUS_SPEC` Task 34 "host asset upload" was intended to fill it but is not wired to this Mem. The affine background is a fixed demo asset. |
+| sprite ext descriptors `infoMem*` + affine `matMem*` | bus-decoded at `0x0800..0x08FF` | **YES** | OK — implemented. (Spec table row "0x0800..0x0FFF Task 37 impl: —" is **STALE**; flag to CoralReef.) |
+| legacy sprite 0-3 (`io.sprite0X..`) | TopTang demo io ports | NO (host uses the ext bus instead) | demo cruft, not a functional gap — the host sprite path is the ext bus (reset-scoped in #2e). |
+| `BasicPatternSource` tileMap/tileRows; `SdramTileFetch` tileMapRom/tileRowRom | fixed `.init` ROMs | NO | test/demo stand-ins — the real host-loadable tile path is **SDRAM-backed** (host writes tiles to SDRAM, cleared by #3 SDRAM zero-fill). |
+
+**Net:** the only on-chip Mem that arguably *should* be host-writable but isn't is
+`affineTexture`. Reset implication: if Task 34 wires it, it's 16384×8 — it fits
+the EXISTING 16384-cycle sweep length exactly, so adding it later is free (no
+controller change). Until then it stays excluded (immutable, already POR).
+
 ## Open scope question for TopazCliff
 Sections A rows for **HDMA (`hdmaDataArray`/`tbl`), DMA `staging`, blitter
 `srcRam`, and sprite affine matrices** were NOT in the original contract list but
