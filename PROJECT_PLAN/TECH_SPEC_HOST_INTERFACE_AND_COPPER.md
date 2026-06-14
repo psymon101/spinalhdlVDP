@@ -136,27 +136,28 @@ The original host interface was a 4-wire QSPI bus with a 6-byte header `[CMD:1][
 
 ### 4.2 Instruction Set
 
-Copper instructions are 16 bits.
+Copper instructions are 16-bit words. The current implementation (see `Copper.scala`) supports WAIT, WRITE, WRITE_SEQ, JUMP, and SKIP.
 
 | Op | Enc | Description | Bit Layout | Cycles | Typical Use |
 |----|-----|-------------|------------|--------|-------------|
-| `WAIT` | `00` | Block until raster matches target | `00 WT Y TGT[9:0]` | 1 | Beam-sync trigger |
-| `WRITE` | `01` | Write 8-bit data to VDP register | `01 -- reg[5:0] data[7:0]` | 1 | Single register poke |
-| `WRITE_SEQ` | `10` | Write `N+1` words from program RAM | `10 ITY BAS N reg[5:0]` | N+1 | Palette/bar updates |
-| `JUMP` | `11` | Unconditional jump | `11 -- addr[10:0]` | 1 | Loop restart |
+| `WAIT` legacy | `00` | Stall until `vCounter==Y && hCounter==0` | `00 0 000 Y[9:0]` | 1 | Line-accurate beam sync |
+| `WAIT` extended | `00` | Stall until `vCounter==Y && hCounter==X` | `00 1 00 X[9:0]` then `000000 Y[9:0]` | 2 | Pixel-precise beam sync |
+| `WRITE` | `01` | Write one 16-bit value to a VDP register | `01 addr[13:0]` then `data[15:0]` | 2 | Single register poke |
+| `WRITE_SEQ` | `10` | Write `N` consecutive 16-bit values | `10 count_m1[2:0] addr[10:0]` then `N` data words | 1 + N | Palette/bar bursts |
+| `JUMP` | `11` | Unconditional jump | `11 0 000 targetPC[8:0]` | 1 | Loop restart |
+| `SKIP` | `11` | Conditional skip | `11 1 xxxxx cond[2:0] offset[4:0]` | 1 | Branchless raster logic |
 
 **Field definitions:**
-- `WT`: 1 = block until match; 0 = set target, continue
-- `Y`: 0 = target X, 1 = target Y
-- `TGT`: 10-bit raster coordinate
-- `reg`: 6-bit VDP register address
-- `data`: 8-bit immediate
-- `BAS`: increment mode (00 = same, 01 = +1, 10 = +2, 11 = +4)
-- `N`: batch count minus one
-- `ITY`: interlaced Y mode (auto-increment Y and WAIT between batches)
-- `addr`: 11-bit program RAM address
+- `Y` / `X` / `TGT`: 10-bit raster coordinate.
+- `addr`: register bus address (14 bits for `WRITE`, 11 bits for `WRITE_SEQ`).
+- `data`: 16-bit register value.
+- `count_m1`: burst length minus one (`0..7`), so `N = count_m1 + 1` (`1..8` words).
+- `targetPC`: 9-bit program word address for `JUMP`.
+- `cond`: 3-bit condition code for `SKIP` (uses the `TR0` raster-trigger registers as compare inputs).
+- `offset`: 5-bit skip offset counted in **program words**.
 
-**16-bit writes:** Use `WRITE_SEQ` with `N=0`.
+> [!NOTE]
+> A `WRITE` consumes **two program words**: the header word encodes the register address, and the following word is the 16-bit data value. A `WRITE_SEQ` of one value (`count_m1 = 0`) is the canonical way to emit a single 16-bit write.
 
 ### 4.3 Copper Program RAM
 

@@ -337,7 +337,7 @@ void copper_live_update(void) {
 
 ### Minimal working example: border color split
 
-This example changes the border color at scanline 160. It assumes the border window has been set to cover the full screen and palette entries 1 and 2 have been loaded.
+This example changes the border color at scanline 160. It assumes the border window is disabled (`BORDER_X0..Y1` = 0) so the border fills the whole screen, and palette entries 1 and 2 have been loaded.
 
 ```c
 #include "vdp_copper.h"
@@ -351,8 +351,8 @@ static const uint32_t palette[] = {
 
 void copper_border_split_demo(void) {
     // 1. Seed the border so something is visible before the copper runs.
-    vdp_mode0_rect_t full = { .x = 0, .y = 0, .w = 640, .h = 480 };
-    vdp_mode0_set_border_window(&full, vdp_mode0_border_ctrl(true, 1));
+    //    Leave BORDER_X0..Y1 at 0 so the border fills the whole screen.
+    vdp_mode0_set_border_ctrl(vdp_mode0_border_ctrl(true, 1));
 
     for (uint8_t i = 0; i < 3; ++i) {
         vdp_mode0_palette_write_rgb888(i,
@@ -374,6 +374,9 @@ void copper_border_split_demo(void) {
     vdp_copper_enable(true);
 }
 ```
+
+> [!WARNING]
+> The border window (`BORDER_X0..Y1`) defines the **inner/active screen region**. Pixels **outside** that rectangle show the border color; pixels inside show layers/backdrop. A full-screen window such as `{0,0,640,480}` leaves no outside area, so the border becomes invisible even when `BORDER_CTRL` is enabled. For a full-screen border effect, keep the window registers at `0`.
 
 ### Raw i80 fallback (debug)
 
