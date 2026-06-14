@@ -337,6 +337,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   copper.io.progAddr := io.regBus.addr(8 downto 0)
   copper.io.progData := io.regBus.data
   copper.io.progWr   := copperProgRangeHit
+  // VDP-SOFT-RESET-135 #2c: drive the copper clear sweep from the shared counter.
+  copper.io.softClear     := softResetMemClear
+  copper.io.softClearAddr := softResetMemAddr
 
   // Task 33 — HDMA host-control sub-block @ 0x0380..0x03C9.
   // Decoded from the EFFECTIVE merged bus (effAddr/effWrite) so configuration

@@ -38,6 +38,7 @@ case class SoftResetDut() extends Component {
   vdp.scrollTable0.mem.simPublic(); vdp.scrollTable1.mem.simPublic()
   vdp.vScrollTable0.mem.simPublic(); vdp.vScrollTable1.mem.simPublic()
   vdp.linestate.prepare.simPublic(); vdp.linestate.commit.simPublic()
+  vdp.copper.prog.simPublic(); vdp.copper.hdmaDataArray.simPublic(); vdp.copper.tbl.simPublic()
   vdp.io.regBus.addr   := io.regAddr
   vdp.io.regBus.data   := io.regData
   vdp.io.regBus.enable := io.regEnable
@@ -100,6 +101,9 @@ object SoftResetHandshakeSim extends App {
     val patIdx = Seq(0, 100, 8000, 16383)            // pattern RAM = 16384
     val sclIdx = Seq(0, 50, 127)                      // scroll tables = 128
     val lsIdx  = Seq(0, 100, 300, 479)                // linestate = 480 (vActive)
+    val progIdx = Seq(0, 200, 511, 512, 1023)         // copper prog = 1024 (BOTH banks)
+    val hdmaIdx = Seq(0, 128, 255)                    // hdmaDataArray = 256
+    val tblIdx  = Seq(0, 15, 31)                      // tbl = NUM_CH*NUM_ENT = 32
     for (i <- palIdx) dut.vdp.palette.setBigInt(i, BigInt("ABCDEF", 16))
     for (i <- patIdx) dut.vdp.spritePatternRams.head.setBigInt(i, BigInt(0xF))
     for (i <- sclIdx) {
@@ -107,6 +111,9 @@ object SoftResetHandshakeSim extends App {
       dut.vdp.vScrollTable0.mem.setBigInt(i, BigInt(0x2CC)); dut.vdp.vScrollTable1.mem.setBigInt(i, BigInt(0x199))
     }
     for (i <- lsIdx) { dut.vdp.linestate.prepare.setBigInt(i, BigInt(0xFFF)); dut.vdp.linestate.commit.setBigInt(i, BigInt(0xFFF)) }
+    for (i <- progIdx) dut.vdp.copper.prog.setBigInt(i, BigInt(0xBEEF))
+    for (i <- hdmaIdx) dut.vdp.copper.hdmaDataArray.setBigInt(i, BigInt(0xC0DE))
+    for (i <- tblIdx)  dut.vdp.copper.tbl.setBigInt(i, BigInt("3FFFFFF", 16))
     dut.clockDomain.waitSampling(2)
     // sanity: presets took
     for (i <- palIdx) if (dut.vdp.palette.getBigInt(i) == 0) { println(s"[sim] FAIL: palette[$i] preset did not take"); fail = true }
@@ -123,7 +130,10 @@ object SoftResetHandshakeSim extends App {
       chk("vScrollTable0", dut.vdp.vScrollTable0.mem.getBigInt(i), i); chk("vScrollTable1", dut.vdp.vScrollTable1.mem.getBigInt(i), i)
     }
     for (i <- lsIdx) { chk("ls.prepare", dut.vdp.linestate.prepare.getBigInt(i), i); chk("ls.commit", dut.vdp.linestate.commit.getBigInt(i), i) }
-    if (!fail) println("[sim] palette + pattern RAM + scroll tables + linestate(prepare+commit) zeroed by the sweep")
+    for (i <- progIdx) chk("copper.prog", dut.vdp.copper.prog.getBigInt(i), i)
+    for (i <- hdmaIdx) chk("copper.hdmaDataArray", dut.vdp.copper.hdmaDataArray.getBigInt(i), i)
+    for (i <- tblIdx)  chk("copper.tbl", dut.vdp.copper.tbl.getBigInt(i), i)
+    if (!fail) println("[sim] palette + pattern + scroll x4 + linestate + copper(prog 2-bank/hdma/tbl) zeroed by the sweep")
 
     // (d) AUTO-CLEAR proof: with no new write, busy must STAY low. A request bit
     // that failed to auto-clear would immediately re-assert busy here.
@@ -138,6 +148,6 @@ object SoftResetHandshakeSim extends App {
     if (dut.io.softResetBusy.toBoolean) { println("[sim] FAIL: busy still high at end"); fail = true }
 
     println(if (fail) "[sim] SoftResetHandshakeSim: FAIL"
-            else "[sim] SoftResetHandshakeSim: PASS — handshake (bounded/auto-clear/re-armable) + #2a/#2b mem zeroing (palette, pattern, scroll x4, linestate prepare+commit)")
+            else "[sim] SoftResetHandshakeSim: PASS — handshake + #2a/#2b/#2c mem zeroing (palette, pattern, scroll x4, linestate, copper prog/hdma/tbl)")
   }
 }
