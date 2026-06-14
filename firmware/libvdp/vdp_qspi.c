@@ -4,7 +4,202 @@
 #include "vdp_qspi.h"
 #include "vdp_platform.h"
 
-#if defined(PICO) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_RASPBERRY_PI_PICO)
+#if defined(VDP_HOST_BACKEND_I80_GPIO)
+#include <Arduino.h>
+
+static bool s_initialized = false;
+static int s_last_error = 0;
+
+static const uint8_t s_i80_data_pins[8] = {
+    VDP_PIN_I80_D0, VDP_PIN_I80_D1, VDP_PIN_I80_D2, VDP_PIN_I80_D3,
+    VDP_PIN_I80_D4, VDP_PIN_I80_D5, VDP_PIN_I80_D6, VDP_PIN_I80_D7
+};
+
+int vdp_last_error(void) { return s_last_error; }
+
+static bool vdp_transport_ready(void)
+{
+    if (!s_initialized) {
+        s_last_error = VDP_QSPI_ERR_NOT_INITIALIZED;
+        return false;
+    }
+    return true;
+}
+
+static void vdp_i80_set_data_output(void)
+{
+    for (uint8_t i = 0; i < 8; ++i) pinMode(s_i80_data_pins[i], OUTPUT);
+}
+
+static void vdp_i80_set_data_input(void)
+{
+    for (uint8_t i = 0; i < 8; ++i) pinMode(s_i80_data_pins[i], INPUT);
+}
+
+static void vdp_i80_write_data(uint8_t value)
+{
+    for (uint8_t bit = 0; bit < 8; ++bit) {
+        digitalWrite(s_i80_data_pins[bit], (value & (uint8_t)(1u << bit)) ? HIGH : LOW);
+    }
+}
+
+static uint8_t vdp_i80_read_data(void)
+{
+    uint8_t value = 0;
+    for (uint8_t bit = 0; bit < 8; ++bit) {
+        if (digitalRead(s_i80_data_pins[bit]) != LOW) value |= (uint8_t)(1u << bit);
+    }
+    return value;
+}
+
+static void vdp_i80_pulse_wr(void)
+{
+    delayMicroseconds(2);
+    digitalWrite(VDP_PIN_I80_WR_N, LOW);
+    delayMicroseconds(2);
+    digitalWrite(VDP_PIN_I80_WR_N, HIGH);
+    delayMicroseconds(2);
+}
+
+static void vdp_i80_write_byte(bool data_phase, uint8_t value)
+{
+    digitalWrite(VDP_PIN_I80_DC, data_phase ? HIGH : LOW);
+    vdp_i80_write_data(value);
+    vdp_i80_pulse_wr();
+}
+
+static uint8_t vdp_i80_read_byte(void)
+{
+    digitalWrite(VDP_PIN_I80_DC, HIGH);
+    delayMicroseconds(2);
+    digitalWrite(VDP_PIN_I80_RD_N, LOW);
+    delayMicroseconds(2);
+    const uint8_t value = vdp_i80_read_data();
+    digitalWrite(VDP_PIN_I80_RD_N, HIGH);
+    delayMicroseconds(2);
+    return value;
+}
+
+void vdp_qspi_init(void)
+{
+    if (s_initialized) return;
+    vdp_i80_set_data_output();
+    pinMode(VDP_PIN_I80_DC, OUTPUT);
+    pinMode(VDP_PIN_I80_CS_N, OUTPUT);
+    pinMode(VDP_PIN_I80_WR_N, OUTPUT);
+    pinMode(VDP_PIN_I80_RD_N, OUTPUT);
+    digitalWrite(VDP_PIN_I80_CS_N, HIGH);
+    digitalWrite(VDP_PIN_I80_WR_N, HIGH);
+    digitalWrite(VDP_PIN_I80_RD_N, HIGH);
+    digitalWrite(VDP_PIN_I80_DC, LOW);
+    vdp_i80_write_data(0x00);
+    s_last_error = VDP_QSPI_ERR_NONE;
+    s_initialized = true;
+}
+
+void vdp_host_init(void) { vdp_qspi_init(); }
+void vdp_pio_wait_sm_idle(void) {}
+void vdp_qspi_set_speed_hz(uint32_t hz) { (void)hz; }
+
+uint32_t vdp_read_status(uint8_t sel)
+{
+    (void)sel;
+    s_last_error = VDP_QSPI_ERR_RX;
+    return 0;
+}
+
+void vdp_reg_write(uint32_t addr, uint16_t data)
+{
+    vdp_reg_write_burst(addr, &data, 1);
+}
+
+void vdp_clear_upload_status(uint16_t mask)
+{
+    (void)mask;
+    s_last_error = VDP_QSPI_ERR_NONE;
+}
+
+void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)
+{
+    if (!vdp_transport_ready()) return;
+    s_last_error = VDP_QSPI_ERR_NONE;
+    if (num_words == 0 || words == NULL) {
+        s_last_error = VDP_QSPI_ERR_INVALID_ARG;
+        return;
+    }
+
+    for (uint16_t i = 0; i < num_words; ++i) {
+        const uint32_t reg_addr = addr + i;
+        vdp_i80_set_data_output();
+        digitalWrite(VDP_PIN_I80_RD_N, HIGH);
+        digitalWrite(VDP_PIN_I80_WR_N, HIGH);
+        digitalWrite(VDP_PIN_I80_CS_N, LOW);
+        delayMicroseconds(5);
+        vdp_i80_write_byte(false, 0x00);
+        vdp_i80_write_byte(false, (uint8_t)(reg_addr & 0xFFu));
+        vdp_i80_write_byte(false, (uint8_t)((reg_addr >> 8) & 0xFFu));
+        vdp_i80_write_byte(true, (uint8_t)(words[i] & 0xFFu));
+        vdp_i80_write_byte(true, (uint8_t)((words[i] >> 8) & 0xFFu));
+        digitalWrite(VDP_PIN_I80_CS_N, HIGH);
+    }
+    digitalWrite(VDP_PIN_I80_DC, LOW);
+    vdp_i80_write_data(0x00);
+}
+
+uint16_t vdp_reg_read(uint32_t addr)
+{
+    if (!vdp_transport_ready()) return 0;
+    s_last_error = VDP_QSPI_ERR_NONE;
+    vdp_i80_set_data_output();
+    digitalWrite(VDP_PIN_I80_RD_N, HIGH);
+    digitalWrite(VDP_PIN_I80_WR_N, HIGH);
+    digitalWrite(VDP_PIN_I80_CS_N, LOW);
+    delayMicroseconds(5);
+    vdp_i80_write_byte(false, 0x01);
+    vdp_i80_write_byte(false, (uint8_t)(addr & 0xFFu));
+    vdp_i80_write_byte(false, (uint8_t)((addr >> 8) & 0xFFu));
+    vdp_i80_set_data_input();
+    delayMicroseconds(5);
+    const uint8_t lo = vdp_i80_read_byte();
+    const uint8_t hi = vdp_i80_read_byte();
+    digitalWrite(VDP_PIN_I80_CS_N, HIGH);
+    vdp_i80_set_data_output();
+    digitalWrite(VDP_PIN_I80_DC, LOW);
+    vdp_i80_write_data(0x00);
+    return (uint16_t)lo | ((uint16_t)hi << 8);
+}
+
+void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words)
+{
+    if (!vdp_transport_ready()) return;
+    s_last_error = VDP_QSPI_ERR_NONE;
+    if (num_words == 0 || words == NULL || num_words > 32767u) {
+        s_last_error = VDP_QSPI_ERR_INVALID_ARG;
+        return;
+    }
+
+    const uint16_t byte_len = (uint16_t)(num_words * 2u);
+    vdp_i80_set_data_output();
+    digitalWrite(VDP_PIN_I80_RD_N, HIGH);
+    digitalWrite(VDP_PIN_I80_WR_N, HIGH);
+    digitalWrite(VDP_PIN_I80_CS_N, LOW);
+    delayMicroseconds(5);
+    vdp_i80_write_byte(false, 0x02);
+    vdp_i80_write_byte(false, (uint8_t)(addr & 0xFFu));
+    vdp_i80_write_byte(false, (uint8_t)((addr >> 8) & 0xFFu));
+    vdp_i80_write_byte(false, (uint8_t)((addr >> 16) & 0xFFu));
+    vdp_i80_write_byte(false, (uint8_t)(byte_len & 0xFFu));
+    vdp_i80_write_byte(false, (uint8_t)((byte_len >> 8) & 0xFFu));
+    for (uint16_t i = 0; i < num_words; ++i) {
+        vdp_i80_write_byte(true, (uint8_t)(words[i] & 0xFFu));
+        vdp_i80_write_byte(true, (uint8_t)((words[i] >> 8) & 0xFFu));
+    }
+    digitalWrite(VDP_PIN_I80_CS_N, HIGH);
+    digitalWrite(VDP_PIN_I80_DC, LOW);
+    vdp_i80_write_data(0x00);
+}
+
+#elif defined(PICO) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_RASPBERRY_PI_PICO)
 #include "pico/stdlib.h"
 #include "hardware/pio.h"
 #include "hardware/gpio.h"
@@ -348,6 +543,7 @@ uint32_t vdp_read_status(uint8_t sel)
 #endif
 
 // ---- Common Shared Implementation -------------------------------------------
+#if !defined(VDP_HOST_BACKEND_I80_GPIO)
 
 void vdp_reg_write(uint32_t addr, uint16_t data) { vdp_reg_write_burst(addr, &data, 1); }
 
@@ -389,3 +585,13 @@ void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words)
     vdp_tx_bytes(frame, n);
     vdp_cs_deassert();
 }
+
+void vdp_host_init(void) { vdp_qspi_init(); }
+
+uint16_t vdp_reg_read(uint32_t addr)
+{
+    (void)addr;
+    s_last_error = VDP_QSPI_ERR_RX;
+    return 0;
+}
+#endif

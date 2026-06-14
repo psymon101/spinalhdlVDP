@@ -93,6 +93,8 @@ extern "C" {
 /* Sprite pattern RAM (Task 53 / Phase 2) */
 #define VDP_MODE0_REG_PATTERN_RAM_DATA  0x0D10u
 #define VDP_MODE0_REG_PATTERN_RAM_PTR   0x0D11u
+#define VDP_MODE0_REG_PLANAR_CTRL       0x0D4Au
+#define VDP_MODE0_PLANAR_CTRL_ENABLE    0x0001u
 
 /* HDMA sub-register offsets (base = 0x0380) */
 #define VDP_MODE0_HDMA_OFFSET_CTRL      0x00u
