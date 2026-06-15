@@ -92,6 +92,13 @@ This section tracks the active lane.
 - **Depends on:** None
 - **Validation:** Hardware proof: reset pin returns system to known state without power cycle.
 
+### Priority 5 — BSRAM Reclamation (BSRAM-RECLAIM-137)
+- **Status:** **QUEUED**
+- **Owner:** BrightForge (RTL) / CyanPeak (review) / CoralReef (docs if semantics change)
+- **Scope:** Phase 1 only: reduce `BitmapRowFetch` `NBanks` 3→2 and `byteFifo` depth 256→32; prove with `BitmapArbiterIntegrationSim` refresh ON at 40.5 MHz. Phases 2–3 (sprite/FIFO/copper cuts, compositor buffer consolidation) are parked pending soft-reset closeout.
+- **Depends on:** VDP-SOFT-RESET-135 Stage 3 sim PASS
+- **Validation:** Sim zero mismatches; STA clean; no visible regression in existing demos.
+
 ### Sub-lane: 2bpp Planar FPGA Hardware Proof
 - **Status:** **IN-PROGRESS**
 - **Owner:** BrightForge
