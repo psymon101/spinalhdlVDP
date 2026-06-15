@@ -230,13 +230,13 @@ vdp_mode0_set_scale_ctrl(
 
 ---
 
-### GOTCHA-031: Embedded SDRAM Address Margin Ceiling (64.8 MHz)
+### GOTCHA-031: Embedded SDRAM Address Margin Ceiling (64.8 MHz retired)
 
-**Fact:** Initial bring-up attempts at 64.8 MHz (Phase 1A) showed non-deterministic Row Address Aliasing (e.g., Row 0x28 overwriting Row 0x2C).
+**Fact:** Initial bring-up attempts at the retired 64.8 MHz SDRAM clock (Phase 1A) showed non-deterministic Row Address Aliasing (e.g., Row 0x28 overwriting Row 0x2C). The current stable baseline is **40.5 MHz**.
 
 **Why it occurred:** The physical capture window at 180° phase (7.7 ns) is marginal for the combined SiP substrate skew and chip-internal latch requirements. Timing artifacts in the EDA tool hid this marginality until hardware verification.
 
-**Fix:** Lower the SDRAM clock to **40.5 MHz**. This widens the capture window to **12.35 ns**, providing ~60% more setup/hold margin. This is the mandatory stable baseline for Tang Nano 20K Phase 1A.
+**Fix:** Lower the SDRAM clock to **40.5 MHz**. This widens the capture window to **12.35 ns**, providing ~60% more setup/hold margin. This is the mandatory stable baseline for Tang Nano 20K Phase 1A. All live documentation and new designs must use 40.5 MHz; 64.8 MHz references are historical/retired.
 
 **Simulation Note:** At 40.5 MHz (RefreshPeriodCycles=593), the `PlanarRefreshStallSim` canary may trip deterministically due to the tighter refresh cadence shifting `memtestPassR` into phase with the artificial testbench stimulus. This is a **benign sim-stimulus artifact** and does not indicate a hardware bug. Do not relax the RTL assert contract.
 

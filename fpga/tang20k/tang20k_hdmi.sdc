@@ -1,7 +1,7 @@
 create_clock -name clk_pixel -period 39.6825 -waveform {0 19.84125} [get_pins {clkdiv_1/CLKOUT}]
 create_clock -name clk_x5 -period 7.9365 -waveform {0 3.96825} [get_pins {pll/CLKOUT}]
 create_clock -name I_clk -period 37.037 -waveform {0 18.5185} [get_ports {I_clk}] -add
-# #11197 Option A: 40.5 MHz SDRAM clock (lowered from 64.8 MHz to widen the analog
+# #11197 Option A: 40.5 MHz SDRAM clock (lowered from the retired 64.8 MHz target to widen the analog
 # address-capture window 7.7->12.35ns and close the row aliasing). rPLL.CLKOUT.
 # Period = 1000 / 40.5 = 24.691 ns. (IO-delay VALUES below are chip tIS/tHD/tAC/tOH,
 # absolute ns — unchanged by frequency; the wider period gives more margin.)

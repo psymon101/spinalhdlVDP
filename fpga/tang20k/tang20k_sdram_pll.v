@@ -1,9 +1,10 @@
 // PLL for SDRAM clock generation on Tang Nano 20K.
 //
 // Generates the 40.5 MHz SDRAM main clock + its 180-degree phase-shifted companion
-// for sdram.v's clk / clk_sdram inputs. (Originally 64.8 MHz under Task 15; lowered to
-// 40.5 MHz under #11197 Option A — see the defparam block below — to widen the analog
-// address-capture window. The "64.8 MHz" Task-15 wording was stale.)
+// for sdram.v's clk / clk_sdram inputs. (Originally the retired 64.8 MHz target under
+// Task 15; lowered to 40.5 MHz under #11197 Option A — see the defparam block below —
+// to widen the analog address-capture window. The "64.8 MHz" Task-15 wording is retired
+// and kept here only as historical context.)
 //
 // Parameter reconciliation (tool-proven formula from Gowin EX0311, msg 6601):
 //   VCO    = FCLKIN * (FBDIV_SEL+1) * ODIV_SEL / (IDIV_SEL+1)
@@ -11,9 +12,10 @@
 //   VCO must sit in the GW2AR window (tool reports 500-1250 MHz).
 //
 // #11197 Option A (lower SDRAM clock to widen the analog address-capture window;
-// closes the 0xA000<->0xB000 row aliasing at 64.8MHz). Target ~40 MHz: EXACT 40
-// is irreducible 40/27 -> IDIV+1=27 -> PFD=1MHz (below the rPLL minimum, won't
-// lock). 40.5 MHz = 27*3/2 is the clean achievable point with a healthy PFD.
+// closes the 0xA000<->0xB000 row aliasing seen at the retired 64.8MHz target).
+// Target ~40 MHz: EXACT 40 is irreducible 40/27 -> IDIV+1=27 -> PFD=1MHz
+// (below the rPLL minimum, won't lock). 40.5 MHz = 27*3/2 is the clean
+// achievable point with a healthy PFD.
 // FBDIV_SEL = 2, IDIV_SEL = 1, ODIV_SEL = 16:
 //   CLKOUT = 27 * 3 / 2 = 40.5 MHz   (180deg capture window 12.35ns vs 7.7ns)
 //   VCO    = 40.5 * 16  = 648 MHz    (within 500-1250)
@@ -55,7 +57,7 @@ rPLL rpll_inst (
     .FDLY({gw_gnd,gw_gnd,gw_gnd,gw_gnd})
 );
 
-// #11197 Option A: 40.5 MHz SDRAM clock (was 64.8 MHz). VCO = 40.5 * 16 = 648 MHz.
+// #11197 Option A: 40.5 MHz SDRAM clock (was the retired 64.8 MHz target). VCO = 40.5 * 16 = 648 MHz.
 defparam rpll_inst.FBDIV_SEL = 2;
 defparam rpll_inst.IDIV_SEL = 1;
 defparam rpll_inst.ODIV_SEL = 16;

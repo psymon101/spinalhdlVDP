@@ -6,11 +6,15 @@ import spinal.lib.fsm._
 
 /** SDRAM-backed tile fetch engine — Task 15 rebuild.
   *
+  * RETIRED: This module is kept for historical reference only. Production Tang Nano 20K
+  * builds use `SdramTileAttributeFetch` running at the current 40.5 MHz SDRAM clock.
+  * The comments below that mention 64.8 MHz refer to the retired pre-#11197 clock target.
+  *
   * Replaces the earlier single-clock-domain / byte-at-a-time scaffold.
   *
   * Architecture:
-  *   - the fetch FSM runs in an explicit SDRAM clock domain (`sdramCd`, 40.5 MHz; was
-  *     64.8 MHz before #11197 Option A lowered the SDRAM clock)
+  *   - the fetch FSM runs in an explicit SDRAM clock domain (`sdramCd`, retired 64.8 MHz
+  *     sim frequency; current hardware uses 40.5 MHz in `SdramTileAttributeFetch`)
   *   - reads from the reused `fpga/tang20k/third_party/sdram/sdram.v` controller via its
   *     32-bit `dout32` port (still ~5-cycle per transaction, but 32-bit wide)
   *   - external refresh scheduler (~15 µs tick) drives the controller's `refresh` input,
@@ -25,7 +29,7 @@ import spinal.lib.fsm._
   *       tile `t` row `y` at 0x1000 + ((t * 16) + y) * 8
   *
   * Open items (to be resolved in simulation):
-  *   - exact PLL math for 40.5 MHz CLKOUT + 180° CLKOUTP (GT-006; was 64.8 MHz)
+  *   - exact PLL math for 40.5 MHz CLKOUT + 180° CLKOUTP (GT-006; retired 64.8 MHz)
   *   - registered handoff for data_ready / dout32 (GT-012)
   *   - memtest bounded range choice
   */
