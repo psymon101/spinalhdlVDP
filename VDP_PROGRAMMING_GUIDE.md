@@ -489,13 +489,15 @@ The host can return the VDP to a clean POR-equivalent state by writing `1` to bi
 
 - **Registers:** all registers return to their SpinalHDL `init` values.
 - **Host-writable BSRAM memories zeroed:** copper program RAM (both banks) + HDMA data/table, palette, sprite pattern RAM, sprite external descriptors + affine matrices, linestate (prepare+commit), scroll tables, DMA staging buffer, blitter source RAM.
-- **SDRAM:** the SDRAM zero-fill engine clears SDRAM.
+- **SDRAM:** the SDRAM zero-fill engine clears only the **occupied/configured framebuffer regions**. For each active layer source it zeroes `[base, base + stride·height)` using the last host-programmed geometry registers. The reset reads those registers **before** the register reset stage, so the geometry is still valid. SDRAM outside the configured regions is left untouched. Refresh interleave during the clear is **dropped** because the occupied clear finishes well under the 64 ms retention window.
 
 The bit is self-clearing; poll `VDP_CTRL` until bit 2 reads `0` (or wait long enough for the clear to complete). After reset, re-initialize the display and reload any palette/sprite patterns you need, since the reset also zeros the default palette and pattern RAM.
 
 ```c
 #include "vdp_mode0.h"
 
+// Raw register example. Once BronzeGate adds vdp_mode0_soft_reset() to libvdp,
+// replace the body below with that helper; this guide section will be updated.
 void vdp_soft_reset(void) {
     vdp_reg_write(VDP_MODE0_REG_VDP_CTRL, 0x0004u); // set SOFT_RESET_REQUEST
     // Poll the live status bit until reset completes.
