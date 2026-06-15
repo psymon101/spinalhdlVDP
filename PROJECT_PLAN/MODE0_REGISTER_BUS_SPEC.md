@@ -96,7 +96,11 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0311` | `VDP_TILE_MODE` — 2-bit packed/planar/shuffled | Task R4.1b/c/d | `VdpTop.scala:225,232` |
 | `0x0312` | `VDP_ATTR_MODE` — 1-bit linear/packed-2×2 | Task R4.1c | `VdpTop.scala:61,240` |
 | `0x0313` | `MODE_SELECT` — `[3:0]=adapter mode ID`, `[7:4]=reserved`, `[15:8]=MODE_FLAGS` | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.2 |
-| `0x0314..0x031F` | **Reserved** — global-control expansion | — | — |
+| `0x0314` | `L0_TRANS_KEY` — 8-bit transparency index for layer 0 | R6 / #3 | `VdpTop.scala` |
+| `0x0315` | `L1_TRANS_KEY` — 8-bit transparency index for layer 1 | R6 / #3 | `VdpTop.scala` |
+| `0x0316` | `L2_TRANS_KEY` — 8-bit transparency index for layer 2 | R6 / #3 | `VdpTop.scala` |
+| `0x0317` | `L3_TRANS_KEY` — 8-bit transparency index for layer 3 | R6 / #3 | `VdpTop.scala` |
+| `0x0318..0x031F` | **Reserved** — global-control expansion | — | — |
 | `0x0320..0x0322` | **Task 35** — status registers, IRQ enables, sticky bits (see §3.1.1) | Task 35, 29 | `VdpTop.scala:878-921` |
 | `0x0323` | `UPLOAD_STATUS_CLEAR` — write-1-to-clear for bridge sticky bits (see §3.1.2) | **Landed (Phase 2)** | `QspiDecoder.scala` |
 | `0x0324..0x032F` | **Reserved** — status expansion | — | — |
@@ -153,7 +157,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0D20..0x0D3F` | `SPRITE_HARD` — 32 slots x 1 word hardening extension | Phase 2 | `VdpTop.scala` |
 | `0x0D40..0x0D49` | `PLANE_BASE` — 5 planes x 2 words (lo/hi). SDRAM byte addresses. | Task 55 | `VdpTop.scala` |
 | `0x0D4A` | `PLANAR_CTRL` — bit[0] enable, bits[3:1] planeCount-1 | Task 55 | `VdpTop.scala` |
-| `0x0D4B..0x0D7F` | **Reserved** — planar expansion | — | — |
+| `0x0D4B` | `PLANAR_WIDTH` — 10-bit planar clip width (default 320; values >320 wrap) | R6 / #4 | `VdpTop.scala` |
+| `0x0D4C..0x0D7F` | **Reserved** — planar expansion | — | — |
 | `0x0800..0x087F` | **Reserved** — Task 31 legacy scroll mapping (avoid using) | Task 31 | — |
 | `0x0900..0x097F` | Layer 0 H-scroll table (128 entries × 10 bits) | Task 31 | `VdpTop.scala:878+` |
 | `0x0980..0x09FF` | Layer 1 H-scroll table (128 entries × 10 bits) | Task 31 | `VdpTop.scala:884+` |
@@ -288,6 +293,38 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 |---|---|---|
 | `[3:0]` | ADAPTER_MODE | Compatibility adapter mode selector. |
 | `[15:8]` | MODE_FLAGS | Adapter-specific mode option flags. |
+
+### L0_TRANS_KEY (`0x0314`), L1_TRANS_KEY (`0x0315`), L2_TRANS_KEY (`0x0316`), L3_TRANS_KEY (`0x0317`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0314` / `0x0315` / `0x0316` / `0x0317` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | H-boundary |
+| Description | Per-layer transparency color index. Pixels matching this palette entry are treated as transparent on the corresponding layer. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[7:0]` | KEY | Palette index treated as transparent for this layer. |
+| `[15:8]` | — | Reserved, write zero. |
+
+### PLANAR_WIDTH (`0x0D4B`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0D4B` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0140` (`320`) |
+| Category | vblank-sensitive |
+| Description | Planar clip width. The planar renderer wraps the active fetch window at this pixel boundary. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[9:0]` | WIDTH | Planar clip width in pixels. Default `320`. Values greater than `320` wrap around modulo the line width. |
+| `[15:10]` | — | Reserved, write zero. |
 
 ### STATUS_STICKY (`0x0320`)
 

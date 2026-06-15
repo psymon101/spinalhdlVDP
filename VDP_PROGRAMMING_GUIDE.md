@@ -481,6 +481,30 @@ vdp_reg_write(0x0348, 10);
 vdp_mode0_set_logical_resolution(320, 240);
 ```
 
+### Per-Layer Transparency and Planar Clip Width
+
+Each tile/planar layer can have its own transparent color index. A pixel whose palette entry equals the layer's `Lx_TRANS_KEY` register is treated as fully transparent, revealing the layer behind it (or the backdrop).
+
+| Register | Address | Purpose |
+|---|---|---|
+| `L0_TRANS_KEY` | `0x0314` | Transparent palette index for layer 0 |
+| `L1_TRANS_KEY` | `0x0315` | Transparent palette index for layer 1 |
+| `L2_TRANS_KEY` | `0x0316` | Transparent palette index for layer 2 |
+| `L3_TRANS_KEY` | `0x0317` | Transparent palette index for layer 3 |
+
+`PLANAR_WIDTH` (`0x0D4B`) sets the 10-bit planar clip width. The default `320` matches the existing 320-pixel planar window. Values larger than `320` wrap around the line.
+
+```c
+// Make palette entry 0 transparent on layer 0
+vdp_reg_write(0x0314, 0x0000u);
+
+// Keep the default 320-pixel planar clip width
+vdp_reg_write(0x0D4B, 320u);
+```
+
+> [!NOTE]
+> These defaults match the pre-register hardcoded behavior: index `0` is transparent and the planar clip width is `320` pixels. Writing non-default values requires a next-bitstream build that implements the registers.
+
 ---
 
 ## 9. Verification Guidelines
@@ -490,7 +514,12 @@ vdp_mode0_set_logical_resolution(320, 240);
 |---|---|---|
 | `0x0300` | `LAYER_ENABLE` | bit0:L0, bit1:L1, bit2:Sprite, bit3:L2, bit4:L3. **Global enable only** — each bit is ANDed with the per-line linestate enable bit (addresses `0x0000..0x01DF`). |
 | `0x0310` | `VDP_CTRL` | bit0:Copper Enable, bit1:Copper Swap Request |
+| `0x0314` | `L0_TRANS_KEY` | 8-bit transparency palette index for layer 0 |
+| `0x0315` | `L1_TRANS_KEY` | 8-bit transparency palette index for layer 1 |
+| `0x0316` | `L2_TRANS_KEY` | 8-bit transparency palette index for layer 2 |
+| `0x0317` | `L3_TRANS_KEY` | 8-bit transparency palette index for layer 3 |
 | `0x0320` | `STATUS_STICKY` | bit0:Raster Match, bit8:DMA Done, bit9:Blit Done |
+| `0x0D4B` | `PLANAR_WIDTH` | 10-bit planar clip width (default 320) |
 | `0x0330` | `WIN1_X0` | Window 1 Left Boundary |
 | `0x0347` | `BORDER_CTRL` | bit0:Enable, bits[12:8]:Palette Index |
 | `0x0348` | `BACKDROP_INDEX` | 7-bit palette index for background fallthrough |
