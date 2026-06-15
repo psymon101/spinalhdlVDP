@@ -582,7 +582,14 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
       i80.io.readData := i80.io.readAddr.mux(
         U(0x0328, 15 bits) -> debugSdramDataPix(15 downto 0),
         U(0x0329, 15 bits) -> debugSdramDataPix(31 downto 16),
-        U(0x0310, 15 bits) -> Mux(video.io.softResetBusy, B(0x0004, 16 bits), B(0, 16 bits)),
+        // VDP-SOFT-RESET-135: VDP_CTRL read = loopback bits (copper enable[0]/swap[1]
+        // etc.) with bit[2] forced from the LIVE softResetBusy. CyanPeak (#12634)
+        // caught that the old `Mux(busy,0x0004,0)` zeroed bits 0/1 (broke RMW). But
+        // her suggested `loopback | busy` would re-stick bit[2] (loopback bit2 = the
+        // 0x0004 the host wrote to trigger), so we MASK bit[2] out of loopback first
+        // (& 0xFFFB) then OR in live busy — bits 0/1 preserved AND bit[2] self-clears.
+        U(0x0310, 15 bits) -> ((i80Loopback & B(0xFFFB, 16 bits)) |
+                               Mux(video.io.softResetBusy, B(0x0004, 16 bits), B(0, 16 bits))),
         default            -> i80Loopback
       )
     }
