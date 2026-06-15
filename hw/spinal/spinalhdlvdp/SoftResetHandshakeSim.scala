@@ -133,10 +133,14 @@ object SoftResetHandshakeSim extends App {
     regWrite(0x0300, 0x001F)  // LAYER_ENABLE = all layers on
     regWrite(0x0350, 0x0001)  // BITMAP_CTRL[0] = bitmap mode on
     regWrite(0x0347, 0x0123)  // BORDER_CTRL = non-default
+    regWrite(0x0314, 0x0005)  // #3 L0_TRANS_KEY = 5 (non-default)
+    regWrite(0x0D4B, 0x00C8)  // #4 PLANAR_WIDTH = 200 (non-default)
     dut.clockDomain.waitSampling(2000)  // > 2 lines: config commits at hCounter==0
     if (dut.vdp.layerEnableReg.toInt == 0) { println("[sim] FAIL: layerEnable preset did not commit"); fail = true }
     if (dut.vdp.bitmapCtrlReg.toInt == 0)  { println("[sim] FAIL: bitmapCtrl preset did not commit"); fail = true }
     if (dut.vdp.borderCtrlReg.toInt == 0)  { println("[sim] FAIL: borderCtrl preset did not commit"); fail = true }
+    if (dut.vdp.l0TransKeyReg.toInt != 5)  { println("[sim] FAIL: L0_TRANS_KEY preset did not take"); fail = true }
+    if (dut.vdp.planarWidthReg.toInt != 200){ println("[sim] FAIL: PLANAR_WIDTH preset did not take"); fail = true }
 
     // (b)+(c) first reset asserts and completes (bounded)
     val d1 = triggerAndMeasure("first")
@@ -163,6 +167,8 @@ object SoftResetHandshakeSim extends App {
     if (dut.vdp.layerEnableReg.toInt != 0) { println(f"[sim] FAIL: layerEnableReg=0x${dut.vdp.layerEnableReg.toInt}%X after reset (expected 0)"); fail = true }
     if (dut.vdp.bitmapCtrlReg.toInt  != 0) { println(f"[sim] FAIL: bitmapCtrlReg=0x${dut.vdp.bitmapCtrlReg.toInt}%X after reset (expected 0)"); fail = true }
     if (dut.vdp.borderCtrlReg.toInt  != 0) { println(f"[sim] FAIL: borderCtrlReg=0x${dut.vdp.borderCtrlReg.toInt}%X after reset (expected 0)"); fail = true }
+    if (dut.vdp.l0TransKeyReg.toInt  != 0) { println(f"[sim] FAIL: l0TransKeyReg=${dut.vdp.l0TransKeyReg.toInt} after reset (expected 0)"); fail = true }
+    if (dut.vdp.planarWidthReg.toInt != 320){ println(f"[sim] FAIL: planarWidthReg=${dut.vdp.planarWidthReg.toInt} after reset (expected 320)"); fail = true }
     if (!fail) println("[sim] mem sweep + config regs (layerEnable/bitmapCtrl/borderCtrl) reset to init")
 
     // (d) AUTO-CLEAR proof: with no new write, busy must STAY low. A request bit

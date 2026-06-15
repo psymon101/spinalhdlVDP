@@ -468,6 +468,22 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     layerEnablePend    := effData(4 downto 0)
     layerEnablePendHit := True
   }
+  // Register-programmability #3/#4 (TopazCliff #12578/#12649). Direct config regs
+  // (host sets at setup, not mid-frame); reset to init by the #4 soft-reset block.
+  // #3: per-layer transparency key — the palette index treated as transparent for
+  // each layer (replaces the hardcoded index-0). Default 0 ⇒ bit-identical.
+  val l0TransKeyReg = (Reg(Bits(4 bits)) init 0).simPublic()
+  val l1TransKeyReg = (Reg(Bits(4 bits)) init 0).simPublic()
+  val l2TransKeyReg = (Reg(Bits(4 bits)) init 0).simPublic()
+  val l3TransKeyReg = (Reg(Bits(4 bits)) init 0).simPublic()
+  when(effWrite && effAddr === U(0x0314, 15 bits)) { l0TransKeyReg := effData(3 downto 0) }
+  when(effWrite && effAddr === U(0x0315, 15 bits)) { l1TransKeyReg := effData(3 downto 0) }
+  when(effWrite && effAddr === U(0x0316, 15 bits)) { l2TransKeyReg := effData(3 downto 0) }
+  when(effWrite && effAddr === U(0x0317, 15 bits)) { l3TransKeyReg := effData(3 downto 0) }
+  // #4: planar clip width — replaces the fixed PLANE_PIXELS clip. Default 320 ⇒
+  // bit-identical; values >320 wrap (planar source native width is 320).
+  val planarWidthReg = (Reg(UInt(10 bits)) init 320).simPublic()
+  when(effWrite && effAddr === U(0x0D4B, 15 bits)) { planarWidthReg := effData(9 downto 0).asUInt }
   // R4.1b stage 3 / R4.1d Checkpoint A: VDP_TILE_MODE @ 0x0311 follows the
   // same safe-boundary pattern as layerEnable — pending shadow + commit at
   // hCounter===0. Widened from 1→2 bits to encode shuffled mode (0x02)
@@ -1586,7 +1602,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // BasicPatternSource with layer0ScrollX/Y) is preserved bit-identically
   // there. Consumer-side gate only — no planar fetch rewrite, no
   // scheduler change, no scroll-latch change.
-  val planarClipActive          = (hCounter < U(PLANE_PIXELS, log2Up(hTotal) bits)).simPublic()
+  // #4: clip width is now the PLANAR_WIDTH register (default PLANE_PIXELS=320).
+  val planarClipActive          = (hCounter < planarWidthReg.resize(log2Up(hTotal))).simPublic()
   val planarFetchEnableClipped  = (planarFetchEnable && planarClipActive).simPublic()
   val layer0Index = (Mux(planarFetchEnableClipped, planarIdx4,
                          Mux(affineEnable, affineIndex,
@@ -1640,10 +1657,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // visible layer is L0 (or nothing), L0 paints. This is bit-identical to
   // the pre-Task-48 2-layer compositor whenever L2/L3 are disabled (zero
   // pixel, not opaque).
-  val layer0Opaque = layer0Pixel =/= B(0, 4 bits)
-  val layer1Opaque = layer1Pixel =/= B(0, 4 bits)
-  val layer2Opaque = layer2Pixel =/= B(0, 4 bits)
-  val layer3Opaque = layer3Pixel =/= B(0, 4 bits)
+  // #3: a layer pixel is opaque when its index differs from that layer's
+  // transparency key (default key 0 ⇒ index-0-transparent, bit-identical).
+  val layer0Opaque = layer0Pixel =/= l0TransKeyReg
+  val layer1Opaque = layer1Pixel =/= l1TransKeyReg
+  val layer2Opaque = layer2Pixel =/= l2TransKeyReg
+  val layer3Opaque = layer3Pixel =/= l3TransKeyReg
   // Task 56 Checkpoint C: simPublic so MultiLayerSdramFetchSim Cases 3-5
   // can observe the compositor's actual mux output (proves L1>L0 opaque
   // priority and bank propagation under both-active workload).
@@ -2464,6 +2483,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     statusStickyReg   := B(0, 16 bits)
     statusEnableReg   := B(0, 16 bits); statusEnablePendHit := False
     spriteCollMaskReg := B(0, spriteCollMaskReg.getWidth bits)
+    // #3/#4 registers → init (transparency keys 0, planar width 320).
+    l0TransKeyReg := B(0, 4 bits); l1TransKeyReg := B(0, 4 bits)
+    l2TransKeyReg := B(0, 4 bits); l3TransKeyReg := B(0, 4 bits)
+    planarWidthReg := U(320, 10 bits)
   }
 
   // R6 Task 20: post-palette color-math + window stage. Mux on `paletteRgb`
