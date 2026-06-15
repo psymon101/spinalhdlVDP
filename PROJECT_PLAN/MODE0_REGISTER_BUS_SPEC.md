@@ -132,7 +132,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0600` | `PALETTE_DATA` — write one 16-bit palette half; auto-increments internal pointer | Color/Window Hardening | `VdpTop.scala` |
 | `0x0601` | `PALETTE_PTR` — sets the half-pointer for the next `PALETTE_DATA` write | Color/Window Hardening | `VdpTop.scala` |
 | `0x0602..0x07FF` | **Reserved** — Copper secondary tables (HDMA-style, Task 33) | Task 33 | — |
-| `0x0800..0x0FFF` | **Reserved for Task 37** — affine sprite descriptors | Task 37 | — |
+| `0x0800..0x08FF` | Sprite external descriptors + affine matrices (bus-writable evaluator state) | Landed | `VdpTop.scala:1604` |
+| `0x0900..0x0FFF` | **Reserved** — scroll-table expansion / future sprite state | — | — |
 | `0x0A00..0x0AFF` | V-scroll table (128 entries × 2 layers × 10-bit offset) | Task 46 | `VdpTop.scala` |
 | `0x0B00` | `DMA_DST` — destination start address (15 bits) | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
 | `0x0B01` | `DMA_LEN` — transfer length minus 1 (10 bits) | Task 47 | `VdpTop.scala`, `DmaEngine.scala` |
@@ -242,6 +243,9 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 |---|---|---|---|
 | `[0]` | COPPER_ENABLE | H-boundary | Enables copper command execution. Commits at `hCounter == 0`; PC resets to 0 on the rising edge. |
 | `[1]` | COPPER_SWAP_REQUEST | V-boundary | Requests an atomic copper bank swap. Only honored while `COPPER_ENABLE = 1`. Commits at `vSyncStart && hCounter == 0`, flips the active bank, resets PC to 0, and auto-clears. |
+| `[2]` | SOFT_RESET_REQUEST | V-boundary | Writing `1` triggers a host-requested soft reset. Scope: registers→`init` values; host-writable BSRAMs zeroed (copper program RAM, HDMA data/table, palette, sprite pattern RAM, sprite ext descriptors + affine matrices, linestate, scroll tables, DMA staging, blitter source RAM); SDRAM zero-filled. Excluded: `affineTexture` and immutable tile ROMs (no write port), transient line buffers, legacy demo sprite input ports. The bit auto-clears when reset completes. |
+
+**Polling completion:** A read of `0x0310` returns live `{..., bit2=SOFT_RESET_BUSY}`. Host sequence: write `0x0004`, then poll `read(0x0310)` until bit 2 is `0`.
 
 ### VDP_TILE_MODE (`0x0311`)
 

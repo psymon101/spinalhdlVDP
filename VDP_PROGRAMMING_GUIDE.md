@@ -483,13 +483,42 @@ vdp_mode0_set_logical_resolution(320, 240);
 
 ---
 
+### Host-Triggered Soft Reset
+
+The host can return the VDP to a clean POR-equivalent state by writing `1` to bit 2 of `VDP_CTRL` (`0x0310`). The reset is equivalent to a POR and affects:
+
+- **Registers:** all registers return to their SpinalHDL `init` values.
+- **Host-writable BSRAM memories zeroed:** copper program RAM (both banks) + HDMA data/table, palette, sprite pattern RAM, sprite external descriptors + affine matrices, linestate (prepare+commit), scroll tables, DMA staging buffer, blitter source RAM.
+- **SDRAM:** the SDRAM zero-fill engine clears SDRAM.
+
+The bit is self-clearing; poll `VDP_CTRL` until bit 2 reads `0` (or wait long enough for the clear to complete). After reset, re-initialize the display and reload any palette/sprite patterns you need, since the reset also zeros the default palette and pattern RAM.
+
+```c
+#include "vdp_mode0.h"
+
+void vdp_soft_reset(void) {
+    vdp_reg_write(VDP_MODE0_REG_VDP_CTRL, 0x0004u); // set SOFT_RESET_REQUEST
+    // Poll the live status bit until reset completes.
+    while (vdp_reg_read(VDP_MODE0_REG_VDP_CTRL) & 0x0004u) {
+        delayMicroseconds(100);
+    }
+}
+```
+
+> [!WARNING]
+> Do not poll by reading `VDP_CTRL` inside an interrupt-critical section for longer than necessary. The reset bit auto-clears; if the readback path is loopback-only, consider using a fixed delay or a status interrupt instead.
+>
+> `affineTexture`, immutable tile ROMs, transient per-line render buffers, and legacy demo sprite input ports are **not** affected by the reset.
+
+---
+
 ## 9. Verification Guidelines
 # Part II: Internal Register Reference
 
 | Address | Name | Description |
 |---|---|---|
 | `0x0300` | `LAYER_ENABLE` | bit0:L0, bit1:L1, bit2:Sprite, bit3:L2, bit4:L3. **Global enable only** — each bit is ANDed with the per-line linestate enable bit (addresses `0x0000..0x01DF`). |
-| `0x0310` | `VDP_CTRL` | bit0:Copper Enable, bit1:Copper Swap Request |
+| `0x0310` | `VDP_CTRL` | bit0:Copper Enable, bit1:Copper Swap Request, bit2:Soft Reset Request |
 | `0x0320` | `STATUS_STICKY` | bit0:Raster Match, bit8:DMA Done, bit9:Blit Done |
 | `0x0330` | `WIN1_X0` | Window 1 Left Boundary |
 | `0x0347` | `BORDER_CTRL` | bit0:Enable, bits[12:8]:Palette Index |
