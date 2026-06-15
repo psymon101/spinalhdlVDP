@@ -2,6 +2,10 @@
 
 #include "vdp_qspi.h"
 
+#if defined(ARDUINO)
+#include <Arduino.h>
+#endif
+
 static void vdp_mode0_write_block(uint16_t base_addr, const uint16_t *words, uint16_t count)
 {
     vdp_reg_write_burst(base_addr, words, count);
@@ -62,6 +66,33 @@ void vdp_mode0_set_layer_enable(uint16_t mask)
 void vdp_mode0_set_vdp_ctrl(bool copper_enable)
 {
     vdp_reg_write(VDP_MODE0_REG_VDP_CTRL, copper_enable ? 1u : 0u);
+}
+
+bool vdp_mode0_soft_reset(void)
+{
+    const uint32_t timeout_ms = 1000u;
+#if defined(ARDUINO)
+    const uint32_t start_ms = millis();
+#else
+    const uint32_t start_ms = 0u;
+#endif
+
+    vdp_reg_write(VDP_MODE0_REG_VDP_CTRL, 0x0004u);
+
+    while (true) {
+        if ((vdp_reg_read(VDP_MODE0_REG_VDP_CTRL) & 0x0004u) == 0u) {
+            return true;
+        }
+#if defined(ARDUINO)
+        if ((uint32_t)(millis() - start_ms) >= timeout_ms) {
+            return false;
+        }
+        delayMicroseconds(50);
+#else
+        (void)timeout_ms;
+        return false;
+#endif
+    }
 }
 
 void vdp_mode0_set_tile_mode(uint8_t mode)
