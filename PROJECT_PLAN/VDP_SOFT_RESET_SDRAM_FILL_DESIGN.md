@@ -48,21 +48,18 @@ the list (handles the "non-contiguous planes" case naturally). All writes are
   bypassing the arbiter (no client granted; display quiescent). Arbiter must re-enter
   cleanly on exit (cosim assertion).
 
-## ⚠ Refresh decision — REOPENED (needs a CyanPeak/TopazCliff ruling)
-#12565 dropped the refresh-interleave on the assumption the occupied clear finishes
-**well under the 64 ms retention window**. That holds for small framebuffers but
-**not all configs**:
-- 320×240 RGB565 dual-plane ≈ 246 KB → **~18 ms** ✓ (no refresh needed)
+## Refresh decision — RETAINED (ruled mandatory: CyanPeak #12589 / TopazCliff #12587)
+The Stage 3 fill FSM **retains a lightweight interleaved auto-refresh** (~1 per 15 µs,
+one counter threaded through the fill loop). Rationale: dropping refresh was only safe
+if the clear finished under the 64 ms retention window, which holds for small configs
+but **not all**:
+- 320×240 RGB565 dual-plane ≈ 246 KB → **~18 ms** ✓
 - **640×480 RGB565 dual-plane ≈ 1.2 MB → ~60–90 ms** (write-throughput dependent) — **at/over 64 ms** ✗
 
-If the clear exceeds 64 ms, early-zeroed cells can decay back to garbage **before the
-sweep finishes** — exactly the artifact the operator wants gone. Since the occupied
-region is **host-configurable and can be large**, dropping refresh is size-fragile.
-
-**Recommendation: keep a lightweight interleaved auto-refresh after all** (one refresh
-counter, ~1 per 15 µs, threaded through the fill loop). It's cheap, makes the clear
-**correct for any region size**, and directly protects the no-artifact goal. This
-walks back the #12565 "drop refresh" decision — flagging for your ruling before I build.
+Without refresh, early-zeroed cells decay back to garbage **before the sweep finishes**
+— the exact artifact this reset must eliminate. Interleaved refresh makes the clear
+**bit-perfect and size-independent** (also covers future 720p scaling). The cosim
+asserts refresh commands issue at cadence.
 
 ## Cosim PASS criteria
 SDRAM-model cosim: preset occupied cells (+ one untouched region) non-zero → trigger
