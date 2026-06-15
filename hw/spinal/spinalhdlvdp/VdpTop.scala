@@ -233,6 +233,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     val planarSdramBusy      = in  Bool()
     val planarSdramDataReady = in  Bool()
     val planarSdramDout32    = in  Bits(32 bits)
+    // VDP-SOFT-RESET-135 #3 part 2c: expose planar plane bases + active gate so
+    // TopTang's zero-fill can clear the occupied planar regions. Each plane's
+    // SDRAM footprint is PLANE_PIXELS/8 = 40 bytes (BitplaneRowFetch reads
+    // planeBase + readIdx*4, readsPerPlane = planePixels/32; no line offset).
+    val planeBaseAddr        = out Vec(UInt(23 bits), 5)   // = PLANE_COUNT
+    val planarFillActive     = out Bool()
   }
 
   // 640x480@60 timing uses a 25.2 MHz pixel clock.
@@ -1157,6 +1163,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   }
 
   planarLineFetch.io.planeBaseAddr  := planeBaseAddrReg
+  // #3 part 2c: surface planar bases + active gate for the soft-reset zero-fill.
+  io.planeBaseAddr    := planeBaseAddrReg
+  io.planarFillActive := planarFetchEnable
   // Trigger row fetch one cycle into the active region — the FSM has
   // until next-line's display reaches pixelIdx N to land word N
   // (lead-time ≈ 160 cycles even for the first dout32 word).

@@ -19,17 +19,22 @@ it runs before the Stage 4 register reset).
 |--------|------|--------------|--------------------|-------------|
 | Bitmap plane (direct-color low) | `bitmapBase` = `0x0352`HI`##0x0351`LO (init 0x3000) | `bitmapStride`(0x0355) × `bitmapHeight`(0x0357) | **yes** | `BITMAP_CTRL[0]` (0x0350) = bitmapModeActive |
 | Attr / high plane | `attrBase` = `0x0354`HI`##0x0353`LO (init 0x4000) | `attrStride`(0x0356) × `bitmapHeight`(0x0357) | **yes** | `BITMAP_CTRL[0]` |
-| Tile map | `TileMapBase` = `0x4000` (**fixed compile-time const**) | `MapTilesX·MapTilesY` | no | tile layer enabled + `layerNUseSdram` |
-| Tile rows | `TileRowBase` = `0x5000` (**fixed const**) | tile-row table size | no | tile layer enabled |
-| Planar planes | `planeBaseAddrReg` (host reg) | `PLANE_COUNT · PLANE_PIXELS`-derived | **yes** | `planarFetchEnable` |
+| Tile map L0 | `TileAttributeAssets.TileMapBase` = `0x6000` (**fixed const**) | `MapEntries` = 1200 | no | `layer0UseSdram` |
+| Tile rows L0 | `TileRowBase` = `0x8000` (**fixed const**) | `TileCount·TileHeight·TileRowStride` = 512 | no | `layer0UseSdram` |
+| Tile map L1 | `L1TileMapBase` = `0xC000` (**fixed const**) | 1200 | no | `layer1UseSdram` |
+| Tile rows L1 | `L1TileRowBase` = `0xE000` (**fixed const**) | 512 | no | `layer1UseSdram` |
+| Planar planes 0-4 | `planeBaseAddr(p)` (host reg, exposed by VdpTop in 2c) | `PLANE_PIXELS/8` = **40** /plane (BitplaneRowFetch reads `base+readIdx·4`, `readsPerPlane=320/32`; no line offset) | **yes** | `planarFetchEnable` |
 | **Sprite patterns** | — | — | — | **EXCLUDED** — verified **no SDRAM-backed sprite-pattern path** exists; patterns live only in on-chip `spritePatternRams`, already zeroed in Stage 2. |
 
 Also excluded (unchanged): `affineTexture` (immutable ROM, no write port), per-line
-render line-buffers (transient), and any source whose layer-enable is clear.
+render line-buffers (transient), and any source whose gate is clear.
 
-> **Note for CoralReef/CyanPeak:** tile map/rows SDRAM bases are **fixed constants**
-> (0x4000/0x5000), not host registers — "TILE_BASE" is not programmable today. The
-> sweep clears those fixed ranges only when a tile layer is SDRAM-backed and enabled.
+> **Correction (part 2c):** the *active* tile fetch is `SdramTileAttributeFetch`,
+> whose SDRAM bases are `TileAttributeAssets` consts **0x6000 / 0x8000** (L0) and
+> **0xC000 / 0xE000** (L1) — not the 0x4000/0x5000 of the older `SdramTileFetch`.
+> All 11 regions are wired in TopTang (`sdramFillArea`); the FSM skips any whose
+> gate is clear. `layer1UseSdram` is currently driven False, so the L1 tile
+> regions are inert until L1 is enabled.
 
 ## Fill algorithm (geometry-derived, no multiplier)
 For each active source, clear `[base, base + stride·height)` using **row-accumulator

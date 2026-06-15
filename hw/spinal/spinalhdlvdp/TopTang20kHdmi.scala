@@ -897,36 +897,46 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // is `active`, the command mux below routes it to the controller (arbiter
   // bypassed — display is quiescent during reset).
   val sdramFillArea = new ClockingArea(sdramClockDomain) {
-    val fill = SdramZeroFill(addrWidth = 23, regionCount = 5, refreshInterval = 600)
+    // 11 regions: bitmap, attr, tileMap L0/L1, tileRows L0/L1, planar 0-4.
+    val fill = SdramZeroFill(addrWidth = 23, regionCount = 11, refreshInterval = 600)
     fill.io.start := BufferCC(pixelArea.video.io.sdramFillStart, False)
-    // Geometry → region descriptors. The bitmap/attr geometry regs are stable
-    // throughout the fill (host is polling, not writing; they aren't reset until
-    // Stage 4 which runs after), so a BufferCC of these quasi-static multi-bit
-    // values is a sufficient synchronizer (same basis as the debug-readback CDC).
+    // Geometry → region descriptors. All these gate/geometry signals are stable
+    // throughout the fill (host is polling, not writing; not reset until Stage 4
+    // which runs after), so a BufferCC of these quasi-static values is a
+    // sufficient synchronizer (same basis as the debug-readback CDC).
     val bmActive = BufferCC(pixelArea.video.io.bitmapModeActive, False)
     val bmBase   = BufferCC(pixelArea.video.io.bitmapBase,   U(0, 23 bits))
     val bmStride = BufferCC(pixelArea.video.io.bitmapStride, U(0, 16 bits))
     val bmHeight = BufferCC(pixelArea.video.io.bitmapHeight, U(0, 10 bits))
     val atBase   = BufferCC(pixelArea.video.io.attrBase,     U(0, 23 bits))
     val atStride = BufferCC(pixelArea.video.io.attrStride,   U(0, 16 bits))
-    // Reserved slots 2-4 (tile map/rows + planar, part 2c) — disabled; FSM skips.
-    for (i <- 2 until 5) {
-      fill.io.regions(i).base     := 0
-      fill.io.regions(i).rowBytes := 0
-      fill.io.regions(i).rowCount := 0
-      fill.io.regions(i).enable   := False
+    // Tile-layer SDRAM-active gates (TopTang drives these VdpTop inputs).
+    val l0Tile   = BufferCC(pixelArea.video.io.layer0UseSdram, False)
+    val l1Tile   = BufferCC(pixelArea.video.io.layer1UseSdram, False)
+    // Planar bases + active gate (exposed by VdpTop in part 2c).
+    val plActive = BufferCC(pixelArea.video.io.planarFillActive, False)
+    val plBase   = Vec(UInt(23 bits), 5)
+    for (p <- 0 until 5) plBase(p) := BufferCC(pixelArea.video.io.planeBaseAddr(p), U(0, 23 bits))
+
+    def setRegion(i: Int, base: UInt, rowBytes: UInt, rowCount: UInt, en: Bool): Unit = {
+      fill.io.regions(i).base     := base
+      fill.io.regions(i).rowBytes := rowBytes
+      fill.io.regions(i).rowCount := rowCount
+      fill.io.regions(i).enable   := en
     }
-    // region 0 = bitmap (low) plane, region 1 = attr/high plane — the RGB565
-    // direct-color framebuffer, gated by BITMAP_CTRL[0]. Both share BITMAP_HEIGHT.
-    fill.io.regions(0).base     := bmBase
-    fill.io.regions(0).rowBytes := bmStride
-    fill.io.regions(0).rowCount := bmHeight.resize(11)
-    fill.io.regions(0).enable   := bmActive
-    fill.io.regions(1).base     := atBase
-    fill.io.regions(1).rowBytes := atStride
-    fill.io.regions(1).rowCount := bmHeight.resize(11)
-    fill.io.regions(1).enable   := bmActive
-    // regions 2-4 reserved for tile map/rows + planar (part 2c) — left disabled.
+    // 0/1 = RGB565 bitmap low + attr/high planes (gated by BITMAP_CTRL[0]); share HEIGHT.
+    setRegion(0, bmBase, bmStride, bmHeight.resize(11), bmActive)
+    setRegion(1, atBase, atStride, bmHeight.resize(11), bmActive)
+    // 2-5 = tile map/rows L0+L1 (fixed SDRAM layout; gated by layerN-uses-SDRAM).
+    //   TotalRowBytes = TileCount·TileHeight·TileRowStride.
+    val tileRowBytes = TileAttributeAssets.TileCount * TileAttributeAssets.TileHeight *
+                       TileAttributeAssets.TileRowStride
+    setRegion(2, U(TileAttributeAssets.TileMapBase,   23 bits), U(TileAttributeAssets.MapEntries, 16 bits), U(1, 11 bits), l0Tile)
+    setRegion(3, U(TileAttributeAssets.TileRowBase,   23 bits), U(tileRowBytes,                   16 bits), U(1, 11 bits), l0Tile)
+    setRegion(4, U(TileAttributeAssets.L1TileMapBase, 23 bits), U(TileAttributeAssets.MapEntries, 16 bits), U(1, 11 bits), l1Tile)
+    setRegion(5, U(TileAttributeAssets.L1TileRowBase, 23 bits), U(tileRowBytes,                   16 bits), U(1, 11 bits), l1Tile)
+    // 6-10 = planar planes (each PLANE_PIXELS/8 = 40 bytes; gated by planarFetchEnable).
+    for (p <- 0 until 5) setRegion(6 + p, plBase(p), U(320 / 8, 16 bits), U(1, 11 bits), plActive)
   }
   val sdramFill = sdramFillArea.fill
   sdramFill.io.ctrlBusy := sdramArea.ctrl.io.busy
