@@ -485,32 +485,57 @@ vdp_mode0_set_logical_resolution(320, 240);
 
 ### Host-Triggered Soft Reset
 
-The host can return the VDP to a clean POR-equivalent state by writing `1` to bit 2 of `VDP_CTRL` (`0x0310`). The reset is equivalent to a POR and affects:
+The host can return the VDP to a clean POR-equivalent state by writing `1` to bit 2 of `VDP_CTRL` (`0x0310`). The reset is equivalent to a POR and runs as a 4-stage chain:
 
-- **Registers:** all registers return to their SpinalHDL `init` values.
-- **Host-writable BSRAM memories zeroed:** copper program RAM (both banks) + HDMA data/table, palette, sprite pattern RAM, sprite external descriptors + affine matrices, linestate (prepare+commit), scroll tables, DMA staging buffer, blitter source RAM.
-- **SDRAM:** the SDRAM zero-fill engine clears only the **occupied/configured framebuffer regions**. For each active layer source it zeroes `[base, base + stride·height)` using the last host-programmed geometry registers. The reset reads those registers **before** the register reset stage, so the geometry is still valid. SDRAM outside the configured regions is left untouched. **Refresh interleave is retained:** the fill FSM issues a lightweight auto-refresh roughly every 15 µs while writing zeros, keeping the clear within the 64 ms SDRAM retention window even for large framebuffers (e.g., 640×480 RGB565 dual-plane).
+1. **Host-writable BSRAM memories zeroed** — copper program RAM (both banks), HDMA data/table, palette, sprite pattern RAM, sprite external descriptors + affine matrices, linestate (prepare+commit), scroll tables, DMA staging buffer, blitter source RAM.
+2. **SDRAM occupied-region zero-fill** — for each active layer source the engine zeroes `[base, base + stride·height)` using the last host-programmed geometry registers, **before** those registers are reset. SDRAM outside the configured regions is left untouched. **Refresh interleave is retained:** the fill FSM issues a lightweight auto-refresh roughly every 15 µs, keeping the clear within the 64 ms SDRAM retention window even for large framebuffers.
+3. **Core register reset** — all host-writable config registers return to their SpinalHDL `init` values; pending/commit hits are cleared so no stale in-flight write lands post-reset. `STATUS_STICKY`, `STATUS_ENABLE` (IRQ mask), and the sprite-collision mask are also cleared so no stale flag or IRQ fires after reset.
+4. **Done** — `VDP_CTRL[2]` is released synchronously at `hCounter == 0` to avoid any glitched pulse to the datapath. The controller guarantees the pipeline/counter regs re-settle within one frame.
 
-The bit is self-clearing; poll `VDP_CTRL` until bit 2 reads `0` (or wait long enough for the clear to complete). After reset, re-initialize the display and reload any palette/sprite patterns you need, since the reset also zeros the default palette and pattern RAM.
+A 1000 ms timeout is retained as a safety bound. After reset, re-initialize the display and reload any palette/sprite patterns you need.
 
 ```c
 #include "vdp_mode0.h"
 
-// Raw register example. Once BronzeGate adds vdp_mode0_soft_reset() to libvdp,
-// replace the body below with that helper; this guide section will be updated.
 void vdp_soft_reset(void) {
-    vdp_reg_write(VDP_MODE0_REG_VDP_CTRL, 0x0004u); // set SOFT_RESET_REQUEST
-    // Poll the live status bit until reset completes.
-    while (vdp_reg_read(VDP_MODE0_REG_VDP_CTRL) & 0x0004u) {
-        delayMicroseconds(100);
-    }
+    // Initiates the 4-stage reset and polls the live busy bit.
+    vdp_mode0_soft_reset();
+
+    // Helper returns only after SOFT_RESET_BUSY is clear.
+    // Re-initialize display state here.
 }
 ```
 
 > [!WARNING]
-> Do not poll by reading `VDP_CTRL` inside an interrupt-critical section for longer than necessary. The reset bit auto-clears; if the readback path is loopback-only, consider using a fixed delay or a status interrupt instead.
+> Do not poll `VDP_CTRL` inside an interrupt-critical section for longer than necessary. If the readback path is loopback-only, use a fixed delay or a status interrupt instead.
 >
 > `affineTexture`, immutable tile ROMs, transient per-line render buffers, and legacy demo sprite input ports are **not** affected by the reset.
+
+---
+
+### Per-Layer Transparency and Planar Clip Width
+
+Each tile/planar layer can have its own transparent color index. A pixel whose palette entry equals the layer's `Lx_TRANS_KEY` register is treated as fully transparent, revealing the layer behind it (or the backdrop).
+
+| Register | Address | Purpose |
+|---|---|---|
+| `L0_TRANS_KEY` | `0x0314` | Transparent palette index for layer 0 |
+| `L1_TRANS_KEY` | `0x0315` | Transparent palette index for layer 1 |
+| `L2_TRANS_KEY` | `0x0316` | Transparent palette index for layer 2 |
+| `L3_TRANS_KEY` | `0x0317` | Transparent palette index for layer 3 |
+
+`PLANAR_WIDTH` (`0x0D4B`) sets the 10-bit planar clip width. The default `320` matches the existing 320-pixel planar window. Values larger than `320` wrap around the line.
+
+```c
+// Make palette entry 0 transparent on layer 0
+vdp_reg_write(0x0314, 0x0000u);
+
+// Keep the default 320-pixel planar clip width
+vdp_reg_write(0x0D4B, 320u);
+```
+
+> [!NOTE]
+> These defaults match the pre-register hardcoded behavior: index `0` is transparent and the planar clip width is `320` pixels. Writing non-default values requires a next-bitstream build that implements the registers.
 
 ---
 
@@ -521,7 +546,12 @@ void vdp_soft_reset(void) {
 |---|---|---|
 | `0x0300` | `LAYER_ENABLE` | bit0:L0, bit1:L1, bit2:Sprite, bit3:L2, bit4:L3. **Global enable only** — each bit is ANDed with the per-line linestate enable bit (addresses `0x0000..0x01DF`). |
 | `0x0310` | `VDP_CTRL` | bit0:Copper Enable, bit1:Copper Swap Request, bit2:Soft Reset Request |
+| `0x0314` | `L0_TRANS_KEY` | 8-bit transparency palette index for layer 0 |
+| `0x0315` | `L1_TRANS_KEY` | 8-bit transparency palette index for layer 1 |
+| `0x0316` | `L2_TRANS_KEY` | 8-bit transparency palette index for layer 2 |
+| `0x0317` | `L3_TRANS_KEY` | 8-bit transparency palette index for layer 3 |
 | `0x0320` | `STATUS_STICKY` | bit0:Raster Match, bit8:DMA Done, bit9:Blit Done |
+| `0x0D4B` | `PLANAR_WIDTH` | 10-bit planar clip width (default 320) |
 | `0x0330` | `WIN1_X0` | Window 1 Left Boundary |
 | `0x0347` | `BORDER_CTRL` | bit0:Enable, bits[12:8]:Palette Index |
 | `0x0348` | `BACKDROP_INDEX` | 7-bit palette index for background fallthrough |

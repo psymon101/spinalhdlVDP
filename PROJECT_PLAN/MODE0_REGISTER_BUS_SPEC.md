@@ -96,7 +96,11 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0311` | `VDP_TILE_MODE` — 2-bit packed/planar/shuffled | Task R4.1b/c/d | `VdpTop.scala:225,232` |
 | `0x0312` | `VDP_ATTR_MODE` — 1-bit linear/packed-2×2 | Task R4.1c | `VdpTop.scala:61,240` |
 | `0x0313` | `MODE_SELECT` — `[3:0]=adapter mode ID`, `[7:4]=reserved`, `[15:8]=MODE_FLAGS` | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.2 |
-| `0x0314..0x031F` | **Reserved** — global-control expansion | — | — |
+| `0x0314` | `L0_TRANS_KEY` — 8-bit transparency index for layer 0 | R6 / #3 | `VdpTop.scala` |
+| `0x0315` | `L1_TRANS_KEY` — 8-bit transparency index for layer 1 | R6 / #3 | `VdpTop.scala` |
+| `0x0316` | `L2_TRANS_KEY` — 8-bit transparency index for layer 2 | R6 / #3 | `VdpTop.scala` |
+| `0x0317` | `L3_TRANS_KEY` — 8-bit transparency index for layer 3 | R6 / #3 | `VdpTop.scala` |
+| `0x0318..0x031F` | **Reserved** — global-control expansion | — | — |
 | `0x0320..0x0322` | **Task 35** — status registers, IRQ enables, sticky bits (see §3.1.1) | Task 35, 29 | `VdpTop.scala:878-921` |
 | `0x0323` | `UPLOAD_STATUS_CLEAR` — write-1-to-clear for bridge sticky bits (see §3.1.2) | **Landed (Phase 2)** | `QspiDecoder.scala` |
 | `0x0324..0x032F` | **Reserved** — status expansion | — | — |
@@ -154,7 +158,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0D20..0x0D3F` | `SPRITE_HARD` — 32 slots x 1 word hardening extension | Phase 2 | `VdpTop.scala` |
 | `0x0D40..0x0D49` | `PLANE_BASE` — 5 planes x 2 words (lo/hi). SDRAM byte addresses. | Task 55 | `VdpTop.scala` |
 | `0x0D4A` | `PLANAR_CTRL` — bit[0] enable, bits[3:1] planeCount-1 | Task 55 | `VdpTop.scala` |
-| `0x0D4B..0x0D7F` | **Reserved** — planar expansion | — | — |
+| `0x0D4B` | `PLANAR_WIDTH` — 10-bit planar clip width (default 320; values >320 wrap) | R6 / #4 | `VdpTop.scala` |
+| `0x0D4C..0x0D7F` | **Reserved** — planar expansion | — | — |
 | `0x0800..0x087F` | **Reserved** — Task 31 legacy scroll mapping (avoid using) | Task 31 | — |
 | `0x0900..0x097F` | Layer 0 H-scroll table (128 entries × 10 bits) | Task 31 | `VdpTop.scala:878+` |
 | `0x0980..0x09FF` | Layer 1 H-scroll table (128 entries × 10 bits) | Task 31 | `VdpTop.scala:884+` |
@@ -243,7 +248,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 |---|---|---|---|
 | `[0]` | COPPER_ENABLE | H-boundary | Enables copper command execution. Commits at `hCounter == 0`; PC resets to 0 on the rising edge. |
 | `[1]` | COPPER_SWAP_REQUEST | V-boundary | Requests an atomic copper bank swap. Only honored while `COPPER_ENABLE = 1`. Commits at `vSyncStart && hCounter == 0`, flips the active bank, resets PC to 0, and auto-clears. |
-| `[2]` | SOFT_RESET_REQUEST | V-boundary | Writing `1` triggers a host-requested soft reset. Scope: registers→`init` values; host-writable BSRAMs zeroed (copper program RAM, HDMA data/table, palette, sprite pattern RAM, sprite ext descriptors + affine matrices, linestate, scroll tables, DMA staging, blitter source RAM). **SDRAM fill is limited to occupied/configured framebuffer regions** — for each active layer source the clear engine zeroes `[base, base + stride·height)` using the last host-programmed geometry registers. Stage 3 runs before Stage 4 register reset, so the geometry is still available. The 1000 ms timeout is retained as a safety bound. **Refresh interleave is retained:** the fill FSM issues a lightweight auto-refresh roughly every 15 µs while writing zeros, keeping the clear size-independent and within the 64 ms SDRAM retention window even for large host-configured framebuffers (e.g., 640×480 RGB565 dual-plane). Excluded: `affineTexture` and immutable tile ROMs (no write port), transient line buffers, legacy demo sprite input ports, untouched SDRAM outside the occupied regions. The bit auto-clears when reset completes. |
+| `[2]` | SOFT_RESET_REQUEST | V-boundary | Writing `1` triggers a host-requested soft reset. The controller runs four stages: (1) host-writable BSRAM memories zeroed (copper program RAM, HDMA data/table, palette, sprite pattern RAM, sprite ext descriptors + affine matrices, linestate, scroll tables, DMA staging, blitter source RAM); (2) SDRAM occupied-region zero-fill — `[base, base + stride·height)` per active layer source using the last host-programmed geometry registers, with lightweight auto-refresh roughly every 15 µs; (3) core register reset — all host-writable config registers return to `init`, pending/commit hits are cleared, and `STATUS_STICKY` / `STATUS_ENABLE` / sprite-collision mask are cleared so no stale IRQ fires; (4) done — `SOFT_RESET_BUSY` is released synchronously at `hCounter == 0`. The 1000 ms timeout is retained as a safety bound. Excluded: `affineTexture` and immutable tile ROMs (no write port), transient line buffers, legacy demo sprite input ports, untouched SDRAM outside the occupied regions. The bit auto-clears when reset completes. |
 
 **Polling completion:** A read of `0x0310` returns live `{..., bit2=SOFT_RESET_BUSY}`. Host sequence: write `0x0004`, then poll `read(0x0310)` until bit 2 is `0`.
 
@@ -292,6 +297,38 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 |---|---|---|
 | `[3:0]` | ADAPTER_MODE | Compatibility adapter mode selector. |
 | `[15:8]` | MODE_FLAGS | Adapter-specific mode option flags. |
+
+### L0_TRANS_KEY (`0x0314`), L1_TRANS_KEY (`0x0315`), L2_TRANS_KEY (`0x0316`), L3_TRANS_KEY (`0x0317`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0314` / `0x0315` / `0x0316` / `0x0317` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0000` |
+| Category | H-boundary |
+| Description | Per-layer transparency color index. Pixels matching this palette entry are treated as transparent on the corresponding layer. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[7:0]` | KEY | Palette index treated as transparent for this layer. |
+| `[15:8]` | — | Reserved, write zero. |
+
+### PLANAR_WIDTH (`0x0D4B`)
+
+| Attribute | Value |
+|---|---|
+| Addr | `0x0D4B` |
+| Width | 16 |
+| Access | RW |
+| Reset | `0x0140` (`320`) |
+| Category | vblank-sensitive |
+| Description | Planar clip width. The planar renderer wraps the active fetch window at this pixel boundary. |
+
+| Bits | Field | Description |
+|---|---|---|
+| `[9:0]` | WIDTH | Planar clip width in pixels. Default `320`. Values greater than `320` wrap around modulo the line width. |
+| `[15:10]` | — | Reserved, write zero. |
 
 ### STATUS_STICKY (`0x0320`)
 
