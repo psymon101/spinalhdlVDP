@@ -312,6 +312,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // #3: SDRAM zero-fill stage — high after the on-chip Mem clear, while the
   // controller waits for TopTang's sdram-domain fill FSM (sdramFillDone).
   val softResetFillStage = Reg(Bool()) init False
+  // #4: core register reset stage — high while config registers are forced to
+  // `init` (Option B surgical reset; the reset block keys off this). LIVE reg
+  // (not itself reset) so it survives the reset it drives.
+  val softResetCoreActive = Reg(Bool()) init False
   // #2b: linestate clears BOTH prepare+commit in one pass — a same-cycle
   // prepare-write + commit at the same address hits the BH-6 collision path,
   // which writes the (zero) writeData into commit. Active for addr < lineCount.
@@ -627,9 +631,20 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   }
   when(softResetBusy && softResetFillStage) {
     when(io.sdramFillDone) {             // SDRAM zero-fill complete ...
-      softResetFillStage := False
-      softResetBusy      := False        // ... drop busy and ...
-      softResetRequest   := False        // ... auto-clear the request bit
+      softResetFillStage  := False
+      softResetCoreActive := True        // ... enter stage 3: core register reset
+    }
+  }
+  // Stage 3 (#4): hold the config registers at their `init` (the reset block
+  // below keys off softResetCoreActive), then RELEASE synchronously at a clean
+  // line boundary (hCounter==0) so the video datapath sees no glitched pulse
+  // (CyanPeak #12589/#12609 safety rule). Config regs are stable at init through
+  // the stage; releasing at hCounter==0 starts the next line cleanly.
+  when(softResetBusy && softResetCoreActive) {
+    when(hCounter === U(0, log2Up(hTotal) bits)) {
+      softResetCoreActive := False
+      softResetBusy       := False        // sequence complete: drop busy ...
+      softResetRequest    := False        // ... and auto-clear the request bit
     }
   }
   // SDRAM-fill request to TopTang (level; CDC'd in TopTang to sdramClockDomain).
@@ -2378,6 +2393,78 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   spriteCollMaskReg := (spriteCollMaskReg | collSetMask) & (~collClearMask)
   io.spriteCollMask := spriteCollMaskReg
+
+  // ===== VDP-SOFT-RESET-135 #4: core register reset (Stage 3 of the sequence) =====
+  // Option B (surgical) per TopazCliff #12608 / CyanPeak #12609: while
+  // `softResetCoreActive`, force every host-writable config register back to its
+  // SpinalHDL `init` and clear its pend/commit hit so a mid-flight (uncommitted)
+  // host write cannot land after the reset. Placed after ALL normal register
+  // commit logic so it wins on the reset cycle (last-assignment-wins). The
+  // soft-reset controller regs + i80/0x0310 status path are deliberately NOT
+  // here — they stay LIVE to run the reset and keep the host poll alive.
+  // Internal pipeline/counter regs (hCounter/vCounter/fillLine, copper pc, etc.)
+  // are not reset; they re-settle within a frame (POR-equivalent; the sim proves
+  // no visible artifact). Also clears STATUS_STICKY / STATUS_ENABLE (IRQ mask) /
+  // sprite-collision mask so a stale flag or pending IRQ can't fire post-reset
+  // (CyanPeak #12609).
+  when(softResetCoreActive) {
+    copperCtrlReg     := B(0, 1 bits);  copperCtrlPendHit     := False
+    layerEnableReg    := B"00000";       layerEnablePendHit    := False
+    tileDecodeModeReg := B(0, 2 bits);  tileDecodeModePendHit := False
+    attributeModeReg  := B(0, 1 bits);  attributeModePendHit  := False
+    backdropIndexReg  := U(0, 7 bits);  backdropIndexPendHit  := False
+    scaleCtrlReg      := B(scaleCtrlInit, 8 bits);   scaleCtrlPendHit   := False
+    logicWidthReg     := U(logicWidthInit, 11 bits); logicWidthPendHit  := False
+    logicHeightReg    := U(logicHeightInit, 11 bits);logicHeightPendHit := False
+    innerBorderLReg   := U(0, 10 bits); innerBorderLPendHit := False
+    innerBorderRReg   := U(0, 10 bits); innerBorderRPendHit := False
+    innerBorderTReg   := U(0, 10 bits); innerBorderTPendHit := False
+    innerBorderBReg   := U(0, 10 bits); innerBorderBPendHit := False
+    modeSelectReg     := U(0, 4 bits);  modeSelectFlagsReg := B(0, 8 bits); modeSelectPendHit := False
+    winX0Reg := U(0, 10 bits); winX0PendHit := False
+    winX1Reg := U(0, 10 bits); winX1PendHit := False
+    winY0Reg := U(0, 10 bits); winY0PendHit := False
+    winY1Reg := U(0, 10 bits); winY1PendHit := False
+    colorMathReg := B(0, 16 bits); colorMathPendHit := False
+    win2X0Reg := U(0, 10 bits); win2X0PendHit := False
+    win2X1Reg := U(0, 10 bits); win2X1PendHit := False
+    win2Y0Reg := U(0, 10 bits); win2Y0PendHit := False
+    win2Y1Reg := U(0, 10 bits); win2Y1PendHit := False
+    win2CtrlReg := B(0, 16 bits); win2CtrlPendHit := False
+    winCombReg  := B(0, 16 bits); winCombPendHit  := False
+    layerMaskReg := B(0, 16 bits); layerMaskPendHit := False
+    borderX0Reg := U(0, 10 bits); borderX0PendHit := False
+    borderX1Reg := U(0, 10 bits); borderX1PendHit := False
+    borderY0Reg := U(0, 10 bits); borderY0PendHit := False
+    borderY1Reg := U(0, 10 bits); borderY1PendHit := False
+    borderCtrlReg := B(borderCtrlInit, 16 bits); borderCtrlPendHit := False
+    affineAReg := B(0, 16 bits); affineAPendHit := False
+    affineBReg := B(0, 16 bits); affineBPendHit := False
+    affineCReg := B(0, 16 bits); affineCPendHit := False
+    affineDReg := B(0, 16 bits); affineDPendHit := False
+    affineXReg := B(0, 16 bits); affineXPendHit := False
+    affineYReg := B(0, 16 bits); affineYPendHit := False
+    affineCtrlReg := B(0, 16 bits); affineCtrlPendHit := False
+    bitmapCtrlReg := B(0, 16 bits); bitmapCtrlPendHit := False
+    bitmapBaseLoReg := U(0x3000, 16 bits); bitmapBaseLoPendHit := False
+    bitmapBaseHiReg := U(0, 7 bits);       bitmapBaseHiPendHit := False
+    attrBaseLoReg   := U(0x4000, 16 bits); attrBaseLoPendHit   := False
+    attrBaseHiReg   := U(0, 7 bits);       attrBaseHiPendHit   := False
+    bitmapStrideReg := U(512, 16 bits);    bitmapStridePendHit := False
+    attrStrideReg   := U(512, 16 bits);    attrStridePendHit   := False
+    bitmapHeightReg := U(240, 10 bits);    bitmapHeightPendHit := False
+    planarCtrlReg := B(0, 16 bits)
+    for (p <- 0 until PLANE_COUNT) planeBaseAddrReg(p) := U(0, 23 bits)
+    // NOTE: extra raster triggers TR1-3 are conditionally instantiated
+    // (withExtraRasterTriggers, off in the active i80/HW builds) and scoped inside
+    // their own block — not resettable from here. If ever enabled, add their reset
+    // inside that block keyed off softResetCoreActive.
+    // CyanPeak #12609: clear sticky status / IRQ mask / collision mask so no
+    // stale flag or pending interrupt survives the reset.
+    statusStickyReg   := B(0, 16 bits)
+    statusEnableReg   := B(0, 16 bits); statusEnablePendHit := False
+    spriteCollMaskReg := B(0, spriteCollMaskReg.getWidth bits)
+  }
 
   // R6 Task 20: post-palette color-math + window stage. Mux on `paletteRgb`
   // controlled by the window comparator and the colorMath op/constant fields.

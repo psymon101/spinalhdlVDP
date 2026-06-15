@@ -128,6 +128,16 @@ object SoftResetHandshakeSim extends App {
     // sanity: presets took
     for (i <- palIdx) if (dut.vdp.palette.getBigInt(i) == 0) { println(s"[sim] FAIL: palette[$i] preset did not take"); fail = true }
 
+    // #4: preset host-writable CONFIG registers via the reg bus + let them commit,
+    // so the post-reset read proves the core-reset cleared them (not just POR).
+    regWrite(0x0300, 0x001F)  // LAYER_ENABLE = all layers on
+    regWrite(0x0350, 0x0001)  // BITMAP_CTRL[0] = bitmap mode on
+    regWrite(0x0347, 0x0123)  // BORDER_CTRL = non-default
+    dut.clockDomain.waitSampling(2000)  // > 2 lines: config commits at hCounter==0
+    if (dut.vdp.layerEnableReg.toInt == 0) { println("[sim] FAIL: layerEnable preset did not commit"); fail = true }
+    if (dut.vdp.bitmapCtrlReg.toInt == 0)  { println("[sim] FAIL: bitmapCtrl preset did not commit"); fail = true }
+    if (dut.vdp.borderCtrlReg.toInt == 0)  { println("[sim] FAIL: borderCtrl preset did not commit"); fail = true }
+
     // (b)+(c) first reset asserts and completes (bounded)
     val d1 = triggerAndMeasure("first")
 
@@ -149,7 +159,11 @@ object SoftResetHandshakeSim extends App {
     for ((m, n) <- spriteMems.zip(spriteNames); i <- spIdx) chk(s"sprite.$n", m.getBigInt(i), i)
     // regAffineEnable DFFs (cleared by the sweep; init False — confirm 0 post-reset)
     for (i <- spIdx) if (dut.vdp.spriteEval.regAffineEnable(i).toBoolean) { println(s"[sim] FAIL: regAffineEnable[$i] set after reset"); fail = true }
-    if (!fail) println("[sim] palette+pattern+scroll x4+linestate+copper+dma+blitter+sprite(info/affine) zeroed by the sweep")
+    // #4: config registers must read back their init after the reset.
+    if (dut.vdp.layerEnableReg.toInt != 0) { println(f"[sim] FAIL: layerEnableReg=0x${dut.vdp.layerEnableReg.toInt}%X after reset (expected 0)"); fail = true }
+    if (dut.vdp.bitmapCtrlReg.toInt  != 0) { println(f"[sim] FAIL: bitmapCtrlReg=0x${dut.vdp.bitmapCtrlReg.toInt}%X after reset (expected 0)"); fail = true }
+    if (dut.vdp.borderCtrlReg.toInt  != 0) { println(f"[sim] FAIL: borderCtrlReg=0x${dut.vdp.borderCtrlReg.toInt}%X after reset (expected 0)"); fail = true }
+    if (!fail) println("[sim] mem sweep + config regs (layerEnable/bitmapCtrl/borderCtrl) reset to init")
 
     // (d) AUTO-CLEAR proof: with no new write, busy must STAY low. A request bit
     // that failed to auto-clear would immediately re-assert busy here.
@@ -158,12 +172,15 @@ object SoftResetHandshakeSim extends App {
 
     // (e) re-armable: a second request re-triggers cleanly
     val d2 = triggerAndMeasure("second")
-    if (d1 > 0 && d2 > 0 && d1 != d2) { println(f"[sim] FAIL: non-deterministic duration d1=$d1 d2=$d2"); fail = true }
+    // Duration varies by up to ~hTotal: the #4 core-reset stage releases at
+    // hCounter==0 (line-aligned, CyanPeak no-glitch rule), so bounded variation
+    // is correct — only a large divergence indicates a bug.
+    if (d1 > 0 && d2 > 0 && math.abs(d1 - d2) > 900) { println(f"[sim] FAIL: duration variance too large d1=$d1 d2=$d2"); fail = true }
 
     dut.clockDomain.waitSampling(50)
     if (dut.io.softResetBusy.toBoolean) { println("[sim] FAIL: busy still high at end"); fail = true }
 
     println(if (fail) "[sim] SoftResetHandshakeSim: FAIL"
-            else "[sim] SoftResetHandshakeSim: PASS — handshake + #2a-#2e mem zeroing (palette, pattern, scroll x4, linestate, copper, dma, blitter, sprite info/affine)")
+            else "[sim] SoftResetHandshakeSim: PASS — handshake + #2a-#2e mem zeroing + #4 config-register reset (layerEnable/bitmapCtrl/borderCtrl → init), bounded/auto-clear/re-armable")
   }
 }

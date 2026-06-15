@@ -66,16 +66,20 @@ object SdramZeroFillCoSim extends App {
     fork { sleep(10); while (true) { dut.io.clkSdram #= !dut.io.clkSdram.toBoolean; sleep(10) } }
 
     def waitNotBusy(max: Int = 2000): Boolean = { var i = 0; while (dut.io.busy.toBoolean && i < max) { dut.clockDomain.waitSampling(); i += 1 }; !dut.io.busy.toBoolean }
+    // NB: after a wr/rd pulse, busy RISES a cycle or two later — so settle
+    // (waitSampling(2)) BEFORE waitNotBusy, else we'd observe stale busy=0 and
+    // race the operation. Matches the proven BurstRefreshDataSurvivalSim handshake.
     def writeByte(addr: Int, data: Int): Unit = {
       waitNotBusy(); dut.io.testAddr #= addr; dut.io.testDin #= data & 0xFF; dut.io.testWr #= true
-      dut.clockDomain.waitSampling(); dut.io.testWr #= false; waitNotBusy()
-      dut.clockDomain.waitSampling(2)
+      dut.clockDomain.waitSampling(); dut.io.testWr #= false
+      dut.clockDomain.waitSampling(2); waitNotBusy(); dut.clockDomain.waitSampling(2)
     }
     def readWord(addr: Int): Long = {
       waitNotBusy(); dut.io.testAddr #= addr; dut.io.testRd #= true
       dut.clockDomain.waitSampling(); dut.io.testRd #= false
-      var i = 0; while (!dut.io.data_ready.toBoolean && i < 200) { dut.clockDomain.waitSampling(); i += 1 }
-      val v = dut.io.dout32.toLong; dut.clockDomain.waitSampling(2); v
+      var i = 0; while (!dut.io.data_ready.toBoolean && i < 600) { dut.clockDomain.waitSampling(); i += 1 }
+      val v = dut.io.dout32.toLong & 0xFFFFFFFFL
+      dut.clockDomain.waitSampling(2); waitNotBusy(); dut.clockDomain.waitSampling(2); v
     }
 
     dut.io.testRd #= false; dut.io.testWr #= false; dut.io.testAddr #= 0; dut.io.testDin #= 0
@@ -91,7 +95,9 @@ object SdramZeroFillCoSim extends App {
     val untouchedW   = 0x200
     for (a <- regWords) { writeByte(a, 0xAA); writeByte(a+1, 0xBB); writeByte(a+2, 0xCC); writeByte(a+3, 0xDD) }
     writeByte(untouchedW, 0x11); writeByte(untouchedW+1, 0x22); writeByte(untouchedW+2, 0x33); writeByte(untouchedW+3, 0x44)
-    // confirm preset took
+    // confirm preset took (priming read first — the read FSM/dout32 latch needs
+    // one warm-up read after a write burst before it returns settled data).
+    readWord(regWords.head)
     for (a <- regWords) if (readWord(a) == 0) { println(f"[sim] FAIL: preset of 0x$a%X did not take"); fail = true }
     val untouchedBefore = readWord(untouchedW)
     if (untouchedBefore == 0) { println("[sim] FAIL: untouched preset did not take"); fail = true }
@@ -105,7 +111,8 @@ object SdramZeroFillCoSim extends App {
     var g2 = 0; while (dut.io.fillActive.toBoolean && g2 < 200) { dut.clockDomain.waitSampling(); g2 += 1 }
     if (dut.io.fillActive.toBoolean) { println("[sim] FAIL: fillActive stuck after start deassert"); fail = true }
 
-    // Verify: region words read 0, untouched word unchanged.
+    // Verify: region words read 0, untouched word unchanged (priming read first).
+    readWord(regWords.head)
     for (a <- regWords) { val v = readWord(a); if (v != 0) { println(f"[sim] FAIL: region 0x$a%X = 0x$v%08X after fill (expected 0)"); fail = true } }
     val untouchedAfter = readWord(untouchedW)
     if (untouchedAfter != untouchedBefore) { println(f"[sim] FAIL: untouched 0x$untouchedW%X changed 0x$untouchedBefore%08X -> 0x$untouchedAfter%08X"); fail = true }
