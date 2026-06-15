@@ -26,7 +26,7 @@ case class SdramController() extends BlackBox {
   // #11123 FIX 3 (CyanPeak #11122) — historical rationale (the SDRAM clock is now
   // 40.5 MHz per FREQ above; at 40.5 MHz, 24.69 ns/cycle, T_RCD=2/T_RP=2 give 49.4 ns,
   // an even larger margin over the 18 ns spec, so the fix below still holds):
-  // at the original 64.8 MHz (15.43 ns/cycle), T_RCD=1/T_RP=1
+  // at the retired 64.8 MHz (15.43 ns/cycle), T_RCD=1/T_RP=1
   // give only 15.43 ns < EM638325 spec (tRCD/tRP = 18 ns). Raise both to 2
   // (30.86 ns >= 18 ns). T_RC stays at the sdram.v default 4 — CRITICAL: the
   // CONFIG sequence matches {CONFIG, T_RP+2*T_RC+T_MRD} on a 4-bit cycle counter
