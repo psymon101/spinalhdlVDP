@@ -507,13 +507,69 @@ vdp_reg_write(0x0D4B, 320u);
 
 ---
 
+### Host-Triggered Soft Reset
+
+The host can return the VDP to a clean POR-equivalent state by writing `1` to bit 2 of `VDP_CTRL` (`0x0310`). The reset is equivalent to a POR and runs as a 4-stage chain:
+
+1. **Host-writable BSRAM memories zeroed** — copper program RAM (both banks), HDMA data/table, palette, sprite pattern RAM, sprite external descriptors + affine matrices, linestate (prepare+commit), scroll tables, DMA staging buffer, blitter source RAM.
+2. **SDRAM occupied-region zero-fill** — for each active layer source the engine zeroes `[base, base + stride·height)` using the last host-programmed geometry registers, **before** those registers are reset. SDRAM outside the configured regions is left untouched. **Refresh interleave is retained:** the fill FSM issues a lightweight auto-refresh roughly every 15 µs, keeping the clear within the 64 ms SDRAM retention window even for large framebuffers.
+3. **Core register reset** — all host-writable config registers return to their SpinalHDL `init` values; pending/commit hits are cleared so no stale in-flight write lands post-reset. `STATUS_STICKY`, `STATUS_ENABLE` (IRQ mask), and the sprite-collision mask are also cleared so no stale flag or IRQ fires after reset.
+4. **Done** — `VDP_CTRL[2]` is released synchronously at `hCounter == 0` to avoid any glitched pulse to the datapath. The controller guarantees the pipeline/counter regs re-settle within one frame.
+
+A 1000 ms timeout is retained as a safety bound. After reset, re-initialize the display and reload any palette/sprite patterns you need.
+
+```c
+#include "vdp_mode0.h"
+
+void vdp_soft_reset(void) {
+    // Initiates the 4-stage reset and polls the live busy bit.
+    vdp_mode0_soft_reset();
+
+    // Helper returns only after SOFT_RESET_BUSY is clear.
+    // Re-initialize display state here.
+}
+```
+
+> [!WARNING]
+> Do not poll `VDP_CTRL` inside an interrupt-critical section for longer than necessary. If the readback path is loopback-only, use a fixed delay or a status interrupt instead.
+>
+> `affineTexture`, immutable tile ROMs, transient per-line render buffers, and legacy demo sprite input ports are **not** affected by the reset.
+
+---
+
+### Per-Layer Transparency and Planar Clip Width
+
+Each tile/planar layer can have its own transparent color index. A pixel whose palette entry equals the layer's `Lx_TRANS_KEY` register is treated as fully transparent, revealing the layer behind it (or the backdrop).
+
+| Register | Address | Purpose |
+|---|---|---|
+| `L0_TRANS_KEY` | `0x0314` | Transparent palette index for layer 0 |
+| `L1_TRANS_KEY` | `0x0315` | Transparent palette index for layer 1 |
+| `L2_TRANS_KEY` | `0x0316` | Transparent palette index for layer 2 |
+| `L3_TRANS_KEY` | `0x0317` | Transparent palette index for layer 3 |
+
+`PLANAR_WIDTH` (`0x0D4B`) sets the 10-bit planar clip width. The default `320` matches the existing 320-pixel planar window. Values larger than `320` wrap around the line.
+
+```c
+// Make palette entry 0 transparent on layer 0
+vdp_reg_write(0x0314, 0x0000u);
+
+// Keep the default 320-pixel planar clip width
+vdp_reg_write(0x0D4B, 320u);
+```
+
+> [!NOTE]
+> These defaults match the pre-register hardcoded behavior: index `0` is transparent and the planar clip width is `320` pixels. Writing non-default values requires a next-bitstream build that implements the registers.
+
+---
+
 ## 9. Verification Guidelines
 # Part II: Internal Register Reference
 
 | Address | Name | Description |
 |---|---|---|
 | `0x0300` | `LAYER_ENABLE` | bit0:L0, bit1:L1, bit2:Sprite, bit3:L2, bit4:L3. **Global enable only** — each bit is ANDed with the per-line linestate enable bit (addresses `0x0000..0x01DF`). |
-| `0x0310` | `VDP_CTRL` | bit0:Copper Enable, bit1:Copper Swap Request |
+-| 0x0310 | VDP_CTRL | bit0:Copper Enable, bit1:Copper Swap Request, bit2:Soft Reset Request |
 | `0x0314` | `L0_TRANS_KEY` | 8-bit transparency palette index for layer 0 |
 | `0x0315` | `L1_TRANS_KEY` | 8-bit transparency palette index for layer 1 |
 | `0x0316` | `L2_TRANS_KEY` | 8-bit transparency palette index for layer 2 |

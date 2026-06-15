@@ -233,6 +233,7 @@ uint16_t vdp_mode0_blit_ctrl(bool go, uint8_t mode, bool done_ack);
 
 void vdp_mode0_set_layer_enable(uint16_t mask);
 void vdp_mode0_set_vdp_ctrl(bool copper_enable);
+bool vdp_mode0_soft_reset(void);
 void vdp_mode0_set_tile_mode(uint8_t mode);
 void vdp_mode0_set_attr_mode(uint8_t mode);
 void vdp_mode0_set_mode_select(uint16_t mode_select);
