@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-16 (VDP-SOFT-RESET-135 DONE; combined bitstream `c55e944` HW-validated; SIM-TEST-DEBT-138 opened.)
+**Updated:** 2026-06-16 (PROJECT-AUDIT-141 IN-PROGRESS; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; 2bpp planar / tile-row-stride sub-lanes PARKED.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,15 +22,15 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | Host-triggered soft reset via `VDP_CTRL[2]` |
-| **Status** | **DONE** |
-| **Task ID** | VDP-SOFT-RESET-135 |
-| **Owner** | BrightForge (RTL + SDRAM fill engine) / BronzeGate (libvdp wrapper + HW smoke test) / CyanPeak (ClockDomain partitioning review + code-to-spec) / CoralReef (docs) |
-| **Baseline Commit** | `d42bac8` (main after copper-docs merge and affine-texture backlog task) |
-| **Latest Auth Mail** | TopazCliff #12665 (GO: build + flash combined bitstream from `c55e944`) |
-| **Summary** | Host-triggered soft reset returns the VDP to a POR-equivalent state without a power cycle. All 4 stages implemented and proven: Stage 1 handshake + i80 `0x0310` live readback, Stage 2 on-chip host-writable Mem zero-sweep, Stage 3 SDRAM occupied-region zero-fill with interleaved refresh, Stage 4 core-register reset while controller + host interface survive. Register `#3/#4` (`L0-L3_TRANS_KEY`, `PLANAR_WIDTH`) added on same branch and validated. Combined bitstream `c55e944` flashed and HW-smoke-tested by BronzeGate. |
-| **Checkpoints** | A: `VDP_CTRL[2]` request/busy handshake + i80 live readback — DONE (`a64dd01`, HW PASS). B: On-chip Mem clear sweep — DONE. C: SDRAM occupied-region zero-fill engine — DONE (cosim + integrated sim). D: Core register reset — DONE (`c55e944`). E: libvdp `vdp_mode0_soft_reset()` wrapper + docs — DONE. |
-| **Next Step** | Lane closed. Follow-up test-debt work tracked as **SIM-TEST-DEBT-138**. |
+| **Task** | Project-wide audit and main-branch consolidation |
+| **Status** | **IN-PROGRESS** |
+| **Task ID** | PROJECT-AUDIT-141 |
+| **Owner** | CoralReef (doc audit) / CyanPeak (code-to-spec) / BronzeGate (firmware hygiene + commits) / BrightForge (sim triage + branch cleanup) |
+| **Baseline Commit** | `9f9b512` on `main` (post SIM-TEST-FOLLOWUP-140) |
+| **Latest Auth Mail** | BrightForge #12730 (PROJECT-AUDIT-141 checkpoints D/E: sim triage + branch fates) |
+| **Summary** | Audit all uncommitted docs/firmware/RTL changes, close QSPI cleanup debt, triage remaining RED sims, reconcile legacy docs, and commit/merge validated work to `main`. Goal: stop branch sprawl and establish a clean, audited baseline before the next feature lane. |
+| **Checkpoints** | A: DONE — CoralReef doc audit PASS (#12723); CHANGELOG.md QSPI-deprecation bullet added by BronzeGate (#12726). B: DONE — CyanPeak code-to-spec audit PASS (#12721). C: DONE — BronzeGate cleanup audited PASS by CoralReef (#12728) and CyanPeak (#12727). D: DONE — BrightForge triaged 11 remaining RED sims (#12730). E: DONE — branch fates decided (#12730). F: IN-PROGRESS — final commit/merge gate to `main`. |
+| **Next Step** | TopazCliff opens final commit/merge gate: authorize commits to `main` and delete `debug/baseline-reverify`. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -93,26 +93,36 @@ This section tracks the active lane.
 - **Validation:** N/A — Phase 1 abandoned per BrightForge #12648 / TopazCliff #12649.
 
 ### Priority 5a — Sim Test Debt Cleanup (SIM-TEST-DEBT-138)
-- **Status:** **QUEUED**
+- **Status:** **DONE** (commit authorized #12715)
 - **Owner:** BrightForge
-- **Scope:** Fix three pre-existing RED simulations that fail identically on `main` (`d41dea8`): `PlanarClipSim` (sample skew), `SpriteEvaluatorSim` (stale "expected 32 active" expectation), `SpriteCapacitySim` (stale capacity expectation). These are test-bench/test-debt issues, not RTL regressions.
+- **Scope:** Fix three pre-existing RED simulations that fail identically on `main` (`d41dea8`): `PlanarClipSim` (sample skew), `SpriteEvaluatorSim` (undriven `softClear`), `SpriteCapacitySim` (stale wait time). These are test-bench/test-debt issues, not RTL regressions.
 - **Depends on:** VDP-SOFT-RESET-135 DONE
-- **Validation:** All three sims PASS on `main`; no functional regression in existing demos.
+- **Validation:** All three sims PASS on `main`; 0 new REDs in 107-sim matrix (#12714); `sbt compile` clean.
 - **Opened by:** BrightForge #12668
 
+### Priority 5b — Sim Test De-flake Follow-up (SIM-TEST-FOLLOWUP-140)
+- **Status:** **DONE** (commit `9f9b512`, matrix 96/11, 0 new REDs)
+- **Owner:** BrightForge
+- **Scope:** Apply the same `softClear`/`softClearAddr` tie-off to `SpriteHighPatIdxBusSim` and `Task55SpriteMaskingSim` so the full matrix loses two more flaky fails.
+- **Depends on:** SIM-TEST-DEBT-138 DONE
+- **Validation:** Both sims PASS deterministically across 3+ seeds; full matrix re-run shows no new REDs.
+- **Opened by:** TopazCliff #12716
+
 ### Sub-lane: 2bpp Planar FPGA Hardware Proof
-- **Status:** **IN-PROGRESS**
+- **Status:** **PARKED**
 - **Owner:** BrightForge
 - **Opened by:** TopazCliff #10851 (ACK sent, plan replied #10853-sub)
 - **Scope:** Generate 2bpp planar test asset, flash to Tang Nano 20K, capture visual proof.
 - **Validation:** Visual output matches source pattern; any mirroring/color-swap/stride-corruption = FAIL.
+- **Park reason:** PM scope clarification — this is a legacy tile-decode verification, not a bitplane blocker. Unpark when the asset generator supports 2bpp-planar layout and a platform adapter demo needs it.
 
 ### Action: Tile-Row Stride Verification (non-4bpp)
-- **Status:** **IN-PROGRESS**
+- **Status:** **PARKED**
 - **Owner:** BrightForge
 - **Opened by:** TopazCliff #10826 (ACK sent, analysis replied #10853-sub)
 - **Scope:** Confirm hardware fetch behavior for 1bpp and 2bpp tiles with fixed 8-byte row stride.
 - **Validation:** RTL analysis complete; hardware proof pending PM decision on priority.
+- **Park reason:** PM scope clarification — BrightForge analysis (#10826) shows HW stride is safe; the real gap is asset-generator padding/encoding. Unpark when a low-bpp tile adapter demo is scheduled.
 
 ### Integer Pixel-Repetition Scaler + Auto-Center Borders
 - **Status:** **DONE** (#10590).
@@ -267,6 +277,29 @@ For full pre-execution planning (primitive boundary, interfaces, data model, tim
 - sim: ...
 - hardware: ...
 - synthesis/PnR: ... (mandatory per `CONVENTIONS.md` §Synthesis and PnR Proof Rule if ≥500 lines or top-level connectivity changed)
+
+### PROJECT-AUDIT-141 Sim Debt Baseline
+
+Classified by BrightForge #12730 (run 3× on `main @ 9f9b512`):
+
+| Sim | 3× result | Class | Root cause / debt |
+|---|---|---|---|
+| `AffineVdpTopSim` | F F F | deterministic | affine render idx mismatch (affine-path/test mismatch) |
+| `BitmapRowFetchSim` | F F F | deterministic | bootDone timeout — SDRAM init vs short wait; known debt |
+| `BlitterEngineSim` | F P F | flaky | uninitialized/random read — de-flake candidate |
+| `BurstRefreshPacingSim` | F F F | deterministic | SpinalError elaboration — param/API drift; quick fix candidate |
+| `LinestateRobustnessSim` | F F F | deterministic | linestate/test mismatch |
+| `RegBusConcurrencySim` | F F F | deterministic | write commit timing expectation |
+| `RegBusStressSim` | timeout ×3 | hang/perf | stress sim hangs >300s |
+| `ScrollTableSim` | F F F | deterministic | uninitialized ScrollTable read — de-flake candidate |
+| `SpriteCollisionSim` | F F F | deterministic | SPRITE_0_HIT not set — collision/test mismatch |
+| `TileAttributeFetchL1BaseSim` | F F F | deterministic | SpinalError elaboration — param/API drift; quick fix candidate |
+| `VdpTopSim` | F F F | deterministic | top-band color mismatch — known long-broken |
+
+**Branch decisions:**
+- `debug/baseline-reverify` @ `685c412` — **delete** (stale, unclaimed).
+- `experiment/i80-no-delays` @ `233cc0f` — **keep** (BronzeGate experiment).
+- `sdram-controller-upgrade-test` @ `3715ac5` — **keep blocked** (out of scope until dedicated SDRAM lane).
 
 ### Audit Focus
 - ...

@@ -10,6 +10,51 @@
 
 <!-- END HEADER -->
 
+## 2026-06-16T18:07:57-04:00 | CyanPeak | RESEARCH
+**Tags:** `project-audit-141`
+
+Code-to-spec audit passed for BronzeGate's host-neutral API cleanup (vdp_host, platform aliases, and docs).
+
+**Evidence:**
+- **Mail:** #12727
+
+---
+## 2026-06-16T17:58:18-04:00 | CyanPeak | RESEARCH
+**Tags:** `project-audit-141`
+
+Code-to-spec audit passed. Uncommitted firmware/RTL aligns with documentation regarding host naming, soft-reset, and register bit-widths.
+
+**Evidence:**
+- **Mail:** #12721
+
+---
+## 2026-06-16T14:24:58-04:00 | CyanPeak | DECISION
+**Tags:** `qspi-deprecate`
+
+Lane officially closed by TopazCliff. Code-to-spec review PASS. Cleanup items tracked for future hygiene lane.
+
+**Evidence:**
+- **Mail:** #12707
+
+---
+## 2026-06-16T09:47:57-04:00 | CyanPeak | RESEARCH
+**Tags:** `qspi-deprecate`
+
+Verified vdp_host.h/c encapsulates existing CMD 0x01/0x02/0x04 register and status contracts. Deprecated aliases in vdp_qspi.h maintain backward compatibility. I80 implementation verified.
+
+**Evidence:**
+- **Mail:** #12706
+
+---
+## 2026-06-16T07:15:56-04:00 | CyanPeak | RESEARCH
+**Tags:** `qspi-deprecate`
+
+Verified HOST_READY/ERROR renames in headers, JSON, and docs. Confirmed Lx_TRANS_KEY (4-bit) and PLANAR_WIDTH (10-bit) bit-widths in RTL and firmware. Soft-reset docs verified.
+
+**Evidence:**
+- **Mail:** #12684
+
+---
 ## 2026-05-25T20:34:37-04:00 | TopazCliff | MERGE
 **Tags:** `scaler-lane`
 
