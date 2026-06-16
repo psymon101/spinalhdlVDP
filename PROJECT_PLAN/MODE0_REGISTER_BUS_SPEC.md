@@ -96,10 +96,10 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0311` | `VDP_TILE_MODE` — 2-bit packed/planar/shuffled | Task R4.1b/c/d | `VdpTop.scala:225,232` |
 | `0x0312` | `VDP_ATTR_MODE` — 1-bit linear/packed-2×2 | Task R4.1c | `VdpTop.scala:61,240` |
 | `0x0313` | `MODE_SELECT` — `[3:0]=adapter mode ID`, `[7:4]=reserved`, `[15:8]=MODE_FLAGS` | MODE_SELECT architecture | `MODE_SELECT_ARCHITECTURE.md` §4.2 |
-| `0x0314` | `L0_TRANS_KEY` — 8-bit transparency index for layer 0 | R6 / #3 | `VdpTop.scala` |
-| `0x0315` | `L1_TRANS_KEY` — 8-bit transparency index for layer 1 | R6 / #3 | `VdpTop.scala` |
-| `0x0316` | `L2_TRANS_KEY` — 8-bit transparency index for layer 2 | R6 / #3 | `VdpTop.scala` |
-| `0x0317` | `L3_TRANS_KEY` — 8-bit transparency index for layer 3 | R6 / #3 | `VdpTop.scala` |
+| `0x0314` | `L0_TRANS_KEY` — 4-bit transparency index for layer 0 | R6 / #3 | `VdpTop.scala` |
+| `0x0315` | `L1_TRANS_KEY` — 4-bit transparency index for layer 1 | R6 / #3 | `VdpTop.scala` |
+| `0x0316` | `L2_TRANS_KEY` — 4-bit transparency index for layer 2 | R6 / #3 | `VdpTop.scala` |
+| `0x0317` | `L3_TRANS_KEY` — 4-bit transparency index for layer 3 | R6 / #3 | `VdpTop.scala` |
 | `0x0318..0x031F` | **Reserved** — global-control expansion | — | — |
 | `0x0320..0x0322` | **Task 35** — status registers, IRQ enables, sticky bits (see §3.1.1) | Task 35, 29 | `VdpTop.scala:878-921` |
 | `0x0323` | `UPLOAD_STATUS_CLEAR` — write-1-to-clear for bridge sticky bits (see §3.1.2) | **Landed (Phase 2)** | `QspiDecoder.scala` |
@@ -175,8 +175,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 |---|---|---|---|
 | 0 | `RASTER_MATCH` | `RasterTriggerUnit.triggerPulse` | Task 35 |
 | 1 | `SPRITE_OVERFLOW` | `SpriteEvaluator.overflowFlag` | Task 35 |
-| 2 | `QSPI_READY` | decoder `cmd_valid` pulse (historical name; fires on host write validity) | Task 35 |
-| 3 | `QSPI_ERROR` | decoder `last_error ≠ 0` (historical name; host transport error) | Task 35 |
+| 2 | `HOST_READY` | host bridge accepted-command pulse (legacy alias: `QSPI_READY`) | Task 35 |
+| 3 | `HOST_ERROR` | host bridge `last_error ≠ 0` (legacy alias: `QSPI_ERROR`) | Task 35 |
 | 4 | `SPRITE_0_HIT` | sprite slot 0 non-transparent over non-transparent BG | **Task 29** |
 | 5 | `SPRITE_BG_HIT` | any sprite non-transparent over non-transparent BG | **Task 29** |
 | 8 | `DMA_DONE` | `DmaEngine.io.done` — sticky pulse on transfer complete | **Task 47** |
@@ -303,7 +303,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Attribute | Value |
 |---|---|
 | Addr | `0x0314` / `0x0315` / `0x0316` / `0x0317` |
-| Width | 16 |
+| Width | 4 |
 | Access | RW |
 | Reset | `0x0000` |
 | Category | H-boundary |
@@ -311,15 +311,15 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 
 | Bits | Field | Description |
 |---|---|---|
-| `[7:0]` | KEY | Palette index treated as transparent for this layer. |
-| `[15:8]` | — | Reserved, write zero. |
+| `[3:0]` | KEY | Palette index treated as transparent for this layer. |
+| `[15:4]` | — | Reserved, write zero. Firmware helpers mask to 4 bits. |
 
 ### PLANAR_WIDTH (`0x0D4B`)
 
 | Attribute | Value |
 |---|---|
 | Addr | `0x0D4B` |
-| Width | 16 |
+| Width | 10 |
 | Access | RW |
 | Reset | `0x0140` (`320`) |
 | Category | vblank-sensitive |
@@ -345,8 +345,8 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 |---|---|---|
 | `[0]` | RASTER_MATCH | Raster trigger match occurred. |
 | `[1]` | SPRITE_OVERFLOW | Sprite evaluation overflow occurred. |
-| `[2]` | QSPI_READY | Host bridge reported ready (historical name; applies to i80 and QSPI). |
-| `[3]` | QSPI_ERROR | Host bridge reported an error (historical name; applies to i80 and QSPI). |
+| `[2]` | HOST_READY | Host bridge reported ready (legacy alias: QSPI_READY). |
+| `[3]` | HOST_ERROR | Host bridge reported an error (legacy alias: QSPI_ERROR). |
 | `[4]` | SPRITE_0_HIT | Sprite 0 collision flag latched. |
 | `[5]` | SPRITE_BG_HIT | Sprite/background collision flag latched. |
 | `[8]` | DMA_DONE | DMA operation completed. |

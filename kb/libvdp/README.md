@@ -15,7 +15,8 @@ Canonical API reference for `firmware/libvdp/`.
 
 | Module | Files | Purpose |
 |---|---|---|
-| Transport | `vdp_qspi.h`, `vdp_qspi.c` | QSPI/i80 register/status/SDRAM transactions |
+| Transport | `vdp_host.h`, `vdp_host.c` | host register/status/SDRAM transactions |
+| Legacy transport shim | `vdp_qspi.h` | deprecated compatibility include and `vdp_qspi_*` aliases |
 | Status | `vdp_status.h`, `vdp_status.c` | sticky-bit polling and vblank waits |
 | Upload | `vdp_upload.h`, `vdp_upload.c` | vblank-paced SDRAM asset upload |
 | Mode0 | `vdp_mode0.h`, `vdp_mode0.c` | generic Mode0 helper layer |
@@ -26,40 +27,46 @@ Canonical API reference for `firmware/libvdp/`.
 
 | Function | Signature | Purpose | Notes |
 |---|---|---|---|
-| `vdp_qspi_init` | `void vdp_qspi_init(void)` | initialize QSPI pins and transport | call once before any other `libvdp` API |
+| `vdp_host_init` | `void vdp_host_init(void)` | initialize host pins and transport | call once before any other `libvdp` API |
+| `vdp_qspi_init` | `void vdp_qspi_init(void)` | deprecated alias for `vdp_host_init()` | kept for legacy sketches |
 | `vdp_pio_wait_sm_idle` | `void vdp_pio_wait_sm_idle(void)` | drain Pico PIO TX path before CS/pin changes | Pico-only effect; no-op on Arduino targets |
 | `vdp_last_error` | `int vdp_last_error(void)` | read sticky host-library error state | library-side state only; FPGA-side errors come from status reads |
-| `vdp_qspi_set_speed_hz` | `void vdp_qspi_set_speed_hz(uint32_t hz)` | change QSPI SCK frequency at runtime | only effective on ESP32-S3 hardware SPI2 backend; no-op elsewhere |
+| `vdp_host_set_speed_hz` | `void vdp_host_set_speed_hz(uint32_t hz)` | change host transport frequency at runtime | only effective on legacy SPI2/QSPI compatibility builds; no-op elsewhere |
+| `vdp_qspi_set_speed_hz` | `void vdp_qspi_set_speed_hz(uint32_t hz)` | deprecated alias for `vdp_host_set_speed_hz()` | kept for legacy sketches |
 
 ## Host Interface Policy
 
-The Tang Nano 20K deployment currently uses two mutually exclusive host interfaces:
+The Tang Nano 20K deployment currently uses i80 as the canonical host
+interface. Legacy QSPI code remains available for compatibility and historical
+bench work.
 
 | Interface | Type | Usage | Pin Group |
 |---|---|---|---|
-| **i80 (Primary)** | 8-bit Parallel | Modern bench setup (ESP32-S3). Lowest latency. | I80 (GPIOs) |
-| **QSPI (Alternate)** | 4-bit Serial | Legacy/Pico 2 setup. Reliable for long distances. | QSPI (FSPI) |
+| **i80 (Primary)** | 8-bit Parallel | Current bench setup (ESP32-S3). Lowest latency. | I80 (GPIOs) |
+| **QSPI (Legacy)** | 4-bit Serial | Compatibility/Pico 2 historical setup. | QSPI (FSPI/PIO) |
 
 The `libvdp` API abstractions (`vdp_reg_write`, `vdp_sdram_write`) remain identical across both transports.
 
-## QSPI Speed Policy
+## Host Speed Policy
 
-On platforms with hardware SPI support (currently ESP32-S3), the transport supports a "two-speed" policy to maximize throughput while maintaining read reliability.
+Legacy QSPI/SPI2 compatibility builds support a "two-speed" policy to maximize
+throughput while maintaining read reliability. The canonical ESP32-S3 i80 host
+path ignores `vdp_host_set_speed_hz()`.
 
 | Direction | Recommended Speed | Rationale |
 |---|---|---|
-| **Reads** | **3 MHz** (`VDP_QSPI_SCK_HZ`) | FPGA response FSM caps at 3 MHz; higher rates cause read failure. |
-| **Writes** | **60 MHz** (`VDP_QSPI_SCK_WRITE_HZ`) | Maximizes bulk-write throughput (up to ~6.8 MB/s) with SI margin. |
+| **Reads** | **3 MHz** (`VDP_HOST_SCK_HZ`, legacy alias `VDP_QSPI_SCK_HZ`) | FPGA response FSM caps at 3 MHz; higher rates cause read failure. |
+| **Writes** | **8 MHz** (`VDP_HOST_SCK_WRITE_HZ`, legacy alias `VDP_QSPI_SCK_WRITE_HZ`) | Firmware physical cap for compatibility builds. |
 
 ### Usage Example
 
 ```c
 // Perform bulk upload at high speed
-vdp_qspi_set_speed_hz(VDP_QSPI_SCK_WRITE_HZ);
+vdp_host_set_speed_hz(VDP_HOST_SCK_WRITE_HZ);
 vdp_sdram_write(addr, big_buffer, 253);
 
 // Switch back to safe speed for status polling
-vdp_qspi_set_speed_hz(VDP_QSPI_SCK_HZ);
+vdp_host_set_speed_hz(VDP_HOST_SCK_HZ);
 uint32_t magic = vdp_read_status(0);
 ```
 
@@ -146,8 +153,10 @@ python3 scripts/assets/bin_to_c_array.py build/frame.tiles.bin \
 |---|---|---|
 | `VDP_STICKY_RASTER_MATCH` | `0x0001` | raster trigger matched |
 | `VDP_STICKY_SPRITE_OVERFLOW` | `0x0002` | sprite overflow |
-| `VDP_STICKY_QSPI_READY` | `0x0004` | command accepted |
-| `VDP_STICKY_QSPI_ERROR` | `0x0008` | QSPI error |
+| `VDP_STICKY_HOST_READY` | `0x0004` | command accepted |
+| `VDP_STICKY_HOST_ERROR` | `0x0008` | host error |
+| `VDP_STICKY_QSPI_READY` | `0x0004` | deprecated alias for `VDP_STICKY_HOST_READY` |
+| `VDP_STICKY_QSPI_ERROR` | `0x0008` | deprecated alias for `VDP_STICKY_HOST_ERROR` |
 | `VDP_STICKY_SPRITE_0_HIT` | `0x0010` | slot-0 hit |
 | `VDP_STICKY_SPRITE_BG_HIT` | `0x0020` | sprite/background hit |
 | `VDP_STICKY_DMA_DONE` | `0x0100` | DMA transfer complete |
@@ -221,7 +230,7 @@ One-call palette + pattern + descriptor upload. Any step can be skipped with `NU
 
 | Fact | Implication |
 |---|---|
-| **HostInterface is ABSENT** | QSPI writes directly to the internal register bus. No host-side entry FIFO; bursts are not silently dropped by transport. |
+| **HostInterface is ABSENT** | The active host bridge writes directly to the internal register bus. No host-side entry FIFO; bursts are not silently dropped by transport. |
 | **Copper Upload is Unbuffered** | Writes to `0x0400..0x05FF` hit Copper Program RAM directly. Chunking and inter-chunk delays are unnecessary and removed. |
 | **Copper Drain Latency** | `copperFifo` (64 words) drains at most once per scanline at `hCounter == 0`. Effects via Copper have ~1-line vertical lag. |
 | **Copper Double-Buffer** | Two 512-word banks. Upload while copper is **enabled** routes to the inactive bank. `vdp_copper_swap_request()` swaps at the next `vSyncStart`. Upload *before* requesting swap. |
@@ -232,7 +241,7 @@ One-call palette + pattern + descriptor upload. Any step can be skipped with `NU
 
 | Step | Call |
 |---|---|
-| 1 | `vdp_qspi_init()` |
+| 1 | `vdp_host_init()` |
 | 2 | `vdp_reg_write(...)` and/or `vdp_read_status(...)` |
 | 3 | `vdp_wait_vblank(...)` for paced visible updates |
 | 4 | `vdp_reg_write_burst(...)` for contiguous register blocks, `vdp_upload_asset(...)` for bulk SDRAM upload |
@@ -242,7 +251,7 @@ One-call palette + pattern + descriptor upload. Any step can be skipped with `NU
 
 | Rule | Requirement |
 |---|---|
-| Trustworthy upload proof | verify `VDP_STICKY_QSPI_ERROR` is clear |
+| Trustworthy upload proof | verify `VDP_STICKY_HOST_ERROR` is clear (`VDP_STICKY_QSPI_ERROR` is the legacy alias) |
 | Visible update pacing | use `vdp_wait_vblank` or equivalent |
 | Reuse | keep common transport logic in `libvdp`, not per-sketch code |
 

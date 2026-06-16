@@ -1,5 +1,20 @@
 # spinalhdlVDP Changelog
 
+## 2026-06-16 — Soft Reset & Spec Sync (DONE)
+
+- **VDP Soft Reset (VDP-SOFT-RESET-135)** — DONE (#12665)
+  - Host-triggered 4-stage reset implementation landed in RTL and validated on HW.
+  - Reset includes BSRAM zeroing, SDRAM occupied-region fill, and core register reset.
+  - `libvdp` updated with `vdp_mode0_soft_reset()` helper and doc updates.
+- **Register Spec Sync (CyanPeak Audit)** — DONE
+  - Synchronized `firmware/libvdp/mode0_regs.json`, `vdp_mode0.h`, and `vdp_mode0.c` with the latest RTL spec.
+  - Added missing registers: `L0-L3_TRANS_KEY` (0x0314..0x0317), `BACKDROP_INDEX` (0x0348), and `PLANAR_WIDTH` (0x0D4B).
+  - Updated `VDP_PROGRAMMING_GUIDE.md` to use new `libvdp` helpers and cleaned up documentation duplication.
+- **QSPI Deprecation / Host-Neutral Naming (QSPI-DEPRECATE-139)** — DONE
+  - Renamed the public firmware transport surface to host-neutral names (`vdp_host.h`, `vdp_host_init()`, `HOST_READY`, `HOST_ERROR`).
+  - Preserved `vdp_qspi.h`, `vdp_qspi_init()`, and `VDP_STICKY_QSPI_*` as deprecated compatibility aliases for legacy sketches.
+  - Updated active ESP32-S3/i80 examples and libvdp documentation while keeping the legacy QSPI smoke sketch compiling.
+
 ## 2026-06-12 — Bitmap Stride/Base Restoration & ACK/NAK Phase 2 (DONE)
 
 - **Bitmap Fetch Restoration (Task 129)** — DONE (#12169)

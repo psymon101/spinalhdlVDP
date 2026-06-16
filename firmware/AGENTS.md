@@ -6,7 +6,7 @@ Local rules for the `firmware/` subtree.
 overrides any conflicting rules in the root `AGENTS.md` for operations
 within this directory. You may still read the root `AGENTS.md` for general
 project identity, mail registration, and cross-agent coordination context,
-but firmware-specific conventions, build rules, and QSPI contract rules
+but firmware-specific conventions, build rules, and host transport rules
 live here.
 
 Examples and command snippets: `AGENTS_EXAMPLES.md`
@@ -58,9 +58,11 @@ Reference layout: `AGENTS_EXAMPLES.md`
 
 ---
 
-## QSPI Contract — Immutable
+## Legacy QSPI Contract — Immutable
 
-The 6-byte header QSPI framing is **proven and locked**. TopazCliff does not modify it.
+The current ESP32-S3/Tang Nano 20K host path is i80 through `vdp_host.h`.
+The older 6-byte header QSPI framing is **proven and locked** for legacy
+sketches and compatibility backends. TopazCliff does not modify it.
 
 | Field | Size | Value |
 |-------|------|-------|
@@ -73,7 +75,8 @@ The 6-byte header QSPI framing is **proven and locked**. TopazCliff does not mod
 - CS_N hold after frame: **≥10 µs** (`sleep_us(10)`)
 - PIO OSR drain wait: **≥20 µs** after FIFO-empty before CS deassert
 
-Any sketch that bypasses `libvdp` and hand-frames QSPI must replicate these exact timings.
+Any legacy sketch that bypasses `libvdp` and hand-frames QSPI must replicate
+these exact timings.
 
 ---
 
@@ -82,7 +85,7 @@ Any sketch that bypasses `libvdp` and hand-frames QSPI must replicate these exac
 **Reusable logic belongs in `libvdp/`.** Scenario sketches should be thin wrappers.
 
 Do:
-- Call `vdp_qspi_init()`, `vdp_reg_write()`, `vdp_sdram_write()`, `vdp_read_status()`
+- Call `vdp_host_init()`, `vdp_reg_write()`, `vdp_sdram_write()`, `vdp_read_status()`
 - Add platform-specific `#ifdef` branches in `vdp_platform.h` for new boards
 - Extend `libvdp/` when a new transport primitive is needed by multiple sketches
 
@@ -186,9 +189,9 @@ When closing a lane, submitting a pull request, or performing an audit:
 
 ## Preventive Rules (firmware-specific)
 
-### QSPI Contract Deviation Documentation
+### Legacy QSPI Contract Deviation Documentation
 
-The canonical QSPI contract is locked at **2 MHz SCK, 10 µs CS hold, 20 µs OSR drain**.
+The legacy QSPI contract is locked at **2 MHz SCK, 10 µs CS hold, 20 µs OSR drain**.
 Any host-side deviation above 25% must be documented in `firmware/GOTCHAS.md`
 before the sketch or library change is considered complete.
 

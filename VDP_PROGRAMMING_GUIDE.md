@@ -27,14 +27,14 @@ function_name(args);
 
 # Part I: libvdp API Guide
 
-The `libvdp` library is the authoritative host-side coordination layer. It handles the low-level hardware transport (i80 or QSPI), timing synchronization, and provides high-level helpers for the Mode0 display engine.
+The `libvdp` library is the authoritative host-side coordination layer. It handles the low-level hardware transport, timing synchronization, and high-level helpers for the Mode0 display engine. The current Tang Nano 20K host path is i80; QSPI remains available only through legacy aliases and sketches.
 
 ## 1. Initialization and Basic I/O
 
-### `vdp_init` (formerly `vdp_qspi_init`)
+### `vdp_host_init`
 **Description**: Initializes the host microcontroller's interface to the VDP. 
 - **i80 (Primary)**: Configures the 8-bit parallel host interface used on the current Tang Nano 20K deployment. Provides the highest throughput and lowest latency.
-- **QSPI (Alternate)**: Configures the legacy nibble-wide serial link. Supported on Pico 2 and earlier ESP32/ESP8266 bench setups.
+- **QSPI (Legacy)**: Retained for Pico 2 and earlier ESP32/ESP8266 bench setups through deprecated aliases such as `vdp_qspi_init()`.
 
 This must be the first VDP-related function called in your `setup()` or `main()`.
 
@@ -44,7 +44,7 @@ This must be the first VDP-related function called in your `setup()` or `main()`
 #include "vdp_host.h"
 
 void setup() {
-    vdp_init(); // Establish the host-to-FPGA link (i80 or QSPI)
+    vdp_host_init(); // Establish the current host-to-FPGA link
 }
 ```
 
@@ -64,7 +64,7 @@ void check_vdp_status() {
 ```
 
 ### `vdp_reg_write`
-**Description**: Issues a single 16-bit write into the VDP register bus. It automatically handles the 15-bit address framing and little-endian data ordering required by the host interface (i80 or QSPI).
+**Description**: Issues a single 16-bit write into the VDP register bus. It automatically handles the 15-bit address framing and little-endian data ordering required by the active host interface.
 
 **Real World Use**: Use for one-off configuration changes, such as enabling a specific display layer.
 
@@ -466,7 +466,7 @@ void setup_line_interrupt() {
 
 ```c
 // Set backdrop to entry 10 (e.g. Blue)
-vdp_reg_write(0x0348, 10);
+vdp_mode0_set_backdrop_index(10);
 ```
 
 ### Scaling and Logical Resolution
@@ -487,19 +487,19 @@ Each tile/planar layer can have its own transparent color index. A pixel whose p
 
 | Register | Address | Purpose |
 |---|---|---|
-| `L0_TRANS_KEY` | `0x0314` | Transparent palette index for layer 0 |
-| `L1_TRANS_KEY` | `0x0315` | Transparent palette index for layer 1 |
-| `L2_TRANS_KEY` | `0x0316` | Transparent palette index for layer 2 |
-| `L3_TRANS_KEY` | `0x0317` | Transparent palette index for layer 3 |
+| `L0_TRANS_KEY` | `0x0314` | 4-bit transparent palette index for layer 0 |
+| `L1_TRANS_KEY` | `0x0315` | 4-bit transparent palette index for layer 1 |
+| `L2_TRANS_KEY` | `0x0316` | 4-bit transparent palette index for layer 2 |
+| `L3_TRANS_KEY` | `0x0317` | 4-bit transparent palette index for layer 3 |
 
 `PLANAR_WIDTH` (`0x0D4B`) sets the 10-bit planar clip width. The default `320` matches the existing 320-pixel planar window. Values larger than `320` wrap around the line.
 
 ```c
 // Make palette entry 0 transparent on layer 0
-vdp_reg_write(0x0314, 0x0000u);
+vdp_mode0_set_trans_key(0, 0);
 
 // Keep the default 320-pixel planar clip width
-vdp_reg_write(0x0D4B, 320u);
+vdp_mode0_set_planar_width(320);
 ```
 
 > [!NOTE]
@@ -537,44 +537,18 @@ void vdp_soft_reset(void) {
 
 ---
 
-### Per-Layer Transparency and Planar Clip Width
-
-Each tile/planar layer can have its own transparent color index. A pixel whose palette entry equals the layer's `Lx_TRANS_KEY` register is treated as fully transparent, revealing the layer behind it (or the backdrop).
-
-| Register | Address | Purpose |
-|---|---|---|
-| `L0_TRANS_KEY` | `0x0314` | Transparent palette index for layer 0 |
-| `L1_TRANS_KEY` | `0x0315` | Transparent palette index for layer 1 |
-| `L2_TRANS_KEY` | `0x0316` | Transparent palette index for layer 2 |
-| `L3_TRANS_KEY` | `0x0317` | Transparent palette index for layer 3 |
-
-`PLANAR_WIDTH` (`0x0D4B`) sets the 10-bit planar clip width. The default `320` matches the existing 320-pixel planar window. Values larger than `320` wrap around the line.
-
-```c
-// Make palette entry 0 transparent on layer 0
-vdp_reg_write(0x0314, 0x0000u);
-
-// Keep the default 320-pixel planar clip width
-vdp_reg_write(0x0D4B, 320u);
-```
-
-> [!NOTE]
-> These defaults match the pre-register hardcoded behavior: index `0` is transparent and the planar clip width is `320` pixels. Writing non-default values requires a next-bitstream build that implements the registers.
-
----
-
 ## 9. Verification Guidelines
 # Part II: Internal Register Reference
 
 | Address | Name | Description |
 |---|---|---|
 | `0x0300` | `LAYER_ENABLE` | bit0:L0, bit1:L1, bit2:Sprite, bit3:L2, bit4:L3. **Global enable only** — each bit is ANDed with the per-line linestate enable bit (addresses `0x0000..0x01DF`). |
--| 0x0310 | VDP_CTRL | bit0:Copper Enable, bit1:Copper Swap Request, bit2:Soft Reset Request |
-| `0x0314` | `L0_TRANS_KEY` | 8-bit transparency palette index for layer 0 |
-| `0x0315` | `L1_TRANS_KEY` | 8-bit transparency palette index for layer 1 |
-| `0x0316` | `L2_TRANS_KEY` | 8-bit transparency palette index for layer 2 |
-| `0x0317` | `L3_TRANS_KEY` | 8-bit transparency palette index for layer 3 |
-| `0x0320` | `STATUS_STICKY` | bit0:Raster Match, bit8:DMA Done, bit9:Blit Done |
+| `0x0310` | `VDP_CTRL` | bit0:Copper Enable, bit1:Copper Swap Request, bit2:Soft Reset Request |
+| `0x0314` | `L0_TRANS_KEY` | 4-bit transparency palette index for layer 0 |
+| `0x0315` | `L1_TRANS_KEY` | 4-bit transparency palette index for layer 1 |
+| `0x0316` | `L2_TRANS_KEY` | 4-bit transparency palette index for layer 2 |
+| `0x0317` | `L3_TRANS_KEY` | 4-bit transparency palette index for layer 3 |
+| `0x0320` | `STATUS_STICKY` | bit0:Raster Match, bit2:HOST_READY, bit3:HOST_ERROR, bit8:DMA Done, bit9:Blit Done |
 | `0x0D4B` | `PLANAR_WIDTH` | 10-bit planar clip width (default 320) |
 | `0x0330` | `WIN1_X0` | Window 1 Left Boundary |
 | `0x0347` | `BORDER_CTRL` | bit0:Enable, bits[12:8]:Palette Index |

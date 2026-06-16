@@ -7,7 +7,8 @@ Examples and command snippets referenced by `firmware/AGENTS.md`.
 ```text
 firmware/
 ├── libvdp/              — shared host driver library (C, platform-agnostic core)
-│   ├── vdp_qspi.{c,h}   — QSPI transport framing
+│   ├── vdp_host.{c,h}   — canonical host transport facade
+│   ├── vdp_qspi.h       — deprecated compatibility shim
 │   ├── vdp_upload.{c,h} — SDRAM asset upload helpers
 │   ├── vdp_status.{c,h} — register/status read helpers
 │   └── vdp_platform.h   — platform-specific pin maps & types
@@ -79,7 +80,7 @@ Example sketch-side pattern:
 #include "frame.h"        /* generated metadata header */
 #include "frame_tiles.h"  /* generated payload header */
 
-vdp_qspi_init();
+vdp_host_init();
 vdp_upload_asset(FRAME_SDRAM_BASE, frame_tiles, FRAME_TILES_WORD_COUNT, NULL);
 ```
 
