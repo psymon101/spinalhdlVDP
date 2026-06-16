@@ -1,6 +1,6 @@
 #include "vdp_mode0.h"
 
-#include "vdp_qspi.h"
+#include "vdp_host.h"
 
 #if defined(ARDUINO)
 #include <Arduino.h>
@@ -89,6 +89,7 @@ bool vdp_mode0_soft_reset(void)
         }
         delayMicroseconds(50);
 #else
+        (void)start_ms;
         (void)timeout_ms;
         return false;
 #endif
@@ -108,6 +109,14 @@ void vdp_mode0_set_attr_mode(uint8_t mode)
 void vdp_mode0_set_mode_select(uint16_t mode_select)
 {
     vdp_reg_write(VDP_MODE0_REG_MODE_SELECT, mode_select);
+}
+
+void vdp_mode0_set_trans_key(uint8_t layer, uint8_t key)
+{
+    uint16_t addr;
+    if (layer > 3u) return;
+    addr = (uint16_t)(VDP_MODE0_REG_L0_TRANS_KEY + layer);
+    vdp_reg_write(addr, (uint16_t)(key & 0x0Fu));
 }
 
 void vdp_mode0_set_vdp_ctrl_word(uint16_t ctrl)
@@ -187,6 +196,11 @@ void vdp_mode0_set_border_window(const vdp_mode0_rect_t *rect, uint16_t border_c
 void vdp_mode0_set_border_ctrl(uint16_t border_ctrl)
 {
     vdp_reg_write(VDP_MODE0_REG_BORDER_CTRL, border_ctrl);
+}
+
+void vdp_mode0_set_backdrop_index(uint8_t index)
+{
+    vdp_reg_write(VDP_MODE0_REG_BACKDROP_INDEX, (uint16_t)(index & 0x7Fu));
 }
 
 void vdp_mode0_set_inner_border(uint16_t left, uint16_t right, uint16_t top, uint16_t bottom)
@@ -430,6 +444,11 @@ void vdp_mode0_set_pattern_ptr(uint16_t ptr)
 void vdp_mode0_write_pattern_data(uint16_t data)
 {
     vdp_reg_write(VDP_MODE0_REG_PATTERN_RAM_DATA, data);
+}
+
+void vdp_mode0_set_planar_width(uint16_t width)
+{
+    vdp_reg_write(VDP_MODE0_REG_PLANAR_WIDTH, (uint16_t)(width & 0x03FFu));
 }
 
 void vdp_mode0_palette_set_ptr(uint8_t ptr)

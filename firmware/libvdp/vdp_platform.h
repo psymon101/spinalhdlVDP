@@ -4,7 +4,7 @@
  *
  * Isolates Raspberry Pi Pico 2 (RP2350) + Tang Nano 20K specifics from
  * the rest of the library. Future multi-MCU support would provide an
- * alternate platform header without touching vdp_qspi / vdp_status /
+ * alternate platform header without touching vdp_host / vdp_status /
  * vdp_upload bodies.
  */
 #ifndef VDP_PLATFORM_H
@@ -21,7 +21,7 @@
 #define VDP_PIN_QSPI_IO2  12   /* Tang pin 51 */
 #define VDP_PIN_QSPI_IO3  13   /* Tang pin 54 */
 
-/* PIO unit + state-machine indices reserved for the VDP QSPI transport. */
+/* PIO unit + state-machine indices reserved for the legacy VDP QSPI transport. */
 #define VDP_QSPI_PIO       pio0
 #define VDP_QSPI_SM_TX     0
 
@@ -90,7 +90,7 @@
 #error "Unsupported platform for libvdp"
 #endif
 
-/* SCK frequency policy on the ESP32-S3 hardware SPI2 backend (bench-validated
+/* SCK frequency policy on legacy QSPI/SPI2 backends (bench-validated
  * 2026-05-23 via the throughput sweep sketch on FSPI IOMUX pins 9..14):
  *
  *   - Reads (READ_STATUS, sticky status, etc.): FPGA QspiSlave response FSM
@@ -106,9 +106,9 @@
  * Default = 3 MHz so first-call READ_STATUS magic works out of the box.
  * Sketches doing bulk uploads should call:
  *
- *     vdp_qspi_set_speed_hz(8000000u);   // before write-heavy section
+ *     vdp_host_set_speed_hz(8000000u);   // before write-heavy section
  *     ...
- *     vdp_qspi_set_speed_hz( 3000000u);   // before next read
+ *     vdp_host_set_speed_hz( 3000000u);   // before next read
  *
  * Bit-bang platforms (ESP8266 / legacy ESP32) keep their canonical 2 MHz
  * cadence — the set_speed_hz call is a no-op there. */
@@ -117,6 +117,40 @@
 #define VDP_QSPI_SCK_WRITE_HZ 8000000u  /* firmware physical cap */
 #else
 #define VDP_QSPI_SCK_HZ    2000000u
+#endif
+
+/* Host-neutral aliases. The VDP_QSPI_* names remain ABI/source-compatible
+ * for legacy sketches and platform branches. New code should prefer these
+ * VDP_HOST_* names unless it explicitly targets the retired QSPI backend. */
+#if defined(VDP_PIN_QSPI_SCK) && !defined(VDP_PIN_HOST_SCK)
+#define VDP_PIN_HOST_SCK   VDP_PIN_QSPI_SCK
+#endif
+#if defined(VDP_PIN_QSPI_CS_N) && !defined(VDP_PIN_HOST_CS_N)
+#define VDP_PIN_HOST_CS_N  VDP_PIN_QSPI_CS_N
+#endif
+#if defined(VDP_PIN_QSPI_IO0) && !defined(VDP_PIN_HOST_IO0)
+#define VDP_PIN_HOST_IO0   VDP_PIN_QSPI_IO0
+#endif
+#if defined(VDP_PIN_QSPI_IO1) && !defined(VDP_PIN_HOST_IO1)
+#define VDP_PIN_HOST_IO1   VDP_PIN_QSPI_IO1
+#endif
+#if defined(VDP_PIN_QSPI_IO2) && !defined(VDP_PIN_HOST_IO2)
+#define VDP_PIN_HOST_IO2   VDP_PIN_QSPI_IO2
+#endif
+#if defined(VDP_PIN_QSPI_IO3) && !defined(VDP_PIN_HOST_IO3)
+#define VDP_PIN_HOST_IO3   VDP_PIN_QSPI_IO3
+#endif
+#if defined(VDP_QSPI_PIO) && !defined(VDP_HOST_PIO)
+#define VDP_HOST_PIO       VDP_QSPI_PIO
+#endif
+#if defined(VDP_QSPI_SM_TX) && !defined(VDP_HOST_SM_TX)
+#define VDP_HOST_SM_TX     VDP_QSPI_SM_TX
+#endif
+#if defined(VDP_QSPI_SCK_HZ) && !defined(VDP_HOST_SCK_HZ)
+#define VDP_HOST_SCK_HZ    VDP_QSPI_SCK_HZ
+#endif
+#if defined(VDP_QSPI_SCK_WRITE_HZ) && !defined(VDP_HOST_SCK_WRITE_HZ)
+#define VDP_HOST_SCK_WRITE_HZ VDP_QSPI_SCK_WRITE_HZ
 #endif
 
 #endif /* VDP_PLATFORM_H */

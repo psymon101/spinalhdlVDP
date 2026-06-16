@@ -17,7 +17,7 @@ extern "C" {
 
 /**
  * Progress callback signature. Invoked once after each burst completes.
- * Host code must NOT issue QSPI transactions from within the callback
+ * Host code must NOT issue nested host-transport transactions from within the callback
  * (re-entrancy is not supported). Callback latency directly reduces the
  * usable vblank window — prefer lightweight logging only.
  */
@@ -37,7 +37,7 @@ typedef void (*vdp_upload_cb)(uint16_t words_sent, uint16_t words_total);
  * @param num_words  total word count
  * @param cb         optional progress callback (may be NULL)
  * @return true if all words transmitted (does NOT guarantee SDRAM
- *         commit — call vdp_wait_sticky for QSPI_ERROR to check);
+ *         commit — call vdp_wait_sticky for HOST_ERROR to check);
  *         false if a vblank timeout occurred mid-upload
  */
 bool vdp_upload_asset(uint32_t sdram_addr, const uint16_t *words,

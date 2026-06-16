@@ -1,4 +1,4 @@
-# libvdp — host driver library for the spinalhdlVDP QSPI host-control
+# libvdp — host driver library for the spinalhdlVDP host-control
 # loop (Task 39). CMake target `libvdp` can be linked by any Pico 2
 # firmware executable via `target_link_libraries(<exe> PRIVATE libvdp)`.
 #
@@ -6,7 +6,7 @@
 # AFTER `pico_sdk_init()` so the Pico SDK targets are already present.
 
 add_library(libvdp STATIC
-    vdp_qspi.c
+    vdp_host.c
     vdp_status.c
     vdp_upload.c
 )

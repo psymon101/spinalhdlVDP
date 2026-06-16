@@ -11,7 +11,7 @@
 #include <Arduino.h>
 
 #include <vdp_copper.h>
-#include <vdp_i80.h>
+#include <vdp_host.h>
 #include <vdp_mode0.h>
 
 namespace {

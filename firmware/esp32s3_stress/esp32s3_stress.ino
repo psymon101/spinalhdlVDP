@@ -1,7 +1,7 @@
 /**
- * esp32s3_stress.ino — intense mixed-traffic stress test for the S3 QSPI host.
+ * esp32s3_stress.ino — intense mixed-traffic stress test for the S3 host.
  *
- * Goal: hammer the QSPI transport with a representative mix of:
+ * Goal: hammer the host transport with a representative mix of:
  *   - Many small writes (1-word palette + single-register writes)
  *   - Long bursts (full 253-word REG_WRITE_BURST payloads to copper RAM)
  *   - Interleaved READ_STATUS magic reads (verifies link stays alive)
@@ -29,7 +29,7 @@
  */
 #include <Arduino.h>
 #include <vdp_mode0.h>
-#include <vdp_qspi.h>
+#include <vdp_host.h>
 
 namespace {
 constexpr uint32_t kExpectedMagic = 0x51560002u;
@@ -68,7 +68,7 @@ void setup(void)
     Serial.print("Expected magic = 0x");
     Serial.println(kExpectedMagic, HEX);
 
-    vdp_qspi_init();
+    vdp_host_init();
     delay(100);
 
     // Park copper so we can scribble to copper RAM without side effects.

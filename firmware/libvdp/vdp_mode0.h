@@ -21,6 +21,10 @@ extern "C" {
 #define VDP_MODE0_REG_VDP_TILE_MODE     0x0311u
 #define VDP_MODE0_REG_VDP_ATTR_MODE     0x0312u
 #define VDP_MODE0_REG_MODE_SELECT       0x0313u
+#define VDP_MODE0_REG_L0_TRANS_KEY      0x0314u
+#define VDP_MODE0_REG_L1_TRANS_KEY      0x0315u
+#define VDP_MODE0_REG_L2_TRANS_KEY      0x0316u
+#define VDP_MODE0_REG_L3_TRANS_KEY      0x0317u
 #define VDP_MODE0_REG_STATUS_STICKY     0x0320u
 #define VDP_MODE0_REG_STATUS_ENABLE     0x0321u
 #define VDP_MODE0_REG_SPRITE_COLL_MASK  0x0322u
@@ -50,6 +54,7 @@ extern "C" {
 #define VDP_MODE0_REG_AFFINE_Y          0x0345u
 #define VDP_MODE0_REG_AFFINE_CTRL       0x0346u
 #define VDP_MODE0_REG_BORDER_CTRL       0x0347u
+#define VDP_MODE0_REG_BACKDROP_INDEX    0x0348u
 #define VDP_MODE0_REG_SCALE_CTRL        0x0349u
 #define VDP_MODE0_REG_LOGIC_WIDTH       0x034Au
 #define VDP_MODE0_REG_LOGIC_HEIGHT      0x034Bu
@@ -94,6 +99,7 @@ extern "C" {
 #define VDP_MODE0_REG_PATTERN_RAM_DATA  0x0D10u
 #define VDP_MODE0_REG_PATTERN_RAM_PTR   0x0D11u
 #define VDP_MODE0_REG_PLANAR_CTRL       0x0D4Au
+#define VDP_MODE0_REG_PLANAR_WIDTH      0x0D4Bu
 #define VDP_MODE0_PLANAR_CTRL_ENABLE    0x0001u
 
 /* HDMA sub-register offsets (base = 0x0380) */
@@ -237,6 +243,7 @@ bool vdp_mode0_soft_reset(void);
 void vdp_mode0_set_tile_mode(uint8_t mode);
 void vdp_mode0_set_attr_mode(uint8_t mode);
 void vdp_mode0_set_mode_select(uint16_t mode_select);
+void vdp_mode0_set_trans_key(uint8_t layer, uint8_t key);
 void vdp_mode0_set_vdp_ctrl_word(uint16_t ctrl);
 uint8_t vdp_mode0_read_live_mode(void);
 
@@ -252,6 +259,7 @@ void vdp_mode0_set_window2(const vdp_mode0_rect_t *rect, uint16_t win2_ctrl);
 void vdp_mode0_set_window_combine(uint16_t combine_ctrl, uint16_t layer_mask);
 void vdp_mode0_set_border_window(const vdp_mode0_rect_t *rect, uint16_t border_ctrl);
 void vdp_mode0_set_border_ctrl(uint16_t border_ctrl);
+void vdp_mode0_set_backdrop_index(uint8_t index);
 void vdp_mode0_set_inner_border(uint16_t left, uint16_t right, uint16_t top, uint16_t bottom);
 void vdp_mode0_set_scale_ctrl(uint16_t ctrl);
 void vdp_mode0_set_logic_size(uint16_t width, uint16_t height);
@@ -305,6 +313,7 @@ void vdp_mode0_set_vscroll_base(uint16_t base);
 
 void vdp_mode0_set_pattern_ptr(uint16_t ptr);
 void vdp_mode0_write_pattern_data(uint16_t data);
+void vdp_mode0_set_planar_width(uint16_t width);
 
 void vdp_mode0_palette_set_ptr(uint8_t ptr);
 void vdp_mode0_palette_write_data(uint16_t data);

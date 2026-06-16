@@ -60,6 +60,12 @@
           "lsb": 1,
           "width": 1,
           "description": "Requests a copper buffer swap."
+        },
+        {
+          "name": "SOFT_RESET_REQUEST",
+          "lsb": 2,
+          "width": 1,
+          "description": "Triggers a host-requested soft reset."
         }
       ],
       "description": "Controls global Mode0 runtime features."
@@ -122,6 +128,42 @@
       "description": "Selects the active compatibility adapter mode."
     },
     {
+      "name": "L0_TRANS_KEY",
+      "addr": "0x0314",
+      "width": 4,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "H-boundary",
+      "description": "4-bit transparency palette index for layer 0."
+    },
+    {
+      "name": "L1_TRANS_KEY",
+      "addr": "0x0315",
+      "width": 4,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "H-boundary",
+      "description": "4-bit transparency palette index for layer 1."
+    },
+    {
+      "name": "L2_TRANS_KEY",
+      "addr": "0x0316",
+      "width": 4,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "H-boundary",
+      "description": "4-bit transparency palette index for layer 2."
+    },
+    {
+      "name": "L3_TRANS_KEY",
+      "addr": "0x0317",
+      "width": 4,
+      "access": "RW",
+      "reset": "0x0000",
+      "category": "H-boundary",
+      "description": "4-bit transparency palette index for layer 3."
+    },
+    {
       "name": "STATUS_STICKY",
       "addr": "0x0320",
       "width": 16,
@@ -142,16 +184,16 @@
           "description": "Sprite evaluation overflow occurred."
         },
         {
-          "name": "QSPI_READY",
+          "name": "HOST_READY",
           "lsb": 2,
           "width": 1,
-          "description": "Host bridge reported ready."
+          "description": "Host bridge reported ready; legacy alias QSPI_READY."
         },
         {
-          "name": "QSPI_ERROR",
+          "name": "HOST_ERROR",
           "lsb": 3,
           "width": 1,
-          "description": "Host bridge reported an error."
+          "description": "Host bridge reported an error; legacy alias QSPI_ERROR."
         },
         {
           "name": "SPRITE_0_HIT",
@@ -744,6 +786,15 @@
         }
       ],
       "description": "Source bitmap height in rows; currently consumed by init-fill path only."
+    },
+    {
+      "name": "PLANAR_WIDTH",
+      "addr": "0x0D4B",
+      "width": 10,
+      "access": "RW",
+      "reset": "0x0140",
+      "category": "vblank-sensitive",
+      "description": "10-bit planar clip width in pixels (default 320)."
     }
   ]
 }

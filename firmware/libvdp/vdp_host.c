@@ -1,7 +1,7 @@
 /**
- * vdp_qspi.c — Transport layer implementation.
+ * vdp_host.c — Host transport layer implementation.
  */
-#include "vdp_qspi.h"
+#include "vdp_host.h"
 #include "vdp_platform.h"
 
 #if defined(VDP_HOST_BACKEND_I80_GPIO)
@@ -20,7 +20,7 @@ int vdp_last_error(void) { return s_last_error; }
 static bool vdp_transport_ready(void)
 {
     if (!s_initialized) {
-        s_last_error = VDP_QSPI_ERR_NOT_INITIALIZED;
+        s_last_error = VDP_HOST_ERR_NOT_INITIALIZED;
         return false;
     }
     return true;
@@ -80,7 +80,7 @@ static uint8_t vdp_i80_read_byte(void)
     return value;
 }
 
-void vdp_qspi_init(void)
+void vdp_host_init(void)
 {
     if (s_initialized) return;
     vdp_i80_set_data_output();
@@ -93,18 +93,19 @@ void vdp_qspi_init(void)
     digitalWrite(VDP_PIN_I80_RD_N, HIGH);
     digitalWrite(VDP_PIN_I80_DC, LOW);
     vdp_i80_write_data(0x00);
-    s_last_error = VDP_QSPI_ERR_NONE;
+    s_last_error = VDP_HOST_ERR_NONE;
     s_initialized = true;
 }
 
-void vdp_host_init(void) { vdp_qspi_init(); }
+void vdp_qspi_init(void) { vdp_host_init(); }
 void vdp_pio_wait_sm_idle(void) {}
-void vdp_qspi_set_speed_hz(uint32_t hz) { (void)hz; }
+void vdp_host_set_speed_hz(uint32_t hz) { (void)hz; }
+void vdp_qspi_set_speed_hz(uint32_t hz) { vdp_host_set_speed_hz(hz); }
 
 uint32_t vdp_read_status(uint8_t sel)
 {
     (void)sel;
-    s_last_error = VDP_QSPI_ERR_RX;
+    s_last_error = VDP_HOST_ERR_RX;
     return 0;
 }
 
@@ -116,15 +117,15 @@ void vdp_reg_write(uint32_t addr, uint16_t data)
 void vdp_clear_upload_status(uint16_t mask)
 {
     (void)mask;
-    s_last_error = VDP_QSPI_ERR_NONE;
+    s_last_error = VDP_HOST_ERR_NONE;
 }
 
 void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)
 {
     if (!vdp_transport_ready()) return;
-    s_last_error = VDP_QSPI_ERR_NONE;
+    s_last_error = VDP_HOST_ERR_NONE;
     if (num_words == 0 || words == NULL) {
-        s_last_error = VDP_QSPI_ERR_INVALID_ARG;
+        s_last_error = VDP_HOST_ERR_INVALID_ARG;
         return;
     }
 
@@ -149,7 +150,7 @@ void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_word
 uint16_t vdp_reg_read(uint32_t addr)
 {
     if (!vdp_transport_ready()) return 0;
-    s_last_error = VDP_QSPI_ERR_NONE;
+    s_last_error = VDP_HOST_ERR_NONE;
     vdp_i80_set_data_output();
     digitalWrite(VDP_PIN_I80_RD_N, HIGH);
     digitalWrite(VDP_PIN_I80_WR_N, HIGH);
@@ -172,9 +173,9 @@ uint16_t vdp_reg_read(uint32_t addr)
 void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words)
 {
     if (!vdp_transport_ready()) return;
-    s_last_error = VDP_QSPI_ERR_NONE;
+    s_last_error = VDP_HOST_ERR_NONE;
     if (num_words == 0 || words == NULL || num_words > 32767u) {
-        s_last_error = VDP_QSPI_ERR_INVALID_ARG;
+        s_last_error = VDP_HOST_ERR_INVALID_ARG;
         return;
     }
 
@@ -221,7 +222,7 @@ static inline uint32_t vdp_pack_bytes(uint8_t b0, uint8_t b1, uint8_t b2, uint8_
            ((uint32_t)b2 << 8)  | (uint32_t)b3;
 }
 
-void vdp_qspi_init(void)
+void vdp_host_init(void)
 {
     if (s_initialized) return;
     gpio_init(VDP_PIN_QSPI_CS_N);
@@ -246,13 +247,16 @@ void vdp_qspi_init(void)
     s_initialized = true;
 }
 
+void vdp_qspi_init(void) { vdp_host_init(); }
+
 void vdp_pio_wait_sm_idle(void)
 {
     while (!pio_sm_is_tx_fifo_empty(VDP_QSPI_PIO, VDP_QSPI_SM_TX)) { /* spin */ }
     sleep_us(20);
 }
 
-void vdp_qspi_set_speed_hz(uint32_t hz) { (void)hz; }
+void vdp_host_set_speed_hz(uint32_t hz) { (void)hz; }
+void vdp_qspi_set_speed_hz(uint32_t hz) { vdp_host_set_speed_hz(hz); }
 
 static inline void vdp_tx_word(uint32_t w) { pio_sm_put_blocking(VDP_QSPI_PIO, VDP_QSPI_SM_TX, w); }
 
@@ -340,7 +344,7 @@ static inline void vdp_cs_deassert(void) {
     delayMicroseconds(10);
 }
 
-void vdp_qspi_init(void)
+void vdp_host_init(void)
 {
     if (s_initialized) return;
     pinMode(VDP_PIN_QSPI_CS_N, OUTPUT);
@@ -367,9 +371,11 @@ void vdp_qspi_init(void)
     s_initialized = true;
 }
 
+void vdp_qspi_init(void) { vdp_host_init(); }
+
 void vdp_pio_wait_sm_idle(void) {}
 
-void vdp_qspi_set_speed_hz(uint32_t hz)
+void vdp_host_set_speed_hz(uint32_t hz)
 {
     if (!s_bus_initialized) return;
     if (hz > VDP_QSPI_SCK_WRITE_HZ) hz = VDP_QSPI_SCK_WRITE_HZ;
@@ -397,6 +403,8 @@ void vdp_qspi_set_speed_hz(uint32_t hz)
     s_initialized = true;
     vdp_cs_deassert();
 }
+
+void vdp_qspi_set_speed_hz(uint32_t hz) { vdp_host_set_speed_hz(hz); }
 
 static bool vdp_spi_ready(void)
 {
@@ -504,7 +512,7 @@ static inline uint8_t vdp_read_nibble(void) {
 static void vdp_send_nibble(uint8_t n) { vdp_drive_nibble(n); vdp_set_sck(false); delayMicroseconds(HALF_PERIOD_US); vdp_set_sck(true); delayMicroseconds(HALF_PERIOD_US); }
 static void vdp_send_byte(uint8_t b) { vdp_send_nibble((b >> 4) & 0x0F); vdp_send_nibble( b       & 0x0F); }
 
-void vdp_qspi_init(void)
+void vdp_host_init(void)
 {
     if (s_initialized) return;
     pinMode(VDP_PIN_QSPI_SCK,  OUTPUT); pinMode(VDP_PIN_QSPI_CS_N, OUTPUT);
@@ -514,7 +522,9 @@ void vdp_qspi_init(void)
 }
 
 void vdp_pio_wait_sm_idle(void) {}
-void vdp_qspi_set_speed_hz(uint32_t hz) { (void)hz; }
+void vdp_host_set_speed_hz(uint32_t hz) { (void)hz; }
+void vdp_qspi_init(void) { vdp_host_init(); }
+void vdp_qspi_set_speed_hz(uint32_t hz) { vdp_host_set_speed_hz(hz); }
 static void vdp_tx_bytes(const uint8_t *buf, size_t n) { for (size_t i = 0; i < n; ++i) vdp_send_byte(buf[i]); }
 
 uint32_t vdp_read_status(uint8_t sel)
@@ -586,12 +596,10 @@ void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words)
     vdp_cs_deassert();
 }
 
-void vdp_host_init(void) { vdp_qspi_init(); }
-
 uint16_t vdp_reg_read(uint32_t addr)
 {
     (void)addr;
-    s_last_error = VDP_QSPI_ERR_RX;
+    s_last_error = VDP_HOST_ERR_RX;
     return 0;
 }
 #endif

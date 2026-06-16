@@ -10,7 +10,7 @@
  */
 #include <Arduino.h>
 #include <vdp_mode0.h>
-#include <vdp_qspi.h>
+#include <vdp_host.h>
 
 void setup(void)
 {
@@ -18,7 +18,7 @@ void setup(void)
     delay(200);
     Serial.println("red_screen: init");
 
-    vdp_qspi_init();
+    vdp_host_init();
     delay(100);
 
     // Disable everything so composite index = 0 → screen = palette[0].
@@ -42,7 +42,7 @@ void setup(void)
 
     Serial.println("red_screen: palette[0] = (255,0,0) written");
 
-    // Verify QSPI link is still alive after writes.
+    // Verify host link is still alive after writes.
     const uint32_t magic = vdp_read_status(0);
     Serial.print("red_screen: post-write magic = 0x");
     Serial.println(magic, HEX);

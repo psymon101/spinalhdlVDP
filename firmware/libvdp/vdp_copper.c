@@ -2,7 +2,7 @@
  * vdp_copper.c — Copper program upload and control.
  */
 #include "vdp_copper.h"
-#include "vdp_qspi.h"
+#include "vdp_host.h"
 
 #if defined(PICO) || defined(ARDUINO_ARCH_RP2040)
 #include "pico/stdlib.h"

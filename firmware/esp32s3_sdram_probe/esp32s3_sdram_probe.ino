@@ -7,12 +7,12 @@
  */
 
 #include "vdp_platform.h"
-#include "vdp_qspi.h"
+#include <vdp_host.h>
 #include "vdp_mode0.h"
 #include "vdp_upload.h"
 #include "vdp_status.h"
 
-uint32_t current_qspi_speed = VDP_QSPI_SCK_HZ;
+uint32_t current_host_speed = VDP_QSPI_SCK_HZ;
 
 struct UploadAcceptResult {
     uint32_t status;
@@ -25,8 +25,8 @@ void select_read_speed() {
     // Fixed-rate diagnostic: never tear down/re-add SPI2 after initialization.
 }
 
-void apply_qspi_speed() {
-    vdp_qspi_set_speed_hz(current_qspi_speed);
+void apply_host_speed() {
+    vdp_host_set_speed_hz(current_host_speed);
 }
 
 void do_status() {
@@ -53,10 +53,10 @@ void setup() {
     Serial.println("                    in tight-poll mode. Use w+u pacing for status-clean checks.");
     
     // Initialize libvdp
-    vdp_qspi_init();
-    apply_qspi_speed();
-    Serial.printf("QSPI read-safe=%u Hz write-selected=%u Hz cap=%u Hz\n",
-                  VDP_QSPI_SCK_HZ, current_qspi_speed, VDP_QSPI_SCK_WRITE_HZ);
+    vdp_host_init();
+    apply_host_speed();
+    Serial.printf("host read-safe=%u Hz write-selected=%u Hz cap=%u Hz\n",
+                  VDP_QSPI_SCK_HZ, current_host_speed, VDP_QSPI_SCK_WRITE_HZ);
 }
 
 void do_read(uint32_t addr) {
@@ -67,13 +67,13 @@ void do_read(uint32_t addr) {
     vdp_reg_write(0x0327, addr_hi | 0x8000); // Arm
     delay(1);
     uint32_t val = vdp_read_status(8);
-    Serial.printf("READ  [%06X] = %08X @ %u Hz\n", addr, val, current_qspi_speed);
+    Serial.printf("READ  [%06X] = %08X @ %u Hz\n", addr, val, current_host_speed);
 }
 
 bool do_write(uint32_t addr, uint32_t data) {
     uint16_t buffer[2] = { (uint16_t)(data & 0xFFFF), (uint16_t)(data >> 16) };
     if (vdp_upload_asset(addr, buffer, 2, NULL)) {
-        Serial.printf("WRITE [%06X] = %08X @ %u Hz\n", addr, data, current_qspi_speed);
+        Serial.printf("WRITE [%06X] = %08X @ %u Hz\n", addr, data, current_host_speed);
     } else {
         Serial.println("WRITE FAILED (Timeout/Busy)");
         select_read_speed();
@@ -88,7 +88,7 @@ void do_upload_status() {
     uint32_t err = vdp_read_status(4);
     uint32_t sticky = vdp_read_status(5);
     Serial.printf("UPLOAD_STATUS: upload=%08X last_err=%08X sticky=%08X @ %u Hz\n",
-                  upload, err, sticky, current_qspi_speed);
+                  upload, err, sticky, current_host_speed);
 }
 
 bool poll_upload_clear(const char *label) {
@@ -160,7 +160,7 @@ void do_flush() {
 void do_burst(uint32_t addr, uint16_t count, uint32_t data) {
     uint16_t buffer[2] = { (uint16_t)(data & 0xFFFF), (uint16_t)(data >> 16) };
     Serial.printf("BURST start=%06X count=%u data=%08X @ %u Hz (NO per-tile poll)\n",
-                  addr, count, data, current_qspi_speed);
+                  addr, count, data, current_host_speed);
     for (uint16_t i = 0; i < count; i++) {
         uint32_t tile_addr = addr + (uint32_t)i * 4u;
         vdp_sdram_write(tile_addr, buffer, 2);
@@ -262,9 +262,9 @@ void loop() {
                 Serial.println("Diagnostic rate: use 1000000 or 3000000.");
                 return;
             }
-            current_qspi_speed = hz;
-            apply_qspi_speed();
-            Serial.printf("Write speed selected: %u Hz\n", current_qspi_speed);
+            current_host_speed = hz;
+            apply_host_speed();
+            Serial.printf("Write speed selected: %u Hz\n", current_host_speed);
         }
         else if (op == 'u') {
             do_upload_status();

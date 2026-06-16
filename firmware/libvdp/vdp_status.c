@@ -2,7 +2,7 @@
  * vdp_status.c — Status polling + sticky bit helpers.
  */
 #include "vdp_status.h"
-#include "vdp_qspi.h"
+#include "vdp_host.h"
 #include "vdp_platform.h"
 
 #if defined(PICO) || defined(ARDUINO_ARCH_RP2040) || defined(ARDUINO_RASPBERRY_PI_PICO)

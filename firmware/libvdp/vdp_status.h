@@ -1,12 +1,12 @@
 /**
  * vdp_status.h — Status polling + sticky bit helpers.
  *
- * Builds on vdp_qspi.h (READ_STATUS sel=5 = sticky status bank,
+ * Builds on the host transport (READ_STATUS sel=5 = sticky status bank,
  * write-to-0x0320 = clear-1-to-clear). Sticky bit mapping (low byte):
  *   bit 0 RASTER_MATCH   — fires at the raster trigger line
  *   bit 1 SPRITE_OVERFLOW
- *   bit 2 QSPI_READY     — pulses on every accepted cmd_valid
- *   bit 3 QSPI_ERROR     — level-high while last_error != 0
+ *   bit 2 HOST_READY      — pulses on every accepted host command
+ *   bit 3 HOST_ERROR      — level-high while host last_error != 0
  */
 #ifndef VDP_STATUS_H
 #define VDP_STATUS_H
@@ -20,8 +20,10 @@ extern "C" {
 
 #define VDP_STICKY_RASTER_MATCH    0x0001
 #define VDP_STICKY_SPRITE_OVERFLOW 0x0002
-#define VDP_STICKY_QSPI_READY      0x0004
-#define VDP_STICKY_QSPI_ERROR      0x0008
+#define VDP_STICKY_HOST_READY      0x0004
+#define VDP_STICKY_HOST_ERROR      0x0008
+#define VDP_STICKY_QSPI_READY      VDP_STICKY_HOST_READY
+#define VDP_STICKY_QSPI_ERROR      VDP_STICKY_HOST_ERROR
 /* Task 29 — sprite collision flags (write-1-to-clear @ 0x0320). */
 #define VDP_STICKY_SPRITE_0_HIT    0x0010  /* slot-0 non-transparent over non-transparent BG */
 #define VDP_STICKY_SPRITE_BG_HIT   0x0020  /* any sprite non-transparent over non-transparent BG */

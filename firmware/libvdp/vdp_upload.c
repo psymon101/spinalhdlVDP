@@ -15,7 +15,7 @@
  *   host clock and capture target have both been revalidated together.
  */
 #include "vdp_upload.h"
-#include "vdp_qspi.h"
+#include "vdp_host.h"
 #include "vdp_status.h"
 
 bool vdp_upload_asset(uint32_t sdram_addr, const uint16_t *words,
