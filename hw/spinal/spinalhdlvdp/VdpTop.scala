@@ -59,6 +59,18 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
     // R2 diagnostic: sprite-per-line overflow flag (sticky within line).
     val spriteOverflow = out Bool()
+    // VDP-SOFT-RESET-135: live SOFT_RESET_BUSY status for the i80 0x0310
+    // readback. High from the cycle a soft reset is accepted until the
+    // bounded reset sequence completes (host polls this; i80 register reads
+    // are otherwise last-write loopback). See the soft-reset controller below.
+    val softResetBusy = out Bool()
+    // VDP-SOFT-RESET-135 #3: SDRAM zero-fill stage handshake to TopTang. After
+    // the on-chip Mem clear sweep, the controller raises `sdramFillStart` (level)
+    // and holds busy until TopTang's sdram-domain fill FSM returns
+    // `sdramFillDone` (both crossed by BufferCC in TopTang). On single-clock
+    // sims with no fill engine, tie sdramFillDone high so the stage passes through.
+    val sdramFillStart = out Bool()
+    val sdramFillDone  = in  Bool() default True
     // R5: unified register-write bus. Replaces the raw lsWrite* ports.
     //   0x0000-0x01DF  linestate prepare (addr low 9 bits = line; data low 12 bits = {l0en, l1en, l0scrollX[9:0]})
     //   0x0300         LAYER_ENABLE (data[0]=L0, data[1]=L1, data[2]=sprite) — global override
@@ -221,6 +233,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     val planarSdramBusy      = in  Bool()
     val planarSdramDataReady = in  Bool()
     val planarSdramDout32    = in  Bits(32 bits)
+    // VDP-SOFT-RESET-135 #3 part 2c: expose planar plane bases + active gate so
+    // TopTang's zero-fill can clear the occupied planar regions. Each plane's
+    // SDRAM footprint is PLANE_PIXELS/8 = 40 bytes (BitplaneRowFetch reads
+    // planeBase + readIdx*4, readsPerPlane = planePixels/32; no line offset).
+    val planeBaseAddr        = out Vec(UInt(23 bits), 5)   // = PLANE_COUNT
+    val planarFillActive     = out Bool()
   }
 
   // 640x480@60 timing uses a 25.2 MHz pixel clock.
@@ -278,9 +296,34 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // Commit at line boundary: at the start of each line, the prepare entry for
   // the current fillLine is copied to the commit side.
   val linestate = LinestateStore(lineCount = vActive)
+
+  // VDP-SOFT-RESET-135: soft-reset controller state. Declared here (before the
+  // linestate/scroll/palette/pattern write ports that the clear-sweep muxes
+  // reference) — the request-latch decode + FSM logic follow further below.
+  // #2a/#2b: on-chip memory clear sweep over host-writable Mems. Single shared
+  // address counter; each Mem's EXISTING single write port is MUXED to the
+  // sweep when active (NOT a second write port — that broke Gowin BSRAM
+  // inference before). Sized to the largest swept Mem (sprite pattern RAM =
+  // 16384 entries = 14b). affineTexture excluded (no write port; immutable POR).
+  val softResetRequest  = Reg(Bool()) init False
+  val softResetBusy     = Reg(Bool()) init False
+  val softResetMemClear = Reg(Bool()) init False
+  val softResetMemAddr  = Reg(UInt(14 bits)) init 0
+  // #3: SDRAM zero-fill stage — high after the on-chip Mem clear, while the
+  // controller waits for TopTang's sdram-domain fill FSM (sdramFillDone).
+  val softResetFillStage = Reg(Bool()) init False
+  // #4: core register reset stage — high while config registers are forced to
+  // `init` (Option B surgical reset; the reset block keys off this). LIVE reg
+  // (not itself reset) so it survives the reset it drives.
+  val softResetCoreActive = Reg(Bool()) init False
+  // #2b: linestate clears BOTH prepare+commit in one pass — a same-cycle
+  // prepare-write + commit at the same address hits the BH-6 collision path,
+  // which writes the (zero) writeData into commit. Active for addr < lineCount.
+  val lsSweepWr = softResetMemClear && (softResetMemAddr < U(vActive, 14 bits))
+
   linestate.io.readAddr := fillLine.resized
-  linestate.io.commitLine := fillLine.resized
-  linestate.io.commitStrobe := hCounter === hTotal - 1
+  linestate.io.commitLine   := Mux(lsSweepWr, softResetMemAddr.resize(log2Up(vActive)), fillLine.resized)
+  linestate.io.commitStrobe := Mux(lsSweepWr, True, hCounter === hTotal - 1)
   // Prepare-side write interface exposed for simulation testing.
   // R5 Copper coprocessor, fed by the regWrite bus for program uploads and by
   // `copperCtrlReg(0)` (VDP_CTRL @ 0x0310) for run control — R5.3 unifies the
@@ -314,6 +357,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   copper.io.progAddr := io.regBus.addr(8 downto 0)
   copper.io.progData := io.regBus.data
   copper.io.progWr   := copperProgRangeHit
+  // VDP-SOFT-RESET-135 #2c: drive the copper clear sweep from the shared counter.
+  copper.io.softClear     := softResetMemClear
+  copper.io.softClearAddr := softResetMemAddr
 
   // Task 33 — HDMA host-control sub-block @ 0x0380..0x03C9.
   // Decoded from the EFFECTIVE merged bus (effAddr/effWrite) so configuration
@@ -369,6 +415,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   dmaEngine.io.busAddr := effAddr
   dmaEngine.io.busData := effData
   dmaEngine.io.busWr   := effWrite && dmaRangeHit
+  // VDP-SOFT-RESET-135 #2d: drive the DMA staging clear from the shared sweep.
+  dmaEngine.io.softClear     := softResetMemClear
+  dmaEngine.io.softClearAddr := softResetMemAddr
   dmaEngine.io.busBusy := extHit || copperPopped
 
   // Task 49 — Blitter bus-write decode. Control registers at 0x0C00..0x0C07
@@ -381,6 +430,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   blitterEngine.io.busData := effData
   blitterEngine.io.busWr   := effWrite && blitRangeHit
   blitterEngine.io.busBusy := extHit || copperPopped || dmaWr
+  // VDP-SOFT-RESET-135 #2d: drive the blitter srcRam clear from the shared sweep.
+  blitterEngine.io.softClear     := softResetMemClear
+  blitterEngine.io.softClearAddr := softResetMemAddr
 
   // Task 33 HDMA control decode (see forward-declared comment above).
   val copperHdmaRangeHit = effWrite &&
@@ -394,9 +446,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // take the low 9 bits of effAddr as line index and the low 12 bits of
   // effData as the packed record. LAYER_ENABLE latches at 0x0300.
   val lsRangeHit = effWrite && (effAddr < U(480, 15 bits))
-  linestate.io.writeAddr := effAddr(log2Up(480) - 1 downto 0)
-  linestate.io.writeData := effData(11 downto 0)
-  linestate.io.writeEnable := lsRangeHit
+  // VDP-SOFT-RESET-135 #2b: prepare-side write muxed between host and the
+  // zero-sweep. writeAddr/writeData here pair with the commitLine/commitStrobe
+  // override above so each swept line zeroes prepare AND commit (BH-6 collision).
+  linestate.io.writeAddr   := Mux(lsSweepWr, softResetMemAddr.resize(log2Up(480)), effAddr(log2Up(480) - 1 downto 0))
+  linestate.io.writeData   := Mux(lsSweepWr, B(0, 12 bits), effData(11 downto 0))
+  linestate.io.writeEnable := Mux(lsSweepWr, True, lsRangeHit)
 
   // R5.1 stutter fix (#7080): latch pending LAYER_ENABLE write into a shadow
   // register and apply it to `layerEnableReg` only at `hCounter === 0`.
@@ -413,6 +468,22 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     layerEnablePend    := effData(4 downto 0)
     layerEnablePendHit := True
   }
+  // Register-programmability #3/#4 (TopazCliff #12578/#12649). Direct config regs
+  // (host sets at setup, not mid-frame); reset to init by the #4 soft-reset block.
+  // #3: per-layer transparency key — the palette index treated as transparent for
+  // each layer (replaces the hardcoded index-0). Default 0 ⇒ bit-identical.
+  val l0TransKeyReg = (Reg(Bits(4 bits)) init 0).simPublic()
+  val l1TransKeyReg = (Reg(Bits(4 bits)) init 0).simPublic()
+  val l2TransKeyReg = (Reg(Bits(4 bits)) init 0).simPublic()
+  val l3TransKeyReg = (Reg(Bits(4 bits)) init 0).simPublic()
+  when(effWrite && effAddr === U(0x0314, 15 bits)) { l0TransKeyReg := effData(3 downto 0) }
+  when(effWrite && effAddr === U(0x0315, 15 bits)) { l1TransKeyReg := effData(3 downto 0) }
+  when(effWrite && effAddr === U(0x0316, 15 bits)) { l2TransKeyReg := effData(3 downto 0) }
+  when(effWrite && effAddr === U(0x0317, 15 bits)) { l3TransKeyReg := effData(3 downto 0) }
+  // #4: planar clip width — replaces the fixed PLANE_PIXELS clip. Default 320 ⇒
+  // bit-identical; values >320 wrap (planar source native width is 320).
+  val planarWidthReg = (Reg(UInt(10 bits)) init 320).simPublic()
+  when(effWrite && effAddr === U(0x0D4B, 15 bits)) { planarWidthReg := effData(9 downto 0).asUInt }
   // R4.1b stage 3 / R4.1d Checkpoint A: VDP_TILE_MODE @ 0x0311 follows the
   // same safe-boundary pattern as layerEnable — pending shadow + commit at
   // hCounter===0. Widened from 1→2 bits to encode shuffled mode (0x02)
@@ -521,11 +592,80 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     copperCtrlPend    := effData(0 downto 0)
     copperCtrlPendHit := True
     when(effData(1)) { copperSwapPending := True }
+    // VDP-SOFT-RESET-135: bit[2] = SOFT_RESET_REQUEST (latch-on-write, like the
+    // copper-swap bit[1]). Honored by the soft-reset controller below.
+    when(effData(2)) { softResetRequest := True }
   }
   // R5.4: auto-clear on commit, and clear if copper is disabled (pending
   // swap is dropped because requests are only honored while enabled).
   when(copperSwapNowPulse)   { copperSwapPending := False }
   when(!copperCtrlReg(0))    { copperSwapPending := False }
+
+  // ===== VDP-SOFT-RESET-135: host-triggered soft-reset controller =====
+  // Host writes VDP_CTRL @ 0x0310 bit[2]=1 to request a POR-equivalent soft
+  // reset; HW runs a bounded, deadlock-free sequence and AUTO-CLEARS the
+  // request + drops `softResetBusy` when complete. The host polls completion
+  // by reading 0x0310 (i80 readback returns bit2=SOFT_RESET_BUSY; see TopTang).
+  //
+  // INCREMENTAL BUILD (lane VDP-SOFT-RESET-135): this increment (#1) wires the
+  // request/busy/auto-clear handshake + the i80 status readback only. The
+  // reset *actions* land in later increments, each slotting into the staged
+  // sequence below WITHOUT changing this host-facing contract:
+  //   [#2] on-chip MEM clear sweep (copper RAM, palette, sprite pattern/desc,
+  //        linestate, scroll tables, affine texture) — zero per TopazCliff Q1.
+  //   [#3] SDRAM zero-fill engine (TopTang arbiter client) — all of SDRAM (Q2).
+  //   [#4] core register reset (ClockDomain soft-reset partition) — regs->init.
+  // These controller regs live in the NORMAL clock domain (NOT the future
+  // core-reset partition) so the controller survives the reset it drives and
+  // can hold/clear the request + drive the busy status throughout.
+  //
+  // Sequence: stage 1 = on-chip Mem clear sweep (#2a-#2e, done); stage 2 = SDRAM
+  // zero-fill via TopTang's fill FSM (#3); stage 3 = core register reset (#4,
+  // pending). Busy is held across all stages; the request auto-clears at the end.
+  // (softResetRequest/softResetBusy/softResetMemClear/softResetMemAddr/
+  //  softResetFillStage declared above the 0x0310 decode.)
+  // Sweep covers addr [0, 16383] (full 14-bit sprite-pattern depth). palette
+  // (PaletteDepth=128) clears only while addr < PaletteDepth; pattern RAM clears
+  // across the whole sweep. The per-Mem write muxes live at each Mem below.
+  val softResetSweepLast = U((1 << 14) - 1, 14 bits)
+  when(softResetRequest && !softResetBusy) {
+    softResetBusy      := True           // accept the request; begin the sequence
+    softResetMemClear  := True           // stage 1: on-chip memory clear sweep
+    softResetMemAddr   := 0
+    softResetFillStage := False
+  }
+  when(softResetBusy && softResetMemClear) {
+    when(softResetMemAddr === softResetSweepLast) {
+      softResetMemClear  := False
+      // stage 2: SDRAM zero-fill. Raise the fill request and hold busy until
+      // TopTang's sdram-domain fill FSM reports done (BufferCC-crossed). #4
+      // (core register reset) will chain after the fill stage when it lands.
+      softResetFillStage := True
+    } otherwise {
+      softResetMemAddr := softResetMemAddr + 1
+    }
+  }
+  when(softResetBusy && softResetFillStage) {
+    when(io.sdramFillDone) {             // SDRAM zero-fill complete ...
+      softResetFillStage  := False
+      softResetCoreActive := True        // ... enter stage 3: core register reset
+    }
+  }
+  // Stage 3 (#4): hold the config registers at their `init` (the reset block
+  // below keys off softResetCoreActive), then RELEASE synchronously at a clean
+  // line boundary (hCounter==0) so the video datapath sees no glitched pulse
+  // (CyanPeak #12589/#12609 safety rule). Config regs are stable at init through
+  // the stage; releasing at hCounter==0 starts the next line cleanly.
+  when(softResetBusy && softResetCoreActive) {
+    when(hCounter === U(0, log2Up(hTotal) bits)) {
+      softResetCoreActive := False
+      softResetBusy       := False        // sequence complete: drop busy ...
+      softResetRequest    := False        // ... and auto-clear the request bit
+    }
+  }
+  // SDRAM-fill request to TopTang (level; CDC'd in TopTang to sdramClockDomain).
+  io.sdramFillStart := softResetFillStage
+  io.softResetBusy := softResetBusy
 
   // MODE_SELECT @ 0x0313: 16-bit register — [3:0] = MODE_SELECT,
   // [7:4] = reserved, [15:8] = MODE_FLAGS. Host/QSPI-write only.
@@ -942,12 +1082,15 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val scrollTableSub  = (effAddr - U(0x0900, 15 bits))(7 downto 0)
   val scrollTableEntry = scrollTableSub(6 downto 0)    // 7 bits
   val scrollTableLayer = scrollTableSub(7)             // 0 = L0, 1 = L1
-  scrollTable0.io.wrAddr := scrollTableEntry
-  scrollTable0.io.wrData := effData(9 downto 0).asUInt
-  scrollTable0.io.wr     := scrollTableRangeHit && !scrollTableLayer
-  scrollTable1.io.wrAddr := scrollTableEntry
-  scrollTable1.io.wrData := effData(9 downto 0).asUInt
-  scrollTable1.io.wr     := scrollTableRangeHit && scrollTableLayer
+  // VDP-SOFT-RESET-135 #2b: scroll tables (128 entries each) zeroed by the sweep
+  // for addr < 128 — both H-scroll and V-scroll tables share this gate below.
+  val scrollSweepWr = softResetMemClear && (softResetMemAddr < U(128, 14 bits))
+  scrollTable0.io.wrAddr := Mux(scrollSweepWr, softResetMemAddr.resize(7), scrollTableEntry)
+  scrollTable0.io.wrData := Mux(scrollSweepWr, U(0, 10 bits), effData(9 downto 0).asUInt)
+  scrollTable0.io.wr     := Mux(scrollSweepWr, True, scrollTableRangeHit && !scrollTableLayer)
+  scrollTable1.io.wrAddr := Mux(scrollSweepWr, softResetMemAddr.resize(7), scrollTableEntry)
+  scrollTable1.io.wrData := Mux(scrollSweepWr, U(0, 10 bits), effData(9 downto 0).asUInt)
+  scrollTable1.io.wr     := Mux(scrollSweepWr, True, scrollTableRangeHit && scrollTableLayer)
 
   val scrollTable0Addr = hCounter(9 downto 3).resize(7)
   val scrollTable1Addr = hCounter(9 downto 3).resize(7)
@@ -971,12 +1114,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val vScrollTableSub   = (effAddr - U(0x0A00, 15 bits))(7 downto 0)
   val vScrollTableEntry = vScrollTableSub(6 downto 0)    // 7 bits = 128 entries
   val vScrollTableLayer = vScrollTableSub(7)             // 0 = L0, 1 = L1
-  vScrollTable0.io.wrAddr := vScrollTableEntry
-  vScrollTable0.io.wrData := effData(9 downto 0).asUInt
-  vScrollTable0.io.wr     := vScrollTableRangeHit && !vScrollTableLayer
-  vScrollTable1.io.wrAddr := vScrollTableEntry
-  vScrollTable1.io.wrData := effData(9 downto 0).asUInt
-  vScrollTable1.io.wr     := vScrollTableRangeHit && vScrollTableLayer
+  // VDP-SOFT-RESET-135 #2b: V-scroll tables zeroed by the sweep (shared gate).
+  vScrollTable0.io.wrAddr := Mux(scrollSweepWr, softResetMemAddr.resize(7), vScrollTableEntry)
+  vScrollTable0.io.wrData := Mux(scrollSweepWr, U(0, 10 bits), effData(9 downto 0).asUInt)
+  vScrollTable0.io.wr     := Mux(scrollSweepWr, True, vScrollTableRangeHit && !vScrollTableLayer)
+  vScrollTable1.io.wrAddr := Mux(scrollSweepWr, softResetMemAddr.resize(7), vScrollTableEntry)
+  vScrollTable1.io.wrData := Mux(scrollSweepWr, U(0, 10 bits), effData(9 downto 0).asUInt)
+  vScrollTable1.io.wr     := Mux(scrollSweepWr, True, vScrollTableRangeHit && vScrollTableLayer)
 
   val vScrollTable0Addr = hCounter(9 downto 3).resize(7)
   val vScrollTable1Addr = hCounter(9 downto 3).resize(7)
@@ -1050,6 +1194,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   }
 
   planarLineFetch.io.planeBaseAddr  := planeBaseAddrReg
+  // #3 part 2c: surface planar bases + active gate for the soft-reset zero-fill.
+  io.planeBaseAddr    := planeBaseAddrReg
+  io.planarFillActive := planarFetchEnable
   // Trigger row fetch one cycle into the active region — the FSM has
   // until next-line's display reaches pixelIdx N to land word N
   // (lead-time ≈ 160 cycles even for the first dout32 word).
@@ -1455,7 +1602,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // BasicPatternSource with layer0ScrollX/Y) is preserved bit-identically
   // there. Consumer-side gate only — no planar fetch rewrite, no
   // scheduler change, no scroll-latch change.
-  val planarClipActive          = (hCounter < U(PLANE_PIXELS, log2Up(hTotal) bits)).simPublic()
+  // #4: clip width is now the PLANAR_WIDTH register (default PLANE_PIXELS=320).
+  val planarClipActive          = (hCounter < planarWidthReg.resize(log2Up(hTotal))).simPublic()
   val planarFetchEnableClipped  = (planarFetchEnable && planarClipActive).simPublic()
   val layer0Index = (Mux(planarFetchEnableClipped, planarIdx4,
                          Mux(affineEnable, affineIndex,
@@ -1509,10 +1657,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // visible layer is L0 (or nothing), L0 paints. This is bit-identical to
   // the pre-Task-48 2-layer compositor whenever L2/L3 are disabled (zero
   // pixel, not opaque).
-  val layer0Opaque = layer0Pixel =/= B(0, 4 bits)
-  val layer1Opaque = layer1Pixel =/= B(0, 4 bits)
-  val layer2Opaque = layer2Pixel =/= B(0, 4 bits)
-  val layer3Opaque = layer3Pixel =/= B(0, 4 bits)
+  // #3: a layer pixel is opaque when its index differs from that layer's
+  // transparency key (default key 0 ⇒ index-0-transparent, bit-identical).
+  val layer0Opaque = layer0Pixel =/= l0TransKeyReg
+  val layer1Opaque = layer1Pixel =/= l1TransKeyReg
+  val layer2Opaque = layer2Pixel =/= l2TransKeyReg
+  val layer3Opaque = layer3Pixel =/= l3TransKeyReg
   // Task 56 Checkpoint C: simPublic so MultiLayerSdramFetchSim Cases 3-5
   // can observe the compositor's actual mux output (proves L1>L0 opaque
   // priority and bank propagation under both-active workload).
@@ -1633,6 +1783,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
                                                      spriteBusWord8)
   spriteEval.io.busData := effData
   spriteEval.io.busWr   := spriteBusRangeHit || spriteExtBusRangeHit
+  // VDP-SOFT-RESET-135 #2e: drive the sprite ext-descriptor clear from the sweep.
+  spriteEval.io.softClear     := softResetMemClear
+  spriteEval.io.softClearAddr := softResetMemAddr
 
   // Pass 1 strobe at end of line — evaluator takes descCount cycles to
   // complete (well under hBlank = 160 cycles at 640×480@60).
@@ -1699,11 +1852,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   }
   // Broadcast write — every per-slot Mem must observe the same write so the
   // logical pattern table stays consistent across slots.
+  // VDP-SOFT-RESET-135 #2a: pattern RAM write port muxed between host streaming
+  // writes and the soft-reset zero-sweep (full 16384-entry clear).
   for (mem <- spritePatternRams) {
     mem.write(
-      address = patternRamPtr,
-      data    = effData(3 downto 0),
-      enable  = patternRamDataWriteHit
+      address = Mux(softResetMemClear, softResetMemAddr, patternRamPtr),
+      data    = Mux(softResetMemClear, B(0, 4 bits), effData(3 downto 0)),
+      enable  = softResetMemClear || patternRamDataWriteHit
     )
   }
 
@@ -1931,11 +2086,21 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   when(paletteCommitNow && paletteEntryIdx < 32) {
     paletteMirror(paletteEntryIdx.resize(5)) := paletteCommitData
   }
+  // VDP-SOFT-RESET-135 #2a: zero the low-32 palette mirror regs during the sweep
+  // (overrides the host commit above — host is mid-reset, polling completion).
+  when(softResetMemClear && softResetMemAddr < U(32, 14 bits)) {
+    paletteMirror(softResetMemAddr.resize(5)) := B(0, 24 bits)
+  }
 
+  // VDP-SOFT-RESET-135 #2a: palette write port muxed between host commit and the
+  // soft-reset zero-sweep (single write port preserved for BSRAM inference).
+  val paletteSweepWr = softResetMemClear && (softResetMemAddr < U(TileAttributeAssets.PaletteDepth, 14 bits))
   palette.write(
-    address = paletteEntryIdx.resize(log2Up(TileAttributeAssets.PaletteDepth)),
-    data    = paletteCommitData,
-    enable  = paletteCommitNow
+    address = Mux(softResetMemClear,
+                  softResetMemAddr.resize(log2Up(TileAttributeAssets.PaletteDepth)),
+                  paletteEntryIdx.resize(log2Up(TileAttributeAssets.PaletteDepth))),
+    data    = Mux(softResetMemClear, B(0, 24 bits), paletteCommitData),
+    enable  = Mux(softResetMemClear, paletteSweepWr, paletteCommitNow)
   )
   val paletteRgb = palette.readSync(paletteAddr)
 
@@ -2247,6 +2412,82 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   spriteCollMaskReg := (spriteCollMaskReg | collSetMask) & (~collClearMask)
   io.spriteCollMask := spriteCollMaskReg
+
+  // ===== VDP-SOFT-RESET-135 #4: core register reset (Stage 3 of the sequence) =====
+  // Option B (surgical) per TopazCliff #12608 / CyanPeak #12609: while
+  // `softResetCoreActive`, force every host-writable config register back to its
+  // SpinalHDL `init` and clear its pend/commit hit so a mid-flight (uncommitted)
+  // host write cannot land after the reset. Placed after ALL normal register
+  // commit logic so it wins on the reset cycle (last-assignment-wins). The
+  // soft-reset controller regs + i80/0x0310 status path are deliberately NOT
+  // here — they stay LIVE to run the reset and keep the host poll alive.
+  // Internal pipeline/counter regs (hCounter/vCounter/fillLine, copper pc, etc.)
+  // are not reset; they re-settle within a frame (POR-equivalent; the sim proves
+  // no visible artifact). Also clears STATUS_STICKY / STATUS_ENABLE (IRQ mask) /
+  // sprite-collision mask so a stale flag or pending IRQ can't fire post-reset
+  // (CyanPeak #12609).
+  when(softResetCoreActive) {
+    copperCtrlReg     := B(0, 1 bits);  copperCtrlPendHit     := False
+    layerEnableReg    := B"00000";       layerEnablePendHit    := False
+    tileDecodeModeReg := B(0, 2 bits);  tileDecodeModePendHit := False
+    attributeModeReg  := B(0, 1 bits);  attributeModePendHit  := False
+    backdropIndexReg  := U(0, 7 bits);  backdropIndexPendHit  := False
+    scaleCtrlReg      := B(scaleCtrlInit, 8 bits);   scaleCtrlPendHit   := False
+    logicWidthReg     := U(logicWidthInit, 11 bits); logicWidthPendHit  := False
+    logicHeightReg    := U(logicHeightInit, 11 bits);logicHeightPendHit := False
+    innerBorderLReg   := U(0, 10 bits); innerBorderLPendHit := False
+    innerBorderRReg   := U(0, 10 bits); innerBorderRPendHit := False
+    innerBorderTReg   := U(0, 10 bits); innerBorderTPendHit := False
+    innerBorderBReg   := U(0, 10 bits); innerBorderBPendHit := False
+    modeSelectReg     := U(0, 4 bits);  modeSelectFlagsReg := B(0, 8 bits); modeSelectPendHit := False
+    winX0Reg := U(0, 10 bits); winX0PendHit := False
+    winX1Reg := U(0, 10 bits); winX1PendHit := False
+    winY0Reg := U(0, 10 bits); winY0PendHit := False
+    winY1Reg := U(0, 10 bits); winY1PendHit := False
+    colorMathReg := B(0, 16 bits); colorMathPendHit := False
+    win2X0Reg := U(0, 10 bits); win2X0PendHit := False
+    win2X1Reg := U(0, 10 bits); win2X1PendHit := False
+    win2Y0Reg := U(0, 10 bits); win2Y0PendHit := False
+    win2Y1Reg := U(0, 10 bits); win2Y1PendHit := False
+    win2CtrlReg := B(0, 16 bits); win2CtrlPendHit := False
+    winCombReg  := B(0, 16 bits); winCombPendHit  := False
+    layerMaskReg := B(0, 16 bits); layerMaskPendHit := False
+    borderX0Reg := U(0, 10 bits); borderX0PendHit := False
+    borderX1Reg := U(0, 10 bits); borderX1PendHit := False
+    borderY0Reg := U(0, 10 bits); borderY0PendHit := False
+    borderY1Reg := U(0, 10 bits); borderY1PendHit := False
+    borderCtrlReg := B(borderCtrlInit, 16 bits); borderCtrlPendHit := False
+    affineAReg := B(0, 16 bits); affineAPendHit := False
+    affineBReg := B(0, 16 bits); affineBPendHit := False
+    affineCReg := B(0, 16 bits); affineCPendHit := False
+    affineDReg := B(0, 16 bits); affineDPendHit := False
+    affineXReg := B(0, 16 bits); affineXPendHit := False
+    affineYReg := B(0, 16 bits); affineYPendHit := False
+    affineCtrlReg := B(0, 16 bits); affineCtrlPendHit := False
+    bitmapCtrlReg := B(0, 16 bits); bitmapCtrlPendHit := False
+    bitmapBaseLoReg := U(0x3000, 16 bits); bitmapBaseLoPendHit := False
+    bitmapBaseHiReg := U(0, 7 bits);       bitmapBaseHiPendHit := False
+    attrBaseLoReg   := U(0x4000, 16 bits); attrBaseLoPendHit   := False
+    attrBaseHiReg   := U(0, 7 bits);       attrBaseHiPendHit   := False
+    bitmapStrideReg := U(512, 16 bits);    bitmapStridePendHit := False
+    attrStrideReg   := U(512, 16 bits);    attrStridePendHit   := False
+    bitmapHeightReg := U(240, 10 bits);    bitmapHeightPendHit := False
+    planarCtrlReg := B(0, 16 bits)
+    for (p <- 0 until PLANE_COUNT) planeBaseAddrReg(p) := U(0, 23 bits)
+    // NOTE: extra raster triggers TR1-3 are conditionally instantiated
+    // (withExtraRasterTriggers, off in the active i80/HW builds) and scoped inside
+    // their own block — not resettable from here. If ever enabled, add their reset
+    // inside that block keyed off softResetCoreActive.
+    // CyanPeak #12609: clear sticky status / IRQ mask / collision mask so no
+    // stale flag or pending interrupt survives the reset.
+    statusStickyReg   := B(0, 16 bits)
+    statusEnableReg   := B(0, 16 bits); statusEnablePendHit := False
+    spriteCollMaskReg := B(0, spriteCollMaskReg.getWidth bits)
+    // #3/#4 registers → init (transparency keys 0, planar width 320).
+    l0TransKeyReg := B(0, 4 bits); l1TransKeyReg := B(0, 4 bits)
+    l2TransKeyReg := B(0, 4 bits); l3TransKeyReg := B(0, 4 bits)
+    planarWidthReg := U(320, 10 bits)
+  }
 
   // R6 Task 20: post-palette color-math + window stage. Mux on `paletteRgb`
   // controlled by the window comparator and the colorMath op/constant fields.

@@ -86,6 +86,13 @@ case class SpriteEvaluator(
     val busData = in Bits(16 bits)
     val busWr   = in Bool()
 
+    // VDP-SOFT-RESET-135 #2e: soft-reset clear of the host-writable external
+    // descriptor Mems (infoMemW0/W1/W8 + affine matAMem/B/C/D + transX/Y) and
+    // the regAffineEnable DFFs. Defaulted so other instantiations are
+    // unaffected; driven by VdpTop's clear sweep for addr < extCount.
+    val softClear     = in Bool() default False
+    val softClearAddr = in UInt(14 bits) default U(0, 14 bits)
+
     // Pass 1 trigger.
     val evalLine  = in UInt(10 bits)
     val evalStart = in Bool()
@@ -193,6 +200,12 @@ case class SpriteEvaluator(
     regAffineEnable(i).simPublic()
   }
 
+  // VDP-SOFT-RESET-135 #2e: shared clear-sweep helpers for the host-writable
+  // external descriptor Mems. Active for sweep addr < extCount; each Mem's
+  // single write port is muxed to a zero-write (no second port).
+  val spriteSwClearWr = io.softClear && (io.softClearAddr < U(extCount, 14 bits))
+  val spriteSwAddr    = io.softClearAddr.resize(log2Up(extCount))
+
   // Task 57 Slice 3: bus writes go to one of three Mems based on
   // io.busWord. Each Mem has a single write port; affineEnable (extracted
   // from word-0 bit [10]) still goes to its remaining DFF Vec.
@@ -207,11 +220,17 @@ case class SpriteEvaluator(
       io.busData(14 downto 11).asUInt.resize(patLowBits).asBits,    // patIdxLow
       io.busData(15).asBits                                          // enabled
     ).resize(InfoW0Width bits)
-    infoMemW0.write(rel, w0Pack, enable = isExtBus && (io.busWord === U(0, busWordBits bits)))
+    infoMemW0.write(
+      Mux(io.softClear, spriteSwAddr, rel),
+      Mux(io.softClear, B(0, InfoW0Width bits), w0Pack),
+      enable = (isExtBus && (io.busWord === U(0, busWordBits bits))) || spriteSwClearWr)
 
     // Word 1 packed: {x[9:0]} — 10 bits
     val w1Pack = io.busData(9 downto 0).asUInt.asBits.resize(InfoW1Width bits)
-    infoMemW1.write(rel, w1Pack, enable = isExtBus && (io.busWord === U(1, busWordBits bits)))
+    infoMemW1.write(
+      Mux(io.softClear, spriteSwAddr, rel),
+      Mux(io.softClear, B(0, InfoW1Width bits), w1Pack),
+      enable = (isExtBus && (io.busWord === U(1, busWordBits bits))) || spriteSwClearWr)
 
     // Word 8 packed: {patIdxHigh, mask, bppSel, flipV, flipH, priority,
     //                 paletteBank, sizeSel} — LSB→MSB order
@@ -238,7 +257,10 @@ case class SpriteEvaluator(
         io.busData(15 downto 14).asUInt.asBits
       ).resize(InfoW8Width bits)
     }
-    infoMemW8.write(rel, w8Pack, enable = isExtBus && (io.busWord === U(8, busWordBits bits)))
+    infoMemW8.write(
+      Mux(io.softClear, spriteSwAddr, rel),
+      Mux(io.softClear, B(0, InfoW8Width bits), w8Pack),
+      enable = (isExtBus && (io.busWord === U(8, busWordBits bits))) || spriteSwClearWr)
 
     // affineEnable still per-slot DFF (CyanPeak exemption #9597).
     when(isExtBus && (io.busWord === U(0, busWordBits bits))) {
@@ -247,6 +269,14 @@ case class SpriteEvaluator(
           is(U(i, log2Up(extCount) bits)) {
             regAffineEnable(i) := io.busData(10)
           }
+        }
+      }
+    }
+    // VDP-SOFT-RESET-135 #2e: zero the affine-enable DFFs during the clear sweep.
+    when(spriteSwClearWr) {
+      switch(spriteSwAddr) {
+        for (i <- 0 until extCount) {
+          is(U(i, log2Up(extCount) bits)) { regAffineEnable(i) := False }
         }
       }
     }
@@ -259,12 +289,13 @@ case class SpriteEvaluator(
   {
     val isExtBus = io.busWr && (io.busSlot >= U(legacyIoCount, descIdxBits bits))
     val rel = (io.busSlot - U(legacyIoCount, descIdxBits bits)).resize(log2Up(extCount))
-    matAMem.write(  rel, io.busData, enable = isExtBus && (io.busWord === U(2, busWordBits bits)))
-    matBMem.write(  rel, io.busData, enable = isExtBus && (io.busWord === U(3, busWordBits bits)))
-    matCMem.write(  rel, io.busData, enable = isExtBus && (io.busWord === U(4, busWordBits bits)))
-    matDMem.write(  rel, io.busData, enable = isExtBus && (io.busWord === U(5, busWordBits bits)))
-    transXMem.write(rel, io.busData, enable = isExtBus && (io.busWord === U(6, busWordBits bits)))
-    transYMem.write(rel, io.busData, enable = isExtBus && (io.busWord === U(7, busWordBits bits)))
+    // VDP-SOFT-RESET-135 #2e: each affine Mem write muxed to the zero-sweep.
+    def affWrite(mem: Mem[Bits], word: Int): Unit = mem.write(
+      Mux(io.softClear, spriteSwAddr, rel),
+      Mux(io.softClear, B(0, 16 bits), io.busData),
+      enable = (isExtBus && (io.busWord === U(word, busWordBits bits))) || spriteSwClearWr)
+    affWrite(matAMem, 2); affWrite(matBMem, 3); affWrite(matCMem, 4)
+    affWrite(matDMem, 5); affWrite(transXMem, 6); affWrite(transYMem, 7)
   }
 
   // ---------------------------------------------------------------------

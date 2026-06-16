@@ -85,6 +85,13 @@ case class Copper() extends Component {
     val regAddr  = out UInt(15 bits)
     val regData  = out Bits(16 bits)
     val regWr    = out Bool()
+
+    // VDP-SOFT-RESET-135 #2c: soft-reset memory clear. While `softClear` is
+    // high, every host-writable Copper Mem (prog 2 banks / hdmaDataArray / tbl)
+    // is zeroed at `softClearAddr` (each gated by its own depth). Driven by
+    // VdpTop's clear-sweep; defaults keep other instantiations unaffected.
+    val softClear     = in Bool() default False
+    val softClearAddr = in UInt(14 bits) default U(0, 14 bits)
   }
 
   // R5.4: doubled to 1024 words (= 2 × 512-word banks). The MSB of any
@@ -117,8 +124,14 @@ case class Copper() extends Component {
   val writeBank  = Mux(io.enabled, !activeBank, activeBank)
   val writeAddr  = writeBank.asUInt @@ io.progAddr      // UInt(10 bits)
 
-  when(io.progWr) {
-    prog.write(writeAddr, io.progData)
+  // VDP-SOFT-RESET-135 #2c: clear sweep writes 0 across the full 1024-word prog
+  // RAM (both banks via the 10-bit address), bypassing the host bank-select mux.
+  val progClearWr = io.softClear && (io.softClearAddr < U(1024, 14 bits))
+  when(io.progWr || progClearWr) {
+    prog.write(
+      Mux(io.softClear, io.softClearAddr.resize(10), writeAddr),
+      Mux(io.softClear, B(0, 16 bits), io.progData)
+    )
   }
 
   val pc      = Reg(UInt(9 bits)) init 0
@@ -358,7 +371,13 @@ case class Copper() extends Component {
   hdmaDataArray.addAttribute("ram_style", "block")
   // Auto-increment data write at HDMA_DATA_WRITE (0x51).
   val hdmaDataWriteHit = io.hdmaWr && (io.hdmaCtrlAddr === U(0x51, 7 bits))
-  hdmaDataArray.write(hdmaDataPtr, io.hdmaData, enable = hdmaDataWriteHit)
+  // VDP-SOFT-RESET-135 #2c: clear sweep zeroes the 256-word HDMA data array.
+  val hdmaClearWr = io.softClear && (io.softClearAddr < U(256, 14 bits))
+  hdmaDataArray.write(
+    Mux(io.softClear, io.softClearAddr.resize(8), hdmaDataPtr),
+    Mux(io.softClear, B(0, 16 bits), io.hdmaData),
+    enable = hdmaDataWriteHit || hdmaClearWr
+  )
   when(hdmaDataWriteHit) {
     hdmaDataPtr := hdmaDataPtr + 1
   }
@@ -411,7 +430,13 @@ case class Copper() extends Component {
       tblWrEn   := True
     }
   }
-  tbl.write(tblWrAddr, tblWrData, tblWrEn)
+  // VDP-SOFT-RESET-135 #2c: clear sweep zeroes the HDMA entry table (NUM_CH*NUM_ENT).
+  val tblClearWr = io.softClear && (io.softClearAddr < U(NUM_CH * NUM_ENT, 14 bits))
+  tbl.write(
+    Mux(io.softClear, io.softClearAddr.resize(log2Up(NUM_CH * NUM_ENT)), tblWrAddr),
+    Mux(io.softClear, B(0, 26 bits), tblWrData),
+    tblWrEn || tblClearWr
+  )
 
   // Sweep FSM — one entry scan per cycle across NUM_CH*NUM_ENT entries per line.
   def chAddrSel(ch: UInt): UInt = ch.muxList(Seq(

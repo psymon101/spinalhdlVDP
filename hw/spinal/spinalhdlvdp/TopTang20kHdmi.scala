@@ -576,9 +576,20 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // P21-proven reg-read discriminator (0xA55A/0x1234) still holds.
     if (hostI80) {
       val i80Loopback = RegNext(i80.io.regBus.data) init 0
+      // VDP-SOFT-RESET-135: a read of VDP_CTRL @ 0x0310 returns LIVE status, not
+      // the last-write loopback, so the host can poll bit[2]=SOFT_RESET_BUSY for
+      // soft-reset completion (write 0x0004, then poll until bit2 reads 0).
       i80.io.readData := i80.io.readAddr.mux(
         U(0x0328, 15 bits) -> debugSdramDataPix(15 downto 0),
         U(0x0329, 15 bits) -> debugSdramDataPix(31 downto 16),
+        // VDP-SOFT-RESET-135: VDP_CTRL read = loopback bits (copper enable[0]/swap[1]
+        // etc.) with bit[2] forced from the LIVE softResetBusy. CyanPeak (#12634)
+        // caught that the old `Mux(busy,0x0004,0)` zeroed bits 0/1 (broke RMW). But
+        // her suggested `loopback | busy` would re-stick bit[2] (loopback bit2 = the
+        // 0x0004 the host wrote to trigger), so we MASK bit[2] out of loopback first
+        // (& 0xFFFB) then OR in live busy — bits 0/1 preserved AND bit[2] self-clears.
+        U(0x0310, 15 bits) -> ((i80Loopback & B(0xFFFB, 16 bits)) |
+                               Mux(video.io.softResetBusy, B(0x0004, 16 bits), B(0, 16 bits))),
         default            -> i80Loopback
       )
     }
@@ -885,6 +896,62 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   }
   val sdramArbiter = sdramArbArea.arbiter
 
+  // VDP-SOFT-RESET-135 #3 part 2b: occupied-region SDRAM zero-fill engine.
+  // Runs in sdramClockDomain alongside the arbiter/controller. The VdpTop
+  // soft-reset controller raises `sdramFillStart` (pixel) after the on-chip Mem
+  // clear; this engine zeroes the configured framebuffer region(s), then raises
+  // `sdramFillDone` (synced back) so the controller drops busy. While the engine
+  // is `active`, the command mux below routes it to the controller (arbiter
+  // bypassed — display is quiescent during reset).
+  val sdramFillArea = new ClockingArea(sdramClockDomain) {
+    // 11 regions: bitmap, attr, tileMap L0/L1, tileRows L0/L1, planar 0-4.
+    val fill = SdramZeroFill(addrWidth = 23, regionCount = 11, refreshInterval = 600)
+    fill.io.start := BufferCC(pixelArea.video.io.sdramFillStart, False)
+    // Geometry → region descriptors. All these gate/geometry signals are stable
+    // throughout the fill (host is polling, not writing; not reset until Stage 4
+    // which runs after), so a BufferCC of these quasi-static values is a
+    // sufficient synchronizer (same basis as the debug-readback CDC).
+    val bmActive = BufferCC(pixelArea.video.io.bitmapModeActive, False)
+    val bmBase   = BufferCC(pixelArea.video.io.bitmapBase,   U(0, 23 bits))
+    val bmStride = BufferCC(pixelArea.video.io.bitmapStride, U(0, 16 bits))
+    val bmHeight = BufferCC(pixelArea.video.io.bitmapHeight, U(0, 10 bits))
+    val atBase   = BufferCC(pixelArea.video.io.attrBase,     U(0, 23 bits))
+    val atStride = BufferCC(pixelArea.video.io.attrStride,   U(0, 16 bits))
+    // Tile-layer SDRAM-active gates (TopTang drives these VdpTop inputs).
+    val l0Tile   = BufferCC(pixelArea.video.io.layer0UseSdram, False)
+    val l1Tile   = BufferCC(pixelArea.video.io.layer1UseSdram, False)
+    // Planar bases + active gate (exposed by VdpTop in part 2c).
+    val plActive = BufferCC(pixelArea.video.io.planarFillActive, False)
+    val plBase   = Vec(UInt(23 bits), 5)
+    for (p <- 0 until 5) plBase(p) := BufferCC(pixelArea.video.io.planeBaseAddr(p), U(0, 23 bits))
+
+    def setRegion(i: Int, base: UInt, rowBytes: UInt, rowCount: UInt, en: Bool): Unit = {
+      fill.io.regions(i).base     := base
+      fill.io.regions(i).rowBytes := rowBytes
+      fill.io.regions(i).rowCount := rowCount
+      fill.io.regions(i).enable   := en
+    }
+    // 0/1 = RGB565 bitmap low + attr/high planes (gated by BITMAP_CTRL[0]); share HEIGHT.
+    setRegion(0, bmBase, bmStride, bmHeight.resize(11), bmActive)
+    setRegion(1, atBase, atStride, bmHeight.resize(11), bmActive)
+    // 2-5 = tile map/rows L0+L1 (fixed SDRAM layout; gated by layerN-uses-SDRAM).
+    //   TotalRowBytes = TileCount·TileHeight·TileRowStride.
+    val tileRowBytes = TileAttributeAssets.TileCount * TileAttributeAssets.TileHeight *
+                       TileAttributeAssets.TileRowStride
+    setRegion(2, U(TileAttributeAssets.TileMapBase,   23 bits), U(TileAttributeAssets.MapEntries, 16 bits), U(1, 11 bits), l0Tile)
+    setRegion(3, U(TileAttributeAssets.TileRowBase,   23 bits), U(tileRowBytes,                   16 bits), U(1, 11 bits), l0Tile)
+    setRegion(4, U(TileAttributeAssets.L1TileMapBase, 23 bits), U(TileAttributeAssets.MapEntries, 16 bits), U(1, 11 bits), l1Tile)
+    setRegion(5, U(TileAttributeAssets.L1TileRowBase, 23 bits), U(tileRowBytes,                   16 bits), U(1, 11 bits), l1Tile)
+    // 6-10 = planar planes (each PLANE_PIXELS/8 = 40 bytes; gated by planarFetchEnable).
+    for (p <- 0 until 5) setRegion(6 + p, plBase(p), U(320 / 8, 16 bits), U(1, 11 bits), plActive)
+  }
+  val sdramFill = sdramFillArea.fill
+  sdramFill.io.ctrlBusy := sdramArea.ctrl.io.busy
+  // fill done → pixel domain → VdpTop soft-reset controller (level handshake).
+  val sdramFillDonePixArea = new ClockingArea(pixelClockDomain) {
+    pixelArea.video.io.sdramFillDone := BufferCC(sdramFill.io.done, False)
+  }
+
   // CP-A3 (Option B): both fetch engines take their refresh cadence from the arbiter's
   // single central timer (Priority-0 accounting). Same sdram domain -> direct wire.
   // ctrl.io.refresh keeps the L0||L1 cmdRefresh OR below; both are now fed by ONE timer
@@ -1097,27 +1164,32 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // OR. A FETCH read (grant != 5) is still blocked while a debug read is in flight
   // (the #10928 guard) so the snoop can't latch fetch data; the debug read itself
   // (grant === 5) is allowed.
-  sdramArea.ctrl.io.rd      := sdramArbiter.io.sdramRd &&
+  // VDP-SOFT-RESET-135 #3 part 2b: while the zero-fill engine is active it OWNS the
+  // controller command bus (arbiter bypassed — display quiescent during reset).
+  // All of fill/arbiter/ctrl are in sdramClockDomain, so this mux is same-domain.
+  val sdramFillActive = sdramFill.io.active
+  sdramArea.ctrl.io.rd      := !sdramFillActive && sdramArbiter.io.sdramRd &&
                                (!dbgReadArea.inFlight ||
                                 sdramArbiter.io.grantClientId === U(5, sdramArbiter.idBits bits))
   // CP-A2: upload write now arrives via the arbiter (client 4) — no more `|| uploadDrive`
   // side-channel OR. sdramWr already carries the upload write when grantClientId===4.
-  sdramArea.ctrl.io.wr      := sdramArbiter.io.sdramWr
+  sdramArea.ctrl.io.wr      := Mux(sdramFillActive, sdramFill.io.wr, sdramArbiter.io.sdramWr)
   // #11246 F6: merge L1's refresh request too (was L0-only — L1's refresh pulses
   // were dropped, so an enabled L1 region would decay). AUTO_REFRESH is chip-global
   // (refreshes all banks/rows), so a single OR'd pulse correctly serves both
   // engines; no per-engine refresh accounting needed. Latent in the current
   // bitstream (enableL1Fetch=false) but required before L1 is ever enabled.
-  sdramArea.ctrl.io.refresh := pixelArea.fetch.io.sdramRefresh || pixelArea.fetchL1.io.sdramRefresh
+  sdramArea.ctrl.io.refresh := Mux(sdramFillActive, sdramFill.io.refresh,
+                                   pixelArea.fetch.io.sdramRefresh || pixelArea.fetchL1.io.sdramRefresh)
   // CP-A2b: addr/din now come PURELY from the arbiter for ALL clients — upload (4)
   // via clientAddr/Din(4), debug read (5) via clientAddr(5)=rdAddr. The dbgRead addr
   // Mux side-path is gone; ctrl is driven by a single arbitrated source.
-  sdramArea.ctrl.io.addr    := sdramArbiter.io.sdramAddr
-  sdramArea.ctrl.io.din     := sdramArbiter.io.sdramDin
+  sdramArea.ctrl.io.addr    := Mux(sdramFillActive, sdramFill.io.addr, sdramArbiter.io.sdramAddr)
+  sdramArea.ctrl.io.din     := Mux(sdramFillActive, sdramFill.io.din,  sdramArbiter.io.sdramDin)
   // RGB565-FULLFRAME-132 Phase 0: forward the granted client's read burst length to
   // the controller. Only the bitmap direct-color client (1) requests bursts (8 words);
   // every other client uses single reads (burstLen=1, bit-identical to legacy).
-  sdramArea.ctrl.io.burstLen := sdramArbiter.io.sdramBurstLen
+  sdramArea.ctrl.io.burstLen := Mux(sdramFillActive, U(1, 4 bits), sdramArbiter.io.sdramBurstLen)
   pixelArea.fetch.io.sdramDout      := sdramArea.ctrl.io.dout
   pixelArea.fetch.io.sdramDout32    := sdramArea.ctrl.io.dout32
   pixelArea.fetch.io.sdramDataReady := sdramArea.ctrl.io.data_ready

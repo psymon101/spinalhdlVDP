@@ -1,0 +1,192 @@
+package spinalhdlvdp
+
+import spinal.core._
+import spinal.core.sim._
+
+/** VDP-SOFT-RESET-135 increment #1 — host soft-reset HANDSHAKE proof.
+  *
+  * Cleanest direct test of the soft-reset controller: drive VdpTop's register
+  * bus with a write to VDP_CTRL @ 0x0310 bit[2]=1 (0x0004 = SOFT_RESET_REQUEST)
+  * and observe `io.softResetBusy`. Proves the host-facing contract that
+  * BronzeGate's wrapper (write 0x0004, poll bit2) is built against:
+  *   (a) busy is low at rest (no request),
+  *   (b) busy asserts when a request is accepted,
+  *   (c) the bounded sequence completes and busy drops — NO deadlock,
+  *   (d) the request AUTO-CLEARS: busy stays low afterwards with no new write
+  *       (a stuck request would immediately re-trigger), and
+  *   (e) a second 0x0004 re-triggers cleanly (re-armable).
+  *
+  * Scope is the controller only — no i80 / arbiter / copper / video payload,
+  * per the clean-minimal-test discipline. The i80 0x0310 live-status readback
+  * mux (TopTang) is the trivial combinational dual of io.softResetBusy and is
+  * exercised by the full i80 build; this sim isolates the controller logic.
+  *
+  * NOTE: increment #1 wires the request/busy/auto-clear handshake; the reset
+  * ACTIONS (mem clear, SDRAM fill, core reg reset) land in later increments
+  * inside the same bounded sequence without changing this contract.
+  */
+case class SoftResetDut() extends Component {
+  val io = new Bundle {
+    val regAddr       = in UInt (15 bits)
+    val regData       = in Bits (16 bits)
+    val regEnable     = in Bool ()
+    val softResetBusy = out Bool ()
+  }
+  val vdp = VdpTop()
+  vdp.palette.simPublic()
+  vdp.spritePatternRams.head.simPublic()
+  vdp.scrollTable0.mem.simPublic(); vdp.scrollTable1.mem.simPublic()
+  vdp.vScrollTable0.mem.simPublic(); vdp.vScrollTable1.mem.simPublic()
+  vdp.linestate.prepare.simPublic(); vdp.linestate.commit.simPublic()
+  vdp.copper.prog.simPublic(); vdp.copper.hdmaDataArray.simPublic(); vdp.copper.tbl.simPublic()
+  vdp.dmaEngine.staging.simPublic(); vdp.blitterEngine.srcRam.simPublic()
+  vdp.io.regBus.addr   := io.regAddr
+  vdp.io.regBus.data   := io.regData
+  vdp.io.regBus.enable := io.regEnable
+  io.softResetBusy := vdp.io.softResetBusy
+
+  // Tie off all other VdpTop inputs (quiescent — the controller is the DUT).
+  vdp.io.layer0ScrollX := 0; vdp.io.layer0ScrollY := 0
+  vdp.io.layer1ScrollX := 0; vdp.io.layer1ScrollY := 0
+  vdp.io.layer2ScrollX := 0; vdp.io.layer2ScrollY := 0
+  vdp.io.layer3ScrollX := 0; vdp.io.layer3ScrollY := 0
+  vdp.io.sprite0X := 1023; vdp.io.sprite0Y := 1023; vdp.io.sprite0Enabled := False; vdp.io.sprite0PatternIdx := 0
+  vdp.io.sprite1X := 1023; vdp.io.sprite1Y := 1023; vdp.io.sprite1Enabled := False; vdp.io.sprite1PatternIdx := 0
+  vdp.io.sprite2X := 1023; vdp.io.sprite2Y := 1023; vdp.io.sprite2Enabled := False; vdp.io.sprite2PatternIdx := 0
+  vdp.io.sprite3X := 1023; vdp.io.sprite3Y := 1023; vdp.io.sprite3Enabled := False; vdp.io.sprite3PatternIdx := 0
+  vdp.io.layer0UseSdram := False; vdp.io.layer0SdramPixel := 0; vdp.io.layer0SdramBank := 0; vdp.io.layer0SdramPriority := False
+  vdp.io.layer0TestPatternSelect := 0; vdp.io.layer0TestPatternEnable := False
+  vdp.io.layer1UseSdram := False; vdp.io.layer1SdramPixel := 0; vdp.io.layer1SdramBank := 0; vdp.io.layer1SdramPriority := False
+  vdp.io.bitmapSdramByte := 0; vdp.io.bitmapSdramAttrByte := 0
+  vdp.io.rasterTriggerLine := 0; vdp.io.rasterTriggerPixel := 0; vdp.io.rasterTriggerPxEnable := False
+  vdp.io.rasterTriggerEnable := False; vdp.io.rasterTriggerClear := False
+  vdp.io.statusEvQspiReady := False; vdp.io.statusEvQspiError := False
+  vdp.io.planarSdramBusy := False; vdp.io.planarSdramDataReady := False; vdp.io.planarSdramDout32 := 0
+}
+
+object SoftResetHandshakeSim extends App {
+  Config.sim.compile(SoftResetDut()).doSim { dut =>
+    dut.clockDomain.forkStimulus(period = 10)
+
+    def idle(): Unit = { dut.io.regEnable #= false; dut.io.regAddr #= 0; dut.io.regData #= 0 }
+    def regWrite(addr: Int, data: Int): Unit = {
+      dut.io.regAddr #= addr; dut.io.regData #= data; dut.io.regEnable #= true
+      dut.clockDomain.waitSampling()
+      idle(); dut.clockDomain.waitSampling()
+    }
+
+    idle(); dut.clockDomain.waitSampling(5)
+    var fail = false
+
+    // (a) busy low at rest
+    if (dut.io.softResetBusy.toBoolean) { println("[sim] FAIL: busy high without a request"); fail = true }
+
+    // Trigger a soft reset; return busy duration (or -1 on failure).
+    def triggerAndMeasure(tag: String): Int = {
+      regWrite(0x0310, 0x0004) // SOFT_RESET_REQUEST
+      var guard = 0
+      while (!dut.io.softResetBusy.toBoolean && guard < 10) { dut.clockDomain.waitSampling(); guard += 1 }
+      if (!dut.io.softResetBusy.toBoolean) { println(s"[sim] FAIL ($tag): busy never asserted after 0x0004"); fail = true; return -1 }
+      var cyc = 0
+      while (dut.io.softResetBusy.toBoolean && cyc < 20000) { dut.clockDomain.waitSampling(); cyc += 1 }
+      if (dut.io.softResetBusy.toBoolean) { println(s"[sim] FAIL ($tag): busy stuck high (deadlock) > 20000 cyc"); fail = true; return -1 }
+      println(f"[sim] ($tag) busy duration = $cyc cycles")
+      cyc
+    }
+
+    // ===== #2a memory-zeroing proof =====
+    // Preset palette + sprite-pattern Mems to non-zero via the sim API (tests the
+    // zero-sweep directly, no host write protocol as a discriminator), then reset
+    // and verify they read back zero. Indices sampled across each Mem's depth.
+    val palIdx = Seq(0, 1, 64, 127)                  // PaletteDepth = 128
+    val patIdx = Seq(0, 100, 8000, 16383)            // pattern RAM = 16384
+    val sclIdx = Seq(0, 50, 127)                      // scroll tables = 128
+    val lsIdx  = Seq(0, 100, 300, 479)                // linestate = 480 (vActive)
+    val progIdx = Seq(0, 200, 511, 512, 1023)         // copper prog = 1024 (BOTH banks)
+    val hdmaIdx = Seq(0, 128, 255)                    // hdmaDataArray = 256
+    val tblIdx  = Seq(0, 15, 31)                      // tbl = NUM_CH*NUM_ENT = 32
+    val stgIdx  = Seq(0, 32, 63)                      // DMA staging = 64
+    val srcIdx  = Seq(0, 256, 511)                    // blitter srcRam = 512
+    val spIdx   = Seq(0, 14, 27)                      // sprite ext descriptors = extCount = 28
+    for (i <- palIdx) dut.vdp.palette.setBigInt(i, BigInt("ABCDEF", 16))
+    for (i <- patIdx) dut.vdp.spritePatternRams.head.setBigInt(i, BigInt(0xF))
+    for (i <- sclIdx) {
+      dut.vdp.scrollTable0.mem.setBigInt(i, BigInt(0x3AA)); dut.vdp.scrollTable1.mem.setBigInt(i, BigInt(0x355))
+      dut.vdp.vScrollTable0.mem.setBigInt(i, BigInt(0x2CC)); dut.vdp.vScrollTable1.mem.setBigInt(i, BigInt(0x199))
+    }
+    for (i <- lsIdx) { dut.vdp.linestate.prepare.setBigInt(i, BigInt(0xFFF)); dut.vdp.linestate.commit.setBigInt(i, BigInt(0xFFF)) }
+    for (i <- progIdx) dut.vdp.copper.prog.setBigInt(i, BigInt(0xBEEF))
+    for (i <- hdmaIdx) dut.vdp.copper.hdmaDataArray.setBigInt(i, BigInt(0xC0DE))
+    for (i <- tblIdx)  dut.vdp.copper.tbl.setBigInt(i, BigInt("3FFFFFF", 16))
+    for (i <- stgIdx)  dut.vdp.dmaEngine.staging.setBigInt(i, BigInt(0xDA7A))
+    for (i <- srcIdx)  dut.vdp.blitterEngine.srcRam.setBigInt(i, BigInt(0x5A5A))
+    val spriteMems = Seq(dut.vdp.spriteEval.infoMemW0, dut.vdp.spriteEval.infoMemW1, dut.vdp.spriteEval.infoMemW8,
+                         dut.vdp.spriteEval.matAMem, dut.vdp.spriteEval.matBMem, dut.vdp.spriteEval.matCMem,
+                         dut.vdp.spriteEval.matDMem, dut.vdp.spriteEval.transXMem, dut.vdp.spriteEval.transYMem)
+    for (m <- spriteMems; i <- spIdx) m.setBigInt(i, BigInt(0x5))
+    dut.clockDomain.waitSampling(2)
+    // sanity: presets took
+    for (i <- palIdx) if (dut.vdp.palette.getBigInt(i) == 0) { println(s"[sim] FAIL: palette[$i] preset did not take"); fail = true }
+
+    // #4: preset host-writable CONFIG registers via the reg bus + let them commit,
+    // so the post-reset read proves the core-reset cleared them (not just POR).
+    regWrite(0x0300, 0x001F)  // LAYER_ENABLE = all layers on
+    regWrite(0x0350, 0x0001)  // BITMAP_CTRL[0] = bitmap mode on
+    regWrite(0x0347, 0x0123)  // BORDER_CTRL = non-default
+    regWrite(0x0314, 0x0005)  // #3 L0_TRANS_KEY = 5 (non-default)
+    regWrite(0x0D4B, 0x00C8)  // #4 PLANAR_WIDTH = 200 (non-default)
+    dut.clockDomain.waitSampling(2000)  // > 2 lines: config commits at hCounter==0
+    if (dut.vdp.layerEnableReg.toInt == 0) { println("[sim] FAIL: layerEnable preset did not commit"); fail = true }
+    if (dut.vdp.bitmapCtrlReg.toInt == 0)  { println("[sim] FAIL: bitmapCtrl preset did not commit"); fail = true }
+    if (dut.vdp.borderCtrlReg.toInt == 0)  { println("[sim] FAIL: borderCtrl preset did not commit"); fail = true }
+    if (dut.vdp.l0TransKeyReg.toInt != 5)  { println("[sim] FAIL: L0_TRANS_KEY preset did not take"); fail = true }
+    if (dut.vdp.planarWidthReg.toInt != 200){ println("[sim] FAIL: PLANAR_WIDTH preset did not take"); fail = true }
+
+    // (b)+(c) first reset asserts and completes (bounded)
+    val d1 = triggerAndMeasure("first")
+
+    // verify the swept Mems are now zero
+    def chk(name: String, v: BigInt, i: Int): Unit = if (v != 0) { println(f"[sim] FAIL: $name[$i] = 0x$v%X after reset (expected 0)"); fail = true }
+    for (i <- palIdx) chk("palette", dut.vdp.palette.getBigInt(i), i)
+    for (i <- patIdx) chk("pattern", dut.vdp.spritePatternRams.head.getBigInt(i), i)
+    for (i <- sclIdx) {
+      chk("scrollTable0", dut.vdp.scrollTable0.mem.getBigInt(i), i); chk("scrollTable1", dut.vdp.scrollTable1.mem.getBigInt(i), i)
+      chk("vScrollTable0", dut.vdp.vScrollTable0.mem.getBigInt(i), i); chk("vScrollTable1", dut.vdp.vScrollTable1.mem.getBigInt(i), i)
+    }
+    for (i <- lsIdx) { chk("ls.prepare", dut.vdp.linestate.prepare.getBigInt(i), i); chk("ls.commit", dut.vdp.linestate.commit.getBigInt(i), i) }
+    for (i <- progIdx) chk("copper.prog", dut.vdp.copper.prog.getBigInt(i), i)
+    for (i <- hdmaIdx) chk("copper.hdmaDataArray", dut.vdp.copper.hdmaDataArray.getBigInt(i), i)
+    for (i <- tblIdx)  chk("copper.tbl", dut.vdp.copper.tbl.getBigInt(i), i)
+    for (i <- stgIdx)  chk("dma.staging", dut.vdp.dmaEngine.staging.getBigInt(i), i)
+    for (i <- srcIdx)  chk("blitter.srcRam", dut.vdp.blitterEngine.srcRam.getBigInt(i), i)
+    val spriteNames = Seq("infoW0","infoW1","infoW8","matA","matB","matC","matD","transX","transY")
+    for ((m, n) <- spriteMems.zip(spriteNames); i <- spIdx) chk(s"sprite.$n", m.getBigInt(i), i)
+    // regAffineEnable DFFs (cleared by the sweep; init False — confirm 0 post-reset)
+    for (i <- spIdx) if (dut.vdp.spriteEval.regAffineEnable(i).toBoolean) { println(s"[sim] FAIL: regAffineEnable[$i] set after reset"); fail = true }
+    // #4: config registers must read back their init after the reset.
+    if (dut.vdp.layerEnableReg.toInt != 0) { println(f"[sim] FAIL: layerEnableReg=0x${dut.vdp.layerEnableReg.toInt}%X after reset (expected 0)"); fail = true }
+    if (dut.vdp.bitmapCtrlReg.toInt  != 0) { println(f"[sim] FAIL: bitmapCtrlReg=0x${dut.vdp.bitmapCtrlReg.toInt}%X after reset (expected 0)"); fail = true }
+    if (dut.vdp.borderCtrlReg.toInt  != 0) { println(f"[sim] FAIL: borderCtrlReg=0x${dut.vdp.borderCtrlReg.toInt}%X after reset (expected 0)"); fail = true }
+    if (dut.vdp.l0TransKeyReg.toInt  != 0) { println(f"[sim] FAIL: l0TransKeyReg=${dut.vdp.l0TransKeyReg.toInt} after reset (expected 0)"); fail = true }
+    if (dut.vdp.planarWidthReg.toInt != 320){ println(f"[sim] FAIL: planarWidthReg=${dut.vdp.planarWidthReg.toInt} after reset (expected 320)"); fail = true }
+    if (!fail) println("[sim] mem sweep + config regs (layerEnable/bitmapCtrl/borderCtrl) reset to init")
+
+    // (d) AUTO-CLEAR proof: with no new write, busy must STAY low. A request bit
+    // that failed to auto-clear would immediately re-assert busy here.
+    dut.clockDomain.waitSampling(64)
+    if (dut.io.softResetBusy.toBoolean) { println("[sim] FAIL: busy re-asserted with no new request (request did not auto-clear)"); fail = true }
+
+    // (e) re-armable: a second request re-triggers cleanly
+    val d2 = triggerAndMeasure("second")
+    // Duration varies by up to ~hTotal: the #4 core-reset stage releases at
+    // hCounter==0 (line-aligned, CyanPeak no-glitch rule), so bounded variation
+    // is correct — only a large divergence indicates a bug.
+    if (d1 > 0 && d2 > 0 && math.abs(d1 - d2) > 900) { println(f"[sim] FAIL: duration variance too large d1=$d1 d2=$d2"); fail = true }
+
+    dut.clockDomain.waitSampling(50)
+    if (dut.io.softResetBusy.toBoolean) { println("[sim] FAIL: busy still high at end"); fail = true }
+
+    println(if (fail) "[sim] SoftResetHandshakeSim: FAIL"
+            else "[sim] SoftResetHandshakeSim: PASS — handshake + #2a-#2e mem zeroing + #4 config-register reset (layerEnable/bitmapCtrl/borderCtrl → init), bounded/auto-clear/re-armable")
+  }
+}
