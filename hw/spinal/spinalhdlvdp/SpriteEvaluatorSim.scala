@@ -104,6 +104,11 @@ object SpriteEvaluatorSim extends App {
     dut.io.busWord   #= 0
     dut.io.busData   #= 0
     dut.io.busWr     #= false
+    // VDP-SOFT-RESET-135 #2e added these inputs; the testbench must tie them off
+    // or they float (Verilator randomizes per seed) and intermittently fire the
+    // descriptor-clear path, zeroing bus descriptors → flaky Case 3/overflow.
+    dut.io.softClear     #= false
+    dut.io.softClearAddr #= 0
     // Initialize all bus slots to disabled state.
     for (s <- L until D) setBusDesc(s, 0, 1023, enabled = false)
     dut.clockDomain.waitSampling(5)

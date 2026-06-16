@@ -102,20 +102,24 @@ object PlanarClipSim extends App {
         clipActive: Boolean, fetchClipped: Boolean
     )
     def captureLine(): IndexedSeq[LineSample] = {
-      // dut.io.layer0FetchPixelAddr exposes hCounter.resize(10), which
-      // covers the full 0..hTotal-1 range (hTotal=800, log2Up=10).
+      // SIM-TEST-DEBT-138: sample the display `hCounter` directly (simPublic),
+      // NOT io.layer0FetchPixelAddr. planarClipActive (= hCounter < planarWidth)
+      // and layer0Index are combinational off hCounter, so reading hCounter in
+      // the same step is an in-phase comparison. io.layer0FetchPixelAddr is a
+      // gated prefetch address (hCounter+1, zeroed outside the fetch window) in a
+      // different pipeline phase — the source of the pre-existing sample-skew.
       // Wait for a wrap so sampling starts cleanly at h=0.
-      var prev = dut.io.layer0FetchPixelAddr.toLong.toInt
+      var prev = dut.hCounter.toLong.toInt
       var waited = 0
-      while (!(prev != 0 && dut.io.layer0FetchPixelAddr.toLong.toInt == 0) && waited < 2 * hTotal) {
-        prev = dut.io.layer0FetchPixelAddr.toLong.toInt
+      while (!(prev != 0 && dut.hCounter.toLong.toInt == 0) && waited < 2 * hTotal) {
+        prev = dut.hCounter.toLong.toInt
         dut.clockDomain.waitSampling()
         waited += 1
       }
       assert(waited < 2 * hTotal, s"never observed hCounter wrap within ${2*hTotal} cycles (saw $prev)")
       val out = scala.collection.mutable.ArrayBuffer[LineSample]()
       for (_ <- 0 until hTotal) {
-        val h    = dut.io.layer0FetchPixelAddr.toLong.toInt
+        val h    = dut.hCounter.toLong.toInt
         val idx  = dut.layer0Index.toLong.toInt & 0xF
         val pca  = dut.planarClipActive.toBoolean
         val pfec = dut.planarFetchEnableClipped.toBoolean

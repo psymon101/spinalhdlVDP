@@ -67,7 +67,9 @@ object SpriteCapacitySim extends App {
       dut.io.evalStart #= true
       dut.clockDomain.waitSampling()
       dut.io.evalStart #= false
-      dut.clockDomain.waitSampling(D + 4)
+      // 2-cycle-per-descriptor Pass-1 scan (storage move #10357) = 2×descCount cycles;
+      // overflowFlag only latches at scan completion, so wait the full walk (was D+4).
+      dut.clockDomain.waitSampling(2 * D + 4)
     }
 
     def readSlot(s: Int): BigInt = {
@@ -95,6 +97,10 @@ object SpriteCapacitySim extends App {
     dut.io.busWord   #= 0
     dut.io.busData   #= 0
     dut.io.busWr     #= false
+    // VDP-SOFT-RESET-135 #2e added these inputs; tie off or they float (seed-dependent)
+    // and intermittently fire the descriptor-clear path → flaky bus descriptors.
+    dut.io.softClear     #= false
+    dut.io.softClearAddr #= 0
     for (s <- L until D) setBusDesc(s, 0, 1023, enabled = false)
     dut.clockDomain.waitSampling(5)
 

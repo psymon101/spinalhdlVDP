@@ -255,7 +255,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val vBack = 33
   val vTotal = vActive + vFront + vSync + vBack
 
-  val hCounter = Reg(UInt(log2Up(hTotal) bits)) init 0
+  val hCounter = (Reg(UInt(log2Up(hTotal) bits)) init 0).simPublic()   // simPublic: in-phase display counter for sims (SIM-TEST-DEBT-138)
   val vCounter = Reg(UInt(log2Up(vTotal) bits)) init 0
 
   // Raster counters walk the full timing envelope, not just the visible area.
