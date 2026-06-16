@@ -632,38 +632,48 @@ case class SdramTileAttributeFetch(
         }
       }
 
-      sMemtestWrite.whenIsActive {
-        when(!io.sdramBusy && !cmdRd && !cmdWr && !cmdRefresh) {
-          when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 6; goto(sRefresh) }
-          .elsewhen(bootCounter < MemtestSize) {
-            cmdWr   := True
-            cmdAddr := (U(MemtestBase, 23 bits) + bootCounter.resize(23)).resized
-            cmdDin  := memtestByte(bootCounter.resize(8))
-            bootCounter := bootCounter + 1
-          }.otherwise { bootCounter := 0; goto(sMemtestReadRq) }
+      // RTL hygiene (#11091/#11097): the memtest is debug/bring-up scaffolding.
+      // Its transitions were already Scala-gated by `runMemtest`, but the state
+      // BODIES emitted unconditionally (~137 dead Verilog refs; ~1 DFF + 6 LUTs
+      // survived synthesis). Gate the bodies too so nothing emits when disabled.
+      // The state declarations remain as inert enum entries (no body, no inbound
+      // transition => unreachable, no logic). memtestPassR is still driven via
+      // the sPowerWait skip-path and the boot `else` branch, so the fetch gate
+      // is unaffected.
+      if (runMemtest) {
+        sMemtestWrite.whenIsActive {
+          when(!io.sdramBusy && !cmdRd && !cmdWr && !cmdRefresh) {
+            when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 6; goto(sRefresh) }
+            .elsewhen(bootCounter < MemtestSize) {
+              cmdWr   := True
+              cmdAddr := (U(MemtestBase, 23 bits) + bootCounter.resize(23)).resized
+              cmdDin  := memtestByte(bootCounter.resize(8))
+              bootCounter := bootCounter + 1
+            }.otherwise { bootCounter := 0; goto(sMemtestReadRq) }
+          }
         }
-      }
 
-      sMemtestReadRq.whenIsActive {
-        when(!io.sdramBusy && !cmdRd && !cmdWr && !cmdRefresh) {
-          when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 7; goto(sRefresh) }
-          .elsewhen(bootCounter < MemtestSize) {
-            cmdRd   := True
-            cmdAddr := (U(MemtestBase, 23 bits) + bootCounter.resize(23)).resized
-            goto(sMemtestCheck)
-          }.otherwise { memtestPassR := True; goto(sIdle) }
+        sMemtestReadRq.whenIsActive {
+          when(!io.sdramBusy && !cmdRd && !cmdWr && !cmdRefresh) {
+            when(refreshPending) { cmdRefresh := True; refreshPending := False; refreshReturn := 7; goto(sRefresh) }
+            .elsewhen(bootCounter < MemtestSize) {
+              cmdRd   := True
+              cmdAddr := (U(MemtestBase, 23 bits) + bootCounter.resize(23)).resized
+              goto(sMemtestCheck)
+            }.otherwise { memtestPassR := True; goto(sIdle) }
+          }
         }
-      }
 
-      sMemtestCheck.whenIsActive {
-        when(io.sdramDataReady) {
-          val expected = memtestByte(bootCounter.resize(8))
-          when(io.sdramDout =/= expected) {
-            memtestFailR := True
-            goto(sIdle)
-          }.otherwise {
-            bootCounter := bootCounter + 1
-            goto(sMemtestReadRq)
+        sMemtestCheck.whenIsActive {
+          when(io.sdramDataReady) {
+            val expected = memtestByte(bootCounter.resize(8))
+            when(io.sdramDout =/= expected) {
+              memtestFailR := True
+              goto(sIdle)
+            }.otherwise {
+              bootCounter := bootCounter + 1
+              goto(sMemtestReadRq)
+            }
           }
         }
       }
