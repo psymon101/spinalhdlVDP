@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-11 (BSRAM at ~92%; WHOLE-VDP-134 closed at scenario #5; VDP-SOFT-RESET-135 is live lane.)
+**Updated:** 2026-06-16 (VDP-SOFT-RESET-135 DONE; combined bitstream `c55e944` HW-validated; SIM-TEST-DEBT-138 opened.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -23,14 +23,14 @@ This section tracks the active lane.
 | Field | Value |
 |-------|-------|
 | **Task** | Host-triggered soft reset via `VDP_CTRL[2]` |
-| **Status** | **IN-PROGRESS** |
+| **Status** | **DONE** |
 | **Task ID** | VDP-SOFT-RESET-135 |
-| **Owner** | BrightForge (RTL + SDRAM fill engine) / BronzeGate (libvdp wrapper) / CyanPeak (ClockDomain partitioning review + code-to-spec) / CoralReef (docs) |
+| **Owner** | BrightForge (RTL + SDRAM fill engine) / BronzeGate (libvdp wrapper + HW smoke test) / CyanPeak (ClockDomain partitioning review + code-to-spec) / CoralReef (docs) |
 | **Baseline Commit** | `d42bac8` (main after copper-docs merge and affine-texture backlog task) |
-| **Latest Auth Mail** | TopazCliff #12539 (SDRAM zero-fill rulings: 1000 ms timeout, interleaved refresh, Option C controller-direct fill) |
-| **Summary** | Add a host-triggered soft reset that returns the VDP to a POR-equivalent state without a power cycle. Stage 1 (handshake + i80 `0x0310` live readback) and Stage 2 (on-chip host-writable Mem zero-sweep) are sim-proven. Stage 3 zeros only the **occupied/configured SDRAM regions** (auto-derived from active-layer geometry registers) via a controller-direct fill FSM in `sdramClockDomain`; the FSM interleaves auto-refresh (~1 per 15 µs) so the clear is size-independent and stays within the 64 ms SDRAM retention window. Stage 4 will partition the core ClockDomain so registers reset while the controller + host interface survive. `affineTexture` and immutable tile ROMs remain excluded from reset scope. |
-| **Checkpoints** | A: `VDP_CTRL[2]` request/busy handshake + i80 live readback — DONE (`095a507`). B: On-chip Mem clear sweep — DONE (`a2043fc`). C: SDRAM occupied-region zero-fill engine — **IN PROGRESS** (design approved with interleaved refresh; implement + SDRAM-model cosim). D: Core register ClockDomain partition — **PENDING** (CyanPeak review before build). E: libvdp `vdp_mode0_soft_reset()` wrapper + docs — DONE (`6acb359`). |
-| **Next Step** | BrightForge implements Stage 3 SDRAM fill with interleaved refresh and proves it in cosim; CyanPeak stands by for Stage 4 partitioning review. |
+| **Latest Auth Mail** | TopazCliff #12665 (GO: build + flash combined bitstream from `c55e944`) |
+| **Summary** | Host-triggered soft reset returns the VDP to a POR-equivalent state without a power cycle. All 4 stages implemented and proven: Stage 1 handshake + i80 `0x0310` live readback, Stage 2 on-chip host-writable Mem zero-sweep, Stage 3 SDRAM occupied-region zero-fill with interleaved refresh, Stage 4 core-register reset while controller + host interface survive. Register `#3/#4` (`L0-L3_TRANS_KEY`, `PLANAR_WIDTH`) added on same branch and validated. Combined bitstream `c55e944` flashed and HW-smoke-tested by BronzeGate. |
+| **Checkpoints** | A: `VDP_CTRL[2]` request/busy handshake + i80 live readback — DONE (`a64dd01`, HW PASS). B: On-chip Mem clear sweep — DONE. C: SDRAM occupied-region zero-fill engine — DONE (cosim + integrated sim). D: Core register reset — DONE (`c55e944`). E: libvdp `vdp_mode0_soft_reset()` wrapper + docs — DONE. |
+| **Next Step** | Lane closed. Follow-up test-debt work tracked as **SIM-TEST-DEBT-138**. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -93,11 +93,19 @@ This section tracks the active lane.
 - **Validation:** Hardware proof: reset pin returns system to known state without power cycle.
 
 ### Priority 5 — BSRAM Reclamation (BSRAM-RECLAIM-137)
-- **Status:** **QUEUED**
+- **Status:** **ABANDONED** (Phase 1 attempted; no safe reclaim)
 - **Owner:** BrightForge (RTL) / CyanPeak (review) / CoralReef (docs if semantics change)
-- **Scope:** Phase 1 only: reduce `BitmapRowFetch` `NBanks` 3→2 and `byteFifo` depth 256→32; prove with `BitmapArbiterIntegrationSim` refresh ON at 40.5 MHz. **Phase 2 sprite descriptor/FIFO reductions are paused by owner directive.** Phase 3 structural consolidation remains parked pending soft-reset closeout.
+- **Scope:** Phase 1 attempted: `byteFifo` 256→32 reclaims 0 BSRAM; `NBanks` 3→2 breaks rendering (2560 mismatches). The 3-bank timing is load-bearing. Phase 1 will not be merged. **Phase 2 sprite descriptor/FIFO reductions are paused by owner directive.** Phase 3 structural consolidation remains parked.
 - **Depends on:** VDP-SOFT-RESET-135 Stage 3 sim PASS
-- **Validation:** Sim zero mismatches; STA clean; no visible regression in existing demos.
+- **Validation:** N/A — Phase 1 abandoned per BrightForge #12648 / TopazCliff #12649.
+
+### Priority 5a — Sim Test Debt Cleanup (SIM-TEST-DEBT-138)
+- **Status:** **QUEUED**
+- **Owner:** BrightForge
+- **Scope:** Fix three pre-existing RED simulations that fail identically on `main` (`d41dea8`): `PlanarClipSim` (sample skew), `SpriteEvaluatorSim` (stale "expected 32 active" expectation), `SpriteCapacitySim` (stale capacity expectation). These are test-bench/test-debt issues, not RTL regressions.
+- **Depends on:** VDP-SOFT-RESET-135 DONE
+- **Validation:** All three sims PASS on `main`; no functional regression in existing demos.
+- **Opened by:** BrightForge #12668
 
 ### Sub-lane: 2bpp Planar FPGA Hardware Proof
 - **Status:** **IN-PROGRESS**
@@ -149,6 +157,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 | Task | Status | Reference |
 |---|---|---|
 | WHOLE-VDP-134 — whole-system i80/ESP32-S3 regression baseline before BSRAM optimization (scenarios #1–#5) | **DONE** | scenario #5 PASS on raw-i80 + libvdp-helper paths; copper docs merged `36adcbc`; closeout #12543 |
+| VDP-SOFT-RESET-135 — host-triggered soft reset via `VDP_CTRL[2]`, all 4 stages + register #3/#4 | **DONE** | combined bitstream `c55e944`; BronzeGate HW smoke PASS #12667; CyanPeak audit PASS #12655; docs merged `d41dea8` |
 | RGB565-FULLFRAME-132 — full-frame RGB565 direct-color burst-read controller, sim + STA + HW proof | **DONE** | merge `c8129bd`, formal fix `d668e01`, closeout #12378 |
 | P23 Timing-Margin Recovery — burst-refresh re-enabled + place/route effort=2 (clk_pixel +5.709 ns, TNS 0) | **DONE** | #12107/#12114/#12115 |
 | P22 i80 Block-Write + SDRAM Upload — byte-exact HW proof through libvdp | **DONE** | #12072/#12084 |
