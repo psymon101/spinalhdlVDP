@@ -30,6 +30,10 @@ object SpriteHighPatIdxBusSim extends App {
     dut.io.busSlot #= 0
     dut.io.busWord #= 0
     dut.io.busData #= 0
+    // SIM-TEST-FOLLOWUP-140: tie off the VDP-SOFT-RESET-135 #2e inputs, else they
+    // float (Verilator randomizes per seed) and intermittently clear descriptors.
+    dut.io.softClear     #= false
+    dut.io.softClearAddr #= 0
     for (i <- 0 until L) {
       dut.io.descX(i)          #= 0
       dut.io.descY(i)          #= 0

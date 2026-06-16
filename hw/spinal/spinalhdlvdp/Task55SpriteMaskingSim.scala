@@ -81,7 +81,9 @@ object Task55SpriteMaskingSim extends App {
       dut.io.evalStart #= true
       dut.clockDomain.waitSampling()
       dut.io.evalStart #= false
-      dut.clockDomain.waitSampling(D + 4)
+      // 2-cycle-per-descriptor Pass-1 scan (storage move #10357) = 2*D+4 cycles;
+      // D+4 was too short and Case C (high slot indices 30..34) read mid-scan.
+      dut.clockDomain.waitSampling(2 * D + 4)
     }
 
     def disableAll(): Unit = {
@@ -96,6 +98,10 @@ object Task55SpriteMaskingSim extends App {
     dut.io.busWord   #= 0
     dut.io.busData   #= 0
     dut.io.busWr     #= false
+    // SIM-TEST-FOLLOWUP-140: tie off the VDP-SOFT-RESET-135 #2e inputs, else they
+    // float (Verilator randomizes per seed) and intermittently clear descriptors.
+    dut.io.softClear     #= false
+    dut.io.softClearAddr #= 0
     disableAll()
     dut.clockDomain.waitSampling(5)
 
