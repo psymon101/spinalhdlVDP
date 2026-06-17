@@ -223,6 +223,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     // reserved for runtime adapter selection driven by libvdp.
     val modeSelect         = out UInt(4 bits)
 
+    // I80-FRAME-ATOMIC-SWAP-145: host-readable swap-ctrl status for 0x035C
+    // readback. b0 = swapRequest (armed, self-clears at the vblank commit),
+    // b1 = swapCommitted (sticky until host W1C). Wired into the i80 read mux
+    // in TopTang20kHdmi so firmware can poll real commit completion instead of
+    // a fixed open-loop delay.
+    val swapStatus         = out Bits(16 bits)
+
     // Task 3 — Planar Fetch Hardening: SDRAM master interface for
     // PlanarLineFetch. The instance lives inside VdpTop; its SDRAM
     // master ports route up to TopTang20kHdmi for arbitration as
@@ -1002,6 +1009,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     when(effData(0)) { swapRequest   := True }   // arm
     when(effData(1)) { swapCommitted := False }  // W1C ack of committed flag
   }
+  // Host-readable swap status: b0 = swapRequest, b1 = swapCommitted.
+  io.swapStatus := (B(0, 14 bits) ## swapCommitted ## swapRequest)
 
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {

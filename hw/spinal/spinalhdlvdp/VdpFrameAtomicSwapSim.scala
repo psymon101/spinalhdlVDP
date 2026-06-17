@@ -85,6 +85,9 @@ object VdpFrameAtomicSwapSim extends App {
       // Arm.
       writeReg(0x035C, 0x1)
       assert(dut.swapRequest.toBoolean, "swapRequest not set after arm")
+      // Readback (0x035C): b0=request set, b1=committed clear after arm.
+      assert((dut.io.swapStatus.toLong & 0x1) != 0, "swapStatus b0 (request) not set after arm")
+      assert((dut.io.swapStatus.toLong & 0x2) == 0, "swapStatus b1 (committed) unexpectedly set after arm")
 
       // (2,3) Spin until the live base changes. Track the PREVIOUS cycle's
       // (h,v): the regs load on the edge where hCounter==0 && vCounter==vActive,
@@ -116,6 +119,9 @@ object VdpFrameAtomicSwapSim extends App {
       // (4)
       assert(!dut.swapRequest.toBoolean, "swapRequest not auto-cleared after swap")
       assert(dut.swapCommitted.toBoolean, "swapCommitted not set after swap")
+      // Readback: b1=committed set, b0=request cleared after the vblank commit.
+      assert((dut.io.swapStatus.toLong & 0x2) != 0, "swapStatus b1 (committed) not set after swap")
+      assert((dut.io.swapStatus.toLong & 0x1) == 0, "swapStatus b0 (request) not cleared after swap")
       println(f"[sim] swap OK: bitmapBase->0x$bmTarget%X attrBase->0x$atTarget%X atomically at vblank edge")
 
       // (5) Hold a full frame: bases stable, no spurious re-arm/re-swap.
@@ -136,7 +142,8 @@ object VdpFrameAtomicSwapSim extends App {
     // (6) W1C the committed flag.
     writeReg(0x035C, 0x2)
     assert(!dut.swapCommitted.toBoolean, "swapCommitted not cleared by W1C @0x035C b1")
-    println("[sim] swapCommitted W1C-cleared — OK")
+    assert((dut.io.swapStatus.toLong & 0x2) == 0, "swapStatus b1 not cleared by W1C readback")
+    println("[sim] swapCommitted W1C-cleared (incl. 0x035C readback) — OK")
 
     // (7) Repeat with a different target.
     doSwap(0x040000L, 0x050000L)

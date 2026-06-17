@@ -184,7 +184,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // SCROLL-FIX-128 (owner-directed, mail #12169/#12181): default both layers to
     // static. The wrapper previously auto-scrolled L0/L1 every vsync regardless of
     // firmware, which made any static-tile scene (e.g. CP-D starfield) impossible to
-    // prove. Host scroll-step control (0x0358/0x0359) is a follow-up in this lane.
+    // prove. (Host scroll-step control was once sketched for 0x0358/0x0359, but
+    // I80-FRAME-ATOMIC-SWAP-145 now owns 0x0358-0x035C for bitmap/attr base
+    // staging + swap-ctrl; a future scroll-step feature must pick other free
+    // addresses.)
     val l0StepFrames = 0
     val l1StepFrames = 0
     val scrollL0 = Reg(UInt(log2Up(l0MapWidth) bits)) init 0
@@ -590,6 +593,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
         // (& 0xFFFB) then OR in live busy — bits 0/1 preserved AND bit[2] self-clears.
         U(0x0310, 15 bits) -> ((i80Loopback & B(0xFFFB, 16 bits)) |
                                Mux(video.io.softResetBusy, B(0x0004, 16 bits), B(0, 16 bits))),
+        // I80-FRAME-ATOMIC-SWAP-145: BITMAP_SWAP_CTRL read returns LIVE swap
+        // status (b0=request, b1=committed), not the last-write loopback, so
+        // firmware polls real vblank-commit completion instead of a fixed delay.
+        U(0x035C, 15 bits) -> video.io.swapStatus,
         default            -> i80Loopback
       )
     }
