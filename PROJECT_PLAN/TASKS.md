@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-16 (RTL-EFFICIENCY-142 IN-PROGRESS; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
+**Updated:** 2026-06-17 (RTL-EFFICIENCY-142 DONE — report debunked, no code changes; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,15 +22,15 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | RTL efficiency audit — verify selected items from `vdp_efficiency_report.md` |
-| **Status** | **IN-PROGRESS** |
-| **Task ID** | RTL-EFFICIENCY-142 |
-| **Owner** | BrightForge (RTL investigation + fixes) / CyanPeak (code-to-spec review) / CoralReef (doc sync if changes land) / TopazCliff (PM) |
-| **Baseline Commit** | `7e8fd2f` on `main` (post PROJECT-AUDIT-141) |
-| **Latest Auth Mail** | TopazCliff #12733 (lane open: RTL-EFFICIENCY-142) |
-| **Summary** | Review the external efficiency report, verify its claims against current `main`, fix only the items that are real and safe, and reject/ignore the stale or dangerous recommendations. Do not implement the report wholesale — its line numbers are stale and at least one suggestion (`evalStart` move) is backwards. |
-| **Checkpoints** | A: DONE — TopazCliff triage: 3 verified issues (affineTexture `readSync`, `fetchL1` conditional elaboration, SpriteEvaluator tile-count double-increment); 1 dangerous suggestion rejected (`evalStart`); several hygiene items deferred. B: IN-PROGRESS — BrightForge verifies the 3 RTL issues and proposes safe fixes. C: PENDING — CyanPeak code-to-spec review of sprite overflow semantics and any timing changes. D: PENDING — CoralReef doc sync for accepted changes. E: PENDING — commit/merge to `main` after audit PASS. |
-| **Next Step** | BrightForge begins checkpoint B. CyanPeak stands by for checkpoint C. |
+| **Task** | *(none)* |
+| **Status** | **NO ACTIVE LANE** |
+| **Task ID** | — |
+| **Owner** | — |
+| **Baseline Commit** | `main @ 050b805` (post RTL-EFFICIENCY-142 closeout) |
+| **Latest Auth Mail** | TopazCliff #12737 (RTL-EFFICIENCY-142 closed — no code changes) |
+| **Summary** | RTL-EFFICIENCY-142 closed. BrightForge verified all three report items: `affineTexture` readSync conversion is BSRAM-negative (needs a reclaim plan first), `fetchL1` gating yields no resource win, and the SpriteEvaluator "double-increment" is correct idiom. The dangerous `evalStart` recommendation remains rejected. No code changes committed to `main`. |
+| **Checkpoints** | A: DONE — TopazCliff triage. B: DONE — BrightForge verification with synthesis A/B and sim evidence. C: DONE — CyanPeak not required; BrightForge proved item 3 with existing boundary sims. D/E: N/A — no changes to document or commit. |
+| **Next Step** | Await PM decision on next lane: **Host-Loadable Affine Texture** (Priority 6), a **BSRAM-reclaim** lane, or a small sim de-flake follow-up. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -159,6 +159,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 
 | Task | Status | Reference |
 |---|---|---|
+| RTL-EFFICIENCY-142 — triage and verify `vdp_efficiency_report.md` recommendations; report debunked, no code changes | **DONE** | BrightForge verification #12735/#12736; dangerous `evalStart` suggestion rejected |
 | PROJECT-AUDIT-141 — project-wide audit + main-branch consolidation; closed QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140; committed clean baseline to `main` | **DONE** | commits `ed12ece`, `1fe2b61`, `f04960b`, `7e8fd2f`; audits PASS #12721/#12727/#12728/#12730 |
 | WHOLE-VDP-134 — whole-system i80/ESP32-S3 regression baseline before BSRAM optimization (scenarios #1–#5) | **DONE** | scenario #5 PASS on raw-i80 + libvdp-helper paths; copper docs merged `36adcbc`; closeout #12543 |
 | VDP-SOFT-RESET-135 — host-triggered soft reset via `VDP_CTRL[2]`, all 4 stages + register #3/#4 | **DONE** | combined bitstream `c55e944`; BronzeGate HW smoke PASS #12667; CyanPeak audit PASS #12655; docs merged `d41dea8` |
