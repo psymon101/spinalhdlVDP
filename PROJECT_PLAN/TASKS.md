@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-17 (HOST-AFFINE-TEXTURE-143 IN-PROGRESS; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
+**Updated:** 2026-06-17 (HARDWARE-BASICS-144 IN-PROGRESS; HOST-AFFINE-TEXTURE-143 PAUSED; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,15 +22,15 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | Host-loadable affine texture |
+| **Task** | Hardware basics regression / smoke-test baseline |
 | **Status** | **IN-PROGRESS** |
-| **Task ID** | HOST-AFFINE-TEXTURE-143 |
-| **Owner** | BrightForge (RTL + BSRAM budget + sim + HW proof) / BronzeGate (`libvdp` helper + test sketch) / CoralReef (docs) / CyanPeak (code-to-spec audit) / TopazCliff (PM) |
-| **Baseline Commit** | `main @ 00146c7` (post RTL-EFFICIENCY-142 closeout) |
-| **Latest Auth Mail** | TopazCliff #12738 (lane open: HOST-AFFINE-TEXTURE-143) |
-| **Summary** | Replace the hardcoded `affineTexture` ROM in `VdpTop` with a host-writable memory. Add register interface for upload, include the memory in the soft-reset sweep, convert access to `readSync`+`ram_style="block"`, and prove via sim + Tang Nano 20K hardware. A BSRAM budget + PnR gate is mandatory before merge because the full-feature build has only 4/46 BSRAM blocks free. |
-| **Checkpoints** | A: RTL design — BrightForge defines write port, register addresses, readSync pipeline, reset-sweep inclusion, and block-count estimate. B: Simulation proof — affine upload + display. C: BSRAM/PnR gate — synthesis must not exceed 46/46 BSRAM; if it does, propose a reclaim trade-off before any commit. D: libvdp helper + test sketch — BronzeGate adds `vdp_affine_upload_texture()` and a hardware demo. E: Code-to-spec audit — CyanPeak. F: Docs + commit to `main` — CoralReef + BrightForge. |
-| **Next Step** | BrightForge reserves `hw/spinal/spinalhdlvdp/VdpTop.scala`, `AffineAssets.scala`, and relevant sim files; begins checkpoint A design. BronzeGate stands by for checkpoint D. |
+| **Task ID** | HARDWARE-BASICS-144 |
+| **Owner** | BrightForge (RTL/HW proof) / BronzeGate (firmware/examples) / CoralReef (docs/proof packet) / CyanPeak (code-to-spec audit) / TopazCliff (PM) |
+| **Baseline Commit** | `main @ 22e3122` (post HOST-AFFINE-TEXTURE-143 pause) |
+| **Latest Auth Mail** | TopazCliff #12740 (lane open: HARDWARE-BASICS-144; HOST-AFFINE-TEXTURE-143 paused) |
+| **Summary** | Re-establish a clean, proven hardware baseline before adding new features. Run the existing basic scenarios on Tang Nano 20K, capture proof, and fix or document any regressions. Scope is existing examples only — no new RTL features. Host-loadable affine texture is paused until this baseline is solid. |
+| **Checkpoints** | A: Define scenario matrix and pass/fail criteria. B: Run each scenario on hardware and capture RTSP/photo proof. C: Triage failures — fix in lane or document as known issues. D: Build a proof packet + commit evidence to `kb/hardware_baseline/`. E: CyanPeak code-to-spec / audit. F: Closeout and unpause HOST-AFFINE-TEXTURE-143. |
+| **Next Step** | BrightForge + BronzeGate define the scenario matrix (likely: red screen, scaler bezel, border/palette probe, copper bars/diag, sprite mask, planar white, RGB565 fullframe, i80 stress). |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -130,7 +130,7 @@ This section tracks the active lane.
 - **Closeout:** Merged to main @ `d69d404`. Hardware proof v3 validated by BrightForge #10731, merged by TopazCliff #10732.
 
 ### Priority 6 — Host-Loadable Affine Texture
-- **Status:** **IN-PROGRESS** (HOST-AFFINE-TEXTURE-143)
+- **Status:** **PAUSED** (HOST-AFFINE-TEXTURE-143) — pending solid HARDWARE-BASICS-144 baseline
 - **Owner:** BrightForge (RTL), BronzeGate (libvdp + test), CoralReef (docs), CyanPeak (audit)
 - **Scope:** Remove the fixed `affineTexture` ROM in `VdpTop` and replace it with a host-loadable memory path. The affine/Mode7 background texture must be uploadable by the user at runtime, not hardcoded in RTL. Reset implication: once host-loadable, `VDP_SOFT_RESET_REQUEST` must also clear this texture (the existing 16384-cycle sweep already fits it).
 - **Depends on:** VDP-SOFT-RESET-135 Stage 4 complete (so the reset sweep contract is stable).
