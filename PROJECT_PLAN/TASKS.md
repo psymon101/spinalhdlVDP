@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-16 (PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
+**Updated:** 2026-06-16 (RTL-EFFICIENCY-142 IN-PROGRESS; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,15 +22,15 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | Project-wide audit and main-branch consolidation |
-| **Status** | **DONE** |
-| **Task ID** | PROJECT-AUDIT-141 |
-| **Owner** | CoralReef (doc audit) / CyanPeak (code-to-spec) / BronzeGate (firmware hygiene + commits) / BrightForge (sim triage + branch cleanup) |
-| **Baseline Commit** | `9f9b512` on `main` (post SIM-TEST-FOLLOWUP-140) |
-| **Latest Auth Mail** | TopazCliff #12731 (PROJECT-AUDIT-141 checkpoint F: GO to commit to main + branch cleanup) |
-| **Summary** | Audit all uncommitted docs/firmware/RTL changes, close QSPI cleanup debt, triage remaining RED sims, reconcile legacy docs, and commit/merge validated work to `main`. Goal: stop branch sprawl and establish a clean, audited baseline before the next feature lane. |
-| **Checkpoints** | A: DONE — CoralReef doc audit PASS (#12723). B: DONE — CyanPeak code-to-spec audit PASS (#12721). C: DONE — BronzeGate cleanup audited PASS by CoralReef (#12728) and CyanPeak (#12727). D: DONE — BrightForge triaged 11 remaining RED sims (#12730). E: DONE — branch fates decided (#12730). F: DONE — committed to `main` (`ed12ece`, `1fe2b61`, `f04960b`) and deleted `debug/baseline-reverify`. |
-| **Next Step** | Lane closed. `main` is clean except `RESUME_STATE.md` (CyanPeak's agent file — commit or revert at his discretion). Next feature lane is `Host-Loadable Affine Texture` or a small sim de-flake follow-up. |
+| **Task** | RTL efficiency audit — verify selected items from `vdp_efficiency_report.md` |
+| **Status** | **IN-PROGRESS** |
+| **Task ID** | RTL-EFFICIENCY-142 |
+| **Owner** | BrightForge (RTL investigation + fixes) / CyanPeak (code-to-spec review) / CoralReef (doc sync if changes land) / TopazCliff (PM) |
+| **Baseline Commit** | `7e8fd2f` on `main` (post PROJECT-AUDIT-141) |
+| **Latest Auth Mail** | TopazCliff #12733 (lane open: RTL-EFFICIENCY-142) |
+| **Summary** | Review the external efficiency report, verify its claims against current `main`, fix only the items that are real and safe, and reject/ignore the stale or dangerous recommendations. Do not implement the report wholesale — its line numbers are stale and at least one suggestion (`evalStart` move) is backwards. |
+| **Checkpoints** | A: DONE — TopazCliff triage: 3 verified issues (affineTexture `readSync`, `fetchL1` conditional elaboration, SpriteEvaluator tile-count double-increment); 1 dangerous suggestion rejected (`evalStart`); several hygiene items deferred. B: IN-PROGRESS — BrightForge verifies the 3 RTL issues and proposes safe fixes. C: PENDING — CyanPeak code-to-spec review of sprite overflow semantics and any timing changes. D: PENDING — CoralReef doc sync for accepted changes. E: PENDING — commit/merge to `main` after audit PASS. |
+| **Next Step** | BrightForge begins checkpoint B. CyanPeak stands by for checkpoint C. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -159,6 +159,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 
 | Task | Status | Reference |
 |---|---|---|
+| PROJECT-AUDIT-141 — project-wide audit + main-branch consolidation; closed QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140; committed clean baseline to `main` | **DONE** | commits `ed12ece`, `1fe2b61`, `f04960b`, `7e8fd2f`; audits PASS #12721/#12727/#12728/#12730 |
 | WHOLE-VDP-134 — whole-system i80/ESP32-S3 regression baseline before BSRAM optimization (scenarios #1–#5) | **DONE** | scenario #5 PASS on raw-i80 + libvdp-helper paths; copper docs merged `36adcbc`; closeout #12543 |
 | VDP-SOFT-RESET-135 — host-triggered soft reset via `VDP_CTRL[2]`, all 4 stages + register #3/#4 | **DONE** | combined bitstream `c55e944`; BronzeGate HW smoke PASS #12667; CyanPeak audit PASS #12655; docs merged `d41dea8` |
 | RGB565-FULLFRAME-132 — full-frame RGB565 direct-color burst-read controller, sim + STA + HW proof | **DONE** | merge `c8129bd`, formal fix `d668e01`, closeout #12378 |
