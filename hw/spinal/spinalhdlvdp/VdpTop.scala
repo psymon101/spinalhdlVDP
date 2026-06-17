@@ -256,7 +256,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val vTotal = vActive + vFront + vSync + vBack
 
   val hCounter = (Reg(UInt(log2Up(hTotal) bits)) init 0).simPublic()   // simPublic: in-phase display counter for sims (SIM-TEST-DEBT-138)
-  val vCounter = Reg(UInt(log2Up(vTotal) bits)) init 0
+  val vCounter = (Reg(UInt(log2Up(vTotal) bits)) init 0).simPublic()   // simPublic: vblank detection for the atomic-swap sim (I80-FRAME-ATOMIC-SWAP-145)
 
   // Raster counters walk the full timing envelope, not just the visible area.
   when(hCounter === hTotal - 1) {
@@ -977,6 +977,32 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   when(effWrite && effAddr === U(0x0356, 15 bits)) { attrStridePend   := effData(15 downto 0).asUInt; attrStridePendHit   := True }
   when(effWrite && effAddr === U(0x0357, 15 bits)) { bitmapHeightPend := effData(9 downto 0).asUInt;  bitmapHeightPendHit := True }
 
+  // I80-FRAME-ATOMIC-SWAP-145: dedicated double-buffer staging for the bitmap
+  // and attribute base pointers. The host stages all four words (0x0358-0x035B)
+  // then arms the swap (0x035C b0); RTL copies them to the live bitmapBase/
+  // attrBase regs in ONE cycle at the start of vblank (see the commit block).
+  // This is additive to the legacy 0x0351-0x0354 path (which keeps its
+  // commit-at-hCounter0 semantics) so the fetcher never observes a mixed
+  // old-LO/new-HI or old-plane/new-plane base => test07 tearing fix.
+  //   0x0358 BITMAP_BASE_PENDING_LO   0x0359 BITMAP_BASE_PENDING_HI
+  //   0x035A ATTR_BASE_PENDING_LO     0x035B ATTR_BASE_PENDING_HI
+  //   0x035C BITMAP_SWAP_CTRL: b0 = arm request (host sets, RTL auto-clears at
+  //          commit); b1 = committed (sticky, host write-1-to-clear acks it).
+  val bitmapBaseSwapLo = (Reg(UInt(16 bits)) init 0x3000).simPublic()
+  val bitmapBaseSwapHi = (Reg(UInt(7 bits))  init 0).simPublic()
+  val attrBaseSwapLo   = (Reg(UInt(16 bits)) init 0x4000).simPublic()
+  val attrBaseSwapHi   = (Reg(UInt(7 bits))  init 0).simPublic()
+  val swapRequest      = (Reg(Bool()) init False).simPublic()
+  val swapCommitted    = (Reg(Bool()) init False).simPublic()
+  when(effWrite && effAddr === U(0x0358, 15 bits)) { bitmapBaseSwapLo := effData(15 downto 0).asUInt }
+  when(effWrite && effAddr === U(0x0359, 15 bits)) { bitmapBaseSwapHi := effData(6 downto 0).asUInt }
+  when(effWrite && effAddr === U(0x035A, 15 bits)) { attrBaseSwapLo   := effData(15 downto 0).asUInt }
+  when(effWrite && effAddr === U(0x035B, 15 bits)) { attrBaseSwapHi   := effData(6 downto 0).asUInt }
+  when(effWrite && effAddr === U(0x035C, 15 bits)) {
+    when(effData(0)) { swapRequest   := True }   // arm
+    when(effData(1)) { swapCommitted := False }  // W1C ack of committed flag
+  }
+
   when(hCounter === U(0, log2Up(hTotal) bits)) {
     when(layerEnablePendHit) {
       layerEnableReg     := layerEnablePend
@@ -1065,6 +1091,24 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     when(bitmapStridePendHit)  { bitmapStrideReg  := bitmapStridePend;  bitmapStridePendHit  := False }
     when(attrStridePendHit)    { attrStrideReg    := attrStridePend;    attrStridePendHit    := False }
     when(bitmapHeightPendHit)  { bitmapHeightReg  := bitmapHeightPend;  bitmapHeightPendHit  := False }
+  }
+
+  // I80-FRAME-ATOMIC-SWAP-145: vblank-atomic base swap. At the first cycle of
+  // vblank (vCounter===vActive, hCounter===0) copy all four staged base words
+  // to the live regs in ONE cycle, so the fetcher sees either all-old or
+  // all-new bases (never a torn mix). Placed AFTER the per-register hCounter0
+  // commit above, so on the rare cycle a legacy 0x0351-0x0354 write commits at
+  // the same vblank edge, the atomic swap value wins (staged is authoritative).
+  // Auto-clears the request and raises the sticky committed flag for the host.
+  when(hCounter === U(0, log2Up(hTotal) bits) &&
+       vCounter === U(vActive, log2Up(vTotal) bits) &&
+       swapRequest) {
+    bitmapBaseLoReg := bitmapBaseSwapLo
+    bitmapBaseHiReg := bitmapBaseSwapHi
+    attrBaseLoReg   := attrBaseSwapLo
+    attrBaseHiReg   := attrBaseSwapHi
+    swapRequest     := False
+    swapCommitted   := True
   }
   io.layer0TileDecodeMode := tileDecodeModeReg
   io.layer0AttributeMode  := attributeModeReg
@@ -2472,6 +2516,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     bitmapStrideReg := U(512, 16 bits);    bitmapStridePendHit := False
     attrStrideReg   := U(512, 16 bits);    attrStridePendHit   := False
     bitmapHeightReg := U(240, 10 bits);    bitmapHeightPendHit := False
+    // I80-FRAME-ATOMIC-SWAP-145: clear staged base double-buffer + swap flags.
+    bitmapBaseSwapLo := U(0x3000, 16 bits)
+    bitmapBaseSwapHi := U(0, 7 bits)
+    attrBaseSwapLo   := U(0x4000, 16 bits)
+    attrBaseSwapHi   := U(0, 7 bits)
+    swapRequest      := False
+    swapCommitted    := False
     planarCtrlReg := B(0, 16 bits)
     for (p <- 0 until PLANE_COUNT) planeBaseAddrReg(p) := U(0, 23 bits)
     // NOTE: extra raster triggers TR1-3 are conditionally instantiated
