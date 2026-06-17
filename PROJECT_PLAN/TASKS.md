@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-17 (HARDWARE-BASICS-144 IN-PROGRESS; HOST-AFFINE-TEXTURE-143 PAUSED; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
+**Updated:** 2026-06-17 (SDRAM-BANDWIDTH-146 IN-PROGRESS; I80-FRAME-ATOMIC-SWAP-145 DONE; HARDWARE-BASICS-144 DONE; HOST-AFFINE-TEXTURE-143 PAUSED; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,15 +22,15 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | Hardware basics regression / smoke-test baseline |
+| **Task** | SDRAM bandwidth under concurrent full-frame RGB565 write + display fetch |
 | **Status** | **IN-PROGRESS** |
-| **Task ID** | HARDWARE-BASICS-144 |
-| **Owner** | BrightForge (RTL/HW proof) / BronzeGate (firmware/examples) / CoralReef (docs/proof packet) / CyanPeak (code-to-spec audit) / TopazCliff (PM) |
-| **Baseline Commit** | `main @ 22e3122` (post HOST-AFFINE-TEXTURE-143 pause) |
-| **Latest Auth Mail** | TopazCliff #12740 (lane open: HARDWARE-BASICS-144; HOST-AFFINE-TEXTURE-143 paused) |
-| **Summary** | Re-establish a clean, proven hardware baseline before adding new features. Run the existing basic scenarios on Tang Nano 20K, capture proof, and fix or document any regressions. Scope is existing examples only — no new RTL features. Host-loadable affine texture is paused until this baseline is solid. |
-| **Checkpoints** | A: Define scenario matrix and pass/fail criteria. B: Run each scenario on hardware and capture RTSP/photo proof. C: Triage failures — fix in lane or document as known issues. D: Build a proof packet + commit evidence to `kb/hardware_baseline/`. E: CyanPeak code-to-spec / audit. F: Closeout and unpause HOST-AFFINE-TEXTURE-143. |
-| **Next Step** | BrightForge + BronzeGate define the scenario matrix (likely: red screen, scaler bezel, border/palette probe, copper bars/diag, sprite mask, planar white, RGB565 fullframe, i80 stress). |
+| **Task ID** | SDRAM-BANDWIDTH-146 |
+| **Owner** | BrightForge (RTL/sim/synth) / BronzeGate (firmware/test harness) / CoralReef (docs) / CyanPeak (code-to-spec audit) / TopazCliff (PM) |
+| **Baseline Commit** | `main @ <post-I80-FRAME-ATOMIC-SWAP-145 merge>` |
+| **Latest Auth Mail** | TopazCliff #TBD (lane open: SDRAM-BANDWIDTH-146) |
+| **Summary** | Quantify and fix the SDRAM read-bandwidth deficit that appears when the host uploads a full RGB565 back-buffer while the display fetch reads the front-buffer. First seen as lower-frame raggedness in I80-FRAME-ATOMIC-SWAP-145 test07. Scope is diagnostic + RTL sizing; not a controller rewrite unless the diagnosis justifies it. |
+| **Checkpoints** | A: Reproduce in sim/measurement and quantify per-row deficit. B: Size candidate fixes (burst length, prefetch, write throttling, arbitration). C: Implement chosen fix + sim proof. D: Hardware proof with test07. E: Docs + audit. |
+| **Next Step** | BrightForge builds a measurement co-sim that dumps native 640×480 output under concurrent host upload traffic. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -159,6 +159,8 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 
 | Task | Status | Reference |
 |---|---|---|
+| HARDWARE-BASICS-144 — hardware smoke-test baseline on Tang Nano 20K; tests 01–08 flashed and proven, test07 tear moved to I80-FRAME-ATOMIC-SWAP-145 | **DONE** | BronzeGate proofs #12742–#12750/#12752; BronzeGate blocker request #12753 |
+| I80-FRAME-ATOMIC-SWAP-145 — vblank-atomic bitmap/attr base swap + 0x035C i80 readback; merged to main | **DONE** | BrightForge RTL #12766/#12782; BronzeGate firmware proof #12783/#12784; residual bandwidth issue moved to SDRAM-BANDWIDTH-146 |
 | RTL-EFFICIENCY-142 — triage and verify `vdp_efficiency_report.md` recommendations; report debunked, no code changes | **DONE** | BrightForge verification #12735/#12736; dangerous `evalStart` suggestion rejected |
 | PROJECT-AUDIT-141 — project-wide audit + main-branch consolidation; closed QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140; committed clean baseline to `main` | **DONE** | commits `ed12ece`, `1fe2b61`, `f04960b`, `7e8fd2f`; audits PASS #12721/#12727/#12728/#12730 |
 | WHOLE-VDP-134 — whole-system i80/ESP32-S3 regression baseline before BSRAM optimization (scenarios #1–#5) | **DONE** | scenario #5 PASS on raw-i80 + libvdp-helper paths; copper docs merged `36adcbc`; closeout #12543 |
