@@ -6,14 +6,60 @@
 
 #if defined(VDP_HOST_BACKEND_I80_GPIO)
 #include <Arduino.h>
+#if defined(CONFIG_IDF_TARGET_ESP32S3)
+#include "soc/gpio_reg.h"
+#include "soc/soc.h"
+#endif
 
 static bool s_initialized = false;
 static int s_last_error = 0;
+
+#ifndef VDP_I80_CPU_HZ
+#define VDP_I80_CPU_HZ 240000000u
+#endif
 
 static const uint8_t s_i80_data_pins[8] = {
     VDP_PIN_I80_D0, VDP_PIN_I80_D1, VDP_PIN_I80_D2, VDP_PIN_I80_D3,
     VDP_PIN_I80_D4, VDP_PIN_I80_D5, VDP_PIN_I80_D6, VDP_PIN_I80_D7
 };
+
+#if defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(VDP_I80_DISABLE_FAST_GPIO)
+#define VDP_I80_FAST_GPIO 1
+static uint32_t s_i80_half_period_cycles = 8u;
+
+static const uint32_t VDP_I80_DATA_MASK =
+    (1u << VDP_PIN_I80_D0) | (1u << VDP_PIN_I80_D1) |
+    (1u << VDP_PIN_I80_D2) | (1u << VDP_PIN_I80_D3) |
+    (1u << VDP_PIN_I80_D4) | (1u << VDP_PIN_I80_D5) |
+    (1u << VDP_PIN_I80_D6) | (1u << VDP_PIN_I80_D7);
+static const uint32_t VDP_I80_DC_MASK = (1u << VDP_PIN_I80_DC);
+static const uint32_t VDP_I80_CS_MASK = (1u << VDP_PIN_I80_CS_N);
+static const uint32_t VDP_I80_WR_MASK = (1u << VDP_PIN_I80_WR_N);
+static const uint32_t VDP_I80_RD_MASK = (1u << VDP_PIN_I80_RD_N);
+
+static inline void vdp_i80_gpio_set(uint32_t mask)
+{
+    REG_WRITE(GPIO_OUT_W1TS_REG, mask);
+}
+
+static inline void vdp_i80_gpio_clear(uint32_t mask)
+{
+    REG_WRITE(GPIO_OUT_W1TC_REG, mask);
+}
+
+static inline uint32_t vdp_i80_cycle_count(void)
+{
+    uint32_t ccount;
+    __asm__ __volatile__("rsr.ccount %0" : "=a"(ccount));
+    return ccount;
+}
+
+static inline void vdp_i80_fast_delay(void)
+{
+    const uint32_t start = vdp_i80_cycle_count();
+    while ((uint32_t)(vdp_i80_cycle_count() - start) < s_i80_half_period_cycles) {}
+}
+#endif
 
 int vdp_last_error(void) { return s_last_error; }
 
@@ -38,9 +84,14 @@ static void vdp_i80_set_data_input(void)
 
 static void vdp_i80_write_data(uint8_t value)
 {
+#if defined(VDP_I80_FAST_GPIO)
+    vdp_i80_gpio_clear(VDP_I80_DATA_MASK);
+    vdp_i80_gpio_set(((uint32_t)value << VDP_PIN_I80_D0) & VDP_I80_DATA_MASK);
+#else
     for (uint8_t bit = 0; bit < 8; ++bit) {
         digitalWrite(s_i80_data_pins[bit], (value & (uint8_t)(1u << bit)) ? HIGH : LOW);
     }
+#endif
 }
 
 static uint8_t vdp_i80_read_data(void)
@@ -54,16 +105,31 @@ static uint8_t vdp_i80_read_data(void)
 
 static void vdp_i80_pulse_wr(void)
 {
+#if defined(VDP_I80_FAST_GPIO)
+    vdp_i80_gpio_clear(VDP_I80_WR_MASK);
+    vdp_i80_fast_delay();
+    vdp_i80_gpio_set(VDP_I80_WR_MASK);
+    vdp_i80_fast_delay();
+#else
     delayMicroseconds(2);
     digitalWrite(VDP_PIN_I80_WR_N, LOW);
     delayMicroseconds(2);
     digitalWrite(VDP_PIN_I80_WR_N, HIGH);
     delayMicroseconds(2);
+#endif
 }
 
 static void vdp_i80_write_byte(bool data_phase, uint8_t value)
 {
+#if defined(VDP_I80_FAST_GPIO)
+    if (data_phase) {
+        vdp_i80_gpio_set(VDP_I80_DC_MASK);
+    } else {
+        vdp_i80_gpio_clear(VDP_I80_DC_MASK);
+    }
+#else
     digitalWrite(VDP_PIN_I80_DC, data_phase ? HIGH : LOW);
+#endif
     vdp_i80_write_data(value);
     vdp_i80_pulse_wr();
 }
@@ -92,6 +158,10 @@ void vdp_host_init(void)
     digitalWrite(VDP_PIN_I80_WR_N, HIGH);
     digitalWrite(VDP_PIN_I80_RD_N, HIGH);
     digitalWrite(VDP_PIN_I80_DC, LOW);
+#if defined(VDP_I80_FAST_GPIO)
+    vdp_i80_gpio_set(VDP_I80_CS_MASK | VDP_I80_WR_MASK | VDP_I80_RD_MASK);
+    vdp_i80_gpio_clear(VDP_I80_DC_MASK);
+#endif
     vdp_i80_write_data(0x00);
     s_last_error = VDP_HOST_ERR_NONE;
     s_initialized = true;
@@ -99,14 +169,57 @@ void vdp_host_init(void)
 
 void vdp_qspi_init(void) { vdp_host_init(); }
 void vdp_pio_wait_sm_idle(void) {}
-void vdp_host_set_speed_hz(uint32_t hz) { (void)hz; }
+void vdp_host_set_speed_hz(uint32_t hz)
+{
+#if defined(VDP_I80_FAST_GPIO)
+    if (hz == 0u) return;
+    uint32_t half_cycles = VDP_I80_CPU_HZ / (hz * 2u);
+    if (half_cycles < 8u) half_cycles = 8u;
+    s_i80_half_period_cycles = half_cycles;
+#else
+    (void)hz;
+#endif
+}
 void vdp_qspi_set_speed_hz(uint32_t hz) { vdp_host_set_speed_hz(hz); }
 
 uint32_t vdp_read_status(uint8_t sel)
 {
-    (void)sel;
-    s_last_error = VDP_HOST_ERR_RX;
-    return 0;
+    if (!vdp_transport_ready()) return 0;
+    s_last_error = VDP_HOST_ERR_NONE;
+    vdp_i80_set_data_output();
+#if defined(VDP_I80_FAST_GPIO)
+    vdp_i80_gpio_set(VDP_I80_RD_MASK | VDP_I80_WR_MASK);
+    vdp_i80_gpio_clear(VDP_I80_CS_MASK);
+    vdp_i80_fast_delay();
+#else
+    digitalWrite(VDP_PIN_I80_RD_N, HIGH);
+    digitalWrite(VDP_PIN_I80_WR_N, HIGH);
+    digitalWrite(VDP_PIN_I80_CS_N, LOW);
+    delayMicroseconds(5);
+#endif
+    vdp_i80_write_byte(false, 0x04);
+    vdp_i80_write_byte(false, sel);
+    vdp_i80_write_byte(false, 0x00);
+    vdp_i80_write_byte(false, 0x00);
+    vdp_i80_write_byte(false, 0x00);
+    vdp_i80_write_byte(false, 0x00);
+    vdp_i80_set_data_input();
+    delayMicroseconds(2);
+    const uint8_t b0 = vdp_i80_read_byte();
+    const uint8_t b1 = vdp_i80_read_byte();
+    const uint8_t b2 = vdp_i80_read_byte();
+    const uint8_t b3 = vdp_i80_read_byte();
+#if defined(VDP_I80_FAST_GPIO)
+    vdp_i80_gpio_set(VDP_I80_CS_MASK);
+    vdp_i80_gpio_clear(VDP_I80_DC_MASK);
+#else
+    digitalWrite(VDP_PIN_I80_CS_N, HIGH);
+    digitalWrite(VDP_PIN_I80_DC, LOW);
+#endif
+    vdp_i80_set_data_output();
+    vdp_i80_write_data(0x00);
+    return (uint32_t)b0 | ((uint32_t)b1 << 8) |
+           ((uint32_t)b2 << 16) | ((uint32_t)b3 << 24);
 }
 
 void vdp_reg_write(uint32_t addr, uint16_t data)
@@ -132,18 +245,32 @@ void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_word
     for (uint16_t i = 0; i < num_words; ++i) {
         const uint32_t reg_addr = addr + i;
         vdp_i80_set_data_output();
+#if defined(VDP_I80_FAST_GPIO)
+        vdp_i80_gpio_set(VDP_I80_RD_MASK | VDP_I80_WR_MASK);
+        vdp_i80_gpio_clear(VDP_I80_CS_MASK);
+        vdp_i80_fast_delay();
+#else
         digitalWrite(VDP_PIN_I80_RD_N, HIGH);
         digitalWrite(VDP_PIN_I80_WR_N, HIGH);
         digitalWrite(VDP_PIN_I80_CS_N, LOW);
         delayMicroseconds(5);
+#endif
         vdp_i80_write_byte(false, 0x00);
         vdp_i80_write_byte(false, (uint8_t)(reg_addr & 0xFFu));
         vdp_i80_write_byte(false, (uint8_t)((reg_addr >> 8) & 0xFFu));
         vdp_i80_write_byte(true, (uint8_t)(words[i] & 0xFFu));
         vdp_i80_write_byte(true, (uint8_t)((words[i] >> 8) & 0xFFu));
+#if defined(VDP_I80_FAST_GPIO)
+        vdp_i80_gpio_set(VDP_I80_CS_MASK);
+#else
         digitalWrite(VDP_PIN_I80_CS_N, HIGH);
+#endif
     }
+#if defined(VDP_I80_FAST_GPIO)
+    vdp_i80_gpio_clear(VDP_I80_DC_MASK);
+#else
     digitalWrite(VDP_PIN_I80_DC, LOW);
+#endif
     vdp_i80_write_data(0x00);
 }
 
@@ -181,10 +308,16 @@ void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words)
 
     const uint16_t byte_len = (uint16_t)(num_words * 2u);
     vdp_i80_set_data_output();
+#if defined(VDP_I80_FAST_GPIO)
+    vdp_i80_gpio_set(VDP_I80_RD_MASK | VDP_I80_WR_MASK);
+    vdp_i80_gpio_clear(VDP_I80_CS_MASK);
+    vdp_i80_fast_delay();
+#else
     digitalWrite(VDP_PIN_I80_RD_N, HIGH);
     digitalWrite(VDP_PIN_I80_WR_N, HIGH);
     digitalWrite(VDP_PIN_I80_CS_N, LOW);
     delayMicroseconds(5);
+#endif
     vdp_i80_write_byte(false, 0x02);
     vdp_i80_write_byte(false, (uint8_t)(addr & 0xFFu));
     vdp_i80_write_byte(false, (uint8_t)((addr >> 8) & 0xFFu));
@@ -195,8 +328,13 @@ void vdp_sdram_write(uint32_t addr, const uint16_t *words, uint16_t num_words)
         vdp_i80_write_byte(true, (uint8_t)(words[i] & 0xFFu));
         vdp_i80_write_byte(true, (uint8_t)((words[i] >> 8) & 0xFFu));
     }
+#if defined(VDP_I80_FAST_GPIO)
+    vdp_i80_gpio_set(VDP_I80_CS_MASK);
+    vdp_i80_gpio_clear(VDP_I80_DC_MASK);
+#else
     digitalWrite(VDP_PIN_I80_CS_N, HIGH);
     digitalWrite(VDP_PIN_I80_DC, LOW);
+#endif
     vdp_i80_write_data(0x00);
 }
 
