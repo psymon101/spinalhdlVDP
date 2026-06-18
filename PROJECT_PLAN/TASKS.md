@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-18 (CAPTURE-CHAIN-VALIDATION-147 IN-PROGRESS; SDRAM-BANDWIDTH-146 DONE (RTL side exonerated); I80-FRAME-ATOMIC-SWAP-145 DONE; HARDWARE-BASICS-144 DONE; HOST-AFFINE-TEXTURE-143 PAUSED; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
+**Updated:** 2026-06-18 (NATIVE-640-BITMAP-148 IN-PROGRESS; CAPTURE-CHAIN-VALIDATION-147 DONE (capture-chain limitation); SDRAM-BANDWIDTH-146 DONE (RTL side exonerated); I80-FRAME-ATOMIC-SWAP-145 DONE; HARDWARE-BASICS-144 DONE; HOST-AFFINE-TEXTURE-143 PAUSED; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -22,15 +22,15 @@ This section tracks the active lane.
 
 | Field | Value |
 |-------|-------|
-| **Task** | Capture-chain validation for test07 residual artifact |
+| **Task** | Native 640×480 1:1 bitmap display path |
 | **Status** | **IN-PROGRESS** |
-| **Task ID** | CAPTURE-CHAIN-VALIDATION-147 |
-| **Owner** | BronzeGate (hardware proof) / BrightForge (RTL/sim support) / CoralReef (docs) / CyanPeak (audit) / TopazCliff (PM) |
-| **Baseline Commit** | `main @ f0e45eb` |
-| **Latest Auth Mail** | TopazCliff #12811 (lane open: CAPTURE-CHAIN-VALIDATION-147) |
-| **Summary** | Obtain a native HDMI framegrabber capture of test07 to confirm whether the residual horizontal bands / left-edge stepping are caused by the RTSP capture chain (1080p non-integer 2.25× vertical upscale + MJPEG) rather than the VDP RTL. SDRAM-BANDWIDTH-146 CP-A.2 exonerated the RTL path (0 late rows, 0/1920 pixel mismatches under concurrent back-buffer writes). |
-| **Checkpoints** | A: Identify native HDMI capture hardware or fallback pattern. B: Capture test07 natively and compare to RTSP. C: Document capture-chain limitations. D: CyanPeak/CoralReef review and sign-off. |
-| **Next Step** | BronzeGate reports available native HDMI capture options in the lab. |
+| **Task ID** | NATIVE-640-BITMAP-148 |
+| **Owner** | BrightForge (RTL/sim/synth) / BronzeGate (firmware/HW) / CyanPeak (audit) / CoralReef (docs) / TopazCliff (PM) |
+| **Baseline Commit** | `main @ 66b53bc` |
+| **Latest Auth Mail** | TopazCliff #12859 (lane open: NATIVE-640-BITMAP-148) |
+| **Summary** | Implement a native 640×480 1:1 bitmap path. Current RTL hardwires bitmap fetch to 320 source pixels stretched 2× to 640 (col/2 for direct-color, col/8 for indexed 2bpp). This lane makes compositor reads width-aware, fetches 640 source pixels/row, and grows/banks the line buffer. Scaler is repurposed for upscaling sub-native content. Indexed 2bpp native is the initial target; RGB565 native is gated by bandwidth/BSRAM feasibility. |
+| **Checkpoints** | A: bandwidth + BSRAM feasibility (BrightForge). B: width-aware compositor + 640 fetch + buffer (BrightForge). C: sim + synth/PnR ≤46/46 (BrightForge). D: firmware + hardware proof (BronzeGate). E: docs + audit (CoralReef/CyanPeak). |
+| **Next Step** | BrightForge reports bandwidth + BSRAM feasibility; indexed 2bpp first, RGB565 native gated. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -162,6 +162,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 | HARDWARE-BASICS-144 — hardware smoke-test baseline on Tang Nano 20K; tests 01–08 flashed and proven, test07 tear moved to I80-FRAME-ATOMIC-SWAP-145 | **DONE** | BronzeGate proofs #12742–#12750/#12752; BronzeGate blocker request #12753 |
 | I80-FRAME-ATOMIC-SWAP-145 — vblank-atomic bitmap/attr base swap + 0x035C i80 readback; merged to main | **DONE** | BrightForge RTL #12766/#12782; BronzeGate firmware proof #12783/#12784; residual issue moved to SDRAM-BANDWIDTH-146 |
 | SDRAM-BANDWIDTH-146 — RTL display path exonerated under concurrent full-frame RGB565 upload; rate cap not merged; residual reclassified as capture-chain artifact | **DONE** | BrightForge CP-A.2 co-sim #12807; BronzeGate HW cross-check #12805; moved to CAPTURE-CHAIN-VALIDATION-147 |
+| CAPTURE-CHAIN-VALIDATION-147 — residual test07 artifact classified as RTSP/MJPEG/upscale capture-chain limitation, not RTL defect | **DONE** | CyanPeak #12812, CoralReef #12813, BronzeGate row-ID-bar proof #12823 |
 | RTL-EFFICIENCY-142 — triage and verify `vdp_efficiency_report.md` recommendations; report debunked, no code changes | **DONE** | BrightForge verification #12735/#12736; dangerous `evalStart` suggestion rejected |
 | PROJECT-AUDIT-141 — project-wide audit + main-branch consolidation; closed QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140; committed clean baseline to `main` | **DONE** | commits `ed12ece`, `1fe2b61`, `f04960b`, `7e8fd2f`; audits PASS #12721/#12727/#12728/#12730 |
 | WHOLE-VDP-134 — whole-system i80/ESP32-S3 regression baseline before BSRAM optimization (scenarios #1–#5) | **DONE** | scenario #5 PASS on raw-i80 + libvdp-helper paths; copper docs merged `36adcbc`; closeout #12543 |
