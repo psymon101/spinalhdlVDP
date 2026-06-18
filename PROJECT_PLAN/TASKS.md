@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-18 (NATIVE-640-BITMAP-148 IN-PROGRESS; CAPTURE-CHAIN-VALIDATION-147 DONE (capture-chain limitation); SDRAM-BANDWIDTH-146 DONE (RTL side exonerated); I80-FRAME-ATOMIC-SWAP-145 DONE; HARDWARE-BASICS-144 DONE; HOST-AFFINE-TEXTURE-143 PAUSED; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
+**Updated:** 2026-06-18 (NATIVE-640-BITMAP-148 IN-PROGRESS; RTL-BSRAM-OPTIMIZATION-149 IN-PROGRESS; CAPTURE-CHAIN-VALIDATION-147 DONE (capture-chain limitation); SDRAM-BANDWIDTH-146 DONE (RTL side exonerated); I80-FRAME-ATOMIC-SWAP-145 DONE; HARDWARE-BASICS-144 DONE; HOST-AFFINE-TEXTURE-143 PAUSED; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -91,6 +91,14 @@ This section tracks the active lane.
 - **Scope:** Phase 1 attempted: `byteFifo` 256→32 reclaims 0 BSRAM; `NBanks` 3→2 breaks rendering (2560 mismatches). The 3-bank timing is load-bearing. Phase 1 will not be merged. **Phase 2 sprite descriptor/FIFO reductions are paused by owner directive.** Phase 3 structural consolidation remains parked.
 - **Depends on:** VDP-SOFT-RESET-135 Stage 3 sim PASS
 - **Validation:** N/A — Phase 1 abandoned per BrightForge #12648 / TopazCliff #12649.
+
+### Priority 4b — RTL BSRAM Structural Optimization (RTL-BSRAM-OPTIMIZATION-149)
+- **Status:** **IN-PROGRESS**
+- **Owner:** BrightForge (RTL/sim/synth) / CyanPeak (audit) / BronzeGate (HW regression) / CoralReef (docs)
+- **Scope:** Three structural `Mem` refactors with zero functional/timing impact: flatten `Seq.fill(Mem)` in `BitplaneRowFetch`, pack sprite matrices in `SpriteEvaluator`, fold double buffers in `LineBuffer`/`SdramTileFetch`/`SdramTileAttributeFetch`. Potential reclaim 9–11 BSRAM blocks.
+- **Depends on:** I80-FRAME-ATOMIC-SWAP-145 DONE; SDRAM-BANDWIDTH-146 RTL side CLOSED
+- **Validation:** Existing sims PASS; synth ≤46/46 BSRAM, no timing regression; HARDWARE-BASICS-144 smoke tests PASS on final bitstream.
+- **Latest Auth Mail:** TopazCliff #12864 (lane open)
 
 ### Priority 5a — Sim Test Debt Cleanup (SIM-TEST-DEBT-138)
 - **Status:** **DONE** (commit authorized #12715)
