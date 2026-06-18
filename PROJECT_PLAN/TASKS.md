@@ -28,9 +28,9 @@ This section tracks the active lane.
 | **Owner** | BrightForge (RTL/sim/synth) / BronzeGate (firmware/HW) / CyanPeak (audit) / CoralReef (docs) / TopazCliff (PM) |
 | **Baseline Commit** | `main @ 66b53bc` |
 | **Latest Auth Mail** | TopazCliff #12859 (lane open: NATIVE-640-BITMAP-148) |
-| **Summary** | Implement a native 640×480 1:1 bitmap path. Current RTL hardwires bitmap fetch to 320 source pixels stretched 2× to 640 (col/2 for direct-color, col/8 for indexed 2bpp). This lane makes compositor reads width-aware, fetches 640 source pixels/row, and grows/banks the line buffer. Scaler is repurposed for upscaling sub-native content. Indexed 2bpp native is the initial target; RGB565 native is gated by bandwidth/BSRAM feasibility. |
-| **Checkpoints** | A: bandwidth + BSRAM feasibility (BrightForge). B: width-aware compositor + 640 fetch + buffer (BrightForge). C: sim + synth/PnR ≤46/46 (BrightForge). D: firmware + hardware proof (BronzeGate). E: docs + audit (CoralReef/CyanPeak). |
-| **Next Step** | BrightForge reports bandwidth + BSRAM feasibility; indexed 2bpp first, RGB565 native gated. |
+| **Summary** | Implement a native 640×480 1:1 bitmap path. Current RTL hardwires bitmap fetch to 320 source pixels stretched 2× to 640 (col/2 for direct-color, col/8 for indexed 2bpp). This lane makes compositor reads width-aware, fetches 640 source pixels/row, and grows/banks the line buffer. Scaler is repurposed for upscaling sub-native content. Indexed 2bpp native is the initial target; RGB565 native is gated by bandwidth/BSRAM feasibility. BSRAM feasibility is measured after RTL-BSRAM-OPTIMIZATION-149 lands. |
+| **Checkpoints** | A: bandwidth co-sim now; BSRAM trial-synth post-149 (BrightForge). B: width-aware compositor + 640 fetch + buffer (BrightForge). C: sim + synth/PnR ≤46/46 (BrightForge). D: firmware + hardware proof (BronzeGate). E: docs + audit (CoralReef/CyanPeak). |
+| **Next Step** | BrightForge runs native-640 bandwidth co-sim (indexed 2bpp + RGB565); BSRAM gate waits for post-149 baseline. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -95,10 +95,10 @@ This section tracks the active lane.
 ### Priority 4b — RTL BSRAM Structural Optimization (RTL-BSRAM-OPTIMIZATION-149)
 - **Status:** **IN-PROGRESS**
 - **Owner:** BrightForge (RTL/sim/synth) / CyanPeak (audit) / BronzeGate (HW regression) / CoralReef (docs)
-- **Scope:** Three structural `Mem` refactors with zero functional/timing impact: flatten `Seq.fill(Mem)` in `BitplaneRowFetch`, pack sprite matrices in `SpriteEvaluator`, fold double buffers in `LineBuffer`/`SdramTileFetch`/`SdramTileAttributeFetch`. Potential reclaim 9–11 BSRAM blocks.
+- **Scope:** Two structural `Mem` refactors with zero functional/timing impact: (3) fold double buffers in `LineBuffer`/`SdramTileFetch`/`SdramTileAttributeFetch`, then (2) pack sprite matrices in `SpriteEvaluator`. Refactor 1 (`BitplaneRowFetch` flatten) dropped because the target `Mem` is `readAsync` and already maps to LUTRAM/SSRAM, not BSRAM. Potential reclaim ~5–7 BSRAM blocks.
 - **Depends on:** I80-FRAME-ATOMIC-SWAP-145 DONE; SDRAM-BANDWIDTH-146 RTL side CLOSED
 - **Validation:** Existing sims PASS; synth ≤46/46 BSRAM, no timing regression; HARDWARE-BASICS-144 smoke tests PASS on final bitstream.
-- **Latest Auth Mail:** TopazCliff #12864 (lane open)
+- **Latest Auth Mail:** TopazCliff #12870 (revised scope)
 
 ### Priority 5a — Sim Test Debt Cleanup (SIM-TEST-DEBT-138)
 - **Status:** **DONE** (commit authorized #12715)
