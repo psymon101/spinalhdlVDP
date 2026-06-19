@@ -53,5 +53,5 @@ The current Tang Nano 20K deployment uses an **8-bit parallel i80 bus** driven b
 2. **Firmware Personality:** Platform-specific personality (register shims, initialization sequences, asset management) resides entirely in `libvdp` or host-side firmware.
 3. **Quirk Isolation:** Platform-specific quirks are handled by the host library translating to generic Mode0 register writes.
 
-Roadmap: [`PROJECT_PLAN/MODE0_PLANNING.md`](PROJECT_PLAN/MODE0_PLANNING.md).
-User guide: [`VDP_PROGRAMMING_GUIDE.md`](VDP_PROGRAMMING_GUIDE.md).
+Roadmap: [PROJECT_PLAN/archive/planning/MODE0_PLANNING.md](PROJECT_PLAN/archive/planning/MODE0_PLANNING.md).
+User guide: [VDP_PROGRAMMING_GUIDE.md](VDP_PROGRAMMING_GUIDE.md).

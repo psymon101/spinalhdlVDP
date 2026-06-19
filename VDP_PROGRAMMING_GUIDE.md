@@ -670,5 +670,70 @@ Use `firmware/libvdp/vdp_i80.h` for transport-agnostic calls such as `vdp_reg_wr
 > [!WARNING]
 > **Full-Screen RGB565 Bitmap Limitation (legacy warning):** The power-on reset (POR) default bases for the bitmap layer are `0x3000` (Bitmap) and `0x4000` (Attribute). These defaults overlap after 8 rows when rendering direct-color (RGB565) mode at a 512-byte stride. For full-screen RGB565 bitmaps, you **must** configure non-overlapping bases (e.g., `0x100000` and `0x200000`) using registers `0x0351..0x0354`. The defaults are retained for backward compatibility with legacy indexed 1/2bpp mode demos.
 
+## 12. Native 640×480 Mode Scope and Limitations
+
+Mode0 is being extended to support native 640×480 1:1 display modes (under active development in the `NATIVE-640-BITMAP-148` lane). The 16-bit SDRAM bus at 40.5 MHz provides roughly 56 MB/s effective bandwidth, so the supported configurations are strictly budgeted:
+
+- **2bpp / 4bpp Indexed Modes**: Comfortable gaming targets at native 640×480. Full layer composition (Layer 0, Layer 1, and Sprites) is expected to fit within the SDRAM budget.
+- **8bpp Indexed Mode**: Feasible but tight. Concurrent tile fetches, sprites, and host upload may require limiting active layers or sprite count; exact limits are being validated in `NATIVE-640-BITMAP-148` CP-A.
+- **16bpp Direct-Color (RGB565) Mode**: **Workbench/static-use only**. Fetching 640 RGB565 pixels per line consumes most of the available SDRAM bandwidth; therefore, sprites and background layers are disabled in this mode to prevent FIFO underflow.
+
+Developers should target 2bpp/4bpp indexed modes for native 640×480 action/gaming content, use 8bpp indexed when the extra colors are worth the tighter bandwidth budget, and restrict RGB565 native 640×480 to static screens, simple GUIs, or Workbench displays without active overlay layers or hardware sprites.
+
+## 13. HAM6 Bitmap Mode (Amiga Hold-And-Modify)
+
+HAM6 provides authentic Amiga-style Hold-And-Modify graphics. It uses a stateful per-scanline colour accumulator instead of a per-pixel palette lookup, which lets the bitmap express many distinct colours from a small base palette.
+
+### Enabling HAM6
+
+Set `BITMAP_CTRL` (`0x0350`) to `0x0007u`:
+
+- `ENABLE=1`
+- `BPP=0b11` (HAM6)
+- `CELL_WIDTH_LOG2=0b0000`
+
+HAM6 reuses the existing RGB565 direct-colour fetch and output path, so `BITMAP_BASE`, `ATTR_BASE`, `BITMAP_STRIDE`, and `ATTR_STRIDE` obey the same 32-byte alignment rules as RGB565 direct-colour mode.
+
+### Pixel format
+
+Each source pixel is **one byte** (320 source pixels/row, stretched ×2 to 640 display columns). Bits `[7:6]` are unused.
+
+```text
+[5:4]  Control
+[3:0]  Data
+```
+
+| Control | Meaning | Effect |
+|---|---|---|
+| `00` | SET | Load accumulator from `palette[data]` (data = 0..15). Base colours are truncated to 12-bit `R4:G4:B4`. |
+| `01` | Modify Blue | Replace the blue channel of the accumulator with `data` (4-bit, expanded to 8-bit). |
+| `10` | Modify Red | Replace the red channel of the accumulator with `data`. |
+| `11` | Modify Green | Replace the green channel of the accumulator with `data`. |
+
+The 12-bit `R4:G4:B4` accumulator is expanded back to 24-bit `R8:G8:B8` by bit replication before it reaches the display path.
+
+### Setup sequence
+
+1. Load the 16 SET base colours into `palette[0..15]`. These are the only colours that can be loaded directly by a SET pixel; all other pixels modify the previous colour.
+2. Configure non-overlapping `BITMAP_BASE` and `ATTR_BASE` (e.g., `0x100000` and `0x200000`).
+3. Write `BITMAP_CTRL = 0x0007u` at a vblank-safe point.
+4. The accumulator resets to `palette[0]` at the start of every scanline, so ensure `palette[0]` is a sensible default/background colour.
+
+### Example
+
+```c
+// Load 16 base colours into palette[0..15] first.
+// Then enable HAM6 bitmap fetch.
+vdp_reg_write(VDP_MODE0_REG_BITMAP_BASE_LO,    0x0000u);
+vdp_reg_write(VDP_MODE0_REG_BITMAP_BASE_HI,    0x0010u); // 0x100000
+vdp_reg_write(VDP_MODE0_REG_ATTR_BASE_LO,      0x0000u);
+vdp_reg_write(VDP_MODE0_REG_ATTR_BASE_HI,      0x0020u); // 0x200000
+vdp_reg_write(VDP_MODE0_REG_BITMAP_STRIDE,     320u);    // 32-byte aligned
+vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL,       0x0007u); // enable + HAM6
+```
+
+> [!IMPORTANT]
+> HAM6 is a **line-order-sensitive** format. Because each pixel depends on the accumulator state of all previous pixels in the same scanline, random access within a row is not meaningful and row content must be authored sequentially from left to right.
+
 ---
 *End of Guide.*

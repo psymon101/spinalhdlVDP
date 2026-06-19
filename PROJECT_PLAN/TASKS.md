@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-19 (NATIVE-640-BITMAP-148 scope revised per `PROJECT_PLAN/REVISED_PLATFORM_ANALYSIS.md`; SOFTCORE-INTEGRATION-166 PARKED; I80-GENERIC-HOST-IF-172 and Phase 1 platform lanes SPRITE-FLIP-XY-168 / PER-SPRITE-PRIORITY-169 / COLOR-MATH-ALU-170 / HAM-DECODER-171 OPENED; BSRAM-L1-GATE-154 IMPLEMENTATION DONE / AWAITING AUDIT; SPRITE-BSRAM-PROBE-153 DONE; RTL-BSRAM-OPTIMIZATION-149 DONE; FULL-DOC-AUDIT-151 REVIEW / CoralReef escalation active.)
+**Updated:** 2026-06-19 (HAM-DECODER-171 IN-PROGRESS; NATIVE-640-BITMAP-148 scope revised per `PROJECT_PLAN/REVISED_PLATFORM_ANALYSIS.md`; SOFTCORE-INTEGRATION-166 PARKED; I80-GENERIC-HOST-IF-172 and Phase 1 platform lanes SPRITE-FLIP-XY-168 / PER-SPRITE-PRIORITY-169 / COLOR-MATH-ALU-170 OPENED; FULL-DOC-AUDIT-151 DONE via CyanPeak user-directed override; BSRAM-L1-GATE-154 IMPLEMENTATION DONE / AWAITING AUDIT; SPRITE-BSRAM-PROBE-153 DONE; RTL-BSRAM-OPTIMIZATION-149 DONE.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -46,17 +46,17 @@ This section tracks the active lane.
 - **Validation:** Docs consistent with `mode0_regs.json`; canonical example compiles; CyanPeak audit PASS (#12437); branch merged to `main` @ `c98ec03`.
 
 ### Priority 0b — Full Doc-to-Code Audit (FULL-DOC-AUDIT-151)
-- **Status:** **IN-PROGRESS / CYANPEAK DOC-ACCURACY PASS ACTIVE**
-- **Owner:** CyanPeak (code-to-spec + doc accuracy, **user-directed override**) / CoralReef (consistency, **overdue**) / BronzeGate (firmware helper validation) / BrightForge (RTL escalations)
+- **Status:** **DONE**
+- **Owner:** CyanPeak (code-to-spec + doc accuracy, **user-directed override**) / CoralReef (consistency, **overdue / bypassed**) / BronzeGate (firmware helper validation) / BrightForge (RTL escalations)
 - **Scope:** PM-activated consistency sweep across `VDP_PROGRAMMING_GUIDE.md`, `MODE0_REGISTER_BUS_SPEC.md`, `TECH_SPEC_HOST_INTERFACE_AND_COPPER.md`, libvdp helper headers, examples, and `mode0_regs.json`. Extra attention to new decisions: 22-pin generic i80 host interface, native-640 scope revision, parked softcore, new platform emulation lanes.
-- **Override note:** CoralReef has not replied to #12892 / #12916 / #12923 (deadline 2026-06-20 12:00 UTC). The user directed PM to have CyanPeak ensure all docs/guides are up to date. CyanPeak is therefore authorized to perform the doc-accuracy pass and make doc-only fixes without waiting for CoralReef.
+- **Close-out:** CyanPeak completed the doc-accuracy pass (#12938), fixed broken links, added native-640 scope to `VDP_PROGRAMMING_GUIDE.md`, verified the 22-pin i80 spec, and updated `DOC_AUDIT_FINDINGS.md` findings #16/#17. PM corrected one SDRAM-width error in §12 and signed off.
 - **Depends on:** None
-- **Validation:** CyanPeak code-to-spec PASS (#12890); BronzeGate helper review PASS (#12891); BrightForge accepted RTL escalations into follow-up lane I80-STATUS-DECODE-152 (#12897 / TopazCliff #12900); CyanPeak doc-accuracy pass in progress (#12933).
+- **Validation:** CyanPeak code-to-spec PASS (#12890); BronzeGate helper review PASS (#12891); BrightForge accepted RTL escalations into follow-up lane I80-STATUS-DECODE-152 (#12897 / TopazCliff #12900); CyanPeak doc-accuracy PASS (#12938); PM sign-off DONE.
 - **Checkpoints:**
   - **A:** DONE (#12886/#12887) — 15 findings triaged; doc-only findings fixed; helper-level findings fixed in firmware; two RTL items escalated.
-  - **B:** IN-PROGRESS — CyanPeak PASS (#12890), BronzeGate PASS (#12891), BrightForge escalation acceptance DONE (#12897 → #12900). CoralReef consistency review **overdue / bypassed by user direction**; CyanPeak now owns doc-accuracy.
+  - **B:** DONE — CyanPeak PASS (#12890), BronzeGate PASS (#12891), BrightForge escalation acceptance DONE (#12897 → #12900). CoralReef consistency review **overdue / bypassed by user direction**; CyanPeak completed doc-accuracy.
   - **C:** Escalated to **I80-STATUS-DECODE-152** after NATIVE-640-BITMAP-148 CP-A — implement i80 `READ_STATUS` opcode `0x04` and `0x0323` upload-status-clear decode.
-- **Latest Auth Mail:** TopazCliff #12933 (CyanPeak authorized to take doc-accuracy pass)
+- **Latest Auth Mail:** TopazCliff #12938 (CyanPeak doc-accuracy PASS; PM close-out)
 
 ### Priority 0c — i80 Status Decode and Upload-Clear (I80-STATUS-DECODE-152)
 - **Status:** **QUEUED / WAITING**
@@ -94,7 +94,7 @@ This section tracks the active lane.
 - **Status:** **PARKED**
 - **Owner:** BrightForge (RTL/sim/synth) / BronzeGate (firmware bootstrap) / CyanPeak (code-to-spec + sourcing audit) / CoralReef (docs) / TopazCliff (PM)
 - **Scope:** Add an optional, compile-time-gated bootstrap softcore to `TopTang20kHdmi`. Default `enableSoftcore=false` keeps the production bitstream unchanged. When enabled, a Murax-style VexRiscv core boots from on-chip IRAM, optionally initializes SDRAM and uploads a default scene, then hands off to the ESP32-S3/i80 host.
-- **Park reason:** BrightForge CP-A trial-synth showed a cacheless 4 KB Murax costs **6 BSRAM** (not the assumed 2). With an FF/async register file the best realistic case is **4 BSRAM**, leaving only **2 free** at 44/46. The user directed PM to remove the softcore from the function list for now; revisit when there is a stronger use case or more BSRAM headroom.
+- **Park reason:** BrightForge CP-A trial-synth showed a cacheless 4 KB Murax costs **6 BSRAM** (not the assumed 2). With an FF/async register file the best realistic case is **4 BSRAM**, leaving only **2 free** at 44/46. The user confirmed on 2026-06-19 that the softcore must not be reopened; revisit only on explicit owner direction.
 - **Depends on:** SOFTCORE-SCOPE-165 DONE; NATIVE-640-BITMAP-148 CP-A should complete before any RegBus master integration (BSRAM headroom decision).
 - **Validation:**
   - CP-A: VexRiscv source vended as pinned git submodule; actual BSRAM/LUT/FF/DSP/timing delta vs baseline reported and approved.
@@ -106,7 +106,8 @@ This section tracks the active lane.
   - **B:** (pending) — RegBus master integration + `RegBusArbiter` sizing review.
   - **C:** (pending) — BronzeGate bootstrap binary + hardware proof.
   - **D:** (pending) — Doc sync.
-- **Latest Auth Mail:** TopazCliff #12931 (CP-A hold pending scope decision); TopazCliff #12933 (softcore parked)
+- **Latest Auth Mail:** TopazCliff #12943 (user confirmed: do not reopen softcore)
+- **Reference:** `PROJECT_PLAN/SOFTCORE_NOTES.md`
 
 ### Priority 0g — Generic 22-Pin i80 Host Interface (I80-GENERIC-HOST-IF-172)
 - **Status:** **OPENED**
@@ -174,8 +175,9 @@ This section tracks the active lane.
   - **E:** Doc update.
 - **Latest Auth Mail:** —
 
+
 ### Priority 0k — HAM Decoder (HAM-DECODER-171)
-- **Status:** **OPENED**
+- **Status:** **IN-PROGRESS**
 - **Owner:** BrightForge (RTL/sim/synth) / CyanPeak (code-to-spec) / BronzeGate (Amiga test asset) / CoralReef (docs)
 - **Scope:** Add a Hold-And-Modify decoder for authentic Amiga HAM mode. 6-bit per-pixel control selects: set color (12-bit RGB), modify R, modify G, or modify B. Output is RGB565. Estimated 0 BSRAM, ~150–300 LUTs. Must be gated so it does not affect non-HAM modes.
 - **Depends on:** None; best integrated behind a bitmap-mode configuration bit.
@@ -184,12 +186,12 @@ This section tracks the active lane.
   - Non-HAM modes unaffected.
   - Synth clean.
 - **Checkpoints:**
-  - **A:** Add HAM control state + RGB accumulator; hook into bitmap fetch output.
-  - **B:** Sim proof with reference image.
-  - **C:** Synth measurement.
-  - **D:** BronzeGate Amiga HAM asset + hardware proof.
-  - **E:** Doc update.
-- **Latest Auth Mail:** —
+  - **A:** DONE — BrightForge built `HamDecoder.scala` + `HamDecoderSim` PASS; PM approved packing/contract (#12951).
+  - **B:** DONE — `HamDecoder` wired into VdpTop bitmap fill, gated on bpp=0b11; `HamDecoderSim` + `BitmapDirectColorSim` PASS (#12954).
+  - **C:** DONE — Synth: 0 BSRAM, +229 LUT, +206 FF, timing +5.328 / +0.074 ns, TNS=0 (#12954).
+  - **D:** IN-PROGRESS — BronzeGate Amiga HAM asset + hardware proof.
+  - **E:** IN-PROGRESS — CoralReef folds HAM docs into `FULL-DOC-AUDIT-151` consolidation commit (#12956).
+- **Latest Auth Mail:** TopazCliff #12955 (CP-B/C approved; doc handling directed)
 
 ### Priority 1 — libvdp Scaler Register Exposure
 - **Status:** **DONE**

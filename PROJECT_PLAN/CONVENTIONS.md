@@ -178,7 +178,7 @@ Per-platform fidelity rules moved to `kb/<Adapter>/README.md` (2026-05-10).
 - **Primary Goal:** Visible output equivalence.
 - **Substrate Use:** Shared `Mode0` capabilities may exceed original platform limits.
 - **Fidelity Focus:** Palette/DAC behavior, borders, raster splits, and layering.
-- **Guidance:** See `PROJECT_PLAN/PLATFORM_ADAPTERS.md` §Visual Fidelity Policy.
+- **Guidance:** See `PROJECT_PLAN/archive/design_notes/PLATFORM_ADAPTERS.md` §Visual Fidelity Policy.
 
 ---
 

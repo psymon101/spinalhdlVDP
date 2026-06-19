@@ -3,20 +3,20 @@
 **Updated:** 2026-06-12 (RGB565-FULLFRAME-132 active; VOODOO-ADOPTION plan drafted; FORMAL-131 and REGINFRA-130 closed.)
 **Purpose:** Entry point for the `PROJECT_PLAN/` documentation set.
 
-## Reading Order
+## Reading Order (Active Specs & Plans)
 
 1. `PROJECT_PLAN.md` (this file)
-2. `MODE0_PLANNING.md`
-3. `PLATFORM_ADAPTERS.md`
-4. `ASSESSMENT.md`
-5. `TASK_TEMPLATE.md`
-6. `TASKS.md`
-7. `VOODOO_ADOPTION_PLAN.md`
-8. `CONVENTIONS.md`
-9. `PLATFORM.md`
-10. `REPO_STRUCTURE.md`
-11. `GLOSSARY.md`
-12. `DESIGN_NOTE_CHUNKY_CORE_PLANAR_COMPAT.md`
+2. `PROJECT_VISION.md` (core vision and priorities)
+3. `MODE0_REGISTER_BUS_SPEC.md` (authoritative register mappings)
+4. `TECH_SPEC_HOST_INTERFACE_AND_COPPER.md` (host protocols, instruction sets)
+5. `PLATFORM.md` (board/hardware constraints and clock configs)
+6. `REPO_STRUCTURE.md` (directory organization and placement rules)
+7. `CONVENTIONS.md` (naming conventions and architecture guidelines)
+8. `GLOSSARY.md` (terminology definitions)
+9. `TASK_TEMPLATE.md` (specification template for tasks)
+10. `TASKS.md` (active task ledger and backlog)
+
+For historical or deprecated reference documents, see the [PROJECT_PLAN/archive/](archive/) directory (e.g., [MODE0_PLANNING.md](archive/planning/MODE0_PLANNING.md), [ASSESSMENT.md](archive/planning/ASSESSMENT.md), [PLATFORM_ADAPTERS.md](archive/design_notes/PLATFORM_ADAPTERS.md)).
 
 If these documents disagree:
 
@@ -33,7 +33,7 @@ The project has one recently closed critical-path RTL lane and one active docs/e
 - **RGB565-FULLFRAME-132** — closed. RGB565 full-frame direct-color display correctness proven on silicon (burst-read SDRAM controller @ 40.5 MHz, merged to `main` @ `c8129bd` / `d668e01`).
 - **RGB565-FULLFRAME-DOCS-133** — done. Host-facing documentation and examples were updated so the RGB565 feature is usable without reading RTL; merged to `main` @ `c98ec03`.
 
-The long-term strategic roadmap is in [`VOODOO_ADOPTION_PLAN.md`](VOODOO_ADOPTION_PLAN.md).
+The long-term strategic roadmap and architectural principles are in [PROJECT_VISION.md](PROJECT_VISION.md).
 
 **Host interface:** the canonical Tang Nano 20K host path is **i80/ESP32-S3**. The legacy QSPI path remains supported on Pico 2 and older ESP8266/ESP32 bench setups but is retired as the primary development target.
 

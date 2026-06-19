@@ -277,15 +277,37 @@ All canonical documentation under `PROJECT_PLAN/`, `docs/`, `firmware/`, and any
 - **Owner:** TopazCliff
 - **Verifier:** CoralReef
 
+### #16 — Broken links and references to archived MODE0_PLANNING.md and other retired docs
+- **Status:** `VERIFIED`
+- **Reporter:** CyanPeak (accuracy pass)
+- **Area:** Documentation links
+- **Doc files affected:** `README.md`, `PROJECT_PLAN/PROJECT_PLAN.md`, `PROJECT_PLAN/TASK_TEMPLATE.md`
+- **Issue:** Several documents still referenced `PROJECT_PLAN/MODE0_PLANNING.md` or other planning docs (e.g. `PLATFORM_ADAPTERS.md`, `ASSESSMENT.md`) at their original paths despite those files being moved to `PROJECT_PLAN/archive/`.
+- **Fix:** Updated the references to point to their archived paths (`PROJECT_PLAN/archive/planning/MODE0_PLANNING.md`, etc.), cleaned up backticks in link markup to follow formatting guidelines, and updated `PROJECT_PLAN.md`'s Reading Order list to reflect active files. CoralReef follow-up: also corrected the stale path in `PROJECT_PLAN/CONVENTIONS.md` line 181 to `PROJECT_PLAN/archive/design_notes/PLATFORM_ADAPTERS.md`.
+- **Severity:** Low
+- **Owner:** CyanPeak
+- **Verifier:** CyanPeak
+
+### #17 — VDP_PROGRAMMING_GUIDE.md missing Native-640 scope and limitations
+- **Status:** `VERIFIED`
+- **Reporter:** TopazCliff / CyanPeak (accuracy pass)
+- **Area:** Programming Guide / Native-640
+- **Doc files affected:** `VDP_PROGRAMMING_GUIDE.md`
+- **Issue:** The guide had no description or scope definition for the native 640×480 display capabilities, including its SDRAM bandwidth limitations.
+- **Fix:** Added Section 12 detailing the native-640 scope (2bpp/4bpp as comfortable gaming targets, 8bpp as tight but feasible, 16bpp direct-color RGB565 as Workbench/static-use only with background layers/sprites disabled due to SDRAM bandwidth constraints). PM corrected SDRAM bus width from 32-bit to 16-bit after initial draft.
+- **Severity:** Medium
+- **Owner:** CyanPeak
+- **Verifier:** CyanPeak
+
 ---
 
 ## Close-out Checklist
 
 | Gate | Owner | Status | Evidence / Note |
 |------|-------|--------|-----------------|
-| All findings logged with fix or explicit escalation | TopazCliff | ✓ | 15 findings: 13 `FIXED`, 2 `FIXED/ESCALATED` (#3, #4) |
+| All findings logged with fix or explicit escalation | TopazCliff | ✓ | 17 findings logged and triaged |
 | Code-to-spec accuracy review | CyanPeak | ✓ | Verified in reply #12890 |
-| Doc consistency review | CoralReef | ⏳→✓ | No reply received (#12887/#12892). PM reviewed docs directly during close-out and accepted the consistency state; CoralReef may file a follow-up if a contradiction is found. |
+| Doc consistency review | CoralReef | ✓ | User-directed takeover; CoralReef completed consistency review and fixed one stale path in `CONVENTIONS.md` |
 | Firmware helper fixes reviewed/validated | BronzeGate | ✓ | Verified in reply #12891 |
 | RTL escalations accepted & target lanes set | BrightForge | ✓ | Verified in reply #12897 |
-| PM sign-off | TopazCliff | ✓ | Audit merged to `main` @ `f267acc` |
+| PM sign-off | TopazCliff | ✓ | Close-out 2026-06-19; one SDRAM-width correction applied to VDP_PROGRAMMING_GUIDE.md §12 |
