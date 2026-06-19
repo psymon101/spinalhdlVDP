@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-19 (NATIVE-640-BITMAP-148 IN-PROGRESS; BSRAM-L1-GATE-154 IMPLEMENTATION DONE / AWAITING AUDIT; SPRITE-BSRAM-PROBE-153 DONE (0 BSRAM from descCount 32→16); RTL-BSRAM-OPTIMIZATION-149 DONE; CAPTURE-CHAIN-VALIDATION-147 DONE (capture-chain limitation); SDRAM-BANDWIDTH-146 DONE (RTL side exonerated); I80-FRAME-ATOMIC-SWAP-145 DONE; HARDWARE-BASICS-144 DONE; HOST-AFFINE-TEXTURE-143 PAUSED; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
+**Updated:** 2026-06-19 (NATIVE-640-BITMAP-148 scope revised per `PROJECT_PLAN/REVISED_PLATFORM_ANALYSIS.md`; SOFTCORE-INTEGRATION-166 PARKED; I80-GENERIC-HOST-IF-172 and Phase 1 platform lanes SPRITE-FLIP-XY-168 / PER-SPRITE-PRIORITY-169 / COLOR-MATH-ALU-170 / HAM-DECODER-171 OPENED; BSRAM-L1-GATE-154 IMPLEMENTATION DONE / AWAITING AUDIT; SPRITE-BSRAM-PROBE-153 DONE; RTL-BSRAM-OPTIMIZATION-149 DONE; FULL-DOC-AUDIT-151 REVIEW / CoralReef escalation active.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,11 +26,11 @@ This section tracks the active lane.
 | **Status** | **IN-PROGRESS** |
 | **Task ID** | NATIVE-640-BITMAP-148 |
 | **Owner** | BrightForge (RTL/sim/synth) / BronzeGate (firmware/HW) / CyanPeak (audit) / CoralReef (docs) / TopazCliff (PM) |
-| **Baseline Commit** | `main @ 252cba4` |
+| **Baseline Commit** | `main @ 62fe3d9` |
 | **Latest Auth Mail** | TopazCliff #12859 (lane open: NATIVE-640-BITMAP-148) |
-| **Summary** | Implement a native 640×480 1:1 bitmap path. Current RTL hardwires bitmap fetch to 320 source pixels stretched 2× to 640 (col/2 for direct-color, col/8 for indexed 2bpp). This lane makes compositor reads width-aware, fetches 640 source pixels/row, and grows/banks the line buffer. Scaler is repurposed for upscaling sub-native content. Indexed 2bpp native is the initial target; RGB565 native is gated by bandwidth/BSRAM feasibility. RTL-BSRAM-OPTIMIZATION-149 is now DONE (40/46 BSRAM used, 6 free), so 148's BSRAM trial-synth can proceed on that baseline. |
-| **Checkpoints** | A: bandwidth co-sim now; BSRAM trial-synth post-149 (BrightForge). B: width-aware compositor + 640 fetch + buffer (BrightForge). C: sim + synth/PnR ≤46/46 (BrightForge). D: firmware + hardware proof (BronzeGate). E: docs + audit (CoralReef/CyanPeak). |
-| **Next Step** | BrightForge runs native-640 bandwidth co-sim (indexed 2bpp + RGB565); BSRAM gate waits for post-149 baseline. |
+| **Summary** | Implement a native 640×480 1:1 bitmap path. Current RTL hardwires bitmap fetch to 320 source pixels stretched 2× to 640. Revised platform analysis (`PROJECT_PLAN/REVISED_PLATFORM_ANALYSIS.md` §2) shows native-640 **RGB565 gaming is not feasible** on the 16-bit SDRAM bus when L0/L1/sprites are active (deficit ~25%). This lane therefore targets **native-640 8bpp indexed** for gaming/static screens and **native-640 RGB565 only as a no-layers/no-sprites Workbench-style mode**. Indexed 2bpp native remains a low-risk sub-target. Scaler continues to handle sub-native content. Baseline is 40/46 BSRAM used, 6 free. |
+| **Checkpoints** | A: bandwidth co-sim confirms 8bpp indexed feasible and RGB565 Workbench-only (BrightForge). B: width-aware compositor + 640 fetch + buffer for 8bpp/2bpp (BrightForge). C: sim + synth/PnR ≤46/46 (BrightForge). D: firmware + hardware proof for 8bpp indexed; RGB565 static demo optional (BronzeGate). E: docs + audit (CoralReef/CyanPeak). |
+| **Next Step** | BrightForge completes native-640 bandwidth co-sim and reports feasible mode set before RTL changes. |
 
 **Security note:** Messages #10794 and #10795 were sent via the `overseer/send` HTTP endpoint, which stamps `from: HumanOverseer` and injects a `HUMAN OVERSEER` header. BrightForge correctly flagged these as non-canonical (#10796). CyanPeak correctly retracted acknowledgement (#10797). Corrected authorizations sent as #10799 (BrightForge) and #10800 (CyanPeak) via proper agent `send_message` MCP tool. **Rule:** Agent-to-agent mail must use `send_message` MCP tool only. The `overseer/send` endpoint is for human operator injection only and must not be used for PM authorizations.
 
@@ -46,16 +46,17 @@ This section tracks the active lane.
 - **Validation:** Docs consistent with `mode0_regs.json`; canonical example compiles; CyanPeak audit PASS (#12437); branch merged to `main` @ `c98ec03`.
 
 ### Priority 0b — Full Doc-to-Code Audit (FULL-DOC-AUDIT-151)
-- **Status:** **IN-PROGRESS / REVIEW**
-- **Owner:** CoralReef (consistency) / CyanPeak (code-to-spec) / BronzeGate (firmware helper validation) / BrightForge (RTL escalations)
-- **Scope:** PM-activated consistency sweep across `VDP_PROGRAMMING_GUIDE.md`, `MODE0_REGISTER_BUS_SPEC.md`, `TECH_SPEC_HOST_INTERFACE_AND_COPPER.md`, libvdp helper headers, examples, and `mode0_regs.json`.
+- **Status:** **IN-PROGRESS / CYANPEAK DOC-ACCURACY PASS ACTIVE**
+- **Owner:** CyanPeak (code-to-spec + doc accuracy, **user-directed override**) / CoralReef (consistency, **overdue**) / BronzeGate (firmware helper validation) / BrightForge (RTL escalations)
+- **Scope:** PM-activated consistency sweep across `VDP_PROGRAMMING_GUIDE.md`, `MODE0_REGISTER_BUS_SPEC.md`, `TECH_SPEC_HOST_INTERFACE_AND_COPPER.md`, libvdp helper headers, examples, and `mode0_regs.json`. Extra attention to new decisions: 22-pin generic i80 host interface, native-640 scope revision, parked softcore, new platform emulation lanes.
+- **Override note:** CoralReef has not replied to #12892 / #12916 / #12923 (deadline 2026-06-20 12:00 UTC). The user directed PM to have CyanPeak ensure all docs/guides are up to date. CyanPeak is therefore authorized to perform the doc-accuracy pass and make doc-only fixes without waiting for CoralReef.
 - **Depends on:** None
-- **Validation:** CyanPeak code-to-spec PASS (#12890); BronzeGate helper review PASS (#12891); BrightForge accepted RTL escalations into follow-up lane I80-STATUS-DECODE-152 (#12897 / TopazCliff #12900); CoralReef consistency review pending.
+- **Validation:** CyanPeak code-to-spec PASS (#12890); BronzeGate helper review PASS (#12891); BrightForge accepted RTL escalations into follow-up lane I80-STATUS-DECODE-152 (#12897 / TopazCliff #12900); CyanPeak doc-accuracy pass in progress (#12933).
 - **Checkpoints:**
   - **A:** DONE (#12886/#12887) — 15 findings triaged; doc-only findings fixed; helper-level findings fixed in firmware; two RTL items escalated.
-  - **B:** IN-PROGRESS — CyanPeak PASS (#12890), BronzeGate PASS (#12891), BrightForge escalation acceptance DONE (#12897 → #12900), CoralReef consistency review pending.
+  - **B:** IN-PROGRESS — CyanPeak PASS (#12890), BronzeGate PASS (#12891), BrightForge escalation acceptance DONE (#12897 → #12900). CoralReef consistency review **overdue / bypassed by user direction**; CyanPeak now owns doc-accuracy.
   - **C:** Escalated to **I80-STATUS-DECODE-152** after NATIVE-640-BITMAP-148 CP-A — implement i80 `READ_STATUS` opcode `0x04` and `0x0323` upload-status-clear decode.
-- **Latest Auth Mail:** TopazCliff #12900 (escalation sequencing to I80-STATUS-DECODE-152)
+- **Latest Auth Mail:** TopazCliff #12933 (CyanPeak authorized to take doc-accuracy pass)
 
 ### Priority 0c — i80 Status Decode and Upload-Clear (I80-STATUS-DECODE-152)
 - **Status:** **QUEUED / WAITING**
@@ -70,16 +71,125 @@ This section tracks the active lane.
 - **Latest Auth Mail:** TopazCliff #12900 (lane queued after NATIVE-640 CP-A)
 
 ### Priority 0d — Gate Dead L1 Fetch Engine (BSRAM-L1-GATE-154)
-- **Status:** **IN-PROGRESS / IMPLEMENTATION DONE — AWAITING COMBINED BUILD + AUDIT**
+- **Status:** **IN-PROGRESS / IMPLEMENTATION DONE — COMBINED BUILD REPORTED — AWAITING AUDIT + MERGE**
 - **Owner:** BrightForge (RTL/sim/synth) / CyanPeak (code-to-spec)
 - **Scope:** `TopTang20kHdmi.scala` passes `enableL1Fetch = false` to `VdpTop`, but still unconditionally instantiates the L1 SDRAM fetch engine (`fetchL1` at line 710). The production build hardwires `video.io.layer1UseSdram := False`, so the engine is logically dead yet synthesizes. Wrap the `fetchL1` instantiation in `if (enableL1Fetch)` and tie off all downstream layer1 SDRAM signals / arbiter client 3 when disabled.
 - **Depends on:** None; can proceed in parallel with NATIVE-640-BITMAP-148.
-- **Validation:** Commit `45da013` on branch `brightforge/bsram-l1-gate-154`. Standalone build vs `main@a0e279a`: BSRAM 42/46 → **40/46** (−2 blocks); LUT −174; FF −95; TNS=0. The actual post-merge delta on current `main@252cba4` (which already includes RTL-BSRAM-149 R3) is TBD — BrightForge running combined build.
+- **Validation:** Commit `45da013` on branch `brightforge/bsram-l1-gate-154`. Combined build on `main@62fe3d9` (includes R3): BSRAM stays at **40/46** (−2 from pre-opt 42/46); R3 and L1-gate **do not stack**. LUT 7868, FF 5147, DSP 11, TNS=0.
 - **Checkpoints:**
   - **A:** DONE — compile-time gate + tie-offs implemented; elaboration + sim smoke PASS.
-  - **B:** DONE — standalone PnR shows −2 BSRAM; combined 149+154 build requested for real post-merge count.
-  - **C:** IN-PROGRESS — CyanPeak code-to-spec audit; PM merge authorization after combined-build report + audit PASS.
+  - **B:** DONE — standalone + combined PnR show −2 BSRAM total; no further gain from stacking.
+  - **C:** IN-PROGRESS — CyanPeak code-to-spec audit; PM merge authorization after audit PASS.
 - **Latest Auth Mail:** TopazCliff #12913 (combined build + audit gate)
+
+### Priority 0e — Softcore Scope Confirmation (SOFTCORE-SCOPE-165)
+- **Status:** **DONE**
+- **Owner:** BronzeGate (workload/code-size estimate) / BrightForge (RTL/cache feasibility) / TopazCliff (PM)
+- **Scope:** Decide whether the in-FPGA softcore is a bootstrap assistant or a co-host. Joint recommendation: bootstrap-only, cacheless Murax-style VexRiscv, `enableSoftcore=false` default, no D-cache, ~4 KB tightly-coupled IRAM + 1–2 KB scratch (~3 BSRAM blocks total). Co-host / 8 KB / `dcLineBuf` gating deferred until a future workload justifies it.
+- **Depends on:** None; analysis-only.
+- **Validation:** BronzeGate #12921 and BrightForge #12922 agree on scope; TopazCliff opened `SOFTCORE-INTEGRATION-166` (#12924).
+- **Latest Auth Mail:** TopazCliff #12924 (lane open)
+
+### Priority 0f — Softcore Integration (SOFTCORE-INTEGRATION-166)
+- **Status:** **PARKED**
+- **Owner:** BrightForge (RTL/sim/synth) / BronzeGate (firmware bootstrap) / CyanPeak (code-to-spec + sourcing audit) / CoralReef (docs) / TopazCliff (PM)
+- **Scope:** Add an optional, compile-time-gated bootstrap softcore to `TopTang20kHdmi`. Default `enableSoftcore=false` keeps the production bitstream unchanged. When enabled, a Murax-style VexRiscv core boots from on-chip IRAM, optionally initializes SDRAM and uploads a default scene, then hands off to the ESP32-S3/i80 host.
+- **Park reason:** BrightForge CP-A trial-synth showed a cacheless 4 KB Murax costs **6 BSRAM** (not the assumed 2). With an FF/async register file the best realistic case is **4 BSRAM**, leaving only **2 free** at 44/46. The user directed PM to remove the softcore from the function list for now; revisit when there is a stronger use case or more BSRAM headroom.
+- **Depends on:** SOFTCORE-SCOPE-165 DONE; NATIVE-640-BITMAP-148 CP-A should complete before any RegBus master integration (BSRAM headroom decision).
+- **Validation:**
+  - CP-A: VexRiscv source vended as pinned git submodule; actual BSRAM/LUT/FF/DSP/timing delta vs baseline reported and approved.
+  - CP-B: RegBus master integration passes CyanPeak code-to-spec and does not break existing host contracts.
+  - CP-C: BronzeGate bootstrap binary fits IRAM and proves default-scene boot + clean ESP32-S3 hand-off.
+  - CP-D: CoralReef updates `VDP_PROGRAMMING_GUIDE.md` and `MODE0_REGISTER_BUS_SPEC.md` with softcore boot flow and `enableSoftcore` build flag.
+- **Checkpoints:**
+  - **A:** BrightForge measured 6 BSRAM for a 4 KB Murax and identified an FF-regfile mitigation to 4 BSRAM. **Parked before vendor/import.**
+  - **B:** (pending) — RegBus master integration + `RegBusArbiter` sizing review.
+  - **C:** (pending) — BronzeGate bootstrap binary + hardware proof.
+  - **D:** (pending) — Doc sync.
+- **Latest Auth Mail:** TopazCliff #12931 (CP-A hold pending scope decision); TopazCliff #12933 (softcore parked)
+
+### Priority 0g — Generic 22-Pin i80 Host Interface (I80-GENERIC-HOST-IF-172)
+- **Status:** **OPENED**
+- **Owner:** BrightForge (RTL) / BronzeGate (firmware adapters) / CyanPeak (code-to-spec) / CoralReef (docs) / TopazCliff (PM)
+- **Scope:** Upgrade the i80 host interface to a device-agnostic 22-pin bus: D0-D15, CS#, WR#, RD#, DC#, WAIT#, IRQ#. 8-bit hosts use D0-D7 and leave D8-D15 floating; 16-bit hosts use the full bus. WAIT# stalls the host when the VDP upload FIFO/bridge is not ready. IRQ# asserts when any enabled bit in `STATUS_STICKY` is set. This is a prerequisite for retro-CPU hosts (Z80, 6502, 68000) and reliable high-speed ESP32-P4 uploads.
+- **Depends on:** I80-STATUS-DECODE-152 (READ_STATUS + UPLOAD_STATUS_CLEAR) should land first or as part of this lane.
+- **Validation:**
+  - 8-bit mode still works with existing ESP32-S3 firmware.
+  - 16-bit mode demonstrated with a 16-bit host (ESP32-P4 or test bench).
+  - WAIT# prevents overflow under back-to-back burst writes.
+  - IRQ# fires for vblank/upload-done/errors and is maskable via `STATUS_ENABLE`.
+  - CyanPeak code-to-spec + CoralReef doc update in same commit.
+- **Checkpoints:**
+  - **A:** Add WAIT# and IRQ# outputs; parameterize data width; update `I80HostInterface.scala` and `TopTang20kHdmi.scala` pinout.
+  - **B:** Implement true 16-bit register-write and block-write payload paths (currently byte-oriented).
+  - **C:** Sim + synth; confirm no timing regression.
+  - **D:** BronzeGate validates 8-bit mode on ESP32-S3; 16-bit mode on ESP32-P4 or loopback.
+  - **E:** CoralReef updates `MODE0_REGISTER_BUS_SPEC.md` and `VDP_PROGRAMMING_GUIDE.md`.
+- **Latest Auth Mail:** —
+
+### Priority 0h — Sprite Flip X/Y (SPRITE-FLIP-XY-168)
+- **Status:** **OPENED**
+- **Owner:** BrightForge (RTL/sim/synth) / CyanPeak (code-to-spec) / BronzeGate (test asset) / CoralReef (docs)
+- **Scope:** Add per-sprite horizontal and vertical flip bits to the sprite descriptor. Modify the sprite pattern address generator to reverse fetch order accordingly. Required for C64, arcade (CPS-1/System 16/Namco), and Genesis/SNES flipped tiles/sprites.
+- **Depends on:** None; can proceed in parallel with NATIVE-640-BITMAP-148.
+- **Validation:**
+  - Sim shows a sprite pattern rendered correctly in all four orientations.
+  - Synth reports 0 BSRAM, ~50 LUTs (to be measured).
+  - Hardware proof with a simple 16×16 pattern.
+- **Checkpoints:**
+  - **A:** Add `flipX`/`flipY` descriptor fields and pattern-address XOR logic.
+  - **B:** Sim proof + synth measurement.
+  - **C:** BronzeGate firmware test + BrightForge hardware capture.
+  - **D:** Doc update.
+- **Latest Auth Mail:** —
+
+### Priority 0i — Per-Sprite Priority Bit (PER-SPRITE-PRIORITY-169)
+- **Status:** **OPENED**
+- **Owner:** BrightForge (RTL/sim/synth) / CyanPeak (code-to-spec) / BronzeGate (test) / CoralReef (docs)
+- **Scope:** Add a per-sprite priority bit that allows a sprite to be drawn *behind* non-transparent background pixels (C64 VIC-II style). Currently sprites have a global priority over/under the background layer. Required for C64 and improves fidelity on Genesis/SNES/arcade platforms.
+- **Depends on:** None.
+- **Validation:**
+  - Sim demonstrates a sprite appearing behind opaque background pixels when priority bit is set.
+  - No timing regression; BSRAM cost 0 (logic only, ~50 LUTs estimated).
+- **Checkpoints:**
+  - **A:** Add `SPR_PRIO` field to descriptor; update compositor mixing logic.
+  - **B:** Sim + synth.
+  - **C:** Hardware proof.
+  - **D:** Doc update.
+- **Latest Auth Mail:** —
+
+### Priority 0j — Color Math ALU (COLOR-MATH-ALU-170)
+- **Status:** **OPENED**
+- **Owner:** BrightForge (RTL/sim/synth) / CyanPeak (code-to-spec) / BronzeGate (test) / CoralReef (docs)
+- **Scope:** Implement SNES-style color math in the pixel pipeline: per-pixel add/subtract/half with clipping to RGB565 range. Enables Genesis shadow/highlight and SNES color math effects. Builds on existing window-based shadow/highlight infrastructure.
+- **Depends on:** None; but should be validated after sprite flip and priority bits to test combined mixing.
+- **Validation:**
+  - Sim proves add/sub/half modes on overlapping layers/sprites.
+  - No timing closure issues; 0 BSRAM, ~400 LUTs estimated.
+- **Checkpoints:**
+  - **A:** Add mode register + ALU stage between compositor and final RGB.
+  - **B:** Sim matrix for add/sub/half/clip.
+  - **C:** Synth measurement.
+  - **D:** Hardware proof with a fade/tint demo.
+  - **E:** Doc update.
+- **Latest Auth Mail:** —
+
+### Priority 0k — HAM Decoder (HAM-DECODER-171)
+- **Status:** **OPENED**
+- **Owner:** BrightForge (RTL/sim/synth) / CyanPeak (code-to-spec) / BronzeGate (Amiga test asset) / CoralReef (docs)
+- **Scope:** Add a Hold-And-Modify decoder for authentic Amiga HAM mode. 6-bit per-pixel control selects: set color (12-bit RGB), modify R, modify G, or modify B. Output is RGB565. Estimated 0 BSRAM, ~150–300 LUTs. Must be gated so it does not affect non-HAM modes.
+- **Depends on:** None; best integrated behind a bitmap-mode configuration bit.
+- **Validation:**
+  - Sim decodes a known HAM image to RGB565 correctly.
+  - Non-HAM modes unaffected.
+  - Synth clean.
+- **Checkpoints:**
+  - **A:** Add HAM control state + RGB accumulator; hook into bitmap fetch output.
+  - **B:** Sim proof with reference image.
+  - **C:** Synth measurement.
+  - **D:** BronzeGate Amiga HAM asset + hardware proof.
+  - **E:** Doc update.
+- **Latest Auth Mail:** —
 
 ### Priority 1 — libvdp Scaler Register Exposure
 - **Status:** **DONE**
