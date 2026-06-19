@@ -138,15 +138,19 @@ case class SdramTileAttributeFetch(
   // ==========================================================================
   // Pixel-domain: ping-pong line buffer + FIFO drain + unpack
   // ==========================================================================
-  val lineBufferA = Mem(Bits(PixelLineBits bits), LineWidth)
-  val lineBufferB = Mem(Bits(PixelLineBits bits), LineWidth)
+  // RTL-BSRAM-OPTIMIZATION-149 Refactor 3: fold the former lineBufferA/lineBufferB
+  // ping-pong into one Mem of twice the depth, carrying the buffer-select bit in
+  // the address (region 0 = former A, region 1 = former B). Two separate small
+  // Mems each claim a full Gowin BSRAM block; folding lets the pair pack into the
+  // minimum block count. LineWidth (640) is not a power of two, so the select uses
+  // an additive base (sel ? LineWidth : 0) rather than an address-MSB concat.
+  // The read port (readWord + io.pixel* assignments) is built below, after the
+  // writeBuf flip logic, so the select-skew compensation can reference the flip
+  // condition — see the read block following the Option α flip gate.
+  val lineBuf     = Mem(Bits(PixelLineBits bits), 2 * LineWidth)
+  val lbZeroBase  = U(0,         log2Up(2 * LineWidth) bits)
+  val lbLineBase  = U(LineWidth, log2Up(2 * LineWidth) bits)
   val writeBuf    = Reg(Bool()) init False
-  val readA       = lineBufferA.readSync(io.pixelAddr)
-  val readB       = lineBufferB.readSync(io.pixelAddr)
-  val readWord    = Mux(writeBuf, readB, readA)
-  io.pixelIndex        := readWord(3 downto 0)
-  io.pixelPaletteBank  := readWord(6 downto 4).asUInt
-  io.pixelPriority     := readWord(7)
 
   // Cross-domain FIFO payload: two 32-bit row words + 3-bit bank + 1-bit
   // priority per tile, packed flat for a clean CDC.
@@ -214,10 +218,25 @@ case class SdramTileAttributeFetch(
   when(fetchStartRise) {
     pendingFlip := True
   }
-  when(pendingFlip && !emitting && !wordFifo.io.pop.valid) {
+  val doFlip = pendingFlip && !emitting && !wordFifo.io.pop.valid
+  when(doFlip) {
     writeBuf    := !writeBuf
     pendingFlip := False
   }
+
+  // Folded ping-pong read port (Refactor 3). Read the buffer NOT being written.
+  // The original muxed two readSync outputs *after* the read register, so the
+  // select tracked writeBuf with zero delay. With one read port the select is in
+  // the registered address; using writeBuf directly would apply the previous
+  // cycle's select and mis-read for one cycle at the flip. Base the read on the
+  // post-flip value of writeBuf (writeBuf flips exactly when `doFlip`) so the
+  // 1-cycle readSync delay lines the output up with the original mux.
+  val writeBufNext = Mux(doFlip, !writeBuf, writeBuf)
+  val readBase     = Mux(writeBufNext, lbLineBase, lbZeroBase)
+  val readWord     = lineBuf.readSync(readBase + io.pixelAddr)
+  io.pixelIndex        := readWord(3 downto 0)
+  io.pixelPaletteBank  := readWord(6 downto 4).asUInt
+  io.pixelPriority     := readWord(7)
 
   // P3 CP-B(3) #10791 Risk #3 validation canary (REVISED from CP-B(1) form).
   //
@@ -270,8 +289,9 @@ case class SdramTileAttributeFetch(
     val writeEnable = (shifted >= U(16, 11 bits)) && (shifted < U(LineWidth + 16, 11 bits))
     val writeAddr   = (shifted - U(16, 11 bits)).resize(10)
     when(writeEnable) {
-      when(writeBuf) { lineBufferA.write(writeAddr, pxPacked) }
-      .otherwise    { lineBufferB.write(writeAddr, pxPacked) }
+      // writeBuf=1 → former lineBufferA (region 0); writeBuf=0 → former B (region 1)
+      val writeBase = Mux(writeBuf, lbZeroBase, lbLineBase)
+      lineBuf.write(writeBase + writeAddr, pxPacked)
     }
     when(unpackIdx === 15) {
       emitting     := False
