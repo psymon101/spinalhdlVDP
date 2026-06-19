@@ -41,13 +41,26 @@ arduino-cli compile --fqbn esp32:esp32:esp32s3 --library libvdp <sketch_dir>
 arduino-cli upload   --fqbn esp32:esp32:esp32s3 -p /dev/ttyACM0 <sketch_dir>
 ```
 
-## ESP32-S3 Production Sketches
+## ESP32-S3 Production Sketches (i80 — canonical)
 
 | Sketch | Purpose |
 |---|---|
-| `esp32s3_qspi_smoke` | Minimal READ_STATUS magic loop; verifies basic transport integrity. |
+| `esp32s3_i80_smoke` | Minimal register loopback; verifies basic i80 transport integrity. |
+| `esp32s3_i80_copper_bars` | Copper-driven color-bar demo. |
+| `esp32s3_i80_copper_diag` | Copper diagnostic / instruction-packing test. |
+| `esp32s3_i80_copper_raster_bands_probe` | Raster-band / copper timing probe. |
+| `esp32s3_i80_rgb565_fullframe` | RGB565 full-frame direct-color upload proof. |
+| `esp32s3_i80_scaler_bezel` | Runtime scaler + bezel exercise. |
+| `esp32s3_i80_sprite_mask` | Sprite mask / transparency proof. |
+| `esp32s3_i80_border_palette_probe` | Border + palette probe. |
+
+## Legacy QSPI ESP32-S3 Sketches
+
+| Sketch | Purpose |
+|---|---|
+| `esp32s3_qspi_smoke` | Minimal READ_STATUS magic loop; verifies basic QSPI transport integrity. |
 | `esp32s3_red_screen` | Verification of bit-perfect palette writes using `palette[64]` as a canary. |
-| `esp32s3_throughput` | Sweeps 1-80 MHz to characterize transport bandwidth and error floor. |
+| `esp32s3_throughput` | Sweeps 1-80 MHz to characterize QSPI transport bandwidth and error floor. |
 | `esp32s3_stress` | High-load mixed read/write stress test with error accounting. |
 | `esp32s3_scope_fodder` | Continuous toggling on GPIO 12 for scope signal-integrity analysis. |
 
@@ -86,29 +99,24 @@ vdp_upload_asset(FRAME_SDRAM_BASE, frame_tiles, FRAME_TILES_WORD_COUNT, NULL);
 
 ## Platform Pin Maps
 
-### ESP8266 NodeMCU 1.0
+### ESP32-S3-DevKitC-1 (i80 — canonical)
 
-| QSPI | NodeMCU | GPIO |
-|------|---------|------|
-| SCK  | D5      | 14   |
-| CS_N | D6      | 12   |
-| IO0  | D7      | 13   |
-| IO1  | D1      | 5    |
-| IO2  | D2      | 4    |
-| IO3  | D0      | 16   |
+| i80 signal | ESP32-S3 GPIO | Tang Nano 20K pin |
+|------------|---------------|-------------------|
+| D0         | 4             | 25                |
+| D1         | 5             | 26                |
+| D2         | 6             | 27                |
+| D3         | 7             | 28                |
+| D4         | 8             | 29                |
+| D5         | 9             | 30                |
+| D6         | 10            | 31                |
+| D7         | 11            | 41                |
+| DC         | 15            | 85                |
+| CS#        | 16            | 76                |
+| WR#        | 17            | 77                |
+| RD#        | 18            | 80                |
 
-### ESP32 dev1
-
-| QSPI | GPIO |
-|------|------|
-| SCK  | 18   |
-| CS_N | 19   |
-| IO0  | 23   |
-| IO1  | 22   |
-| IO2  | 25   |
-| IO3  | 27   |
-
-### ESP32-S3 (FSPI IOMUX)
+### ESP32-S3 (FSPI IOMUX) — legacy QSPI
 
 | QSPI | GPIO | Tang Nano pin |
 |------|------|---------------|
@@ -119,6 +127,28 @@ vdp_upload_asset(FRAME_SDRAM_BASE, frame_tiles, FRAME_TILES_WORD_COUNT, NULL);
 | IO2  | 14   | 51            |
 | IO3  | 9    | 54            |
 
-### Pico (RP2350)
+### ESP32 dev1 — legacy QSPI
+
+| QSPI | GPIO |
+|------|------|
+| SCK  | 18   |
+| CS_N | 19   |
+| IO0  | 23   |
+| IO1  | 22   |
+| IO2  | 25   |
+| IO3  | 27   |
+
+### ESP8266 NodeMCU 1.0 — legacy QSPI
+
+| QSPI | NodeMCU | GPIO |
+|------|---------|------|
+| SCK  | D5      | 14   |
+| CS_N | D6      | 12   |
+| IO0  | D7      | 13   |
+| IO1  | D1      | 5    |
+| IO2  | D2      | 4    |
+| IO3  | D0      | 16   |
+
+### Pico (RP2350) — legacy QSPI
 
 Defined in `libvdp/vdp_platform.h` and `qspi_quad.pio`.

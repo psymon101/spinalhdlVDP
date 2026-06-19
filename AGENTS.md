@@ -31,7 +31,7 @@ Agent-specific rules: `AGENTS/<CanonicalName>.md`
 | `BrightForge` | FPGA RTL engineer | Claude | Active executor |
 | `BronzeGate` | MCU firmware engineer | Codex | Active executor |
 | `TopazCliff` | Technical project manager | Kimi (Inst. 2) | PM |
-| `CyanPeak` | Datasheet / spec review | Gemini | **Advisory — PM-activated only** |
+| `CyanPeak` | Datasheet / spec review | Antigravity CLI (`agy`) | **Advisory — PM-activated only** |
 | `CoralReef` | Compliance / documentation | Kimi | **Advisory — PM-activated only** |
 
 *Advisory roles are pulled in by `TopazCliff` only when needed. Do not self-assign implementation work.*

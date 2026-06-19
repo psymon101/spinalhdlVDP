@@ -154,7 +154,8 @@ bool vdp_mode0_write_linestate(uint16_t line_index, uint16_t word)
 bool vdp_mode0_write_vscroll_entry(uint8_t layer, uint8_t entry_index, uint16_t offset)
 {
     if (layer > 1u) return false;
-    vdp_reg_write((uint16_t)(VDP_MODE0_REG_VSCROLL_BASE + (entry_index * 2u) + layer),
+    if (entry_index >= 128u) return false;
+    vdp_reg_write((uint16_t)(VDP_MODE0_REG_VSCROLL_BASE + (layer * 128u) + entry_index),
                   (uint16_t)(offset & 0x03FFu));
     return true;
 }
@@ -268,6 +269,28 @@ void vdp_mode0_set_attr_base(uint32_t base)
 {
     vdp_reg_write(VDP_MODE0_REG_ATTR_BASE_LO, (uint16_t)(base & 0xFFFFu));
     vdp_reg_write(VDP_MODE0_REG_ATTR_BASE_HI, (uint16_t)((base >> 16) & 0xFFFFu));
+}
+
+void vdp_mode0_request_bitmap_swap(uint32_t bitmap_base, uint32_t attr_base)
+{
+    const uint16_t words[5] = {
+        (uint16_t)(bitmap_base & 0xFFFFu),
+        (uint16_t)((bitmap_base >> 16) & 0xFFFFu),
+        (uint16_t)(attr_base & 0xFFFFu),
+        (uint16_t)((attr_base >> 16) & 0xFFFFu),
+        VDP_MODE0_BITMAP_SWAP_REQUEST
+    };
+    vdp_mode0_write_block(VDP_MODE0_REG_BITMAP_BASE_PENDING_LO, words, 5);
+}
+
+uint16_t vdp_mode0_read_bitmap_swap_ctrl(void)
+{
+    return vdp_reg_read(VDP_MODE0_REG_BITMAP_SWAP_CTRL);
+}
+
+void vdp_mode0_clear_bitmap_swap_committed(void)
+{
+    vdp_reg_write(VDP_MODE0_REG_BITMAP_SWAP_CTRL, VDP_MODE0_BITMAP_SWAP_COMMITTED);
 }
 
 void vdp_mode0_set_bitmap_stride(uint16_t stride)

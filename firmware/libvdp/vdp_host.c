@@ -229,8 +229,8 @@ void vdp_reg_write(uint32_t addr, uint16_t data)
 
 void vdp_clear_upload_status(uint16_t mask)
 {
-    (void)mask;
     s_last_error = VDP_HOST_ERR_NONE;
+    vdp_reg_write(VDP_UPLOAD_STATUS_CLEAR_REG, (uint16_t)(mask & VDP_UPLOAD_STATUS_CLEAR_MASK));
 }
 
 void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)

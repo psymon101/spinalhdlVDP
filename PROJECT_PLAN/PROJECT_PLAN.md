@@ -31,7 +31,7 @@ This is a **full Mode0 rendering substrate** (SDRAM-backed tile, planar, bitmap,
 
 The project has one recently closed critical-path RTL lane and one active docs/example lane:
 - **RGB565-FULLFRAME-132** — closed. RGB565 full-frame direct-color display correctness proven on silicon (burst-read SDRAM controller @ 40.5 MHz, merged to `main` @ `c8129bd` / `d668e01`).
-- **RGB565-FULLFRAME-DOCS-133** — active. Host-facing documentation and examples are being updated so the RGB565 feature is usable without reading RTL.
+- **RGB565-FULLFRAME-DOCS-133** — done. Host-facing documentation and examples were updated so the RGB565 feature is usable without reading RTL; merged to `main` @ `c98ec03`.
 
 The long-term strategic roadmap is in [`VOODOO_ADOPTION_PLAN.md`](VOODOO_ADOPTION_PLAN.md).
 

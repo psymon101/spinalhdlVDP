@@ -42,7 +42,7 @@ Wired into **all agent configs**:
 | BronzeGate | Gemini | `~/.gemini/settings.json` |
 | BronzeGate | Codex | `~/.codex/config.toml` |
 | CyanPeak | Claude Code | `~/.claude/settings.json` |
-| CyanPeak | Gemini | `~/.gemini/settings.json` |
+| CyanPeak | Antigravity CLI (`agy`) | `~/.gemini/config/mcp_config.json` |
 | TopazCliff | Claude Code | `~/.claude/settings.json` |
 | TopazCliff | Gemini | `~/.gemini/settings.json` |
 | TopazCliff | Kimi | `~/.kimi/mcp.json` |

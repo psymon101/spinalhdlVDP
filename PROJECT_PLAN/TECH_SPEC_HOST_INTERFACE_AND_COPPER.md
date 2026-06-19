@@ -64,7 +64,7 @@ The i80 read path is **loopback-oriented**, not a full register-file readback:
 - **Most register addresses** return the **last value written to that register** (latched `regBus.data`). This is sufficient for host shadow verification.
 - **Address-independent readback is expected** for many registers; do not compare POR defaults across unrelated addresses.
 - **`0x0328` / `0x0329`** return armed SDRAM debug data (read-only debug aperture).
-- **Status readback** is performed through the `READ_STATUS` response surface (selector-based), not through the register bus. See `MODE0_REGISTER_BUS_SPEC.md` for the status selector mapping.
+- **Status readback** on legacy QSPI builds is performed through the `READ_STATUS` response surface (selector-based), not through the register bus. See `MODE0_REGISTER_BUS_SPEC.md` for the status selector mapping. **Note:** the i80 RTL path does not currently decode the `READ_STATUS` opcode (`0x04`); i80 hosts must poll status through normal register reads where those registers exist (e.g., `0x0320` for sticky status).
 
 > **Note:** Because reads return the last-written value, a write followed immediately by a read to the **same** address should return the value just written. This is the criterion used by `firmware/esp32s3_i80_smoke`.
 

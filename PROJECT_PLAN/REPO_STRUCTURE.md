@@ -44,17 +44,35 @@ spinalhdlVDP/
 
 ## Source Files Present Today
 
-The current shared RTL package contains:
+The current shared RTL package lives in `hw/spinal/spinalhdlvdp/` and contains the production top, simulation tops, and many functional blocks. Key files include:
 
-- `Config.scala`
-- `GowinPrimitives.scala`
-- `Tang20kHdmiTx.scala`
-- `TmdsEncoder.scala`
-- `TopTang20kHdmi.scala`
-- `VdpTop.scala`
-- `VdpTopSim.scala`
+**Top / infrastructure**
+- `TopTang20kHdmi.scala`, `TopTang20kBarebones.scala`, `VdpTop.scala`, `VdpTopSim.scala`
+- `Config.scala`, `GowinPrimitives.scala`, `Tang20kHdmiTx.scala`, `TmdsEncoder.scala`
 
-Do not move these into a new directory tree just because another structure might be cleaner. A package/directory refactor must be a deliberate task with updated build and documentation changes in the same slice.
+**Host interface**
+- `I80HostInterface.scala`, `HostInterface.scala`
+- Legacy QSPI: `QspiSlave.scala`, `QspiDecoder.scala`, `QspiSdramBridge.scala`, `QspiBarebones.scala`
+
+**Video pipeline / compositor**
+- `FourLayerCompositor.scala`, `PixelRepeatScaler.scala`, `ColorMath.scala`, `WindowUnit.scala`
+- `LinestateStore.scala`, `LineBuffer.scala`, `ScrollTable.scala`
+
+**Fetch / memory**
+- `BitmapFetch.scala`, `BitmapRowFetch.scala`, `BitplaneReconstruct.scala`, `BitplaneRowFetch.scala`
+- `PlanarLineFetch.scala`, `SdramTileFetch.scala`, `SdramTileAttributeFetch.scala`
+- `SdramArbiter.scala`, `SdramPrimitives.scala`, `BurstRefreshController.scala`
+
+**Sprites / affine**
+- `SpriteEvaluator.scala`, `SpriteRasterizer.scala`, `SpriteDescriptor.scala`, `SpriteAttributes.scala`
+- `AffineStepper.scala`, `AffineAssets.scala`
+
+**Coprocessors**
+- `Copper.scala`, `DmaEngine.scala`, `BlitterEngine.scala`, `RasterTriggerUnit.scala`
+
+**Sim companions** — most modules have a matching `*Sim.scala` file.
+
+The full file list is in `hw/spinal/spinalhdlvdp/`. Do not move these into a new directory tree just because another structure might be cleaner. A package/directory refactor must be a deliberate task with updated build and documentation changes in the same slice.
 
 ---
 

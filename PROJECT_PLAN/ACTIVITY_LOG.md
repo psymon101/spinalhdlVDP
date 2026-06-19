@@ -10,6 +10,87 @@
 
 <!-- END HEADER -->
 
+## 2026-06-18T14:46:31-04:00 | CyanPeak | DECISION
+**Tags:** `bsram-optimization`
+
+Replied to TopazCliff confirming low effort/risk for the BSRAM structural refactors. Recommended BrightForge implement the RTL while CyanPeak provides code-to-spec audit. Suggested opening RTL-BSRAM-OPTIMIZATION-149.
+
+**Evidence:**
+- **Mail:** #12863
+
+---
+## 2026-06-18T13:46:37-04:00 | CyanPeak | RESEARCH
+**Tags:** `bsram-optimization`
+
+Sent recommendation to TopazCliff detailing how flattening Seq.fill(Mem), packing wide Mems, and folding ping-pong buffers could save 9-11 BSRAMs without touching FIFO depths or pipeline timing.
+
+**Evidence:**
+- **Mail:** #12858
+
+---
+## 2026-06-17T21:21:19-04:00 | CyanPeak | RESEARCH
+**Tags:** `capture-chain-validation-147`
+
+Completed owner-directed review of BronzeGate's i80/test11 firmware code. Confirmed the 0x20002 status indicates no dropped writes. Identified a potential silent fallback in vdp_host.c related to CONFIG_IDF_TARGET_ESP32S3 and provided a verification snippet to definitively prove the fast GPIO path.
+
+**Evidence:**
+- **Mail:** #12830
+
+---
+## 2026-06-17T21:19:09-04:00 | CyanPeak | RESEARCH
+**Tags:** `sdram-bandwidth-146`
+
+Reviewed the clean sim-only branch task/sdram-bandwidth-cosims. Verified the measurement assumptions, SDRAM responder calibration, and concurrent upload modelling. Sent PASS to TopazCliff for merge.
+
+**Evidence:**
+- **Mail:** #12829
+
+---
+## 2026-06-17T20:29:34-04:00 | CyanPeak | RESEARCH
+**Tags:** `sdram-bandwidth-146`
+
+Provided requested advisory review on the residual visual artifact in test07. Concluded that the RTL is deterministically clean per co-sim, and the artifact is a measurement limitation of the non-integer scaled RTSP capture chain. Recommended reverting the unneeded rate cap and pursuing a native HDMI capture.
+
+**Evidence:**
+- **Mail:** #12812
+
+---
+## 2026-06-17T19:20:12-04:00 | CyanPeak | RESEARCH
+**Tags:** `sdram-bandwidth-146`
+
+Reviewed uncommitted RTL edits to TopTang20kHdmi.scala. Verified the upload-drain rate cap logic is correct, mutually exclusive, and preserves arbiter priority. Cleared BrightForge to build bitstream.
+
+**Evidence:**
+- **Mail:** #12798
+
+---
+## 2026-06-17T18:28:46-04:00 | CyanPeak | RESEARCH
+**Tags:** `i80-frame-atomic-swap-145`
+
+Performed post-commit code-to-spec check on commit e2b4fc2. Verified 0x035C readback implementation maps correctly without altering the underlying atomic vblank-commit mechanism. Verdict is PASS.
+
+**Evidence:**
+- **Mail:** #12788
+
+---
+## 2026-06-17T14:51:21-04:00 | CyanPeak | RESEARCH
+**Tags:** `i80-frame-atomic-swap-145`
+
+Reviewed uncommitted RTL edits to VdpTop.scala. Atomic swap commit at vblank and staging registers are correctly implemented per spec. Cleared BrightForge to commit.
+
+**Evidence:**
+- **Mail:** #12765
+
+---
+## 2026-06-17T14:14:37-04:00 | CyanPeak | DECISION
+**Tags:** `i80-frame-atomic-swap-145`
+
+Cleared BrightForge to proceed with Checkpoint B. Confirmed 0x0358-0x035C register block is free, agreed with dedicated staging registers, and approved the reset contract and naming.
+
+**Evidence:**
+- **Mail:** #12763
+
+---
 ## 2026-06-16T18:07:57-04:00 | CyanPeak | RESEARCH
 **Tags:** `project-audit-141`
 

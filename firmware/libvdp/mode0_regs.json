@@ -285,7 +285,7 @@
           "description": "Clears short-frame sticky flag."
         }
       ],
-      "description": "Clears sticky host upload bridge error flags."
+      "description": "Clears sticky host upload bridge error flags. NOTE: the current main bitstream allocates this address and the firmware helper issues the write, but the RTL clear decode is not yet implemented; writes to 0x0323 have no effect until the RTL decode lands (FULL-DOC-AUDIT-151)."
     },
     {
       "name": "WIN1_X0",
