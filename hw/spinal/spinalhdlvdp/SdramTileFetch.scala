@@ -114,15 +114,18 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
   // writeBuf selects the buffer being overwritten by the current fetch; L0
   // always reads the OTHER buffer (which was just filled by the previous fetch
   // and stays stable until the next fetchStart swaps the roles).
-  val lineBufferA = Mem(Bits(PixelBits bits), LineWidth)
-  val lineBufferB = Mem(Bits(PixelBits bits), LineWidth)
+  // RTL-BSRAM-OPTIMIZATION-149 Refactor 3: fold lineBufferA/lineBufferB into one
+  // Mem of twice the depth, carrying the buffer-select bit in the address (region
+  // 0 = former A, region 1 = former B). LineWidth (640) is not a power of two, so
+  // the select uses an additive base. (This engine is RETIRED / not in the
+  // production top, so this yields no production BSRAM reclaim — folded here only
+  // to keep the ping-pong pattern uniform and standalone-sim-provable.)
+  // The read port is built below, after fetchStartRise is defined, so the
+  // select-skew compensation can reference the flip condition.
+  val lineBuf     = Mem(Bits(PixelBits bits), 2 * LineWidth)
+  val lbZeroBase  = U(0,         log2Up(2 * LineWidth) bits)
+  val lbLineBase  = U(LineWidth, log2Up(2 * LineWidth) bits)
   val writeBuf    = Reg(Bool()) init False
-  val readA       = lineBufferA.readSync(io.pixelAddr)
-  val readB       = lineBufferB.readSync(io.pixelAddr)
-  // Read the buffer that the CURRENT fetch is NOT writing — that's the one the
-  // previous fetch just filled. Guarantees the race is broken at the cost of a
-  // one-fetch pipeline: reader sees fetch(N-1)'s data while fetch(N) runs.
-  io.pixelIndex := Mux(writeBuf, readB, readA)
 
   // Cross-domain FIFO: SDRAM-side pushes 32-bit tile-row words (two per tile).
   // Pixel-domain side combines (word0, word1) → 48-bit packed row and unpacks 16×3-bit
@@ -166,6 +169,16 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
     writeBuf := !writeBuf   // ping-pong: swap on the rising edge only
   }
 
+  // Folded ping-pong read port (Refactor 3). Read the buffer the CURRENT fetch is
+  // NOT writing — the one the previous fetch just filled. The original muxed two
+  // readSync outputs *after* the read register (zero-delay select); with one read
+  // port the select moves into the registered address, so base it on the post-flip
+  // value of writeBuf (writeBuf flips exactly on fetchStartRise) to keep the
+  // 1-cycle readSync output aligned with the original mux.
+  val writeBufNext = Mux(fetchStartRise, !writeBuf, writeBuf)
+  val readBase     = Mux(writeBufNext, lbLineBase, lbZeroBase)
+  io.pixelIndex := lineBuf.readSync(readBase + io.pixelAddr)
+
   wordFifo.io.pop.ready := !emitting
   when(wordFifo.io.pop.fire) {
     when(unpackPhase === 0) {
@@ -192,8 +205,9 @@ case class SdramTileFetch(sdramCd: ClockDomain) extends Component {
     val writeAddr   = (shifted - U(16, 11 bits)).resize(10)
     when(writeEnable) {
       // Route write to whichever ping-pong buffer this fetch owns.
-      when(writeBuf) { lineBufferA.write(writeAddr, px) }
-      .otherwise    { lineBufferB.write(writeAddr, px) }
+      // writeBuf=1 → former lineBufferA (region 0); writeBuf=0 → former B (region 1)
+      val writeBase = Mux(writeBuf, lbZeroBase, lbLineBase)
+      lineBuf.write(writeBase + writeAddr, px)
     }
     when(unpackIdx === 15) {
       emitting     := False
