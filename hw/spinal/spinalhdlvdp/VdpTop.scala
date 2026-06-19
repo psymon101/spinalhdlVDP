@@ -2147,7 +2147,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // HAM-DECODER-171: mirror palette[0..15] (8:8:8 → 4:4:4 truncation) into hamBase
   // on commit, so HAM SET codes index the base palette without a 2nd palette read
   // port (hamBase is distributed regs → 0 BSRAM). paletteCommitData = R##G##B (888).
-  when(paletteCommitNow && (paletteEntryIdx < U(16, 7 bits))) {
+  // CyanPeak #12958: also clear hamBase[0..15] during the soft-reset memory sweep
+  // (matches the palette clear) so HAM SET base does not go stale after a soft reset.
+  when(softResetMemClear) {
+    when(softResetMemAddr < U(16, 14 bits)) {
+      hamBase(softResetMemAddr(3 downto 0)) := B(0, 12 bits)
+    }
+  }.elsewhen(paletteCommitNow && (paletteEntryIdx < U(16, 7 bits))) {
     hamBase(paletteEntryIdx(3 downto 0)) :=
       paletteCommitData(23 downto 20) ## paletteCommitData(15 downto 12) ## paletteCommitData(7 downto 4)
   }
