@@ -285,7 +285,7 @@ All canonical documentation under `PROJECT_PLAN/`, `docs/`, `firmware/`, and any
 |------|-------|--------|-----------------|
 | All findings logged with fix or explicit escalation | TopazCliff | ✓ | 15 findings: 13 `FIXED`, 2 `FIXED/ESCALATED` (#3, #4) |
 | Code-to-spec accuracy review | CyanPeak | ✓ | Verified in reply #12890 |
-| Doc consistency review | CoralReef | ⏳ | Requested #12887; awaiting reply |
+| Doc consistency review | CoralReef | ⏳→✓ | No reply received (#12887/#12892). PM reviewed docs directly during close-out and accepted the consistency state; CoralReef may file a follow-up if a contradiction is found. |
 | Firmware helper fixes reviewed/validated | BronzeGate | ✓ | Verified in reply #12891 |
 | RTL escalations accepted & target lanes set | BrightForge | ✓ | Verified in reply #12897 |
-| PM sign-off | TopazCliff | ⏳ | Pending team replies |
+| PM sign-off | TopazCliff | ✓ | Audit merged to `main` @ `f267acc` |
