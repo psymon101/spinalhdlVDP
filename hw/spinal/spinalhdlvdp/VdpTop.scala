@@ -1622,7 +1622,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   io.bitmapModeActive      := bitmapEnable
   // CP-1c: tell BitmapRowFetch to use the RGB565 directcolor fetch
   // schedule (2 bytes/pixel, 320 px/row) when bpp=0b10 is selected.
-  io.bitmapDirectColor     := bitmapEnable && (bitmapBpp === U(2, 2 bits))
+  // bpp=0b10 RGB565 directcolor and bpp=0b11 HAM (HAM-DECODER-171) both use the
+  // directcolor fetch schedule (col/2, 320 source px/row, burst). HAM carries its
+  // 6-bit code in the low byte of each source entry; the decode happens in the fill.
+  io.bitmapDirectColor     := bitmapEnable && (bitmapBpp === U(2, 2 bits) || bitmapBpp === U(3, 2 bits))
   // BITMAP-PLUMB-129: assemble the 23-bit bases (HI##LO) and drive the
   // geometry outputs to BitmapRowFetch via the top level.
   io.bitmapBase            := (bitmapBaseHiReg ## bitmapBaseLoReg).asUInt
@@ -2018,11 +2021,35 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // drained directcolor pixel lands in the same cycle as `paletteRgb`.
   // The fill-side value is the 565→888-expanded pixel from BitmapFetch,
   // gated by bitmapEnable so non-bitmap scenes never see directcolor.
-  val dcFillActive = (bitmapEnable && bitmapFetch.io.directColorActive).simPublic()
+  // HAM-DECODER-171: HAM SET base colours mirror palette[0..15] truncated to 4:4:4
+  // (distributed regs → 0 BSRAM; avoids a 2nd palette read port). The mirror-write
+  // lives with the palette commit logic below. Host must load palette[0..15] for HAM.
+  val hamBase = Vec(Reg(Bits(12 bits)) init 0, 16)
+
+  // HAM-DECODER-171: Amiga HAM6 decode shares the directcolor carrier (dcLineBuf +
+  // bypass mux). HAM (bpp=0b11) reuses the directcolor fetch (col/2, 320 source px
+  // ×2-stretched); the 6-bit HAM code = low 6 bits of the fetched bitmap byte. The
+  // decoder advances every fill column — the ×2 source repeat is harmless because
+  // re-applying the same HAM code is idempotent (SET reloads base; modify rewrites a
+  // channel to the same value → fixed point), so both columns of a pair agree.
+  val hamMode    = bitmapEnable && (bitmapBpp === U(3, 2 bits))
+  val hamCode    = bmByteSel(5 downto 0)
+  val hamDecoder = HamDecoder()
+  hamDecoder.io.lineStart := hCounter === hTotal - 1   // reset hold one cycle before col 0
+  hamDecoder.io.step      := hCounter < hActive
+  hamDecoder.io.code      := hamCode
+  hamDecoder.io.baseColor := hamBase(hamCode(3 downto 0).asUInt)
+  hamDecoder.io.seedColor := hamBase(0)
+
+  // RGB565 directcolor (CP-1b) + HAM share this parallel line buffer carrying the
+  // 24-bit RGB plus its active flag {active, rgb[23:0]}, drained co-timed with
+  // `paletteRgb` and bypass-muxed at output.
+  val dcFillActive = (bitmapEnable && (bitmapFetch.io.directColorActive || hamMode)).simPublic()
+  val dcFillRgb    = Mux(hamMode, hamDecoder.io.rgb888, bitmapFetch.io.directRgb)
   val dcLineBuf = LineBuffer(pixelWidth = 25, lineWidth = hActive)
   dcLineBuf.io.writeEnable := hCounter < hActive
   dcLineBuf.io.writeAddr   := hCounter.resize(log2Up(hActive))
-  dcLineBuf.io.writeData   := dcFillActive ## bitmapFetch.io.directRgb
+  dcLineBuf.io.writeData   := dcFillActive ## dcFillRgb
   dcLineBuf.io.swap        := hCounter === hTotal - 1
 
   // drainAddr was forward-declared above (for SpriteRasterizer). Assign here.
@@ -2115,6 +2142,14 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
       paletteWriteAcc := effData
     }
     paletteWritePtr := paletteWritePtr + 1
+  }
+
+  // HAM-DECODER-171: mirror palette[0..15] (8:8:8 → 4:4:4 truncation) into hamBase
+  // on commit, so HAM SET codes index the base palette without a 2nd palette read
+  // port (hamBase is distributed regs → 0 BSRAM). paletteCommitData = R##G##B (888).
+  when(paletteCommitNow && (paletteEntryIdx < U(16, 7 bits))) {
+    hamBase(paletteEntryIdx(3 downto 0)) :=
+      paletteCommitData(23 downto 20) ## paletteCommitData(15 downto 12) ## paletteCommitData(7 downto 4)
   }
 
   val palette = Mem(Bits(24 bits), initialContent = TileAttributeAssets.paletteInit)
