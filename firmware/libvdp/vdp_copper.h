@@ -48,10 +48,11 @@ static inline uint16_t vdp_copper_write_seq_hdr(uint16_t addr, uint8_t count_m1)
 /**
  * Encode a single WRITE opcode header (1 word).
  * The data word must follow immediately in the program stream.
+ * addr is a 14-bit register-bus address (bits [13:0]).
  */
 static inline uint16_t vdp_copper_write_op(uint16_t addr)
 {
-    return (uint16_t)(0x4000u | (addr & 0x7FFu));
+    return (uint16_t)(0x4000u | (addr & 0x3FFFu));
 }
 
 /**

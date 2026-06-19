@@ -49,9 +49,11 @@ void setup() {
 ```
 
 ### `vdp_read_status`
-**Description**: Performs a synchronous read from the VDP status registers. It takes a `selector` (0-255) to choose which internal data word to return. On the current Tang Nano 20K deployment, this uses the primary i80 parallel interface for high-speed response.
+**Description**: Performs a synchronous read from the VDP status registers. It takes a `selector` (0-255) to choose which internal data word to return.
 
-**Real World Use**: Use this to check if the FPGA is "alive" before starting a complex graphics sequence.
+**Important**: On the current i80 parallel interface, the `READ_STATUS` opcode (`0x04`) is **not yet implemented in the RTL**. `vdp_read_status()` works only on legacy QSPI builds. For i80/ESP32-S3 deployments, poll status through normal register reads (for example, `vdp_reg_read(0x0320)` for sticky status) and use write-1-to-clear register writes (for example, `vdp_reg_write(0x0320, mask)`) as described in the register spec. Note that `0x0323` (`UPLOAD_STATUS_CLEAR`) is also not decoded in the current bitstream.
+
+**Real World Use**: On QSPI builds, use this to check if the FPGA is "alive" before starting a complex graphics sequence.
 
 ```c
 void check_vdp_status() {
@@ -78,9 +80,9 @@ void hide_sprites() {
 ```
 
 ### `vdp_reg_write_burst`
-**Description**: The most efficient way to update multiple contiguous registers. It sends a single command header followed by a stream of data words. The VDP's internal address counter automatically increments after each word. 
+**Description**: Writes a contiguous block of registers. On the legacy QSPI backend, this sends a single command header followed by a stream of data words with an auto-incrementing address counter. On the canonical i80 backend, the helper issues a separate `opcode+addr+data` transaction for each word; the contiguous addresses are generated in firmware, not by an internal VDP counter.
 
-**Real World Use**: Use this to setup a "Window" or a "Color Math" block in one high-speed transaction.
+**Real World Use**: Use this to setup a "Window" or a "Color Math" block in one high-level call. The i80 path is still faster than individual `vdp_reg_write()` calls because it avoids per-call overhead, but it does not use a hardware auto-increment protocol.
 
 ```c
 void setup_ui_window() {
@@ -95,14 +97,14 @@ void setup_ui_window() {
 ## 2. Display Setup (Layers and Modes)
 
 ### `vdp_mode0_set_mode_select`
-**Description**: Selects the runtime "Adapter Mode" for the VDP. This function updates the `0x0313` register, which triggers a structural reconfiguration of the pixel pipeline at the next VSync. Valid IDs include `VDP_MODE_ID_SPECTRUM`, `VDP_MODE_ID_NES`, etc.
+**Description**: Writes the `MODE_SELECT` register (`0x0313`). The 16-bit value is split as `[3:0]` = mode select and `[15:8]` = mode flags. A value of `0x0000` selects native Mode0. Non-zero mode values are reserved for future runtime adapter selection and are not yet defined in the current implementation.
 
-**Real World Use**: Use this when your application transitions from a custom splash screen to a specific console emulation or legacy graphics mode.
+**Real World Use**: Use this to select native Mode0 explicitly or to reserve a future adapter mode. Most applications write `0x0000`.
 
 ```c
-void start_nes_game() {
-    // Transition the VDP into NES-compatible background and sprite logic.
-    vdp_mode0_set_mode_select(VDP_MODE_ID_NES);
+void start_native_mode0() {
+    // Select native Mode0 (mode=0, flags=0).
+    vdp_mode0_set_mode_select(0x0000u);
 }
 ```
 
@@ -160,7 +162,7 @@ void load_player_tiles(const uint16_t *gfx, uint16_t words) {
 ```c
 void set_sunset_lighting() {
     // Change palette index 0 (backdrop) to a deep orange.
-    // NOTE: See Section 8 for bank-fallthrough behavior.
+    // NOTE: See Section 8 for BACKDROP_INDEX behavior.
     vdp_mode0_palette_write_rgb888(0, 255, 128, 0);
 }
 ```
@@ -202,7 +204,7 @@ raw_palette_write_rgb888(1, r, g, b);
 ```
 
 > [!IMPORTANT]
-> `BORDER_CTRL` bits `[12:8]` and sprite `pal_bank` select palette entries directly. If you set the border to palette index `N`, the border color is exactly `palette[N]`.
+> `BORDER_CTRL` bits `[12:8]` select the border palette entry directly: border color is exactly `palette[N]`. Sprites are different — a sprite's final palette entry is `(pal_bank << 4) | pixel_nibble` for 4bpp sprites, where `pixel_nibble` comes from the sprite pattern data. Pixel value `0` is transparent. Reserve sprite palette entries when using copper/raster palette animation, or use a non-overlapping `pal_bank`.
 
 ---
 
@@ -218,9 +220,9 @@ void update_player_pos(int x, int y) {
     vdp_mode0_sprite_cfg_t player = {
         .x = x, .y = y,
         .pat_idx = 0,    // Use pattern 0
-        .pal_bank = 0,
+        .pal_bank = 0,   // Final palette entry = (0 << 4) | pixel_nibble
         .enabled = true,
-        .bpp_sel = 2     // 4bpp
+        .bpp_sel = 0     // 0 = 4bpp, 1 = 2bpp, 2 = 1bpp
     };
     vdp_mode0_set_sprite(0, &player); // Descriptor 0 is the player
 }

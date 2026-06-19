@@ -78,6 +78,8 @@ uint32_t magic = vdp_read_status(0);
 | `vdp_reg_write_burst` | `void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)` | write a contiguous block of register words | start address, little-endian word array, word count (1..253) | none |
 | `vdp_read_status` | `uint32_t vdp_read_status(uint8_t sel)` | read one 32-bit status selector | selector `0..7` | 32-bit little-endian response |
 
+> **Transport note:** `vdp_read_status()` is implemented only on the legacy QSPI backend. The canonical i80 RTL decoder does not currently decode the `READ_STATUS` opcode (`0x04`); on i80/ESP32-S3 hosts, poll status through normal register reads (e.g., `0x0320` for sticky status).
+
 ### `vdp_read_status` selectors
 
 | `sel` | Meaning |

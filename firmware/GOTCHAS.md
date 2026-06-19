@@ -55,13 +55,15 @@ Do not compute this as "N clock cycles" because host SCK rates vary by platform.
 
 ### FIDELITY-1: Authoritative vs Functional Host
 
-- **Authoritative:** Pico 2 (RP2350). Native PIO QSPI @ 2 MHz. Deterministic timing. **Required for audit sign-off.**
-- **Functional:** ESP32, ESP8266. Bit-bang QSPI @ ~500 kHz. Acceptable for functional regression only.
+- **Authoritative:** ESP32-S3 (i80 parallel). Native GPIO fast toggling. Deterministic timing. **Required for audit sign-off.**
+- **Functional / Legacy:** Pico 2 (RP2350) PIO QSPI, ESP32, ESP8266. Bit-bang QSPI @ ~500 kHz. Acceptable for functional regression only; not authoritative for timing-sensitive proofs.
 
-### FIDELITY-2: QSPI_ERROR == 0 Trust Requirement
+### FIDELITY-2: Upload Error Trust Requirement
 
-Visual output is only valid if `QSPI_ERROR` (sticky bit 3) remains clear.
-**Procedure:** Poll `last_error` (sel=4) after bursts. Clear error bit if set. Retrust only when `last_error == 0` throughout setup.
+Visual output is only valid if the upload bridge sticky error bits remain clear.
+**Procedure:** Poll `vdp_last_error()` after bursts. On legacy QSPI builds, clear error bits with `vdp_clear_upload_status()` if set and retrust only when `vdp_last_error() == 0` throughout setup (this corresponds to `QSPI_ERROR` / sticky bit 3 / `sel=4`).
+
+**Current limitation:** On the canonical i80 bitstream, `vdp_clear_upload_status()` issues the documented `0x0323` write, but the current RTL does not decode that address, so the sticky bits are not actually cleared until the RTL fix lands (see FIDELITY-6 and `MODE0_REGISTER_BUS_SPEC.md` §3.1.2).
 
 ### FIDELITY-3: Pico 2 / RP2350 Authority Notes
 
@@ -83,6 +85,21 @@ Visual output is only valid if `QSPI_ERROR` (sticky bit 3) remains clear.
 - **Rule:** Use `y-1` compensation for single-shot effects.
 - **Exception:** Do not apply `y-1` to looping programs spanning the active area.
 - **Requirement:** State program shape (single-shot/looping) and timing accuracy in reports.
+
+### FIDELITY-6: `vdp_read_status()` is not supported on the i80 backend
+
+**Fact:** The canonical ESP32-S3 host uses the i80 parallel interface. The i80 RTL decoder (`I80HostInterface.scala`) currently accepts only opcodes `0x00` (register write), `0x01` (register read), and `0x02` (SDRAM block write). It does **not** decode the `READ_STATUS` opcode (`0x04`).
+
+**Implication:**
+- `vdp_read_status()` works correctly only on legacy QSPI builds.
+- On i80/ESP32-S3 builds, `vdp_read_status()` returns undefined data and does not reflect VDP state.
+- Several ESP32-S3 example sketches still call `vdp_read_status()` for debug prints; those prints are meaningful only when the sketch is built for the legacy QSPI backend.
+
+**Workaround:** On i80, poll status through normal register reads:
+- Sticky status → `vdp_reg_read(0x0320)` (or write-1-to-clear with `vdp_reg_write(0x0320, mask)`).
+- Upload status is not yet available over i80; `vdp_clear_upload_status()` issues the documented `0x0323` write, but the current bitstream does not decode that address (see `MODE0_REGISTER_BUS_SPEC.md` §3.1.2).
+
+**Fix status:** Documented. RTL implementation tracked under `FULL-DOC-AUDIT-151` / escalated to BrightForge.
 
 ---
 
@@ -172,13 +189,13 @@ the VDP side ever adds high-Z states.
 
 ---
 
-### GOTCHA-10: Disabled-layer Backdrop Bank Fallthrough
+### GOTCHA-10: Disabled-Layer Backdrop Index
 
-**Fact:** When all layers and sprites are disabled (`LAYER_ENABLE = 0`), the VDP compositor falls through to a default color. However, it still uses the current **Layer 0 Palette Bank** for this lookup.
+**Fact:** When all layers and sprites are disabled (`LAYER_ENABLE = 0`), the VDP compositor falls through to the **backdrop color** indexed by `BACKDROP_INDEX` (`0x0348`). This is a 7-bit absolute palette index and is independent of any layer's palette bank.
 
-**Implication:** If you disable all layers to see a "pure" `palette[0]` backdrop, you may see **Black** or another color if Layer 0's bank is currently non-zero. At POR, Layer 0's bank is often **Bank 4** (Grayscale/Black) due to uninitialized SDRAM Attribute memory.
+**Implication:** At power-on, `BACKDROP_INDEX` defaults to `0`, so the backdrop is `palette[0]`. If you disable all layers and see an unexpected color, it is because `BACKDROP_INDEX` points to an entry you did not expect, not because of Layer 0's bank.
 
-**Fix:** Either pre-initialize the SDRAM Attribute Map to Bank 0, or write your intended backdrop color to the first index of all 8 palette banks (`0, 16, 32, 48, 64, 80, 96, 112`).
+**Fix:** Write your intended backdrop palette entry (0..127) to `BACKDROP_INDEX` (`0x0348`), then write the RGB color to that palette entry. Do not rely on Layer 0's palette bank for the disabled-layer backdrop.
 
 ### GOTCHA-11: ESP32-S3 QSPI SI Ceiling at 80 MHz
 

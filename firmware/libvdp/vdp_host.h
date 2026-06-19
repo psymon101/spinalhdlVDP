@@ -78,16 +78,25 @@ void vdp_reg_write(uint32_t addr, uint16_t data);
 void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words);
 
 /**
- * Clear upload-status sticky bits using the RTL W1C register.
+ * Clear upload-status sticky bits using the RTL W1C register at 0x0323.
  *
  * Valid Fix B bits are VDP_UPLOAD_STATUS_ERROR (bit 2) and
  * VDP_UPLOAD_STATUS_OVERFLOW (bit 3). Pass only bits intended to clear.
+ *
+ * Note: the 0x0323 clear decode is not yet implemented in the current
+ * bitstream; the helper issues the write, but hardware ignores it until
+ * the RTL change lands (FULL-DOC-AUDIT-151).
  */
 void vdp_clear_upload_status(uint16_t mask);
 
 /**
  * Issue a READ_STATUS (CMD=0x04) transaction and return the 32-bit
  * little-endian response word for the requested selector.
+ *
+ * Note: READ_STATUS is implemented only on legacy QSPI builds. The i80
+ * RTL decoder does not currently decode opcode 0x04, so this function
+ * returns undefined data on i80 hosts (use normal register reads instead).
+ *
  * @param sel   0 = magic 0x51560002, 1 = rx_cmd_cnt, 2 = last_addr,
  *              3 = last_data, 4 = last_error, 5 = status sticky,
  *              6 = upload status (busy/done bits), 7 = live mode,

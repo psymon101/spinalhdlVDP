@@ -72,6 +72,14 @@ extern "C" {
 #define VDP_MODE0_REG_ATTR_BASE_HI      0x0354u
 #define VDP_MODE0_REG_BITMAP_STRIDE     0x0355u
 #define VDP_MODE0_REG_ATTR_STRIDE       0x0356u
+#define VDP_MODE0_REG_BITMAP_BASE_PENDING_LO 0x0358u
+#define VDP_MODE0_REG_BITMAP_BASE_PENDING_HI 0x0359u
+#define VDP_MODE0_REG_ATTR_BASE_PENDING_LO   0x035Au
+#define VDP_MODE0_REG_ATTR_BASE_PENDING_HI   0x035Bu
+#define VDP_MODE0_REG_BITMAP_SWAP_CTRL       0x035Cu
+
+#define VDP_MODE0_BITMAP_SWAP_REQUEST   0x0001u
+#define VDP_MODE0_BITMAP_SWAP_COMMITTED 0x0002u
 
 /* Raster trigger block: TR1..TR3 are bus-controlled */
 #define VDP_MODE0_REG_TRIGGER1_LINE     0x0360u
@@ -225,7 +233,7 @@ typedef struct {
     uint8_t  prio;      // 2 bits (0..3)
     bool     flip_h;
     bool     flip_v;
-    uint8_t  bpp_sel;   // 2 bits (0..2)
+    uint8_t  bpp_sel;   // 2 bits (0..2): 0 = 4bpp, 1 = 2bpp, 2 = 1bpp
     bool     mask;
 } vdp_mode0_sprite_cfg_t;
 
@@ -272,6 +280,9 @@ void vdp_mode0_set_bitmap_ctrl(uint16_t ctrl);
 
 void vdp_mode0_set_bitmap_base(uint32_t base);
 void vdp_mode0_set_attr_base(uint32_t base);
+void vdp_mode0_request_bitmap_swap(uint32_t bitmap_base, uint32_t attr_base);
+uint16_t vdp_mode0_read_bitmap_swap_ctrl(void);
+void vdp_mode0_clear_bitmap_swap_committed(void);
 void vdp_mode0_set_bitmap_stride(uint16_t stride);
 void vdp_mode0_set_attr_stride(uint16_t stride);
 

@@ -28,7 +28,7 @@ This section tracks the active lane.
 | **Owner** | BrightForge (RTL/sim/synth) / BronzeGate (firmware/HW) / CyanPeak (audit) / CoralReef (docs) / TopazCliff (PM) |
 | **Baseline Commit** | `main @ 66b53bc` |
 | **Latest Auth Mail** | TopazCliff #12859 (lane open: NATIVE-640-BITMAP-148) |
-| **Summary** | Implement a native 640×480 1:1 bitmap path. Current RTL hardwires bitmap fetch to 320 source pixels stretched 2× to 640 (col/2 for direct-color, col/8 for indexed 2bpp). This lane makes compositor reads width-aware, fetches 640 source pixels/row, and grows/banks the line buffer. Scaler is repurposed for upscaling sub-native content. Indexed 2bpp native is the initial target; RGB565 native is gated by bandwidth/BSRAM feasibility. BSRAM feasibility is measured after RTL-BSRAM-OPTIMIZATION-149 lands. |
+| **Summary** | Implement a native 640×480 1:1 bitmap path. Current RTL hardwires bitmap fetch to 320 source pixels stretched 2× to 640 (col/2 for direct-color, col/8 for indexed 2bpp). This lane makes compositor reads width-aware, fetches 640 source pixels/row, and grows/banks the line buffer. Scaler is repurposed for upscaling sub-native content. Indexed 2bpp native is the initial target; RGB565 native is gated by bandwidth/BSRAM feasibility. RTL-BSRAM-OPTIMIZATION-149 is now DONE (40/46 BSRAM used, 6 free), so 148's BSRAM trial-synth can proceed on that baseline. |
 | **Checkpoints** | A: bandwidth co-sim now; BSRAM trial-synth post-149 (BrightForge). B: width-aware compositor + 640 fetch + buffer (BrightForge). C: sim + synth/PnR ≤46/46 (BrightForge). D: firmware + hardware proof (BronzeGate). E: docs + audit (CoralReef/CyanPeak). |
 | **Next Step** | BrightForge runs native-640 bandwidth co-sim (indexed 2bpp + RGB565); BSRAM gate waits for post-149 baseline. |
 
@@ -44,6 +44,30 @@ This section tracks the active lane.
 - **Scope:** Finish `VDP_PROGRAMMING_GUIDE.md` RGB565 section, sweep docs/examples for stale data, CyanPeak doc audit.
 - **Depends on:** RGB565-FULLFRAME-132 DONE
 - **Validation:** Docs consistent with `mode0_regs.json`; canonical example compiles; CyanPeak audit PASS (#12437); branch merged to `main` @ `c98ec03`.
+
+### Priority 0b — Full Doc-to-Code Audit (FULL-DOC-AUDIT-151)
+- **Status:** **IN-PROGRESS / REVIEW**
+- **Owner:** CoralReef (consistency) / CyanPeak (code-to-spec) / BronzeGate (firmware helper validation) / BrightForge (RTL escalations)
+- **Scope:** PM-activated consistency sweep across `VDP_PROGRAMMING_GUIDE.md`, `MODE0_REGISTER_BUS_SPEC.md`, `TECH_SPEC_HOST_INTERFACE_AND_COPPER.md`, libvdp helper headers, examples, and `mode0_regs.json`.
+- **Depends on:** None
+- **Validation:** CyanPeak code-to-spec PASS (#12890); BronzeGate helper review PASS (#12891); BrightForge accepted RTL escalations into follow-up lane I80-STATUS-DECODE-152 (#12897 / TopazCliff #12900); CoralReef consistency review pending.
+- **Checkpoints:**
+  - **A:** DONE (#12886/#12887) — 15 findings triaged; doc-only findings fixed; helper-level findings fixed in firmware; two RTL items escalated.
+  - **B:** IN-PROGRESS — CyanPeak PASS (#12890), BronzeGate PASS (#12891), BrightForge escalation acceptance DONE (#12897 → #12900), CoralReef consistency review pending.
+  - **C:** Escalated to **I80-STATUS-DECODE-152** after NATIVE-640-BITMAP-148 CP-A — implement i80 `READ_STATUS` opcode `0x04` and `0x0323` upload-status-clear decode.
+- **Latest Auth Mail:** TopazCliff #12900 (escalation sequencing to I80-STATUS-DECODE-152)
+
+### Priority 0c — i80 Status Decode and Upload-Clear (I80-STATUS-DECODE-152)
+- **Status:** **QUEUED / WAITING**
+- **Owner:** BrightForge (RTL) / CyanPeak (code-to-spec) / CoralReef (doc consistency) / BronzeGate (HW validation)
+- **Scope:** Implement the two RTL escalations from FULL-DOC-AUDIT-151: (1) i80 opcode `0x04` `READ_STATUS` response path in `I80HostInterface.scala`, and (2) register `0x0323` `UPLOAD_STATUS_CLEAR` decode + clear strobes to `QspiSdramBridge` for both QSPI and i80.
+- **Depends on:** NATIVE-640-BITMAP-148 CP-A complete; FULL-DOC-AUDIT-151 CoralReef consistency PASS
+- **Validation:** CyanPeak code-to-spec PASS; BronzeGate validates `vdp_read_status(0)` and `vdp_clear_upload_status()` on i80 hardware; CoralReef removes limitation notes from docs in the same commit.
+- **Checkpoints:**
+  - **A:** (pending) — BrightForge reconciles with PA-2 `3647f2e`/`b3880f2` to avoid double-decode, then implements.
+  - **B:** (pending) — Sim + synth PASS; CyanPeak + CoralReef review.
+  - **C:** (pending) — BronzeGate HW validation; docs limitation notes removed.
+- **Latest Auth Mail:** TopazCliff #12900 (lane queued after NATIVE-640 CP-A)
 
 ### Priority 1 — libvdp Scaler Register Exposure
 - **Status:** **DONE**
@@ -93,12 +117,12 @@ This section tracks the active lane.
 - **Validation:** N/A — Phase 1 abandoned per BrightForge #12648 / TopazCliff #12649.
 
 ### Priority 4b — RTL BSRAM Structural Optimization (RTL-BSRAM-OPTIMIZATION-149)
-- **Status:** **IN-PROGRESS**
+- **Status:** **DONE**
 - **Owner:** BrightForge (RTL/sim/synth) / CyanPeak (audit) / BronzeGate (HW regression) / CoralReef (docs)
-- **Scope:** Two structural `Mem` refactors with zero functional/timing impact: (3) fold double buffers in `LineBuffer`/`SdramTileFetch`/`SdramTileAttributeFetch`, then (2) pack sprite matrices in `SpriteEvaluator`. Refactor 1 (`BitplaneRowFetch` flatten) dropped because the target `Mem` is `readAsync` and already maps to LUTRAM/SSRAM, not BSRAM. Potential reclaim ~5–7 BSRAM blocks.
+- **Scope:** Refactor 3 (fold double buffers in `LineBuffer`/`SdramTileFetch`/`SdramTileAttributeFetch`) landed at `0eb10e7`. Refactor 1 (`BitplaneRowFetch` flatten) and Refactor 2 (`SpriteEvaluator` matrix pack) were both skipped: synth/netlist inspection showed their targets map to distributed SSRAM/LUTRAM, not BSRAM, so packing/flattening yields 0 BSRAM reclaim and risks consuming blocks or adding complexity.
 - **Depends on:** I80-FRAME-ATOMIC-SWAP-145 DONE; SDRAM-BANDWIDTH-146 RTL side CLOSED
-- **Validation:** Existing sims PASS; synth ≤46/46 BSRAM, no timing regression; HARDWARE-BASICS-144 smoke tests PASS on final bitstream.
-- **Latest Auth Mail:** TopazCliff #12870 (revised scope)
+- **Validation:** Commit `0eb10e7`; BSRAM 42/46 → **40/46** (−2 blocks); LUT −114; worst setup slack +4.810 ns; hold slack +0.074 ns; TNS=0. Targeted sims PASS (`RGB565FullFrameSim`, `PlanarWriteBufRaceSim`, `TileAttributeFetchSim`, etc.); 2 pre-existing flaky/failing sims unchanged on baseline. CyanPeak logical-equivalence + synth-report audit PASS (#12898). No HARDWARE-BASICS-144 regression required (structural no-functional-change refactor).
+- **Latest Auth Mail:** TopazCliff #12876 (lane closeout)
 
 ### Priority 5a — Sim Test Debt Cleanup (SIM-TEST-DEBT-138)
 - **Status:** **DONE** (commit authorized #12715)
@@ -171,6 +195,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 | I80-FRAME-ATOMIC-SWAP-145 — vblank-atomic bitmap/attr base swap + 0x035C i80 readback; merged to main | **DONE** | BrightForge RTL #12766/#12782; BronzeGate firmware proof #12783/#12784; residual issue moved to SDRAM-BANDWIDTH-146 |
 | SDRAM-BANDWIDTH-146 — RTL display path exonerated under concurrent full-frame RGB565 upload; rate cap not merged; residual reclassified as capture-chain artifact | **DONE** | BrightForge CP-A.2 co-sim #12807; BronzeGate HW cross-check #12805; moved to CAPTURE-CHAIN-VALIDATION-147 |
 | CAPTURE-CHAIN-VALIDATION-147 — residual test07 artifact classified as RTSP/MJPEG/upscale capture-chain limitation, not RTL defect | **DONE** | CyanPeak #12812, CoralReef #12813, BronzeGate row-ID-bar proof #12823 |
+| RTL-BSRAM-OPTIMIZATION-149 — structural Mem refactor; R3 double-buffer fold landed (−2 BSRAM), R1/R2 skipped as targets map to SSRAM/LUTRAM | **DONE** | BrightForge commit `0eb10e7`; TopazCliff closeout #12876 |
 | RTL-EFFICIENCY-142 — triage and verify `vdp_efficiency_report.md` recommendations; report debunked, no code changes | **DONE** | BrightForge verification #12735/#12736; dangerous `evalStart` suggestion rejected |
 | PROJECT-AUDIT-141 — project-wide audit + main-branch consolidation; closed QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140; committed clean baseline to `main` | **DONE** | commits `ed12ece`, `1fe2b61`, `f04960b`, `7e8fd2f`; audits PASS #12721/#12727/#12728/#12730 |
 | WHOLE-VDP-134 — whole-system i80/ESP32-S3 regression baseline before BSRAM optimization (scenarios #1–#5) | **DONE** | scenario #5 PASS on raw-i80 + libvdp-helper paths; copper docs merged `36adcbc`; closeout #12543 |

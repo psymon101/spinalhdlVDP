@@ -10,7 +10,7 @@ Project identity: `spinalhdlVDP`.
 |---|---|---|---|
 | `BrightForge` | Claude | FPGA RTL Engineer | Structural HDL, state machines, timing-sensitive logic, FPGA proof |
 | `BronzeGate` | Codex | MCU Firmware Engineer | Bare-metal C/C++, register manipulation, transport and hardware drivers |
-| `CyanPeak` | Gemini | Datasheet Parser & Reviewer | Large manual ingestion, code-to-spec review, hardware-accuracy checks |
+| `CyanPeak` | Antigravity CLI (`agy`) | Datasheet Parser & Reviewer | Large manual ingestion, code-to-spec review, hardware-accuracy checks |
 | `TopazCliff` | Kimi (Inst. 2) | Technical Project Manager | Feature tickets, HW/SW interface definition, sequencing, timelines |
 | `CoralReef` | Kimi | Compliance & Documentation | Static-ruleset audit, compliance checks, README/doc generation |
 

@@ -65,7 +65,7 @@ The primary host interface is an 8-bit parallel Intel-8080-style bus driven by a
 - `DC#` low = opcode or address byte; `DC#` high = data byte.
 - `WR#` rising edge latches host output; `RD#` rising edge samples host input.
 
-**Readback semantics:** Most register reads return the **last value written to that address** (loopback). This is sufficient for host shadow verification but is not a full register-file readback. `0x0328`/`0x0329` return armed SDRAM debug data. Status snapshots use the `READ_STATUS` selector mechanism described in §5.
+**Readback semantics:** Most register reads return the **last value written to that address** (loopback). This is sufficient for host shadow verification but is not a full register-file readback. `0x0328`/`0x0329` return armed SDRAM debug data. Status snapshots use the `READ_STATUS` selector mechanism described in §5 on legacy QSPI builds; the i80 RTL path does not currently implement `READ_STATUS`.
 
 ### 2.4 QSPI Transport Performance (Bench-validated 2026-05-23) — Retired
 The QSPI transport performance below is historical; QSPI is no longer the canonical Tang Nano 20K host path. See `archive/QSPI_HOST_CONTROL_PLAN.md` for the full QSPI history.
@@ -102,7 +102,7 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0317` | `L3_TRANS_KEY` — 4-bit transparency index for layer 3 | R6 / #3 | `VdpTop.scala` |
 | `0x0318..0x031F` | **Reserved** — global-control expansion | — | — |
 | `0x0320..0x0322` | **Task 35** — status registers, IRQ enables, sticky bits (see §3.1.1) | Task 35, 29 | `VdpTop.scala:878-921` |
-| `0x0323` | `UPLOAD_STATUS_CLEAR` — write-1-to-clear for bridge sticky bits (see §3.1.2) | **Landed (Phase 2)** | `QspiDecoder.scala` |
+| `0x0323` | `UPLOAD_STATUS_CLEAR` — write-1-to-clear for bridge sticky bits (see §3.1.2). **Current bitstream: address is allocated and the helper issues the write, but the RTL clear decode is not yet implemented.** | **Landed (Phase 2) / decode pending** | `firmware/libvdp/vdp_host.c`; RTL decode TBD (`QspiDecoder.scala`, `VdpTop.scala`) |
 | `0x0324..0x032F` | **Reserved** — status expansion | — | — |
 | `0x0330..0x0334` | **Task 20** — Window 1 + Color Math (`WIN1_X0`, `WIN1_X1`, `WIN1_Y0`, `WIN1_Y1`, `COLOR_MATH_CTRL`) | Task 20 / R6 | `VdpTop.scala:249,255-263` |
 | `0x0335..0x033B` | **Task 20** — Window 2 + combine (`WIN2_X0`, `WIN2_X1`, `WIN2_Y0`, `WIN2_Y1`, `WIN2_CTRL`, `WIN_COMBINE`, `LAYER_MASK`) | Task 20 / R6 | `VdpTop.scala` |
@@ -160,7 +160,7 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0D4A` | `PLANAR_CTRL` — bit[0] enable, bits[3:1] planeCount-1 | Task 55 | `VdpTop.scala` |
 | `0x0D4B` | `PLANAR_WIDTH` — 10-bit planar clip width (default 320; values >320 wrap) | R6 / #4 | `VdpTop.scala` |
 | `0x0D4C..0x0D7F` | **Reserved** — planar expansion | — | — |
-| `0x0800..0x087F` | **Reserved** — Task 31 legacy scroll mapping (avoid using) | Task 31 | — |
+| `0x0800..0x08FF` | `SPRITE_DESCRIPTOR` — 32 slots × 8 words sprite descriptor bus-write port | Task 37 / 45 | `VdpTop.scala:1807+` |
 | `0x0900..0x097F` | Layer 0 H-scroll table (128 entries × 10 bits) | Task 31 | `VdpTop.scala:878+` |
 | `0x0980..0x09FF` | Layer 1 H-scroll table (128 entries × 10 bits) | Task 31 | `VdpTop.scala:884+` |
 
@@ -203,7 +203,9 @@ ACK/NAK lane (#11500 / #11508 / #11557). The bridge's upload status is surfaced 
 
 byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 
-**`UPLOAD_STATUS_CLEAR` (`0x0323`, write-1-to-clear)** — within the reserved `0x0320..0x032F` block. A host `REG_WRITE` whose data bits mirror the sel=6 byte0 positions clears the corresponding sticky bit (bit2→`upload_error`, bit3→`fifoOverflow`, **bit4→`txn_dropped`**; bit5→`short_frame` once Fix A lands). Decoded in the pixel domain by the host bridge (`QspiDecoder` on legacy QSPI builds, equivalent i80 decoder on i80 builds; no CDC): bit2/bit3 strobe into the bridge's Regs (a genuine re-set the same cycle wins, so a live error is never lost); bit4 clears the decoder's own `txn_dropped` Reg. Fix B (#11557) sim-proven: `QspiAckNakSim` (D) + `QspiWriteStatusReproSim` (E). Phase 2 `txn_dropped` (PA-2 #11614/#11626) sim: `QspiWriteStatusReproSim` (F).
+**`UPLOAD_STATUS_CLEAR` (`0x0323`, write-1-to-clear)** — within the reserved `0x0320..0x032F` block. The intended behavior is that a host `REG_WRITE` whose data bits mirror the sel=6 byte0 positions clears the corresponding sticky bit (bit2→`upload_error`, bit3→`fifoOverflow`, **bit4→`txn_dropped`**; bit5→`short_frame` once Fix A lands). The clear strobes would be decoded in the pixel domain by the host bridge (`QspiDecoder` on legacy QSPI builds, equivalent i80 decoder on i80 builds; no CDC): bit2/bit3 strobe into the bridge's Regs (a genuine re-set the same cycle wins, so a live error is never lost); bit4 clears the decoder's own `txn_dropped` Reg.
+
+> **Current limitation (FULL-DOC-AUDIT-151):** As of the current `main` bitstream, address `0x0323` is **not decoded** in `VdpTop.scala` or `QspiDecoder.scala`. Writing `0x0323` therefore has no effect on current hardware; upload sticky bits clear only at POR or through an upload-bridge reset path. The `vdp_clear_upload_status()` helper in `firmware/libvdp/vdp_host.c` has been updated to issue the `0x0323` write on both i80 and QSPI, but the RTL clear decode is still pending (escalated to BrightForge).
 
 ### 3.1.3 Auto-Generated Register Detail Tables
 
@@ -385,7 +387,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | W1C |
 | Reset | `0x0000` |
 | Category | diagnostic |
-| Description | Clears sticky host upload bridge error flags. |
+| Description | Clears sticky host upload bridge error flags. **Current bitstream: the address is allocated and the firmware helper issues the write, but the RTL clear decode is not yet implemented; writes have no effect until the decode lands (FULL-DOC-AUDIT-151).** |
 
 | Bits | Field | Description |
 |---|---|---|
@@ -950,7 +952,7 @@ Most registers are **double-buffered**. Host writes go to a "prepare" (shadow) r
 
 | Category | Commit Boundary | Examples |
 |---|---|---|
-| **Immediate** | Combinational / next-cycle | `UPLOAD_STATUS_CLEAR`, `DMA_CTRL.go` |
+| **Immediate** | Combinational / next-cycle | `DMA_CTRL.go`. `UPLOAD_STATUS_CLEAR` is intended to be immediate once the RTL decode lands (currently pending, see §3.1.2). |
 | **H-Boundary** | `hCounter === 0` | `LAYER_ENABLE`, `BORDER_CTRL`, `WIN*_X0`, `BITMAP_CTRL` |
 | **V-Boundary** | `vSyncStart && hCounter === 0` (or `vCounter === 0 && hCounter === 0`) | `MODE_SELECT`, `LOGIC_WIDTH`, `COPPER_SWAP_REQUEST` |
 | **Mixed** | Per-bit boundary (see detail table) | `VDP_CTRL` (`COPPER_ENABLE` is H-boundary, `COPPER_SWAP_REQUEST` is V-boundary) |
@@ -966,7 +968,7 @@ Registers marked W1C (e.g. `STATUS_STICKY` @ `0x0320`) are used to clear sticky 
 
 ## 5. READ_STATUS Response (Companion)
 
-Host `READ_STATUS` returns a 32-bit word over the active host transport (i80 opcode `0x01`, or the legacy QSPI status command). The `sel` byte in the command picks the word:
+Host `READ_STATUS` returns a 32-bit word over the active host transport. On legacy QSPI builds this is the QSPI status command; on i80 builds the planned opcode is `0x04`, but **the i80 RTL path currently does not decode opcode `0x04`** — only register write (`0x00`), register read (`0x01`), and SDRAM block write (`0x02`) are implemented. Until `READ_STATUS` is added to the i80 decoder, i80 hosts must use normal register reads for status. The `sel` byte in the command picks the word:
 
 | sel | Response Word [31:0] |
 |---|---|
