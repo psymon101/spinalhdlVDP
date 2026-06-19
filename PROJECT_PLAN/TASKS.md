@@ -1,6 +1,6 @@
 # TASKS.md
 
-**Updated:** 2026-06-18 (NATIVE-640-BITMAP-148 IN-PROGRESS; RTL-BSRAM-OPTIMIZATION-149 IN-PROGRESS; CAPTURE-CHAIN-VALIDATION-147 DONE (capture-chain limitation); SDRAM-BANDWIDTH-146 DONE (RTL side exonerated); I80-FRAME-ATOMIC-SWAP-145 DONE; HARDWARE-BASICS-144 DONE; HOST-AFFINE-TEXTURE-143 PAUSED; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
+**Updated:** 2026-06-19 (NATIVE-640-BITMAP-148 IN-PROGRESS; BSRAM-L1-GATE-154 IMPLEMENTATION DONE / AWAITING AUDIT; SPRITE-BSRAM-PROBE-153 DONE (0 BSRAM from descCount 32→16); RTL-BSRAM-OPTIMIZATION-149 DONE; CAPTURE-CHAIN-VALIDATION-147 DONE (capture-chain limitation); SDRAM-BANDWIDTH-146 DONE (RTL side exonerated); I80-FRAME-ATOMIC-SWAP-145 DONE; HARDWARE-BASICS-144 DONE; HOST-AFFINE-TEXTURE-143 PAUSED; RTL-EFFICIENCY-142 DONE; PROJECT-AUDIT-141 DONE; QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140 DONE; `main` clean baseline established; 2bpp planar / tile-row-stride sub-lanes PARKED.)
 **Purpose:** Authoritative active task ledger for `spinalhdlVDP`. Optimized for fast operational reading. Deep historical detail is in `TASKS_HISTORY.md`.
 
 Status values: `TODO`, `IN-PROGRESS`, `DEFERRED`, `DONE`
@@ -26,7 +26,7 @@ This section tracks the active lane.
 | **Status** | **IN-PROGRESS** |
 | **Task ID** | NATIVE-640-BITMAP-148 |
 | **Owner** | BrightForge (RTL/sim/synth) / BronzeGate (firmware/HW) / CyanPeak (audit) / CoralReef (docs) / TopazCliff (PM) |
-| **Baseline Commit** | `main @ 66b53bc` |
+| **Baseline Commit** | `main @ 252cba4` |
 | **Latest Auth Mail** | TopazCliff #12859 (lane open: NATIVE-640-BITMAP-148) |
 | **Summary** | Implement a native 640×480 1:1 bitmap path. Current RTL hardwires bitmap fetch to 320 source pixels stretched 2× to 640 (col/2 for direct-color, col/8 for indexed 2bpp). This lane makes compositor reads width-aware, fetches 640 source pixels/row, and grows/banks the line buffer. Scaler is repurposed for upscaling sub-native content. Indexed 2bpp native is the initial target; RGB565 native is gated by bandwidth/BSRAM feasibility. RTL-BSRAM-OPTIMIZATION-149 is now DONE (40/46 BSRAM used, 6 free), so 148's BSRAM trial-synth can proceed on that baseline. |
 | **Checkpoints** | A: bandwidth co-sim now; BSRAM trial-synth post-149 (BrightForge). B: width-aware compositor + 640 fetch + buffer (BrightForge). C: sim + synth/PnR ≤46/46 (BrightForge). D: firmware + hardware proof (BronzeGate). E: docs + audit (CoralReef/CyanPeak). |
@@ -68,6 +68,18 @@ This section tracks the active lane.
   - **B:** (pending) — Sim + synth PASS; CyanPeak + CoralReef review.
   - **C:** (pending) — BronzeGate HW validation; docs limitation notes removed.
 - **Latest Auth Mail:** TopazCliff #12900 (lane queued after NATIVE-640 CP-A)
+
+### Priority 0d — Gate Dead L1 Fetch Engine (BSRAM-L1-GATE-154)
+- **Status:** **IN-PROGRESS / IMPLEMENTATION DONE — AWAITING COMBINED BUILD + AUDIT**
+- **Owner:** BrightForge (RTL/sim/synth) / CyanPeak (code-to-spec)
+- **Scope:** `TopTang20kHdmi.scala` passes `enableL1Fetch = false` to `VdpTop`, but still unconditionally instantiates the L1 SDRAM fetch engine (`fetchL1` at line 710). The production build hardwires `video.io.layer1UseSdram := False`, so the engine is logically dead yet synthesizes. Wrap the `fetchL1` instantiation in `if (enableL1Fetch)` and tie off all downstream layer1 SDRAM signals / arbiter client 3 when disabled.
+- **Depends on:** None; can proceed in parallel with NATIVE-640-BITMAP-148.
+- **Validation:** Commit `45da013` on branch `brightforge/bsram-l1-gate-154`. Standalone build vs `main@a0e279a`: BSRAM 42/46 → **40/46** (−2 blocks); LUT −174; FF −95; TNS=0. The actual post-merge delta on current `main@252cba4` (which already includes RTL-BSRAM-149 R3) is TBD — BrightForge running combined build.
+- **Checkpoints:**
+  - **A:** DONE — compile-time gate + tie-offs implemented; elaboration + sim smoke PASS.
+  - **B:** DONE — standalone PnR shows −2 BSRAM; combined 149+154 build requested for real post-merge count.
+  - **C:** IN-PROGRESS — CyanPeak code-to-spec audit; PM merge authorization after combined-build report + audit PASS.
+- **Latest Auth Mail:** TopazCliff #12913 (combined build + audit gate)
 
 ### Priority 1 — libvdp Scaler Register Exposure
 - **Status:** **DONE**
@@ -196,6 +208,7 @@ Recently closed lanes. Full detail in `TASKS_HISTORY.md`.
 | SDRAM-BANDWIDTH-146 — RTL display path exonerated under concurrent full-frame RGB565 upload; rate cap not merged; residual reclassified as capture-chain artifact | **DONE** | BrightForge CP-A.2 co-sim #12807; BronzeGate HW cross-check #12805; moved to CAPTURE-CHAIN-VALIDATION-147 |
 | CAPTURE-CHAIN-VALIDATION-147 — residual test07 artifact classified as RTSP/MJPEG/upscale capture-chain limitation, not RTL defect | **DONE** | CyanPeak #12812, CoralReef #12813, BronzeGate row-ID-bar proof #12823 |
 | RTL-BSRAM-OPTIMIZATION-149 — structural Mem refactor; R3 double-buffer fold landed (−2 BSRAM), R1/R2 skipped as targets map to SSRAM/LUTRAM | **DONE** | BrightForge commit `0eb10e7`; TopazCliff closeout #12876 |
+| SPRITE-BSRAM-PROBE-153 — descCount 32→16 saves 0 BSRAM; `activeListMem` (4 BSRAM) scales with `visiblePerLine`, not descCount | **DONE** | BrightForge probe #12909/#12910; PM decision: do not trade sprite capacity for BSRAM |
 | RTL-EFFICIENCY-142 — triage and verify `vdp_efficiency_report.md` recommendations; report debunked, no code changes | **DONE** | BrightForge verification #12735/#12736; dangerous `evalStart` suggestion rejected |
 | PROJECT-AUDIT-141 — project-wide audit + main-branch consolidation; closed QSPI-DEPRECATE-139, SIM-TEST-DEBT-138, SIM-TEST-FOLLOWUP-140; committed clean baseline to `main` | **DONE** | commits `ed12ece`, `1fe2b61`, `f04960b`, `7e8fd2f`; audits PASS #12721/#12727/#12728/#12730 |
 | WHOLE-VDP-134 — whole-system i80/ESP32-S3 regression baseline before BSRAM optimization (scenarios #1–#5) | **DONE** | scenario #5 PASS on raw-i80 + libvdp-helper paths; copper docs merged `36adcbc`; closeout #12543 |
