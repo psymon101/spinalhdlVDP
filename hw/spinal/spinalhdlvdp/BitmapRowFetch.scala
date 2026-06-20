@@ -251,7 +251,7 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
 
     val bootCounter = Reg(UInt(log2Up(TotalBitmapBytes + 1) bits)) init 0
     val byteIdx     = Reg(UInt(log2Up(BitmapBufferDepth) bits)) init 0
-    val lineReg     = Reg(UInt(10 bits)) init 0
+    val lineReg     = (Reg(UInt(10 bits)) init 0).simPublic()  // BUG1-174: observe fetched row in grant-FIFO sim
 
     // CP-1c: per-line fetch count and SDRAM row byte-offset. Directcolor
     // fetches 320 bytes/row (one per source pixel) on a 512-byte stride;
@@ -321,13 +321,25 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     // RGB565-FULLFRAME-132 B.2 (#12350): grant QUEUE. At 40.5 MHz a row fetch
     // (1566 pixel-clocks) + an AUTO_REFRESH can overrun the ~1600 pixel-clock
     // per-source-row grant period. Without a queue the FSM (busy, not in sIdle)
-    // DROPS that grant and the row is never fetched. Here every fetchGrant pulse is
-    // latched into `grantPending`/`pendingLine`; sIdle consumes it (immediately, no
-    // wait for a fresh pulse) so the FSM does a back-to-back catch-up fetch. Depth
-    // 1: a 2nd grant arriving while one is already pending is a true bandwidth
-    // collapse — counted in `grantOverflow` (and surfaces as a sim mismatch).
-    val grantPending  = (RegInit(False)).simPublic()
-    val pendingLine   = Reg(UInt(10 bits)) init 0
+    // DROPS that grant and the row is never fetched. Every fetchGrant pulse is pushed
+    // into a depth-2 FIFO; sIdle pops it (immediately, no wait for a fresh pulse) so
+    // the FSM does back-to-back catch-up fetches. BUG1-GRANT-FIFO-174: depth raised
+    // 1→2 so a 2nd grant arriving while one is already pending is BUFFERED (not lost);
+    // only a 3rd-while-2-pending (FSM >2 rows behind) is a true overflow → grantOverflow.
+    // BUG1-GRANT-FIFO-174 (external-AI Bug 1): true 2-entry grant FIFO. The prior
+    // single-bit `grantPending` latch OVERWROTE `pendingLine` if a 2nd grant arrived
+    // while one was already pending (a fetch overrunning its scanline under SDRAM
+    // contention) → that row was silently DROPPED (visible tearing / stale rows). A
+    // depth-2 FIFO buffers up to two pending lines without loss. Pointers are 2-bit
+    // (one wrap bit beyond the 1-bit slot index) so empty (wr==rd) and full (count==2)
+    // are unambiguous — a 1-bit pointer can only represent depth-1. Push (wr) and pop
+    // (rd) touch DIFFERENT pointers, so a same-cycle consume+grant needs no ordering
+    // trick (both happen cleanly).
+    val grantFifo     = Vec.fill(2)(Reg(UInt(10 bits)) init 0)
+    val grantWrPtr    = (Reg(UInt(2 bits)) init 0).simPublic()
+    val grantRdPtr    = (Reg(UInt(2 bits)) init 0).simPublic()
+    val grantEmpty    = grantWrPtr === grantRdPtr
+    val grantFull     = (grantWrPtr - grantRdPtr) === U(2, 2 bits)
     val grantOverflow = (Reg(UInt(8 bits)) init 0).simPublic()
 
     val fsm = new StateMachine {
@@ -452,12 +464,12 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
         sdramActiveR := False
         // Consume a QUEUED grant (latched below) — services both a fresh grant and
         // a grant that arrived while the previous fetch was still running.
-        when(grantPending) {
+        when(!grantEmpty) {
           // Each source row is displayed for two screen lines so a 240-row
           // bitmap fills the 480-line HDMI output without adding a scaler.
-          lineReg := (pendingLine >> 1).resize(10)
+          lineReg := (grantFifo(grantRdPtr.resize(1)) >> 1).resize(10)
           fetchBank := inc3(fetchBank)   // advance to this fetch's target bank
-          grantPending := False
+          grantRdPtr := grantRdPtr + 1   // pop the consumed grant
           byteIdx := 0
           bootCounter := 0
           sdramActiveR := True
@@ -561,15 +573,18 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
       }
     }
 
-    // Depth-1 grant queue latch. Placed AFTER the FSM so that on a cycle where
-    // sIdle consumes the pending grant (grantPending := False) AND a new grant edge
-    // arrives, this block's `grantPending := True` wins — i.e. serve the old grant
-    // and queue the new one. A grant edge while a grant is ALREADY pending is a
-    // depth-1 overflow (the FSM fell two rows behind) — counted for the proof.
+    // Grant FIFO push. Push (wr ptr) is independent of the sIdle pop (rd ptr), so a
+    // same-cycle consume+grant just advances both pointers — no ordering trick needed.
+    // A grant arriving while the FIFO is FULL (2 already queued = FSM fell >2 rows
+    // behind) is a genuine depth-2 overflow — counted for the proof, not silently
+    // overwriting as the old depth-1 latch did.
     when(fetchGrantEdge) {
-      when(grantPending) { grantOverflow := grantOverflow + 1 }
-      grantPending := True
-      pendingLine  := fetchLineSync
+      when(grantFull) {
+        grantOverflow := grantOverflow + 1
+      } otherwise {
+        grantFifo(grantWrPtr.resize(1)) := fetchLineSync
+        grantWrPtr := grantWrPtr + 1
+      }
     }
 
     io.sdramAddr := cmdAddr
