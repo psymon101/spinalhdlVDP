@@ -9,7 +9,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
                   logicWidthInit:  Int = 640,
                   logicHeightInit: Int = 480,
                   borderCtrlInit:  Int = 0,
-                  bitmapWritePipelineDelay: Int = 0) extends Component {
+                  // HAM-DECODER-171 CP-D: shared bitmap write-pipeline alignment. MEASURED
+                  // = 1 column (CyanPeak #12998: with the odd-column HAM step, the combinational
+                  // rgb888 for source k is ready at cols 2k+1,2k+2 → 1-col write delay lands it
+                  // at dcLineBuf[2k,2k+1]). Fixes HAM AND the latent RGB565 directcolor 1-col
+                  // shift (shared dcLineBuf carrier). 0 = pre-fix legacy. Default now 1 (aligned).
+                  bitmapWritePipelineDelay: Int = 1) extends Component {
   // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM is migrated
   // into the SDRAM clock domain. When `sdramCd` is null (sim-default),
   // use the current pixel ClockDomain so single-clock sims keep working;
@@ -2037,7 +2042,14 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val hamCode    = bmByteSel(5 downto 0)
   val hamDecoder = HamDecoder()
   hamDecoder.io.lineStart := hCounter === hTotal - 1   // reset hold one cycle before col 0
-  hamDecoder.io.step      := hCounter < hActive
+  // HAM-DECODER-171 CP-D (CyanPeak #12998 / PM #12999): the directColor read path
+  // (col/2 + readSync) presents each source byte on a PAIR of display columns. HAM's
+  // accumulator is STATEFUL, so stepping every display column applies each code twice
+  // (and steps at col 0 on stale data) → modify-chain desync (~0.69 match). Step ONCE
+  // per source pixel by gating on ODD columns (hCounter(0)); this also avoids stepping
+  // at col 0 (even) without an extra guard. (Stateless RGB565 is unaffected by the
+  // doubling, so this gate is HAM-only and lives here, not in the shared fetch.)
+  hamDecoder.io.step      := (hCounter < hActive) && hCounter(0)
   hamDecoder.io.code      := hamCode
   hamDecoder.io.baseColor := hamBase(hamCode(3 downto 0).asUInt)
   hamDecoder.io.seedColor := hamBase(0)

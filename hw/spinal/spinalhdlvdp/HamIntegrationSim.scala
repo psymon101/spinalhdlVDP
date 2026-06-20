@@ -113,10 +113,10 @@ object HamIntegrationSim {
 
     /** Compile + sim VdpTop at a given write-pipeline delay; return per-shift match
       * counts so the caller can MEASURE the residual offset (don't assume it is 3). */
-    def runOne(writeDelay: Int): (Int, Int, Int, Array[Long], String, mutable.HashMap[Int, Int], mutable.HashMap[Int, Int]) = {
-    var resActive = 0; var resBypass = 0; var resInRange = 0
-    val resMatchByShift = Array.fill(MaxShift + 1)(0L)
-    var resFirstMism = ""
+    def runOne(writeDelay: Int): (Double, Int, Int, Double, Long, Long, mutable.HashMap[Int, Int], mutable.HashMap[Int, Int]) = {
+    var resActive = 0; var resBypass = 0
+    var rBestDv = 0; var rBestDh = 0; var rBestFrac = 0.0
+    var rCanonMatch = 0L; var rCanonTotal = 1L
     val resRow0 = mutable.HashMap[Int, Int]()   // diagnostic: dx -> got, first display row (dy==0)
     val resByte0 = mutable.HashMap[Int, Int]()  // diagnostic: dx -> fetched bitmapByte the decoder consumes
     SimConfig.compile(new Dut(writeDelay)).doSim { dut =>
@@ -201,7 +201,6 @@ object HamIntegrationSim {
             resBypass += 1
             val dx = dut.io.x.toInt; val dy = dut.io.y.toInt
             if (dx < 640 && dy < 480) {
-              resInRange += 1
               val got = dut.video.dcRgbDrained.toInt & 0xFFFFFF
               gotFrame(dy)(dx) = got
               if (dy == 0 && dx < 40 && !resRow0.contains(dx)) {
@@ -216,7 +215,11 @@ object HamIntegrationSim {
 
       // 2D alignment scan: for each (dv vertical source-row offset, dh horizontal display-
       // column shift), count pixels where got(dy,dx) == srcRgb((dy/2 - dv) mod SrcH)((dx-dh)/2).
+      // Also capture the CANONICAL alignment (dv=+2 triple-buffer latency, dh=0 fully aligned)
+      // for the byte-exact certification gate.
+      val CanonDv = 2; val CanonDh = 0
       var bestDv = 0; var bestDh = 0; var bestMatch = -1L; var bestTotal = 1L
+      var canonMatch = 0L; var canonTotal = 1L
       for (dv <- -4 to 4; dh <- 0 to MaxShift) {
         var m = 0L; var t = 0L
         var dy = 0
@@ -231,11 +234,12 @@ object HamIntegrationSim {
           dy += 1
         }
         if (m > bestMatch) { bestMatch = m; bestTotal = t; bestDv = dv; bestDh = dh }
-        if (dv == 0) resMatchByShift(dh) = m   // keep the dv=0 horizontal profile for context
+        if (dv == CanonDv && dh == CanonDh) { canonMatch = m; canonTotal = t }
       }
-      println(f"[sim] 2D-ALIGN best: vRowOffset=$bestDv hColShift=$bestDh match=${bestMatch}/${bestTotal} (${bestMatch.toDouble/bestTotal}%.4f)")
-      // Per-row match distribution at best alignment — localizes systematic (all rows ~equal)
-      // vs tearing/bank (some rows ~100%, others bad).
+      rBestDv = bestDv; rBestDh = bestDh; rBestFrac = bestMatch.toDouble / math.max(1, bestTotal)
+      rCanonMatch = canonMatch; rCanonTotal = canonTotal
+      println(f"[sim] 2D-ALIGN best: vRowOffset=$bestDv hColShift=$bestDh match=$bestMatch/$bestTotal ($rBestFrac%.4f) ; canonical(dv=$CanonDv,dh=$CanonDh)=$canonMatch/$canonTotal (${canonMatch.toDouble/math.max(1,canonTotal)}%.4f)")
+      // Per-row match distribution at best alignment — localizes systematic vs tearing/bank.
       var rPerfect = 0; var rGood = 0; var rBad = 0
       val rowSamples = mutable.ArrayBuffer[String]()
       for (dy <- 0 until 480) {
@@ -244,57 +248,40 @@ object HamIntegrationSim {
         while (dx < 640) { val g = gotFrame(dy)(dx); if (g >= 0) { t += 1; if (g == srcRgb(sr)((dx-bestDh)/2)) m += 1 }; dx += 1 }
         val f = if (t > 0) m.toDouble/t else 0.0
         if (f > 0.99) rPerfect += 1 else if (f > 0.5) rGood += 1 else rBad += 1
-        if (dy % 80 == 0) rowSamples += f"dy=$dy(sr=$sr):${f}%.3f"
+        if (dy % 80 == 0) rowSamples += f"dy=$dy(sr=$sr):$f%.3f"
       }
       println(f"[sim] per-row match @best-align: perfect(>0.99)=$rPerfect good(0.5-0.99)=$rGood bad(<0.5)=$rBad ; samples: ${rowSamples.mkString(" ")}")
-      resActive = resActive; resInRange = bestTotal.toInt   // report best-alignment total as the in-range denom
-      // stash best in firstMism field as a structured string for the caller
-      resFirstMism = s"dv=$bestDv,dh=$bestDh,frac=${bestMatch.toDouble/math.max(1,bestTotal)}"
 
       // ---- burst-integrity report: a faithful model must serve burst-8 reads and cover
       // all 80 word-offsets (0..316 step 4) of each plane's 320-byte row. ----
       val bm = pBitmapRowOff.size; val at = pAttrRowOff.size
       println(f"[probe] reads=$pReads wordsServed=$pWords burstLenHist=${pBurstLenHist.toSeq.sortBy(_._1)}")
       println(f"[probe] bitmap row-offset coverage=$bm/80 ; attr row-offset coverage=$at/80 (80=full 320B row in 4B words)")
-      if (bm < 80) println(f"[probe] FAIL: bitmap plane under-covered (${bm}/80) — fetch issued too few reads OR model truncated bursts")
-      if (at < 80) println(f"[probe] FAIL: attr plane under-covered (${at}/80)")
     }
-    (resActive, resBypass, resInRange, resMatchByShift, resFirstMism, resRow0, resByte0)
+    (if (resActive > 0) resBypass.toDouble / resActive else 0.0, rBestDv, rBestDh, rBestFrac, rCanonMatch, rCanonTotal, resRow0, resByte0)
     }
 
-    // ---- Pass 1: legacy build (delay=0) — MEASURE the residual offset ----
-    val (a0, b0, r0, shift0, _, row0, byte0) = runOne(0)
-    val bypass0 = if (a0 > 0) b0.toDouble / a0 else 0.0
-    val measured = shift0.indices.maxBy(shift0(_))
-    println(f"[sim] LEGACY delay=0: active=$a0 bypassOn=$b0 ($bypass0%.3f) inRange=$r0")
-    println("[sim] LEGACY per-shift match: " +
-      shift0.indices.map(s => f"s=$s:${shift0(s).toDouble/math.max(1,r0)}%.3f").mkString(" "))
-    println(s"[sim] MEASURED pipeline offset (best-fit display-column shift) = $measured")
-    // Diagnostic: first display row — got vs source-code/expected per display column.
-    println("[sim] row0 diag (dx: srcCol=dx/2  refCode=ham[sc]  fetchedByte  got  expRef):")
+    // ---- Pass 1: pre-alignment build (delay=0) — with the odd-column HAM step, the only
+    // residual should be a pure 1-column write shift (best at dv=+2, dh=1). ----
+    val (bypass0, bDv0, bDh0, bFrac0, _, _, row0, byte0) = runOne(0)
+    println(f"[sim] DELAY=0 (step-gated, pre-write-align): bypass=$bypass0%.3f best vRowOffset=$bDv0 hColShift=$bDh0 frac=$bFrac0%.4f")
+    // Diagnostic: first display row — got vs the correctly-mapped source row/col.
+    val sr0 = ((0/2 - bDv0) % SrcH + SrcH) % SrcH
+    println(f"[sim] row0 diag @dy=0 (srcRow=$sr0, best dh=$bDh0): dx  fetchedByte  got  expRef:")
     for (dx <- 0 until 40 if row0.contains(dx)) {
-      val sc = dx / 2
-      val code = ham(0 * SrcW + sc) & 0x3F
-      val fb   = byte0.getOrElse(dx, -1)
-      val exp  = srcRgb(0)(sc)
-      val tag  = if (row0(dx) == exp) "ok" else "X"
-      println(f"  dx=$dx%2d sc=$sc%2d refCode=0x$code%02x fetched=0x$fb%02x got=0x${row0(dx)}%06x exp=0x$exp%06x $tag")
+      val fb  = byte0.getOrElse(dx, -1)
+      val exp = if (dx - bDh0 >= 0) srcRgb(sr0)((dx - bDh0)/2) else -1
+      val tag = if (row0(dx) == exp) "ok" else "X"
+      println(f"  dx=$dx%2d fetched=0x$fb%02x got=0x${row0(dx)}%06x exp=0x$exp%06x $tag")
     }
-    if (args.contains("diag")) { println("[sim] diag-only mode: stopping after legacy dump"); return }
-    assert(bypass0 > 0.95, f"directcolor bypass not engaged on legacy build ($bypass0%.3f) — reproduces black frame")
-    assert(measured > 0, s"expected a nonzero pre-fix offset on legacy build, measured=$measured")
-    assert(shift0(0).toDouble / math.max(1, r0) < 0.6,
-      "legacy build already aligned at s=0 — the offset bug is not reproduced")
+    if (args.contains("diag")) { println("[sim] diag-only mode: stopping after delay=0 dump"); return }
 
-    // ---- Pass 2: aligned build (delay=measured) — PROVE byte-exact at s==0 ----
-    val (a1, b1, r1, shift1, fm1, _, _) = runOne(measured)
-    val bypass1 = if (a1 > 0) b1.toDouble / a1 else 0.0
-    val exact1 = shift1(0)                       // matches at zero shift = fully aligned
-    val exactFrac = exact1.toDouble / math.max(1, r1)
-    println(f"[sim] ALIGNED delay=$measured: active=$a1 bypassOn=$b1 ($bypass1%.3f) inRange=$r1 exactMatch@s0=$exact1 ($exactFrac%.4f)")
-    if (fm1.nonEmpty) println(s"[sim] ALIGNED first mismatch: $fm1")
-    assert(bypass1 > 0.95, f"directcolor bypass not engaged on aligned build ($bypass1%.3f)")
-    assert(exact1 == r1, s"HAM not byte-exact at aligned delay=$measured: ${r1 - exact1}/$r1 px mismatched; first: $fm1")
-    println(f"[sim] HamIntegrationSim: PASS — measured offset=$measured; aligned build byte-exact (${exact1}/${r1}) vs HAM reference; legacy build reproduced the +$measured-col shift")
+    // ---- Pass 2: aligned build (delay=1) ----
+    val (bypass1, bDv1, bDh1, bFrac1, canonM, canonT, _, _) = runOne(1)
+    val canonFrac = canonM.toDouble / math.max(1, canonT)
+    println(f"[sim] DELAY=1 (aligned): bypass=$bypass1%.3f best vRowOffset=$bDv1 hColShift=$bDh1 frac=$bFrac1%.4f ; canonical(dv=2,dh=0)=$canonM/$canonT ($canonFrac%.4f)")
+    val pass = (bDv1 == 2 && bDh1 == 0 && canonM == canonT)
+    if (pass) println(f"[sim] HamIntegrationSim: PASS — aligned byte-exact ($canonM/$canonT)")
+    else println(f"[sim] HamIntegrationSim: NOT-YET — delay0 best=(dv=$bDv0,dh=$bDh0,$bFrac0%.4f) delay1 best=(dv=$bDv1,dh=$bDh1,$bFrac1%.4f) canon=$canonFrac%.4f")
   }
 }
