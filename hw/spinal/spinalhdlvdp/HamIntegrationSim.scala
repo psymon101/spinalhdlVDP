@@ -31,9 +31,9 @@ object HamIntegrationSim {
     (((r << 4) | r) << 16) | (((g << 4) | g) << 8) | ((b << 4) | b)
   }
 
-  class Dut(writeDelay: Int) extends Component {
+  class Dut(writeDelay: Int, stepStart: Int) extends Component {
     val sdramCd = ClockDomain.external("sdram", frequency = FixedFrequency(40500000 Hz))
-    val video = VdpTop(enableL1Fetch = false, bitmapWritePipelineDelay = writeDelay)
+    val video = VdpTop(enableL1Fetch = false, bitmapWritePipelineDelay = writeDelay, hamStepStart = stepStart)
     val fetch = BitmapRowFetch(sdramCd, skipSdramInit = true)
 
     val io = new Bundle {
@@ -113,13 +113,13 @@ object HamIntegrationSim {
 
     /** Compile + sim VdpTop at a given write-pipeline delay; return per-shift match
       * counts so the caller can MEASURE the residual offset (don't assume it is 3). */
-    def runOne(writeDelay: Int): (Double, Int, Int, Double, Long, Long, mutable.HashMap[Int, Int], mutable.HashMap[Int, Int]) = {
+    def runOne(writeDelay: Int, stepStart: Int = 1): (Double, Int, Int, Double, Long, Long, mutable.HashMap[Int, Int], mutable.HashMap[Int, Int]) = {
     var resActive = 0; var resBypass = 0
     var rBestDv = 0; var rBestDh = 0; var rBestFrac = 0.0
     var rCanonMatch = 0L; var rCanonTotal = 1L
     val resRow0 = mutable.HashMap[Int, Int]()   // diagnostic: dx -> got, first display row (dy==0)
     val resByte0 = mutable.HashMap[Int, Int]()  // diagnostic: dx -> fetched bitmapByte the decoder consumes
-    SimConfig.compile(new Dut(writeDelay)).doSim { dut =>
+    SimConfig.compile(new Dut(writeDelay, stepStart)).doSim { dut =>
       dut.clockDomain.forkStimulus(10); dut.sdramCd.forkStimulus(10)
       val mem = mutable.HashMap[Int, Int]()
       for (i <- ham.indices) {
@@ -261,27 +261,21 @@ object HamIntegrationSim {
     (if (resActive > 0) resBypass.toDouble / resActive else 0.0, rBestDv, rBestDh, rBestFrac, rCanonMatch, rCanonTotal, resRow0, resByte0)
     }
 
-    // ---- Pass 1: pre-alignment build (delay=0) — with the odd-column HAM step, the only
-    // residual should be a pure 1-column write shift (best at dv=+2, dh=1). ----
-    val (bypass0, bDv0, bDh0, bFrac0, _, _, row0, byte0) = runOne(0)
-    println(f"[sim] DELAY=0 (step-gated, pre-write-align): bypass=$bypass0%.3f best vRowOffset=$bDv0 hColShift=$bDh0 frac=$bFrac0%.4f")
-    // Diagnostic: first display row — got vs the correctly-mapped source row/col.
-    val sr0 = ((0/2 - bDv0) % SrcH + SrcH) % SrcH
-    println(f"[sim] row0 diag @dy=0 (srcRow=$sr0, best dh=$bDh0): dx  fetchedByte  got  expRef:")
-    for (dx <- 0 until 40 if row0.contains(dx)) {
-      val fb  = byte0.getOrElse(dx, -1)
-      val exp = if (dx - bDh0 >= 0) srcRgb(sr0)((dx - bDh0)/2) else -1
-      val tag = if (row0(dx) == exp) "ok" else "X"
-      println(f"  dx=$dx%2d fetched=0x$fb%02x got=0x${row0(dx)}%06x exp=0x$exp%06x $tag")
+    // ---- Option-1 viability sweep: vary the HAM step-start column (delay=0) to find the
+    // value that consumes the first VALID source byte (past the readSync→bmByteSel latency).
+    // If some stepStart reaches ~1.0 at its best alignment, Option 1 is viable and that
+    // stepStart IS the measured latency offset. ----
+    val sweep = (1 to 7).map { hs =>
+      val (byp, dv, dh, frac, _, _, _, _) = runOne(0, hs)
+      println(f"[sim] STEP-START=$hs (delay=0): bypass=$byp%.3f best (dv=$dv,dh=$dh) frac=$frac%.4f")
+      (hs, dv, dh, frac)
     }
-    if (args.contains("diag")) { println("[sim] diag-only mode: stopping after delay=0 dump"); return }
-
-    // ---- Pass 2: aligned build (delay=1) ----
-    val (bypass1, bDv1, bDh1, bFrac1, canonM, canonT, _, _) = runOne(1)
-    val canonFrac = canonM.toDouble / math.max(1, canonT)
-    println(f"[sim] DELAY=1 (aligned): bypass=$bypass1%.3f best vRowOffset=$bDv1 hColShift=$bDh1 frac=$bFrac1%.4f ; canonical(dv=2,dh=0)=$canonM/$canonT ($canonFrac%.4f)")
-    val pass = (bDv1 == 2 && bDh1 == 0 && canonM == canonT)
-    if (pass) println(f"[sim] HamIntegrationSim: PASS — aligned byte-exact ($canonM/$canonT)")
-    else println(f"[sim] HamIntegrationSim: NOT-YET — delay0 best=(dv=$bDv0,dh=$bDh0,$bFrac0%.4f) delay1 best=(dv=$bDv1,dh=$bDh1,$bFrac1%.4f) canon=$canonFrac%.4f")
+    if (args.contains("diag")) { println("[sim] diag-only mode: stopping after sweep"); return }
+    val (bestHs, bestDvH, bestDhH, bestFracH) = sweep.maxBy(_._4)
+    println(f"[sim] SWEEP WINNER: stepStart=$bestHs best (dv=$bestDvH,dh=$bestDhH) frac=$bestFracH%.4f")
+    if (bestFracH > 0.98)
+      println(f"[sim] OPTION-1 VIABLE: stepStart=$bestHs reaches $bestFracH%.4f (display-side phase fix works; latency offset=$bestHs, residual write-shift dh=$bestDhH)")
+    else
+      println(f"[sim] OPTION-1 INSUFFICIENT: best over all stepStart is only $bestFracH%.4f — display-side phase fix does not fully resolve; escalate to Option 2 (fill-side decode)")
   }
 }

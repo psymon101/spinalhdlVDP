@@ -14,7 +14,14 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
                   // rgb888 for source k is ready at cols 2k+1,2k+2 → 1-col write delay lands it
                   // at dcLineBuf[2k,2k+1]). Fixes HAM AND the latent RGB565 directcolor 1-col
                   // shift (shared dcLineBuf carrier). 0 = pre-fix legacy. Default now 1 (aligned).
-                  bitmapWritePipelineDelay: Int = 1) extends Component {
+                  bitmapWritePipelineDelay: Int = 1,
+                  // HAM-DECODER-171 CP-D Option-1 sweep: first display column at which the HAM
+                  // decoder begins stepping (once per source pixel, every 2 cols thereafter).
+                  // The decoder must NOT step until bmByteSel holds the first VALID source byte
+                  // (col/2 read + readSync + rdLaneD latency); stepping earlier consumes stale
+                  // bytes and corrupts the per-line hold (worst for modify-led rows). =1 is the
+                  // prior (broken) behavior. Swept in HamIntegrationSim to find the real latency.
+                  hamStepStart: Int = 1) extends Component {
   // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM is migrated
   // into the SDRAM clock domain. When `sdramCd` is null (sim-default),
   // use the current pixel ClockDomain so single-clock sims keep working;
@@ -2049,7 +2056,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // per source pixel by gating on ODD columns (hCounter(0)); this also avoids stepping
   // at col 0 (even) without an extra guard. (Stateless RGB565 is unaffected by the
   // doubling, so this gate is HAM-only and lives here, not in the shared fetch.)
-  hamDecoder.io.step      := (hCounter < hActive) && hCounter(0)
+  // Step once per source pixel, starting at column `hamStepStart` and every 2 cols after
+  // (parity = parity of hamStepStart). lineStart already reset hold at hTotal-1; the no-step
+  // idle from col 0..hamStepStart-1 holds the seed, so the first step consumes the first
+  // VALID source byte rather than stale data.
+  hamDecoder.io.step := (hCounter >= hamStepStart) && (hCounter < hActive) &&
+                        (hCounter(0) === Bool((hamStepStart & 1) == 1))
   hamDecoder.io.code      := hamCode
   hamDecoder.io.baseColor := hamBase(hamCode(3 downto 0).asUInt)
   hamDecoder.io.seedColor := hamBase(0)
