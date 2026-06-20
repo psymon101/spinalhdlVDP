@@ -45,8 +45,10 @@ object HamIntegrationSim {
       val bootDone = out Bool()
       val x = out UInt (10 bits); val y = out UInt (10 bits); val de = out Bool()
       val dbgFetchByte = out Bits (8 bits)   // diagnostic: the bitmap byte the HAM decoder consumes
+      val outRgb = out Bits (24 bits)        // LEFT-EDGE-172: FINAL HDMI output (post ColorMath/scaler)
     }
     io.dbgFetchByte := fetch.io.bitmapByte
+    io.outRgb := video.io.red ## video.io.green ## video.io.blue
     video.io.regBus.addr := io.regBusAddr; video.io.regBus.data := io.regBusData; video.io.regBus.enable := io.regBusEnable
 
     // VdpTop <-> BitmapRowFetch coupling (mirrors TopTang20kHdmi).
@@ -193,13 +195,15 @@ object HamIntegrationSim {
       // EMPIRICALLY measure the alignment — the triple-buffer rotation imposes a vertical
       // offset (CyanPeak: row 0 displays at V=4) on top of the +N horizontal write delay.
       val gotFrame = Array.fill(480, 640)(-1)
+      val finalFrame = Array.fill(480, 640)(-1)   // FINAL io.red/green/blue, gated by io.de
       val sampleCycles = 800 * 525 * 2
       for (_ <- 0 until sampleCycles) {
         if (dut.io.de.toBoolean) {
           resActive += 1
+          val dx = dut.io.x.toInt; val dy = dut.io.y.toInt
+          if (dx < 640 && dy < 480) finalFrame(dy)(dx) = dut.io.outRgb.toInt & 0xFFFFFF  // actual displayed pixel
           if (dut.video.dcActiveDrainedR.toBoolean) {   // 2-cycle output, co-timed with io.x (CyanPeak #13009)
             resBypass += 1
-            val dx = dut.io.x.toInt; val dy = dut.io.y.toInt
             if (dx < 640 && dy < 480) {
               val got = dut.video.dcRgbDrainedR.toInt & 0xFFFFFF
               gotFrame(dy)(dx) = got
@@ -211,6 +215,31 @@ object HamIntegrationSim {
           }
         }
         dut.clockDomain.waitSampling()
+      }
+      // LEFT-EDGE-172: scan finalFrame for its own best (dv,dh), then per-column left-edge
+      // check on the ACTUAL output. If cols 0..3 are worse than the bulk, the transient is in
+      // the shared output stage (ColorMath/scaler/de-RGB), downstream of dcRgbDrainedR.
+      {
+        def sr2(dy: Int, dv: Int): Int = {
+          val r = if (dy % 2 == 0) dy/2 - dv else (dy - 1)/2 - (dv - 1); ((r % SrcH) + SrcH) % SrcH
+        }
+        var fBestDv = 0; var fBestDh = 0; var fBest = -1L; var fTot = 1L
+        for (dv <- 1 to 5; dh <- -MaxShift to MaxShift) {
+          var m = 0L; var t = 0L; var dy = 2
+          while (dy < 480) { val sr = sr2(dy, dv); var dx = 0
+            while (dx < 640) { val src = dx - dh; val g = finalFrame(dy)(dx)
+              if (g >= 0 && src >= 0 && src < 640) { t += 1; if (g == srcRgb(sr)(src/2)) m += 1 }; dx += 1 }
+            dy += 1 }
+          if (m > fBest) { fBest = m; fTot = t; fBestDv = dv; fBestDh = dh }
+        }
+        val fcm = Array.fill(640)(0); val fct = Array.fill(640)(0)
+        for (dy <- 2 until 480) { val sr = sr2(dy, fBestDv); var dx = 0
+          while (dx < 640) { val src = dx - fBestDh; val g = finalFrame(dy)(dx)
+            if (g >= 0 && src >= 0 && src < 640) { fct(dx) += 1; if (g == srcRgb(sr)(src/2)) fcm(dx) += 1 }; dx += 1 } }
+        def cf(a: Int, b: Int): Double = { var m=0L; var t=0L; var c=a; while(c<b){m+=fcm(c);t+=fct(c);c+=1}; if(t>0) m.toDouble/t else 1.0 }
+        println(f"[final] FINAL-output best (dv=$fBestDv,dh=$fBestDh) frac=${fBest.toDouble/math.max(1,fTot)}%.4f")
+        println(f"[final] FINAL per-column: cols0-3=${cf(0,4)}%.4f cols4-7=${cf(4,8)}%.4f cols8-31=${cf(8,32)}%.4f cols32-639=${cf(32,640)}%.4f")
+        println("[final] FINAL cols 0..7: " + (0 until 8).map(c => f"$c:${if(fct(c)>0) fcm(c).toDouble/fct(c) else 1.0}%.2f").mkString(" "))
       }
 
       // 2D alignment scan: for each (dv vertical source-row offset, dh horizontal display-
@@ -264,6 +293,26 @@ object HamIntegrationSim {
         if (dy % 80 == 0) rowSamples += f"dy=$dy(sr=$sr):$f%.3f"
       }
       println(f"[sim] per-row match @best-align: perfect(>0.99)=$rPerfect good(0.5-0.99)=$rGood bad(<0.5)=$rBad ; samples: ${rowSamples.mkString(" ")}")
+      // LEFT-EDGE-ALIGN-172: per-COLUMN match at the aligned config (dv=bestDv, dh=bestDh),
+      // excluding the line-0 startup transient. If the cross-mode left-edge artifact lives in
+      // the BITMAP path (BitmapRowFetch/dcLineBuf), columns 0..31 will mismatch here; if cols
+      // 0..31 are byte-exact, the bitmap path is EXONERATED → artifact is downstream (global
+      // scanout/scaler/HDMI/capture), consistent with BronzeGate's cross-mode observation.
+      val colMatch = Array.fill(640)(0); val colTot = Array.fill(640)(0)
+      for (dy <- 2 until 480) {   // skip dy 0,1 (startup transient)
+        val sr = if (dy % 2 == 0) ((dy/2 - bestDv) % SrcH + SrcH) % SrcH
+                 else (((dy - 1)/2 - (bestDv - 1)) % SrcH + SrcH) % SrcH
+        var dx = 0
+        while (dx < 640) { val src = dx - bestDh; val g = gotFrame(dy)(dx)
+          if (g >= 0 && src >= 0 && src < 640) { colTot(dx) += 1; if (g == srcRgb(sr)(src/2)) colMatch(dx) += 1 }; dx += 1 }
+      }
+      def colFrac(a: Int, b: Int): Double = {
+        var m = 0L; var t = 0L; var c = a; while (c < b) { m += colMatch(c); t += colTot(c); c += 1 }
+        if (t > 0) m.toDouble / t else 1.0
+      }
+      val firstBad = (0 until 640).find(c => colTot(c) > 0 && colMatch(c).toDouble/colTot(c) < 0.99)
+      println(f"[edge] per-column match (dy>=2): cols0-31=${colFrac(0,32)}%.4f cols32-63=${colFrac(32,64)}%.4f cols64-639=${colFrac(64,640)}%.4f ; firstImperfectCol=${firstBad.getOrElse(-1)}")
+      println("[edge] cols 0..15: " + (0 until 16).map(c => f"$c:${if(colTot(c)>0) colMatch(c).toDouble/colTot(c) else 1.0}%.2f").mkString(" "))
       if (bestDv == 2) {
         println("Row 80 (sr=38) details:")
         println("Row 80 (sr=38) mismatches:")
