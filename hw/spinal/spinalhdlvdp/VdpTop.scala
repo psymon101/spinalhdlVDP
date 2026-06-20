@@ -8,7 +8,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
                   scaleCtrlInit:   Int = 0,
                   logicWidthInit:  Int = 640,
                   logicHeightInit: Int = 480,
-                  borderCtrlInit:  Int = 0) extends Component {
+                  borderCtrlInit:  Int = 0,
+                  bitmapWritePipelineDelay: Int = 0) extends Component {
   // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM is migrated
   // into the SDRAM clock domain. When `sdramCd` is null (sim-default),
   // use the current pixel ClockDomain so single-clock sims keep working;
@@ -2047,8 +2048,20 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val dcFillActive = (bitmapEnable && (bitmapFetch.io.directColorActive || hamMode)).simPublic()
   val dcFillRgb    = Mux(hamMode, hamDecoder.io.rgb888, bitmapFetch.io.directRgb)
   val dcLineBuf = LineBuffer(pixelWidth = 25, lineWidth = hActive)
-  dcLineBuf.io.writeEnable := hCounter < hActive
-  dcLineBuf.io.writeAddr   := hCounter.resize(log2Up(hActive))
+  // HAM-DECODER-171 CP-D (TopazCliff #12987 / CyanPeak #12986): shared bitmap write-
+  // pipeline alignment. The fetch→select→decode path delivers `dcFillRgb` for source
+  // column k some cycles AFTER hCounter==k (BitmapRowFetch readSync +1, registered
+  // hCounter, etc.), so the dcLineBuf write address lagged its data → +N-column display
+  // shift for BOTH HAM (bpp=0b11) and RGB565 directcolor (bpp=0b10), which share this
+  // carrier. Delay the write addr/enable by `bitmapWritePipelineDelay` columns so that
+  // the value computed for source k lands at dcLineBuf[k]. Compile-time param:
+  //   0 = legacy (pre-fix, write addr == hCounter) — exact prior behavior.
+  //   3 = measured-aligned (verified to 100% match by HamIntegrationSim).
+  // Bounds stay Scala-Int constants (hActive/hTotal are Ints) so hCounter is compared
+  // against literals — no width extension. writeEnable gates the underflow window when
+  // hCounter < delay, so the wrapped writeAddr there is never committed.
+  dcLineBuf.io.writeEnable := (hCounter >= bitmapWritePipelineDelay) && (hCounter < hActive + bitmapWritePipelineDelay)
+  dcLineBuf.io.writeAddr   := (hCounter - bitmapWritePipelineDelay).resize(log2Up(hActive))
   dcLineBuf.io.writeData   := dcFillActive ## dcFillRgb
   dcLineBuf.io.swap        := hCounter === hTotal - 1
 
