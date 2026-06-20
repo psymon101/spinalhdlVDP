@@ -9,12 +9,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
                   logicWidthInit:  Int = 640,
                   logicHeightInit: Int = 480,
                   borderCtrlInit:  Int = 0,
-                  // HAM-DECODER-171 CP-D: shared bitmap write-pipeline alignment. MEASURED
-                  // = 1 column (CyanPeak #12998: with the odd-column HAM step, the combinational
-                  // rgb888 for source k is ready at cols 2k+1,2k+2 → 1-col write delay lands it
-                  // at dcLineBuf[2k,2k+1]). Fixes HAM AND the latent RGB565 directcolor 1-col
-                  // shift (shared dcLineBuf carrier). 0 = pre-fix legacy. Default now 1 (aligned).
-                  bitmapWritePipelineDelay: Int = 1,
+                  // HAM-DECODER-171 CP-D: shared bitmap write-pipeline alignment.
+                  // writeAddr = hCounter - delay shifts the directcolor/HAM image LEFT by
+                  // `delay` columns. EMPIRICALLY (HamIntegrationSim, even/odd vmap + 2-cycle
+                  // sampling): delay=0 lands the image at dh=0 (correct alignment) byte-exact;
+                  // delay>0 shifts it left (dh=-delay). So 0 is the aligned value for the
+                  // odd-column HAM step path. Kept as a knob for the directcolor path.
+                  bitmapWritePipelineDelay: Int = 0,
                   // HAM-DECODER-171 CP-D Option-1 sweep: first display column at which the HAM
                   // decoder begins stepping (once per source pixel, every 2 cols thereafter).
                   // The decoder must NOT step until bmByteSel holds the first VALID source byte

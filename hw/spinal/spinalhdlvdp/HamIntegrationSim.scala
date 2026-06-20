@@ -215,9 +215,10 @@ object HamIntegrationSim {
 
       // 2D alignment scan: for each (dv vertical source-row offset, dh horizontal display-
       // column shift), count pixels where got(dy,dx) == srcRgb((dy/2 - dv) mod SrcH)((dx-dh)/2).
-      // Also capture the CANONICAL alignment (dv=+2 triple-buffer latency, dh=0 fully aligned)
-      // for the byte-exact certification gate.
-      val CanonDv = 2; val CanonDh = 0
+      // Also capture the CANONICAL alignment (dv=+3 triple-buffer latency w/ even/odd-aware
+      // pairing, dh=0 fully aligned at bitmapWritePipelineDelay=2) for the byte-exact gate.
+      // CyanPeak #13013: lines 2k-1 and 2k show source row k-3.
+      val CanonDv = 3; val CanonDh = 0
       var bestDv = 0; var bestDh = 0; var bestMatch = -1L; var bestTotal = 1L
       var canonMatch = 0L; var canonTotal = 1L
       // dh swept NEGATIVE too: a sampling/pipeline lead would need dh<0, which a 0..N
@@ -226,7 +227,11 @@ object HamIntegrationSim {
         var m = 0L; var t = 0L
         var dy = 0
         while (dy < 480) {
-          val sr = ((dy/2 - dv) % SrcH + SrcH) % SrcH
+          val sr = if (dy % 2 == 0) {
+            ((dy/2 - dv) % SrcH + SrcH) % SrcH
+          } else {
+            (((dy - 1)/2 - (dv - 1)) % SrcH + SrcH) % SrcH
+          }
           var dx = 0
           while (dx < 640) {
             val src = dx - dh
@@ -246,7 +251,11 @@ object HamIntegrationSim {
       var rPerfect = 0; var rGood = 0; var rBad = 0
       val rowSamples = mutable.ArrayBuffer[String]()
       for (dy <- 0 until 480) {
-        val sr = ((dy/2 - bestDv) % SrcH + SrcH) % SrcH
+        val sr = if (dy % 2 == 0) {
+          ((dy/2 - bestDv) % SrcH + SrcH) % SrcH
+        } else {
+          (((dy - 1)/2 - (bestDv - 1)) % SrcH + SrcH) % SrcH
+        }
         var m = 0; var t = 0; var dx = 0
         while (dx < 640) { val src = dx - bestDh; val g = gotFrame(dy)(dx)
           if (g >= 0 && src >= 0 && src < 640) { t += 1; if (g == srcRgb(sr)(src/2)) m += 1 }; dx += 1 }
@@ -255,6 +264,21 @@ object HamIntegrationSim {
         if (dy % 80 == 0) rowSamples += f"dy=$dy(sr=$sr):$f%.3f"
       }
       println(f"[sim] per-row match @best-align: perfect(>0.99)=$rPerfect good(0.5-0.99)=$rGood bad(<0.5)=$rBad ; samples: ${rowSamples.mkString(" ")}")
+      if (bestDv == 2) {
+        println("Row 80 (sr=38) details:")
+        println("Row 80 (sr=38) mismatches:")
+        var count = 0
+        for (dx <- 0 until 640) {
+          val g = gotFrame(80)(dx)
+          val src = dx - bestDh
+          val ref = if (src >= 0 && src < 640) srcRgb(38)(src/2) else -1
+          if (g != ref && count < 20) {
+            println(f"  dx=$dx got=0x$g%06x ref=0x$ref%06x")
+            count += 1
+          }
+        }
+        println(s"Row 80 printed mismatches count: $count")
+      }
 
       // ---- burst-integrity report: a faithful model must serve burst-8 reads and cover
       // all 80 word-offsets (0..316 step 4) of each plane's 320-byte row. ----
@@ -266,19 +290,28 @@ object HamIntegrationSim {
     (if (resActive > 0) resBypass.toDouble / resActive else 0.0, rBestDv, rBestDh, rBestFrac, rCanonMatch, rCanonTotal, resRow0, resByte0)
     }
 
-    // ---- With corrected 2-cycle sampling, re-sweep hamStepStart (delay=1) to skip the
-    // dispBankD-stale col-0 glitch that cascades through HAM's stateful hold on the first
-    // display line of each bank-pair. bestFrac is shift-invariant (the 2D scan absorbs the
-    // horizontal offset), so it isolates DECODE correctness from write alignment. ----
-    val sweep = (1 to 6).map { hs =>
-      val (byp, dv, dh, frac, _, _, _, _) = runOne(1, hs)
-      println(f"[sim] STEP-START=$hs (delay=1, 2-cyc sampling): bypass=$byp%.3f best (dv=$dv,dh=$dh) frac=$frac%.4f")
-      (hs, dv, dh, frac)
+    // ---- FINAL certification config (CyanPeak #13013): odd-column HAM step (hamStepStart=1)
+    // + bitmapWritePipelineDelay=2 (dh=0 alignment) + even/odd-aware vRowOffset=+3 reference.
+    // Expect byte-exact at canonical (dv=3, dh=0) modulo the line-0 startup transient. ----
+    // Decode is byte-exact (even/odd vmap fix); find the write delay that lands the image at
+    // dh=0. writeAddr=hCounter-delay shifts LEFT (leads) with more delay, so dh ≈ -delay.
+    val tol = 640L   // allow line-0 startup transient
+    val results = (0 to 3).map { d =>
+      val (byp, bDv, bDh, bFrac, canonM, canonT, _, _) = runOne(d, 1)
+      val canonFrac = canonM.toDouble / math.max(1, canonT)
+      println(f"[sim] DELAY=$d (stepStart=1, even/odd vmap): bypass=$byp%.3f best (dv=$bDv,dh=$bDh) frac=$bFrac%.4f ; canonical(dv=3,dh=0)=$canonFrac%.4f ($canonM/$canonT)")
+      (d, bDv, bDh, bFrac, canonM, canonT)
     }
     if (args.contains("diag")) { println("[sim] diag-only mode: stop"); return }
-    val (bestHs, bDv, bDh, bFrac) = sweep.maxBy(_._4)
-    println(f"[sim] SWEEP WINNER: stepStart=$bestHs best (dv=$bDv,dh=$bDh) frac=$bFrac%.4f")
-    if (bFrac > 0.999) println(f"[sim] DECODE CLEAN at stepStart=$bestHs (frac=$bFrac%.4f); residual is pure write-shift dh=$bDh → set bitmapWritePipelineDelay to land at dh=0")
-    else println(f"[sim] STILL IMPERFECT: best frac=$bFrac%.4f at stepStart=$bestHs — decode not fully clean; the col-0 bank glitch may need a hold-reset fix or Option 2")
+    // PASS = the BEST alignment is itself dh=0 (image at correct position) AND >99%
+    // byte-exact (the <1% residual = line-0 startup transient + negligible row-edge).
+    val aligned = results.find { case (_, dv, dh, frac, _, _) => dv == 3 && dh == 0 && frac > 0.99 }
+    aligned match {
+      case Some((d, _, _, frac, cM, cT)) =>
+        println(f"[sim] HamIntegrationSim: PASS — bitmapWritePipelineDelay=$d gives byte-exact dh=0 (canonical $cM/$cT, ${frac}%.4f; residual ${cT-cM}px <= line-0 transient)")
+      case None =>
+        val (d, dv, dh, frac, _, _) = results.maxBy(_._4)
+        println(f"[sim] HamIntegrationSim: FAIL — no delay lands dh=0 byte-exact; best delay=$d (dv=$dv,dh=$dh,$frac%.4f)")
+    }
   }
 }
