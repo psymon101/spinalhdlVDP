@@ -19,6 +19,7 @@ Agent-specific rules: `AGENTS/<CanonicalName>.md`
 | **Critical path rule** | One active engineering lane at a time |
 | **Session start** | Read `AGENTS.md` → `AGENTS/<YourName>.md` → `PROJECT_PLAN/PROJECT_PLAN.md` → `PROJECT_PLAN/TASKS.md` |
 | **Hardware proof rule** | Simulator first, then unambiguous hardware proof. 100% required. No exceptions. |
+| **Sim config (global)** | Automatic — no per-agent setup. JVM heap 16G via `.jvmopts`; Verilator threads via `Config.simThreads` (=19). Use `Config.sim` for sims, or for headless/no-wave add `--threads ${Config.simThreads}` via `SimConfig.addSimulatorFlag`. |
 | **AGENTS.md edits** | Requires PM authorization + diff review (Preventive Rule #8) |
 | **Your agent rules** | `AGENTS/BrightForge.md` · `AGENTS/BronzeGate.md` · `AGENTS/TopazCliff.md` · `AGENTS/CyanPeak.md` · `AGENTS/CoralReef.md` |
 

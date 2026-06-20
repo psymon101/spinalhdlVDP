@@ -82,7 +82,7 @@ object DebugReadArbiterSim extends App {
     io.dbgInFlight := inFlight
   }
 
-  SimConfig.compile(new Harness()).doSim { dut =>
+  SimConfig.addSimulatorFlag(s"--threads ${Config.simThreads}").compile(new Harness()).doSim { dut =>
     dut.clockDomain.forkStimulus(period = 10)
     dut.io.fetchRd #= false
     dut.io.dbgArm  #= false

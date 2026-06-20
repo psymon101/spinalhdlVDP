@@ -136,7 +136,7 @@ object PlanarTileFetchIntegrationSim {
   }
 
   def main(args: Array[String]): Unit = {
-    SimConfig.withWave.compile(new Dut).doSim { dut =>
+    SimConfig.withWave.addSimulatorFlag(s"--threads ${Config.simThreads}").compile(new Dut).doSim { dut =>
       dut.clockDomain.forkStimulus(10)
       dut.sdramCd.forkStimulus(10)
 

@@ -165,7 +165,7 @@ object UploadSeamSim extends App {
   def run(preFix: Boolean): (Int, Boolean) = {
     var dropped = -1
     var stuckOut = false
-    SimConfig.compile(UploadSeamHarness(preFix)).doSim { dut =>
+    SimConfig.addSimulatorFlag(s"--threads ${Config.simThreads}").compile(UploadSeamHarness(preFix)).doSim { dut =>
       dut.clockDomain.forkStimulus(period = 10)
       dut.sdramCd.forkStimulus(period = 10)
 
