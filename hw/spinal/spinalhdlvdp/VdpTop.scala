@@ -2687,8 +2687,11 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // (readSync semantics). Delay every other input to this mux by 1 cycle
   // so all four inputs represent the same drain cycle. Pre-#10686 these
   // were combinationally co-timed with the old readAsync paletteRgb.
-  val dcActiveDrainedR  = RegNext(dcActiveDrained)  init False
-  val dcRgbDrainedR     = RegNext(dcRgbDrained)     init B(0, 24 bits)
+  // simPublic: these registered (2-cycle) outputs are co-timed with io.x/io.y and the
+  // bypass mux below — co-sims MUST sample these, NOT the 1-cycle dcActiveDrained/
+  // dcRgbDrained (which lead io.x by 1 col → false -1 column shift). CyanPeak #13009.
+  val dcActiveDrainedR  = RegNext(dcActiveDrained)  init False        ; dcActiveDrainedR.simPublic()
+  val dcRgbDrainedR     = RegNext(dcRgbDrained)     init B(0, 24 bits) ; dcRgbDrainedR.simPublic()
   val drainSpriteWinsR  = RegNext(drainSpriteWins)  init False
   val layerMaskActiveR  = RegNext(layerMaskActive)  init False
   val bgOrDirectRgb   = Mux(dcActiveDrainedR && !drainSpriteWinsR, dcRgbDrainedR, paletteRgb).simPublic()

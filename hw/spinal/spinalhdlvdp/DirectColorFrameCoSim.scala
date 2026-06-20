@@ -33,6 +33,7 @@ object DirectColorFrameCoSim {
   // attr plane (directPixel = attrByte ## bitmapByte), each 1 byte per source pixel →
   // stride = SrcW bytes per plane (NOT 2×).
   val Stride = SrcW
+  val MinShift = -4
   val MaxShift = 8
 
   // Deterministic 320×240 RGB565 pattern; varies fast in x so adjacent source
@@ -115,7 +116,7 @@ object DirectColorFrameCoSim {
 
     def runOne(writeDelay: Int): (Int, Int, Int, Array[Long], String) = {
       var resActive = 0; var resBypass = 0; var resInRange = 0
-      val resMatchByShift = Array.fill(MaxShift + 1)(0L)
+      val resMatchByShift = Array.fill(MaxShift - MinShift + 1)(0L)
       var resFirstMism = ""
       SimConfig.compile(new Dut(writeDelay)).doSim { dut =>
         dut.clockDomain.forkStimulus(10); dut.sdramCd.forkStimulus(10)
@@ -178,14 +179,15 @@ object DirectColorFrameCoSim {
               if (dx < 640 && dy < 480) {
                 resInRange += 1
                 val got = dut.video.dcRgbDrained.toInt & 0xFFFFFF
-                var s = 0
-                while (s <= MaxShift) {
-                  val sx = dx - s
-                  if (sx >= 0 && got == srcRgb(dy/2)(sx/2)) resMatchByShift(s) += 1
-                  s += 1
-                }
-                if (resFirstMism.isEmpty && got != srcRgb(dy/2)(dx/2))
-                  resFirstMism = f"x=$dx y=$dy got=0x$got%06x exp=0x${srcRgb(dy/2)(dx/2)}%06x"
+                val sy = ((dy/2 - 2) % SrcH + SrcH) % SrcH
+                 var s = MinShift
+                 while (s <= MaxShift) {
+                   val sx = dx - s
+                   if (sx >= 0 && sx/2 < SrcW && got == srcRgb(sy)(sx/2)) resMatchByShift(s - MinShift) += 1
+                   s += 1
+                 }
+                if (resFirstMism.isEmpty && got != srcRgb(sy)(dx/2))
+                  resFirstMism = f"x=$dx y=$dy got=0x$got%06x exp=0x${srcRgb(sy)(dx/2)}%06x"
               }
             }
           }
@@ -196,22 +198,24 @@ object DirectColorFrameCoSim {
     }
 
     // ---- Pass 1: legacy build (delay=0) — MEASURE the latent directcolor offset ----
-    val (a0, b0, r0, shift0, _) = runOne(0)
+    val (a0, b0, r0, shift0, fm0) = runOne(0)
     val bypass0 = if (a0 > 0) b0.toDouble / a0 else 0.0
-    val measured = shift0.indices.maxBy(shift0(_))
+    val measuredIdx = shift0.indices.maxBy(shift0(_))
+    val measured = measuredIdx + MinShift
     println(f"[sim] LEGACY delay=0: active=$a0 bypassOn=$b0 ($bypass0%.3f) inRange=$r0")
+    if (fm0.nonEmpty) println(s"[sim] LEGACY first mismatch: $fm0")
     println("[sim] LEGACY per-shift match: " +
-      shift0.indices.map(s => f"s=$s:${shift0(s).toDouble/math.max(1,r0)}%.3f").mkString(" "))
+      shift0.indices.map(idx => f"s=${idx+MinShift}:${shift0(idx).toDouble/math.max(1,r0)}%.3f").mkString(" "))
     println(s"[sim] MEASURED directcolor pipeline offset (best-fit display-column shift) = $measured")
     assert(bypass0 > 0.95, f"directcolor bypass not engaged on legacy build ($bypass0%.3f)")
-    assert(measured > 0, s"expected a nonzero pre-fix offset on legacy directcolor build, measured=$measured")
-    assert(shift0(0).toDouble / math.max(1, r0) < 0.6,
+    assert(measured != 0, s"expected a nonzero pre-fix offset on legacy directcolor build, measured=$measured; first mismatch: $fm0")
+    assert(shift0(0 - MinShift).toDouble / math.max(1, r0) < 0.6,
       "legacy directcolor build already aligned at s=0 — the latent shift is NOT present (unexpected)")
 
     // ---- Pass 2: aligned build (delay=measured) — PROVE byte-exact at s==0 ----
     val (a1, b1, r1, shift1, fm1) = runOne(measured)
     val bypass1 = if (a1 > 0) b1.toDouble / a1 else 0.0
-    val exact1 = shift1(0)
+    val exact1 = shift1(0 - MinShift)
     val exactFrac = exact1.toDouble / math.max(1, r1)
     println(f"[sim] ALIGNED delay=$measured: active=$a1 bypassOn=$b1 ($bypass1%.3f) inRange=$r1 exactMatch@s0=$exact1 ($exactFrac%.4f)")
     if (fm1.nonEmpty) println(s"[sim] ALIGNED first mismatch: $fm1")

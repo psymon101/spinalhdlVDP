@@ -197,11 +197,11 @@ object HamIntegrationSim {
       for (_ <- 0 until sampleCycles) {
         if (dut.io.de.toBoolean) {
           resActive += 1
-          if (dut.video.dcActiveDrained.toBoolean) {
+          if (dut.video.dcActiveDrainedR.toBoolean) {   // 2-cycle output, co-timed with io.x (CyanPeak #13009)
             resBypass += 1
             val dx = dut.io.x.toInt; val dy = dut.io.y.toInt
             if (dx < 640 && dy < 480) {
-              val got = dut.video.dcRgbDrained.toInt & 0xFFFFFF
+              val got = dut.video.dcRgbDrainedR.toInt & 0xFFFFFF
               gotFrame(dy)(dx) = got
               if (dy == 0 && dx < 40 && !resRow0.contains(dx)) {
                 resRow0(dx) = got
@@ -220,15 +220,18 @@ object HamIntegrationSim {
       val CanonDv = 2; val CanonDh = 0
       var bestDv = 0; var bestDh = 0; var bestMatch = -1L; var bestTotal = 1L
       var canonMatch = 0L; var canonTotal = 1L
-      for (dv <- -4 to 4; dh <- 0 to MaxShift) {
+      // dh swept NEGATIVE too: a sampling/pipeline lead would need dh<0, which a 0..N
+      // scan can't reach — masking the real alignment. Index-safe for any dh.
+      for (dv <- -4 to 4; dh <- -MaxShift to MaxShift) {
         var m = 0L; var t = 0L
         var dy = 0
         while (dy < 480) {
           val sr = ((dy/2 - dv) % SrcH + SrcH) % SrcH
-          var dx = dh
+          var dx = 0
           while (dx < 640) {
+            val src = dx - dh
             val g = gotFrame(dy)(dx)
-            if (g >= 0) { t += 1; if (g == srcRgb(sr)((dx-dh)/2)) m += 1 }
+            if (g >= 0 && src >= 0 && src < 640) { t += 1; if (g == srcRgb(sr)(src/2)) m += 1 }
             dx += 1
           }
           dy += 1
@@ -244,8 +247,9 @@ object HamIntegrationSim {
       val rowSamples = mutable.ArrayBuffer[String]()
       for (dy <- 0 until 480) {
         val sr = ((dy/2 - bestDv) % SrcH + SrcH) % SrcH
-        var m = 0; var t = 0; var dx = bestDh
-        while (dx < 640) { val g = gotFrame(dy)(dx); if (g >= 0) { t += 1; if (g == srcRgb(sr)((dx-bestDh)/2)) m += 1 }; dx += 1 }
+        var m = 0; var t = 0; var dx = 0
+        while (dx < 640) { val src = dx - bestDh; val g = gotFrame(dy)(dx)
+          if (g >= 0 && src >= 0 && src < 640) { t += 1; if (g == srcRgb(sr)(src/2)) m += 1 }; dx += 1 }
         val f = if (t > 0) m.toDouble/t else 0.0
         if (f > 0.99) rPerfect += 1 else if (f > 0.5) rGood += 1 else rBad += 1
         if (dy % 80 == 0) rowSamples += f"dy=$dy(sr=$sr):$f%.3f"
@@ -262,21 +266,19 @@ object HamIntegrationSim {
     (if (resActive > 0) resBypass.toDouble / resActive else 0.0, rBestDv, rBestDh, rBestFrac, rCanonMatch, rCanonTotal, resRow0, resByte0)
     }
 
-    // ---- Option-1 viability sweep: vary the HAM step-start column (delay=0) to find the
-    // value that consumes the first VALID source byte (past the readSync→bmByteSel latency).
-    // If some stepStart reaches ~1.0 at its best alignment, Option 1 is viable and that
-    // stepStart IS the measured latency offset. ----
-    val sweep = (1 to 7).map { hs =>
-      val (byp, dv, dh, frac, _, _, _, _) = runOne(0, hs)
-      println(f"[sim] STEP-START=$hs (delay=0): bypass=$byp%.3f best (dv=$dv,dh=$dh) frac=$frac%.4f")
+    // ---- With corrected 2-cycle sampling, re-sweep hamStepStart (delay=1) to skip the
+    // dispBankD-stale col-0 glitch that cascades through HAM's stateful hold on the first
+    // display line of each bank-pair. bestFrac is shift-invariant (the 2D scan absorbs the
+    // horizontal offset), so it isolates DECODE correctness from write alignment. ----
+    val sweep = (1 to 6).map { hs =>
+      val (byp, dv, dh, frac, _, _, _, _) = runOne(1, hs)
+      println(f"[sim] STEP-START=$hs (delay=1, 2-cyc sampling): bypass=$byp%.3f best (dv=$dv,dh=$dh) frac=$frac%.4f")
       (hs, dv, dh, frac)
     }
-    if (args.contains("diag")) { println("[sim] diag-only mode: stopping after sweep"); return }
-    val (bestHs, bestDvH, bestDhH, bestFracH) = sweep.maxBy(_._4)
-    println(f"[sim] SWEEP WINNER: stepStart=$bestHs best (dv=$bestDvH,dh=$bestDhH) frac=$bestFracH%.4f")
-    if (bestFracH > 0.98)
-      println(f"[sim] OPTION-1 VIABLE: stepStart=$bestHs reaches $bestFracH%.4f (display-side phase fix works; latency offset=$bestHs, residual write-shift dh=$bestDhH)")
-    else
-      println(f"[sim] OPTION-1 INSUFFICIENT: best over all stepStart is only $bestFracH%.4f — display-side phase fix does not fully resolve; escalate to Option 2 (fill-side decode)")
+    if (args.contains("diag")) { println("[sim] diag-only mode: stop"); return }
+    val (bestHs, bDv, bDh, bFrac) = sweep.maxBy(_._4)
+    println(f"[sim] SWEEP WINNER: stepStart=$bestHs best (dv=$bDv,dh=$bDh) frac=$bFrac%.4f")
+    if (bFrac > 0.999) println(f"[sim] DECODE CLEAN at stepStart=$bestHs (frac=$bFrac%.4f); residual is pure write-shift dh=$bDh → set bitmapWritePipelineDelay to land at dh=0")
+    else println(f"[sim] STILL IMPERFECT: best frac=$bFrac%.4f at stepStart=$bestHs — decode not fully clean; the col-0 bank glitch may need a hold-reset fix or Option 2")
   }
 }
