@@ -257,6 +257,7 @@ object HamIntegrationSim {
       val bm = pBitmapRowOff.size; val at = pAttrRowOff.size
       println(f"[probe] reads=$pReads wordsServed=$pWords burstLenHist=${pBurstLenHist.toSeq.sortBy(_._1)}")
       println(f"[probe] bitmap row-offset coverage=$bm/80 ; attr row-offset coverage=$at/80 (80=full 320B row in 4B words)")
+      println(f"[probe] grantOverflow=${dut.fetch.sd.grantOverflow.toInt} (Bug 1 trigger count; 0 = no grant-queue collapse in this scenario)")
     }
     (if (resActive > 0) resBypass.toDouble / resActive else 0.0, rBestDv, rBestDh, rBestFrac, rCanonMatch, rCanonTotal, resRow0, resByte0)
     }

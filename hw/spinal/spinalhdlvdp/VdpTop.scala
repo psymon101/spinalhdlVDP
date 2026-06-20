@@ -2476,12 +2476,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     statusClearMask := effData
   }
 
-  // Sticky update: set on any event this cycle, then clear bits the host
-  // requested. If an event AND a clear both target the same bit in the
-  // same cycle, the event wins (new state takes precedence over stale
-  // clear). QSPI_ERROR uses the level directly so it re-asserts until the
-  // source condition clears.
-  statusStickyReg := (statusStickyReg | evBus) & (~statusClearMask)
+  // Sticky update: clear the host-requested bits FIRST, then set on any event
+  // this cycle. If an event AND a clear both target the same bit in the same
+  // cycle, the event WINS (new state takes precedence over the stale clear) —
+  // matching the documented contract. (Bug 5, external review #13008: the prior
+  // `(sticky | ev) & ~clear` form let clear win, dropping a same-cycle event.)
+  // QSPI_ERROR uses the level directly so it re-asserts until the source clears.
+  statusStickyReg := (statusStickyReg & (~statusClearMask)) | evBus
 
   // Safe-boundary commit of enable mask at hCounter===0.
   when(hCounter === U(0, log2Up(hTotal) bits)) {
@@ -2541,7 +2542,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     collClearMask := effData(SpriteCollWidth - 1 downto 0)
   }
 
-  spriteCollMaskReg := (spriteCollMaskReg | collSetMask) & (~collClearMask)
+  // Bug 5 (external review #13008): clear FIRST then set, so a same-cycle
+  // set wins (event takes precedence) — matches the documented contract above.
+  spriteCollMaskReg := (spriteCollMaskReg & (~collClearMask)) | collSetMask
   io.spriteCollMask := spriteCollMaskReg
 
   // ===== VDP-SOFT-RESET-135 #4: core register reset (Stage 3 of the sequence) =====
