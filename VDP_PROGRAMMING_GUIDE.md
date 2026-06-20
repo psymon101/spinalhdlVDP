@@ -1,7 +1,7 @@
 # VDP Programming Guide
 
-**Version:** 1.4 (Draft)  
-**Date:** 2026-06-13  
+**Version:** 1.5 (Draft)  
+**Date:** 2026-06-20  
 **Target Platform:** Tang Nano 20K (Mode0)  
 **Host Libraries:** `libvdp` (C/C++)
 
@@ -76,6 +76,26 @@ void check_vdp_status() {
 void hide_sprites() {
     // Write 0x0001 to LAYER_ENABLE (0x0300) to keep L0 visible but hide L1 and sprites.
     vdp_reg_write(VDP_MODE0_REG_LAYER_ENABLE, 0x0001); 
+}
+```
+
+### `vdp_reg_read`
+**Description**: Issues a single 16-bit read from the VDP register bus.
+
+> [!WARNING]
+> On the current i80 parallel interface, `vdp_reg_read()` is **unreliable** for verifying hardware state. The i80 read path returns either the **last value written by the host** (loopback) or a bus-idle pattern (`0x7F7F`), not the live register-file contents. Do not use readback to confirm that `BITMAP_CTRL`, `LAYER_ENABLE`, or other configuration registers have actually latched. Verify behavior visually or through a dedicated status/capture test instead.
+>
+> This limitation is tracked as `I80-STATUS-DECODE-152` and will be resolved when the i80 FSM adds a real readback/status-decode path.
+
+**Real World Use**: Avoid on i80. On legacy QSPI builds the read path may return live values, but portable code should treat register writes as fire-and-forget and verify by observation.
+
+```c
+void do_not_do_this_on_i80() {
+    // This readback is NOT trustworthy on the current i80 bitstream.
+    uint16_t ctrl = vdp_reg_read(VDP_MODE0_REG_BITMAP_CTRL);
+    if ((ctrl & 0x0001) == 0) {
+        // May be loopback of the write you just issued, or 0x7F7F.
+    }
 }
 ```
 
@@ -628,6 +648,9 @@ Without this step the screen will show only the backdrop color, even though `LAY
 
 For each row, pack the low bytes of two consecutive pixels into one 16-bit word, and the high bytes into another 16-bit word, then upload to the respective planes. The canonical example `firmware/esp32s3_rgb565_fullframe/esp32s3_rgb565_fullframe.ino` demonstrates the full sequence.
 
+> [!NOTE]
+> **Bitmap pipeline latency:** The bitmap/double-buffer line buffer is filled and drained by the same pixel clock. The current implementation aligns the fill and drain paths with a **zero-cycle write delay** (`BITMAP_PIPELINE_LATENCY = 0`): source pixel `k` is written to `dcLineBuf[k]` and displayed at the screen column corresponding to `k`. Earlier prototypes required a non-zero compensation delay; that was an artifact of co-simulator sampling and has been removed.
+
 ### Code example
 
 ```c
@@ -668,7 +691,101 @@ The canonical ESP32-S3 host path uses the i80 8-bit parallel bus:
 Use `firmware/libvdp/vdp_i80.h` for transport-agnostic calls such as `vdp_reg_write()`, `vdp_reg_read()`, and `vdp_sdram_write()`.
 
 > [!WARNING]
+> **`vdp_reg_read()` is not a reliable verification primitive on i80.** Until `I80-STATUS-DECODE-152` lands, the readback path does not decode the live register file. It may return the last host-written value or the idle-bus pattern `0x7F7F`. Code that reads back `BITMAP_CTRL`, `LAYER_ENABLE`, `BITMAP_BASE`, etc., to decide whether a configuration step succeeded is at risk of false positives. Treat i80 writes as fire-and-forget and verify by visual output or a dedicated capture/status lane.
+>
+> The unrelated `vdp_read_status()` helper (opcode `0x04`) is also not implemented on i80 in the current bitstream; see §1.
+
+> [!WARNING]
 > **Full-Screen RGB565 Bitmap Limitation (legacy warning):** The power-on reset (POR) default bases for the bitmap layer are `0x3000` (Bitmap) and `0x4000` (Attribute). These defaults overlap after 8 rows when rendering direct-color (RGB565) mode at a 512-byte stride. For full-screen RGB565 bitmaps, you **must** configure non-overlapping bases (e.g., `0x100000` and `0x200000`) using registers `0x0351..0x0354`. The defaults are retained for backward compatibility with legacy indexed 1/2bpp mode demos.
+
+## 12. HAM6 Bitmap Mode
+
+Mode0 supports a **HAM6** (Hold-And-Modify 6-bit) bitmap layer. In this mode the source image is a single byte plane: each source pixel is a 6-bit code that either selects a base color from palette entries `0..15` or modifies one channel of the previous pixel's color.
+
+### HAM6 code format
+
+| Bits | Field | Meaning |
+|---|---|---|
+| `[5:4]` | Control | `00` = SET from palette, `01` = modify blue, `10` = modify red, `11` = modify green |
+| `[3:0]` | Data | For SET: palette index `0..15`. For modify: new 4-bit channel value. |
+| `[7:6]` | — | Always zero. |
+
+The first pixel of every scanline is decoded as a SET operation using palette entry `0` as the seed color, regardless of the control field.
+
+### Memory layout
+
+- Source size: 320×240 logical pixels.
+- Display expectation: 640×480 after 2× horizontal/vertical stretch.
+- One byte per source pixel, packed as little-endian 16-bit words for `vdp_sdram_write()`.
+- Only the **`BITMAP_BASE` byte plane** is used. `ATTR_BASE` is **don't-care** for HAM6; it is not fetched and does not need to be populated.
+
+### Required configuration
+
+| Register | Recommended value | Why |
+|---|---|---|
+| `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | Aligned SDRAM base for the HAM byte plane |
+| `ATTR_BASE_LO` / `ATTR_BASE_HI` | `0x0000` / `0x0000` → `0x000000` | Don't-care; set to any aligned value |
+| `BITMAP_STRIDE` / `ATTR_STRIDE` | `320` | One byte per source pixel, 320 bytes/row |
+| `BITMAP_HEIGHT` | `240` | Source bitmap height in rows |
+| `BITMAP_CTRL` | `0x0007` | enable (`bit0=1`) + BPP=`0b11` (`bits[2:1]=3`) |
+| `LAYER_ENABLE` | `0x0001` | Enable bitmap layer 0 |
+
+> [!IMPORTANT]
+> `ATTR_BASE`, `ATTR_STRIDE`, and the high-byte plane are **not used** in HAM6 mode. Upload only the `BITMAP_BASE` plane. Setting `ATTR_BASE` to a non-overlapping value is harmless but unnecessary.
+>
+> The 16 base colors (`palette[0..15]`) must be loaded before enabling the layer. Each 4-bit channel stored in palette RAM is nibble-replicated to 8-bit RGB (e.g., `R4` → `{R4, R4}`).
+
+### Linestate precondition
+
+As with RGB565 direct-color, enabling `LAYER_ENABLE` bit 0 is not enough. Write `0x0800` to every active line's linestate entry (`0x0000..0x01DF`) to enable L0 for the full screen.
+
+### Uploading the image
+
+For each row, pack pairs of HAM bytes into little-endian 16-bit words (`word = byte[x] | (byte[x + 1] << 8)`) and upload to `BITMAP_BASE`. The canonical asset `firmware/assets/ham_decoder_171/ham6_320x240_codes_words_le.bin` is already packed this way.
+
+### Code example
+
+```c
+#include "vdp_host.h"
+#include "vdp_mode0.h"
+
+void setup_ham6(void) {
+    vdp_host_init();
+
+    // 1. Load palette entries 0..15 (RGB888 base colors).
+    //    Each 4-bit channel is nibble-replicated by the hardware.
+    for (uint8_t i = 0; i < 16; ++i) {
+        vdp_mode0_palette_write_rgb888(i, ham_palette[i].r,
+                                            ham_palette[i].g,
+                                            ham_palette[i].b);
+    }
+
+    // 2. Upload the HAM byte plane to SDRAM.
+    //    ham_codes is a 38400-word array of little-endian packed byte pairs.
+    vdp_sdram_write(0x100000u, ham_codes, 38400u);
+
+    // 3. Configure bitmap geometry.
+    vdp_mode0_set_bitmap_base(0x100000u);
+    vdp_mode0_set_attr_base(0x000000u);      // don't-care for HAM6
+    vdp_mode0_set_bitmap_stride(320u);
+    vdp_mode0_set_attr_stride(320u);         // don't-care but harmless
+    vdp_mode0_set_bitmap_height(240u);
+
+    // 4. Enable HAM6 (BPP = 0b11).
+    vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL, 0x0007u);
+
+    // 5. Enable L0 for every line.
+    for (uint16_t line = 0; line < VDP_MODE0_LINESTATE_COUNT; ++line) {
+        vdp_mode0_write_linestate(line, 0x0800u);
+    }
+
+    // 6. Enable the bitmap layer.
+    vdp_mode0_set_layer_enable(0x0001u);
+}
+```
+
+> [!NOTE]
+> **Bitmap pipeline latency:** HAM6 shares the same double-buffered line buffer as RGB565 direct-color. The current implementation uses **zero-cycle write alignment** (`BITMAP_PIPELINE_LATENCY = 0`), so decoded source pixel `k` is displayed at the screen column corresponding to `k`.
 
 ---
 *End of Guide.*
