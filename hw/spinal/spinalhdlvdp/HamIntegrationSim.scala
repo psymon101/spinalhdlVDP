@@ -133,6 +133,11 @@ object HamIntegrationSim {
       dut.io.sdramDout #= 0; dut.io.sdramDout32 #= 0; dut.io.sdramDataReady #= false; dut.io.sdramBusy #= true
       dut.io.regBusAddr #= 0; dut.io.regBusData #= 0; dut.io.regBusEnable #= false
 
+      // ---- burst-integrity probes (TopazCliff #12995 / external-AI burst-truncation hyp) ----
+      var pReads = 0; var pWords = 0L
+      val pBurstLenHist = mutable.HashMap[Int, Int]()
+      val pBitmapRowOff = mutable.HashSet[Int]()   // distinct (addr-BitmapBase) mod Stride word offsets served
+      val pAttrRowOff   = mutable.HashSet[Int]()
       // Reactive SDRAM model — matches the proven-good BitmapRowFetchDirectColorSim:
       // keep sdramBusy FALSE throughout (toggling it desyncs the burst FSM and drops
       // reads mid-row → systemic line-buffer under-fill), 5-cycle latency, then BURST
@@ -143,11 +148,16 @@ object HamIntegrationSim {
         while (true) {
           if (dut.io.sdramRd.toBoolean) {
             val a = dut.io.sdramAddr.toInt; val n = math.max(1, dut.io.sdramBurstLen.toInt)
+            pReads += 1; pBurstLenHist(n) = pBurstLenHist.getOrElse(n, 0) + 1
             dut.sdramCd.waitSampling(5)
             for (k <- 0 until n) {
-              dut.io.sdramDout #= rb(a + k*4) & 0xFF
-              dut.io.sdramDout32 #= BigInt(rw(a + k*4) & 0xFFFFFFFFL)
+              val wa = a + k*4
+              dut.io.sdramDout #= rb(wa) & 0xFF
+              dut.io.sdramDout32 #= BigInt(rw(wa) & 0xFFFFFFFFL)
               dut.io.sdramDataReady #= true; dut.sdramCd.waitSampling()
+              pWords += 1
+              val bo = (wa - BitmapBase); if (bo >= 0 && bo < SrcH.toLong * Stride) pBitmapRowOff += (bo % Stride)
+              val ao = (wa - AttrBase);   if (ao >= 0 && ao < SrcH.toLong * Stride) pAttrRowOff   += (ao % Stride)
             }
             dut.io.sdramDataReady #= false
           } else dut.sdramCd.waitSampling()
@@ -178,10 +188,11 @@ object HamIntegrationSim {
       // Let several frames fill the ping-pong line buffer, then sample 2 frames.
       dut.clockDomain.waitSampling(800 * 525 * 3)
 
-      // For each sampled display pixel, score it against the reference at every
-      // candidate display-column shift s (got(dx) ?= ref(dx - s)). The shift that
-      // maximizes matches IS the measured pipeline offset — at the correct write
-      // delay the best (and a perfect) match must be s == 0.
+      // Capture one full got-frame (bypassed directcolor RGB per display pixel), then
+      // scan BOTH a vertical source-row offset and a horizontal display-column shift to
+      // EMPIRICALLY measure the alignment — the triple-buffer rotation imposes a vertical
+      // offset (CyanPeak: row 0 displays at V=4) on top of the +N horizontal write delay.
+      val gotFrame = Array.fill(480, 640)(-1)
       val sampleCycles = 800 * 525 * 2
       for (_ <- 0 until sampleCycles) {
         if (dut.io.de.toBoolean) {
@@ -192,14 +203,7 @@ object HamIntegrationSim {
             if (dx < 640 && dy < 480) {
               resInRange += 1
               val got = dut.video.dcRgbDrained.toInt & 0xFFFFFF
-              var s = 0
-              while (s <= MaxShift) {
-                val sx = dx - s
-                if (sx >= 0 && got == srcRgb(dy/2)(sx/2)) resMatchByShift(s) += 1
-                s += 1
-              }
-              if (resFirstMism.isEmpty && got != srcRgb(dy/2)(dx/2))
-                resFirstMism = f"x=$dx y=$dy got=0x$got%06x exp=0x${srcRgb(dy/2)(dx/2)}%06x"
+              gotFrame(dy)(dx) = got
               if (dy == 0 && dx < 40 && !resRow0.contains(dx)) {
                 resRow0(dx) = got
                 resByte0(dx) = dut.io.dbgFetchByte.toInt & 0xFF
@@ -209,6 +213,51 @@ object HamIntegrationSim {
         }
         dut.clockDomain.waitSampling()
       }
+
+      // 2D alignment scan: for each (dv vertical source-row offset, dh horizontal display-
+      // column shift), count pixels where got(dy,dx) == srcRgb((dy/2 - dv) mod SrcH)((dx-dh)/2).
+      var bestDv = 0; var bestDh = 0; var bestMatch = -1L; var bestTotal = 1L
+      for (dv <- -4 to 4; dh <- 0 to MaxShift) {
+        var m = 0L; var t = 0L
+        var dy = 0
+        while (dy < 480) {
+          val sr = ((dy/2 - dv) % SrcH + SrcH) % SrcH
+          var dx = dh
+          while (dx < 640) {
+            val g = gotFrame(dy)(dx)
+            if (g >= 0) { t += 1; if (g == srcRgb(sr)((dx-dh)/2)) m += 1 }
+            dx += 1
+          }
+          dy += 1
+        }
+        if (m > bestMatch) { bestMatch = m; bestTotal = t; bestDv = dv; bestDh = dh }
+        if (dv == 0) resMatchByShift(dh) = m   // keep the dv=0 horizontal profile for context
+      }
+      println(f"[sim] 2D-ALIGN best: vRowOffset=$bestDv hColShift=$bestDh match=${bestMatch}/${bestTotal} (${bestMatch.toDouble/bestTotal}%.4f)")
+      // Per-row match distribution at best alignment — localizes systematic (all rows ~equal)
+      // vs tearing/bank (some rows ~100%, others bad).
+      var rPerfect = 0; var rGood = 0; var rBad = 0
+      val rowSamples = mutable.ArrayBuffer[String]()
+      for (dy <- 0 until 480) {
+        val sr = ((dy/2 - bestDv) % SrcH + SrcH) % SrcH
+        var m = 0; var t = 0; var dx = bestDh
+        while (dx < 640) { val g = gotFrame(dy)(dx); if (g >= 0) { t += 1; if (g == srcRgb(sr)((dx-bestDh)/2)) m += 1 }; dx += 1 }
+        val f = if (t > 0) m.toDouble/t else 0.0
+        if (f > 0.99) rPerfect += 1 else if (f > 0.5) rGood += 1 else rBad += 1
+        if (dy % 80 == 0) rowSamples += f"dy=$dy(sr=$sr):${f}%.3f"
+      }
+      println(f"[sim] per-row match @best-align: perfect(>0.99)=$rPerfect good(0.5-0.99)=$rGood bad(<0.5)=$rBad ; samples: ${rowSamples.mkString(" ")}")
+      resActive = resActive; resInRange = bestTotal.toInt   // report best-alignment total as the in-range denom
+      // stash best in firstMism field as a structured string for the caller
+      resFirstMism = s"dv=$bestDv,dh=$bestDh,frac=${bestMatch.toDouble/math.max(1,bestTotal)}"
+
+      // ---- burst-integrity report: a faithful model must serve burst-8 reads and cover
+      // all 80 word-offsets (0..316 step 4) of each plane's 320-byte row. ----
+      val bm = pBitmapRowOff.size; val at = pAttrRowOff.size
+      println(f"[probe] reads=$pReads wordsServed=$pWords burstLenHist=${pBurstLenHist.toSeq.sortBy(_._1)}")
+      println(f"[probe] bitmap row-offset coverage=$bm/80 ; attr row-offset coverage=$at/80 (80=full 320B row in 4B words)")
+      if (bm < 80) println(f"[probe] FAIL: bitmap plane under-covered (${bm}/80) — fetch issued too few reads OR model truncated bursts")
+      if (at < 80) println(f"[probe] FAIL: attr plane under-covered (${at}/80)")
     }
     (resActive, resBypass, resInRange, resMatchByShift, resFirstMism, resRow0, resByte0)
     }
