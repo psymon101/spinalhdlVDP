@@ -3,11 +3,11 @@
 Firmware-specific pitfalls, proven fixes, and contract deviations for the
 `spinalhdlVDP` host driver library.
 
-## QSPI Transport
+## legacy SPI Transport
 
 ### GOTCHA-1: ESP32 / ESP8266 SCK speed is ~500 kHz (bit-bang)
 
-**Deviation:** The locked QSPI contract specifies 2 MHz SCK. The Arduino
+**Deviation:** The locked legacy SPI contract specifies 2 MHz SCK. The Arduino
 bit-bang implementation for ESP32 and ESP8266 achieves only ~500 kHz due to
 digitalWrite overhead.
 
@@ -16,22 +16,22 @@ digitalWrite overhead.
   and OSR drain (20 µs), not SCK edge counts.
 - Bench testing with Sc45, Sc62, and Task 55 scenarios on both ESP32 and
   ESP8266 produced correct HDMI output.
-- The VDP QSPI receiver is a shift-register with no minimum frequency spec
+- The VDP legacy SPI receiver is a shift-register with no minimum frequency spec
   other than "fast enough to complete before the next VDP operation."
 
 **Risk:**
-- Very long bursts (>1 ms total QSPI active time) may span multiple scanlines
+- Very long bursts (>1 ms total legacy SPI active time) may span multiple scanlines
   and interact with VDP scanline deadlines.
-- Mitigation: keep individual QSPI bursts under 256 bytes unless explicitly
+- Mitigation: keep individual legacy SPI bursts under 256 bytes unless explicitly
   validated on hardware.
 
 **Fix status:** Documented. No code change required.
 
 ---
 
-### GOTCHA-2: Pico PIO QSPI runs at 2 MHz (native)
+### GOTCHA-2: Pico PIO legacy SPI runs at 2 MHz (native)
 
-**Fact:** The Pico RP2350 uses a PIO state machine for QSPI, achieving the full
+**Fact:** The Pico RP2350 uses a PIO state machine for legacy SPI, achieving the full
 2 MHz contract speed. This is the reference implementation.
 
 **Implication:** When validating timing-sensitive scenarios, use the Pico as the
@@ -47,7 +47,7 @@ Do not compute this as "N clock cycles" because host SCK rates vary by platform.
 
 **Implementation:**
 - Pico: PIO program uses `delay` sideset for microsecond-level hold.
-- ESP32/ESP8266: `vdp_qspi.c` uses `delayMicroseconds(10)` after the final bit.
+- ESP32/ESP8266: `vdp_legacySpi.c` uses `delayMicroseconds(10)` after the final bit.
 
 ---
 
@@ -56,12 +56,12 @@ Do not compute this as "N clock cycles" because host SCK rates vary by platform.
 ### FIDELITY-1: Authoritative vs Functional Host
 
 - **Authoritative:** ESP32-S3 (i80 parallel). Native GPIO fast toggling. Deterministic timing. **Required for audit sign-off.**
-- **Functional / Legacy:** Pico 2 (RP2350) PIO QSPI, ESP32, ESP8266. Bit-bang QSPI @ ~500 kHz. Acceptable for functional regression only; not authoritative for timing-sensitive proofs.
+- **Functional / Legacy:** Pico 2 (RP2350) PIO legacy SPI, ESP32, ESP8266. Bit-bang legacy SPI @ ~500 kHz. Acceptable for functional regression only; not authoritative for timing-sensitive proofs.
 
 ### FIDELITY-2: Upload Error Trust Requirement
 
 Visual output is only valid if the upload bridge sticky error bits remain clear.
-**Procedure:** Poll `vdp_last_error()` after bursts. On legacy QSPI builds, clear error bits with `vdp_clear_upload_status()` if set and retrust only when `vdp_last_error() == 0` throughout setup (this corresponds to `QSPI_ERROR` / sticky bit 3 / `sel=4`).
+**Procedure:** Poll `vdp_last_error()` after bursts. On legacy SPI builds, clear error bits with `vdp_clear_upload_status()` if set and retrust only when `vdp_last_error() == 0` throughout setup (this corresponds to `LEGACY_SPI_ERROR` / sticky bit 3 / `sel=4`).
 
 **Current limitation:** On the canonical i80 bitstream, `vdp_clear_upload_status()` issues the documented `0x0323` write, but the current RTL does not decode that address, so the sticky bits are not actually cleared until the RTL fix lands (see FIDELITY-6 and `MODE0_REGISTER_BUS_SPEC.md` §3.1.2).
 
@@ -91,9 +91,9 @@ Visual output is only valid if the upload bridge sticky error bits remain clear.
 **Fact:** The canonical ESP32-S3 host uses the i80 parallel interface. The i80 RTL decoder (`I80HostInterface.scala`) currently accepts only opcodes `0x00` (register write), `0x01` (register read), and `0x02` (SDRAM block write). It does **not** decode the `READ_STATUS` opcode (`0x04`).
 
 **Implication:**
-- `vdp_read_status()` works correctly only on legacy QSPI builds.
+- `vdp_read_status()` works correctly only on legacy SPI builds.
 - On i80/ESP32-S3 builds, `vdp_read_status()` returns undefined data and does not reflect VDP state.
-- Several ESP32-S3 example sketches still call `vdp_read_status()` for debug prints; those prints are meaningful only when the sketch is built for the legacy QSPI backend.
+- Several ESP32-S3 example sketches still call `vdp_read_status()` for debug prints; those prints are meaningful only when the sketch is built for the legacy SPI backend.
 
 **Workaround:** On i80, poll status through normal register reads:
 - Sticky status → `vdp_reg_read(0x0320)` (or write-1-to-clear with `vdp_reg_write(0x0320, mask)`).
@@ -124,13 +124,13 @@ mappings and SPI peripheral headers are platform-specific.
 ```
 name=libvdp
 version=1.0.0
-author=spinalhdlVDP team
-maintainer=spinalhdlVDP team
-sentence=VDP host driver library
-paragraph=Cross-platform QSPI host driver for spinalhdlVDP
-category=Device Control
-url=
-architectures=esp8266,esp32,rp2040
+author=SignalWire
+maintainer=SignalWire
+sentence=Shared host driver library for VDP Mode0.
+paragraph=Encapsulates host transport, register writes, and SDRAM uploads.
+category=Display
+url=https://github.com/spinalhdlVDP
+architectures=*
 ```
 
 Without this file, the Arduino IDE and `arduino-cli` will not recognize
@@ -140,7 +140,7 @@ Without this file, the Arduino IDE and `arduino-cli` will not recognize
 
 ## Platform-Specific
 
-### GOTCHA-6: ESP32 GPIO 25/27 are safe for QSPI IO2/IO3
+### GOTCHA-6: ESP32 GPIO 25/27 are safe for legacy SPI IO2/IO3
 
 **Fact:** On the ESP32 dev1 board used in this project, GPIO 25 and 27 are
 not strap pins and do not conflict with JTAG or flash access.
@@ -154,15 +154,15 @@ not strap pins and do not conflict with JTAG or flash access.
 **Fact:** IO3 on the ESP8266 NodeMCU maps to GPIO 16 (D0), which has no
 internal pull-up. If the VDP ever tri-states IO3, the ESP8266 side may float.
 
-**Current status:** The VDP QSPI implementation always drives IO3 during
+**Current status:** The VDP legacy SPI implementation always drives IO3 during
 transactions, so this is not a live issue. Documented for future reference if
 the VDP side ever adds high-Z states.
 
 ---
 
-### GOTCHA-8: Barebones 40-bit QSPI protocol (Stage 2+)
+### GOTCHA-8: Barebones 40-bit legacy SPI protocol (Stage 2+)
 
-**Deviation:** The "barebones" rebuild branch (`mode0t20-barebones-rebuild`) uses a simplified 1-bit SPI protocol instead of the full 6-byte header QSPI contract.
+**Deviation:** The "barebones" rebuild branch (`mode0t20-barebones-rebuild`) uses a simplified 1-bit SPI protocol instead of the full 6-byte header legacy SPI contract.
 
 **Protocol:**
 - **Width:** 1-bit (SCK, CS_N, MOSI only; no MISO/IO2/IO3)
@@ -170,9 +170,9 @@ the VDP side ever adds high-Z states.
 - **Command:** Only `0x01` (REG_WRITE) is supported.
 - **Timing:** Same 2 MHz SCK and 10 µs CS hold invariants as the main contract.
 
-**Why it exists:** To provide a truly-minimal bring-up path on Tang Nano 20K that fits in low LUT counts and doesn't require the full SDRAM/QSPI infrastructure.
+**Why it exists:** To provide a truly-minimal bring-up path on Tang Nano 20K that fits in low LUT counts and doesn't require the full SDRAM/legacy SPI infrastructure.
 
-**Fix status:** Documented. Host sketches `esp8266_barebones_scroll`, `esp32_barebones_scroll`, and `test_barebones_scroll` implement this protocol. Main `libvdp` DOES NOT support this protocol; it remains locked to the 6-byte header QSPI contract.
+**Fix status:** Documented. Host sketches `esp8266_barebones_scroll`, `esp32_barebones_scroll`, and `test_barebones_scroll` implement this protocol. Main `libvdp` DOES NOT support this protocol; it remains locked to the 6-byte header legacy SPI contract.
 
 ---
 
@@ -197,13 +197,13 @@ the VDP side ever adds high-Z states.
 
 **Fix:** Write your intended backdrop palette entry (0..127) to `BACKDROP_INDEX` (`0x0348`), then write the RGB color to that palette entry. Do not rely on Layer 0's palette bank for the disabled-layer backdrop.
 
-### GOTCHA-11: ESP32-S3 QSPI SI Ceiling at 80 MHz
+### GOTCHA-11: ESP32-S3 legacy SPI SI Ceiling at 80 MHz
 
 **Fact:** The ESP32-S3 hardware SPI2 peripheral supports up to 80 MHz when using the dedicated FSPI IOMUX pin group (GPIO 9..14).
 
 **Implication:** At 80 MHz, signal integrity on breadboards or long unshielded wires is poor. Reflections can cause bit-flips in bulk register writes, leading to corrupted palette or SDRAM data.
 
-**Fix:** Use **60 MHz** (`VDP_QSPI_SCK_WRITE_HZ`) as the production bulk-write speed. It provides nearly the same throughput (~6.8 MB/s) with significantly more SI margin. Interleaving data lines with multiple Ground wires on the ribbon cable is also recommended.
+**Fix:** Use **60 MHz** (`VDP_SPI_SCK_WRITE_HZ`) as the production bulk-write speed. It provides nearly the same throughput (~6.8 MB/s) with significantly more SI margin. Interleaving data lines with multiple Ground wires on the ribbon cable is also recommended.
 
 ### GOTCHA-12: Scaler Register Ordering and Safe-Boundary Commit
 
@@ -274,9 +274,9 @@ vdp_mode0_set_scale_ctrl(
 
 ---
 
-### GOTCHA-033: QSPI Physical SCK Ceiling (25.2 MHz Oversampling)
+### GOTCHA-033: legacy SPI Physical SCK Ceiling (25.2 MHz Oversampling)
 
-**Fact:** The `QspiSlave.scala` oversamples the asynchronous SCK pin using the 25.2 MHz pixel clock.
+**Fact:** The `LegacySpiSlave.scala` oversamples the asynchronous SCK pin using the 25.2 MHz pixel clock.
 
 **Logic Ceiling:** Per Nyquist-Shannon, the SCK frequency MUST be less than 12.6 MHz (half the oversampling rate). In practice, with routing jitter and setup/hold requirements, the stable ceiling is ~8 MHz.
 
@@ -284,5 +284,5 @@ vdp_mode0_set_scale_ctrl(
 - The 60 MHz write speed recommended in earlier firmware versions is **physically invalid**.
 - At 60 MHz, the FPGA sees aliased/random transitions, causing protocol collapse and non-deterministic register/SDRAM write failures.
 
-**Fix:** Cap the QSPI write clock to **8 MHz** max. Adjust `VDP_QSPI_SCK_WRITE_HZ` in `vdp_platform.h` and the ESP32 probe firmware.
+**Fix:** Cap the legacy SPI write clock to **8 MHz** max. Adjust `VDP_SPI_SCK_WRITE_HZ` in `vdp_platform.h` and the ESP32 probe firmware.
 

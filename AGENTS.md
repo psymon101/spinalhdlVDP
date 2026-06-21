@@ -124,7 +124,7 @@ Binding rules. Enforced to prevent identity, authorization, and contract drift.
 | 10 | Prior Art Search | No novel-root-cause claims without searching `TASKS_HISTORY.md`, `archive/artifacts/`, `GOTCHAS.md`, and `memory` first |
 | 11 | Memory Closeout | After every task, write comprehensive task summary to `memory` including lessons learned and dialogue context. PM writes lane/project summaries. No closeout without memory entry |
 
-**Canonical QSPI contract:** 2 MHz SCK, 10 µs CS hold, 20 µs OSR drain.
+**Legacy SPI contract:** 2 MHz SCK, 10 µs CS hold, 20 µs OSR drain.
 
 **Signoff strings:**
 - `— BronzeGate`

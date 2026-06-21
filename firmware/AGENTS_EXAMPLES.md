@@ -8,14 +8,13 @@ Examples and command snippets referenced by `firmware/AGENTS.md`.
 firmware/
 ├── libvdp/              — shared host driver library (C, platform-agnostic core)
 │   ├── vdp_host.{c,h}   — canonical host transport facade
-│   ├── vdp_qspi.h       — deprecated compatibility shim
+│   ├── vdp_legacySpi.h       — explicit legacy SPI transport entry point
 │   ├── vdp_upload.{c,h} — SDRAM asset upload helpers
 │   ├── vdp_status.{c,h} — register/status read helpers
 │   └── vdp_platform.h   — platform-specific pin maps & types
 ├── esp8266_<scenario>/  — per-scenario Arduino sketches (NodeMCU 1.0)
 ├── esp32_<scenario>/    — per-scenario Arduino sketches (ESP32 dev1)
-├── test_qspi_wire/      — low-level QSPI validation harness (Pico)
-├── test_qspi_smoke/     — transport smoke test (Pico)
+├── esp8266_*/esp32_* legacy SPI sketches — archived legacy SPI sketches/tests; not active i80 proof
 ├── esp8266_asset_upload/ — generated-asset upload template (ESP8266)
 └── AGENTS.md            — policy file
 ```
@@ -54,15 +53,16 @@ arduino-cli upload   --fqbn esp32:esp32:esp32s3 -p /dev/ttyACM0 <sketch_dir>
 | `esp32s3_i80_sprite_mask` | Sprite mask / transparency proof. |
 | `esp32s3_i80_border_palette_probe` | Border + palette probe. |
 
-## Legacy QSPI ESP32-S3 Sketches
+## Deprecated legacy SPI Sketch Archive
 
-| Sketch | Purpose |
+The legacy SPI-era sketches are retained as `firmware/esp8266_*` and
+`firmware/esp32_*` (non-i80) sketches for historical transport reference. Do
+not use them for active ESP32-S3/i80 proof unless PM explicitly reopens a
+legacy SPI lane.
+
+| Archived path | Purpose |
 |---|---|
-| `esp32s3_qspi_smoke` | Minimal READ_STATUS magic loop; verifies basic QSPI transport integrity. |
-| `esp32s3_red_screen` | Verification of bit-perfect palette writes using `palette[64]` as a canary. |
-| `esp32s3_throughput` | Sweeps 1-80 MHz to characterize QSPI transport bandwidth and error floor. |
-| `esp32s3_stress` | High-load mixed read/write stress test with error accounting. |
-| `esp32s3_scope_fodder` | Continuous toggling on GPIO 12 for scope signal-integrity analysis. |
+| `esp8266_*` / `esp32_*` (legacy SPI builds) | legacy SPI-era palette/register/upload canaries and stress tests. |
 
 ## PNG Asset Conversion
 
@@ -116,9 +116,9 @@ vdp_upload_asset(FRAME_SDRAM_BASE, frame_tiles, FRAME_TILES_WORD_COUNT, NULL);
 | WR#        | 17            | 77                |
 | RD#        | 18            | 80                |
 
-### ESP32-S3 (FSPI IOMUX) — legacy QSPI
+### ESP32-S3 (FSPI IOMUX) — archived legacy SPI
 
-| QSPI | GPIO | Tang Nano pin |
+| legacy SPI | GPIO | Tang Nano pin |
 |------|------|---------------|
 | SCK  | 12   | 41            |
 | CS_N | 10   | 42            |
@@ -127,9 +127,9 @@ vdp_upload_asset(FRAME_SDRAM_BASE, frame_tiles, FRAME_TILES_WORD_COUNT, NULL);
 | IO2  | 14   | 51            |
 | IO3  | 9    | 54            |
 
-### ESP32 dev1 — legacy QSPI
+### ESP32 dev1 — archived legacy SPI
 
-| QSPI | GPIO |
+| legacy SPI | GPIO |
 |------|------|
 | SCK  | 18   |
 | CS_N | 19   |
@@ -138,9 +138,9 @@ vdp_upload_asset(FRAME_SDRAM_BASE, frame_tiles, FRAME_TILES_WORD_COUNT, NULL);
 | IO2  | 25   |
 | IO3  | 27   |
 
-### ESP8266 NodeMCU 1.0 — legacy QSPI
+### ESP8266 NodeMCU 1.0 — reference legacy SPI
 
-| QSPI | NodeMCU | GPIO |
+| legacy SPI | NodeMCU | GPIO |
 |------|---------|------|
 | SCK  | D5      | 14   |
 | CS_N | D6      | 12   |
@@ -149,6 +149,7 @@ vdp_upload_asset(FRAME_SDRAM_BASE, frame_tiles, FRAME_TILES_WORD_COUNT, NULL);
 | IO2  | D2      | 4    |
 | IO3  | D0      | 16   |
 
-### Pico (RP2350) — legacy QSPI
+### Pico (RP2350) — archived legacy SPI
 
-Defined in `libvdp/vdp_platform.h` and `qspi_quad.pio`.
+Defined in `libvdp/vdp_platform.h`; legacy SPI PIO code is archived in the
+legacy SPI-era sketches.

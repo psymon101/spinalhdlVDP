@@ -6,10 +6,8 @@ pico_sdk_init()
 
 # libvdp source files
 set(LIBVDP_SRC
-    ${CMAKE_CURRENT_LIST_DIR}/../libvdp/vdp_qspi.c
     ${CMAKE_CURRENT_LIST_DIR}/../libvdp/vdp_mode0.c
     ${CMAKE_CURRENT_LIST_DIR}/../libvdp/vdp_palette_lut.c
-    ${CMAKE_CURRENT_LIST_DIR}/../libvdp/vdp_platform.c
 )
 
 add_executable(test_palette_lut_smoke

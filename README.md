@@ -19,7 +19,7 @@ Project identity: `spinalhdlVDP`.
 - `hw/spinal/spinalhdlvdp/` Scala / SpinalHDL sources
 - `hw/gen/` generated HDL output
 - `fpga/tang20k/` Tang Nano 20K HDMI build files
-- `firmware/libvdp/` host driver library (C/C++): i80/QSPI transports, Mode0 helpers, register map
+- `firmware/libvdp/` host driver library (C/C++): i80/legacy SPI transports, Mode0 helpers, register map
 - `firmware/esp32s3_i80_*/` canonical ESP32-S3 i80 example sketches (smoke, RGB565 full-frame, scaler bezel, sprite mask, copper bars)
 - `firmware/esp32s3_rgb565_fullframe/` canonical RGB565 full-frame example (ESP32-S3)
 - `kb/` local hardware and Gowin documentation
@@ -42,7 +42,7 @@ The current Tang Nano 20K deployment uses an **8-bit parallel i80 bus** driven b
 
 - **i80 protocol:** opcode `0x00` register write, `0x01` register read, `0x02` SDRAM block write; CS#/WR#/RD#/DC control.
 - **Readback semantics:** most register reads return the last-written value (loopback). Special debug readback is available via `READ_STATUS` selectors.
-- **Legacy QSPI:** the 4-wire QSPI path is still present for Raspberry Pi Pico 2 and earlier ESP32/ESP8266 bench setups, but it is **retired from the canonical ESP32-S3 path**. See `PROJECT_PLAN/PLATFORM.md` for pinouts and `PROJECT_PLAN/archive/QSPI_HOST_CONTROL_PLAN.md` for historical QSPI details.
+- **Legacy SPI:** the 4-wire legacy SPI path is still present for Raspberry Pi Pico 2 and earlier ESP32/ESP8266 bench setups, but it is **retired from the canonical ESP32-S3 path**. See `PROJECT_PLAN/PLATFORM.md` for pinouts and `PROJECT_PLAN/archive/deleted legacy host control plan` for historical legacy SPI details.
 
 ## Mode0 Architecture
 

@@ -7,7 +7,7 @@ Canonical API reference for `firmware/libvdp/`.
 | Item | Value |
 |---|---|
 | Library path | `firmware/libvdp/` |
-| Platforms | Pico 2 (Authoritative), ESP32, ESP8266, Tang Nano 20K (i80) |
+| Platforms | ESP32-S3 (Authoritative), ESP32, ESP8266, Pico 2 (Legacy), Tang Nano 20K (Target) |
 | Contract style | blocking C API |
 | Source of truth | public headers in `firmware/libvdp/*.h` |
 
@@ -16,7 +16,7 @@ Canonical API reference for `firmware/libvdp/`.
 | Module | Files | Purpose |
 |---|---|---|
 | Transport | `vdp_host.h`, `vdp_host.c` | host register/status/SDRAM transactions |
-| Legacy transport shim | `vdp_qspi.h` | deprecated compatibility include and `vdp_qspi_*` aliases |
+| Legacy transport shim | `vdp_legacySpi.h` | deprecated compatibility include and `vdp_legacy_spi_*` aliases |
 | Status | `vdp_status.h`, `vdp_status.c` | sticky-bit polling and vblank waits |
 | Upload | `vdp_upload.h`, `vdp_upload.c` | vblank-paced SDRAM asset upload |
 | Mode0 | `vdp_mode0.h`, `vdp_mode0.c` | generic Mode0 helper layer |
@@ -28,35 +28,35 @@ Canonical API reference for `firmware/libvdp/`.
 | Function | Signature | Purpose | Notes |
 |---|---|---|---|
 | `vdp_host_init` | `void vdp_host_init(void)` | initialize host pins and transport | call once before any other `libvdp` API |
-| `vdp_qspi_init` | `void vdp_qspi_init(void)` | deprecated alias for `vdp_host_init()` | kept for legacy sketches |
+| `vdp_legacy_spi_init` | `void vdp_legacy_spi_init(void)` | deprecated alias for `vdp_host_init()` | kept for legacy sketches |
 | `vdp_pio_wait_sm_idle` | `void vdp_pio_wait_sm_idle(void)` | drain Pico PIO TX path before CS/pin changes | Pico-only effect; no-op on Arduino targets |
 | `vdp_last_error` | `int vdp_last_error(void)` | read sticky host-library error state | library-side state only; FPGA-side errors come from status reads |
-| `vdp_host_set_speed_hz` | `void vdp_host_set_speed_hz(uint32_t hz)` | change host transport frequency at runtime | only effective on legacy SPI2/QSPI compatibility builds; no-op elsewhere |
-| `vdp_qspi_set_speed_hz` | `void vdp_qspi_set_speed_hz(uint32_t hz)` | deprecated alias for `vdp_host_set_speed_hz()` | kept for legacy sketches |
+| `vdp_host_set_speed_hz` | `void vdp_host_set_speed_hz(uint32_t hz)` | change host transport frequency at runtime | only effective on legacy SPI2/legacy SPI compatibility builds; no-op elsewhere |
+| `vdp_legacy_spi_set_speed_hz` | `void vdp_legacy_spi_set_speed_hz(uint32_t hz)` | deprecated alias for `vdp_host_set_speed_hz()` | kept for legacy sketches |
 
 ## Host Interface Policy
 
 The Tang Nano 20K deployment currently uses i80 as the canonical host
-interface. Legacy QSPI code remains available for compatibility and historical
+interface. Legacy legacy SPI code remains available for compatibility and historical
 bench work.
 
 | Interface | Type | Usage | Pin Group |
 |---|---|---|---|
 | **i80 (Primary)** | 8-bit Parallel | Current bench setup (ESP32-S3). Lowest latency. | I80 (GPIOs) |
-| **QSPI (Legacy)** | 4-bit Serial | Compatibility/Pico 2 historical setup. | QSPI (FSPI/PIO) |
+| **legacy SPI (Legacy)** | 4-bit Serial | Compatibility/Pico 2 historical setup. | legacy SPI (FSPI/PIO) |
 
 The `libvdp` API abstractions (`vdp_reg_write`, `vdp_sdram_write`) remain identical across both transports.
 
 ## Host Speed Policy
 
-Legacy QSPI/SPI2 compatibility builds support a "two-speed" policy to maximize
+Legacy legacy SPI/SPI2 compatibility builds support a "two-speed" policy to maximize
 throughput while maintaining read reliability. The canonical ESP32-S3 i80 host
 path ignores `vdp_host_set_speed_hz()`.
 
 | Direction | Recommended Speed | Rationale |
 |---|---|---|
-| **Reads** | **3 MHz** (`VDP_HOST_SCK_HZ`, legacy alias `VDP_QSPI_SCK_HZ`) | FPGA response FSM caps at 3 MHz; higher rates cause read failure. |
-| **Writes** | **8 MHz** (`VDP_HOST_SCK_WRITE_HZ`, legacy alias `VDP_QSPI_SCK_WRITE_HZ`) | Firmware physical cap for compatibility builds. |
+| **Reads** | **3 MHz** (`VDP_HOST_SCK_HZ`, legacy alias `VDP_SPI_SCK_HZ`) | FPGA response FSM caps at 3 MHz; higher rates cause read failure. |
+| **Writes** | **8 MHz** (`VDP_HOST_SCK_WRITE_HZ`, legacy alias `VDP_SPI_SCK_WRITE_HZ`) | Firmware physical cap for compatibility builds. |
 
 ### Usage Example
 
@@ -78,7 +78,7 @@ uint32_t magic = vdp_read_status(0);
 | `vdp_reg_write_burst` | `void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)` | write a contiguous block of register words | start address, little-endian word array, word count (1..253) | none |
 | `vdp_read_status` | `uint32_t vdp_read_status(uint8_t sel)` | read one 32-bit status selector | selector `0..7` | 32-bit little-endian response |
 
-> **Transport note:** `vdp_read_status()` is implemented only on the legacy QSPI backend. The canonical i80 RTL decoder does not currently decode the `READ_STATUS` opcode (`0x04`); on i80/ESP32-S3 hosts, poll status through normal register reads (e.g., `0x0320` for sticky status).
+> **Transport note:** `vdp_read_status()` is implemented only on the legacy SPI backend. The canonical i80 RTL decoder does not currently decode the `READ_STATUS` opcode (`0x04`); on i80/ESP32-S3 hosts, poll status through normal register reads (e.g., `0x0320` for sticky status).
 
 ### `vdp_read_status` selectors
 
@@ -157,8 +157,8 @@ python3 scripts/assets/bin_to_c_array.py build/frame.tiles.bin \
 | `VDP_STICKY_SPRITE_OVERFLOW` | `0x0002` | sprite overflow |
 | `VDP_STICKY_HOST_READY` | `0x0004` | command accepted |
 | `VDP_STICKY_HOST_ERROR` | `0x0008` | host error |
-| `VDP_STICKY_QSPI_READY` | `0x0004` | deprecated alias for `VDP_STICKY_HOST_READY` |
-| `VDP_STICKY_QSPI_ERROR` | `0x0008` | deprecated alias for `VDP_STICKY_HOST_ERROR` |
+| `VDP_STICKY_LEGACY_SPI_READY` | `0x0004` | deprecated alias for `VDP_STICKY_HOST_READY` |
+| `VDP_STICKY_LEGACY_SPI_ERROR` | `0x0008` | deprecated alias for `VDP_STICKY_HOST_ERROR` |
 | `VDP_STICKY_SPRITE_0_HIT` | `0x0010` | slot-0 hit |
 | `VDP_STICKY_SPRITE_BG_HIT` | `0x0020` | sprite/background hit |
 | `VDP_STICKY_DMA_DONE` | `0x0100` | DMA transfer complete |
@@ -253,7 +253,7 @@ One-call palette + pattern + descriptor upload. Any step can be skipped with `NU
 
 | Rule | Requirement |
 |---|---|
-| Trustworthy upload proof | verify `VDP_STICKY_HOST_ERROR` is clear (`VDP_STICKY_QSPI_ERROR` is the legacy alias) |
+| Trustworthy upload proof | verify `VDP_STICKY_HOST_ERROR` is clear (`VDP_STICKY_LEGACY_SPI_ERROR` is the legacy alias) |
 | Visible update pacing | use `vdp_wait_vblank` or equivalent |
 | Reuse | keep common transport logic in `libvdp`, not per-sketch code |
 
