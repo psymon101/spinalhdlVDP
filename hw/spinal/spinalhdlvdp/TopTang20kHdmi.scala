@@ -707,34 +707,49 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // assets boot and memtest are gated off — L0 already populates the
     // planar staging regions and runs the memtest scratchpad at the
     // shared SDRAM addresses, so this instance must not double-write.
-    val fetchL1 = SdramTileAttributeFetch(
-      sdramClockDomain,
-      skipSdramInit            = useHostInit,
-      tileMapBaseAddr          = TileAttributeAssets.L1TileMapBase,
-      attributeMapBaseAddr     = TileAttributeAssets.L1AttributeMapBase,
-      tileRowBaseAddr          = TileAttributeAssets.L1TileRowBase,
-      tileMapBytesOverride      = Some(() => TileAttributeAssets.l1TileMapBytesInit),
-      attributeMapBytesOverride = Some(() => TileAttributeAssets.l1AttributeMapBytesInit),
-      tileRowBytesOverride      = Some(() => TileAttributeAssets.l1TileRowBytesInit),
-      bootPlanarAssets         = false,
-      runMemtest               = false,
-      useExternalRefresh       = true   // CP-A3: central arbiter refresh (same cadence as L0)
-    )
-    fetchL1.io.fetchGrant       := video.io.layer1FetchGrant
-    fetchL1.io.fetchSlotValid   := video.io.layer1FetchSlotValid
-    fetchL1.io.fetchPreAnnounce := video.io.layer1FetchPreAnnounce
-    fetchL1.io.tileDecodeMode   := B(0, 2 bits)   // L1 stays packed-4bpp
-    fetchL1.io.attributeMode    := B(0, 1 bits)   // L1 stays linear attrs
-    fetchL1.io.fetchLine        := video.io.layer1FetchLine
-    fetchL1.io.fetchScrollX     := video.io.layer1FetchScrollX
-    fetchL1.io.fetchScrollY     := video.io.layer1FetchScrollY
-    fetchL1.io.pixelAddr        := video.io.layer0FetchPixelAddr   // same hCounter
+    // BSRAM-L1-GATE-154 (#12911): only instantiate the L1 SDRAM fetch engine when
+    // enableL1Fetch is set. Production builds pass enableL1Fetch=false, so this whole
+    // second SdramTileAttributeFetch (its line buffers, async FIFO, boot ROMs and FSM)
+    // is no longer elaborated — freeing its BSRAM/LUT/FF. When disabled, VdpTop's
+    // layer-1 SDRAM inputs are tied off here and SDRAM-arbiter client 3 is held idle
+    // (see the post-arbiter wiring below).
+    val fetchL1 = if (enableL1Fetch) {
+      val f = SdramTileAttributeFetch(
+        sdramClockDomain,
+        skipSdramInit            = useHostInit,
+        tileMapBaseAddr          = TileAttributeAssets.L1TileMapBase,
+        attributeMapBaseAddr     = TileAttributeAssets.L1AttributeMapBase,
+        tileRowBaseAddr          = TileAttributeAssets.L1TileRowBase,
+        tileMapBytesOverride      = Some(() => TileAttributeAssets.l1TileMapBytesInit),
+        attributeMapBytesOverride = Some(() => TileAttributeAssets.l1AttributeMapBytesInit),
+        tileRowBytesOverride      = Some(() => TileAttributeAssets.l1TileRowBytesInit),
+        bootPlanarAssets         = false,
+        runMemtest               = false,
+        useExternalRefresh       = true   // CP-A3: central arbiter refresh (same cadence as L0)
+      )
+      f.io.fetchGrant       := video.io.layer1FetchGrant
+      f.io.fetchSlotValid   := video.io.layer1FetchSlotValid
+      f.io.fetchPreAnnounce := video.io.layer1FetchPreAnnounce
+      f.io.tileDecodeMode   := B(0, 2 bits)   // L1 stays packed-4bpp
+      f.io.attributeMode    := B(0, 1 bits)   // L1 stays linear attrs
+      f.io.fetchLine        := video.io.layer1FetchLine
+      f.io.fetchScrollX     := video.io.layer1FetchScrollX
+      f.io.fetchScrollY     := video.io.layer1FetchScrollY
+      f.io.pixelAddr        := video.io.layer0FetchPixelAddr   // same hCounter
+      video.io.layer1SdramPixel    := f.io.pixelIndex
+      video.io.layer1SdramBank     := f.io.pixelPaletteBank
+      video.io.layer1SdramPriority := f.io.pixelPriority
+      Some(f)
+    } else {
+      // L1 fetch disabled (production): tie off VdpTop's layer-1 SDRAM inputs.
+      video.io.layer1SdramPixel    := B(0, 4 bits)
+      video.io.layer1SdramBank     := U(0, 3 bits)
+      video.io.layer1SdramPriority := False
+      None
+    }
     // L1 is enabled only on scenarios that opt in (default off so pre-CP-B
     // scenes remain bit-identical). Scenario-specific tops can override.
     video.io.layer1UseSdram      := False
-    video.io.layer1SdramPixel    := fetchL1.io.pixelIndex
-    video.io.layer1SdramBank     := fetchL1.io.pixelPaletteBank
-    video.io.layer1SdramPriority := fetchL1.io.pixelPriority
 
     // R1 Raster Trigger Unit — Task 34 Checkpoint C uses this as a host-
     // visible vblank indicator. Trigger fires on line 480 (first line of
@@ -964,7 +979,7 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // ctrl.io.refresh keeps the L0||L1 cmdRefresh OR below; both are now fed by ONE timer
   // (no per-engine drift; L1 guaranteed on-cadence).
   pixelArea.fetch.io.refreshDue   := sdramArbiter.io.refreshDue
-  pixelArea.fetchL1.io.refreshDue := sdramArbiter.io.refreshDue
+  pixelArea.fetchL1.foreach(_.io.refreshDue := sdramArbiter.io.refreshDue)  // BSRAM-L1-GATE-154: only when present
 
   // Client 0 — tile + attribute fetch.
   sdramArbiter.io.clientRd(0)   := pixelArea.fetch.io.sdramRd
@@ -1022,14 +1037,24 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // SDRAM regions (L0: 0x6000/0x7000/0x8000, L1: 0xC000/0xD000/0xE000)
   // so concurrent boot is collision-free even though both FSMs may
   // simultaneously request writes during the power-on copy phase.
-  sdramArbiter.io.clientRd(3)   := pixelArea.fetchL1.io.sdramRd
-  sdramArbiter.io.clientWr(3)   := pixelArea.fetchL1.io.sdramWr
-  sdramArbiter.io.clientAddr(3) := pixelArea.fetchL1.io.sdramAddr
-  sdramArbiter.io.clientDin(3)  := pixelArea.fetchL1.io.sdramDin
-  pixelArea.fetchL1.io.sdramDout      := sdramArea.ctrl.io.dout
-  pixelArea.fetchL1.io.sdramDout32    := sdramArea.ctrl.io.dout32
-  pixelArea.fetchL1.io.sdramDataReady := sdramArea.ctrl.io.data_ready
-  pixelArea.fetchL1.io.sdramBusy      := sdramArea.ctrl.io.busy
+  // BSRAM-L1-GATE-154: client 3 = L1 fetch when enabled; held idle when disabled
+  // (clientCount stays 6 — only this client's request lines are tied off).
+  pixelArea.fetchL1 match {
+    case Some(f) =>
+      sdramArbiter.io.clientRd(3)   := f.io.sdramRd
+      sdramArbiter.io.clientWr(3)   := f.io.sdramWr
+      sdramArbiter.io.clientAddr(3) := f.io.sdramAddr
+      sdramArbiter.io.clientDin(3)  := f.io.sdramDin
+      f.io.sdramDout      := sdramArea.ctrl.io.dout
+      f.io.sdramDout32    := sdramArea.ctrl.io.dout32
+      f.io.sdramDataReady := sdramArea.ctrl.io.data_ready
+      f.io.sdramBusy      := sdramArea.ctrl.io.busy
+    case None =>
+      sdramArbiter.io.clientRd(3)   := False
+      sdramArbiter.io.clientWr(3)   := False
+      sdramArbiter.io.clientAddr(3) := U(0, 23 bits)
+      sdramArbiter.io.clientDin(3)  := B(0, 8 bits)
+  }
 
   // #11123 FIX 1: `uploadDrive` is defined below (uploadPopArea), after
   // dbgReadArea, so the upload pop can defer to an in-flight debug read.
@@ -1110,9 +1135,11 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val fetchBusy = pixelArea.fetch.io.sdramRd   || pixelArea.fetch.io.sdramWr   ||
                     pixelArea.fetch.io.sdramRdNext || pixelArea.fetch.io.sdramWrNext ||
                     pixelArea.fetch.io.sdramRefresh || pixelArea.fetch.io.sdramRefreshNext
-    val fetchL1Busy = pixelArea.fetchL1.io.sdramRd   || pixelArea.fetchL1.io.sdramWr   ||
-                      pixelArea.fetchL1.io.sdramRdNext || pixelArea.fetchL1.io.sdramWrNext ||
-                      pixelArea.fetchL1.io.sdramRefresh || pixelArea.fetchL1.io.sdramRefreshNext
+    // BSRAM-L1-GATE-154: False when L1 fetch is not instantiated.
+    val fetchL1Busy = pixelArea.fetchL1.map(f =>
+                        f.io.sdramRd   || f.io.sdramWr   ||
+                        f.io.sdramRdNext || f.io.sdramWrNext ||
+                        f.io.sdramRefresh || f.io.sdramRefreshNext).getOrElse(False)
     val bitmapBusy = pixelArea.bitmapRowFetch.io.sdramRd || pixelArea.bitmapRowFetch.io.sdramWr ||
                      pixelArea.bitmapRowFetch.io.sdramRdNext || pixelArea.bitmapRowFetch.io.sdramWrNext
     // Planar (client 2) is gated on its CURRENT request: its Next would require
@@ -1187,7 +1214,8 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // engines; no per-engine refresh accounting needed. Latent in the current
   // bitstream (enableL1Fetch=false) but required before L1 is ever enabled.
   sdramArea.ctrl.io.refresh := Mux(sdramFillActive, sdramFill.io.refresh,
-                                   pixelArea.fetch.io.sdramRefresh || pixelArea.fetchL1.io.sdramRefresh)
+                                   pixelArea.fetch.io.sdramRefresh ||
+                                     pixelArea.fetchL1.map(_.io.sdramRefresh).getOrElse(False))  // BSRAM-L1-GATE-154
   // CP-A2b: addr/din now come PURELY from the arbiter for ALL clients — upload (4)
   // via clientAddr/Din(4), debug read (5) via clientAddr(5)=rdAddr. The dbgRead addr
   // Mux side-path is gone; ctrl is driven by a single arbitrated source.
