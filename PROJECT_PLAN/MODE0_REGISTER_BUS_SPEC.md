@@ -3,7 +3,7 @@
 **Status:** Stable contract — v1.5 Landed (Task 129 + ACK/NAK Phase 2)
 **Governing task:** Task 32a — Mode0 Register Bus: Spec & Naming Lock
 **Version:** v1.7 — auto-generated register detail tables from `firmware/libvdp/mode0_regs.json`; added RGB565 direct-color burst-read 32-byte alignment note.
-**Scope:** Write-path control surface for Mode0. The `READ_STATUS` response surface is defined by the i80/legacy SPI status multiplexer and is referenced here for completeness but is not part of the register bus itself.
+**Scope:** Write-path control surface for Mode0. The `READ_STATUS` response surface is defined by the i80/QSPI status multiplexer and is referenced here for completeness but is not part of the register bus itself.
 
 This document is the authoritative naming and semantic contract for the Mode0 write-path register bus.
 For high-level usage and examples, see the [**`VDP Programming Guide`**](../VDP_PROGRAMMING_GUIDE.md).
@@ -26,7 +26,7 @@ The register bus is a single-cycle pulse-based write contract. Every master driv
 - **Data width is 16 bits** — a single register slot. Wider registers use multiple consecutive addresses (e.g. `last_addr` in the `READ_STATUS` response is 16 bits of the 32-bit response word, reserved for Task 34 to extend if needed).
 - **Enable is a one-cycle pulse**, not a level. A master asserts it for exactly one pixel-clock cycle when `regWriteAddr`/`regWriteData` carry a valid write.
 
-The 3-tuple name pattern `regWrite{Addr,Data,Enable}` is the frozen naming. Future masters MUST use this exact naming at the top level of `VdpTop` integration. Internal module-level signals may use different names (e.g. `legacy SPIDec.io.regWriteEnable`, `bootWrite`) as long as they fold into this 3-tuple at the mux boundary.
+The 3-tuple name pattern `regWrite{Addr,Data,Enable}` is the frozen naming. Future masters MUST use this exact naming at the top level of `VdpTop` integration. Internal module-level signals may use different names (e.g. `qspiDec.io.regWriteEnable`, `bootWrite`) as long as they fold into this 3-tuple at the mux boundary.
 
 ---
 
@@ -38,16 +38,16 @@ The 3-tuple name pattern `regWrite{Addr,Data,Enable}` is the frozen naming. Futu
 |---|---|---|---|
 | **Bootstrap** | `TopTang20kHdmi` `bootWrite` block | Power-on, ends when `bootDoneR=1` | Loads scenario-specific scene config; gates all other masters via `regWriteFromBoot` |
 | **i80 (Primary)** | `I80HostInterface.io.regBus` | `bootDoneR=1` and host issues write | **Primary transport for Tang Nano 20K**; bit-exact write of host-supplied data |
-| **legacy SPI Decoder** | `legacy SPIDecoder.io.regWrite*` | `bootDoneR=1` and host issues REG_WRITE | Legacy/alternate transport; same bit-exact contract as i80 |
+| **QSPI Decoder** | `QspiDecoder.io.regWrite*` | `bootDoneR=1` and host issues REG_WRITE | Legacy/alternate transport; same bit-exact contract as i80 |
 | **Animator** | `TopTang20kHdmi` `animWrite*` | Per-scenario, pixel-clock-periodic | In-FPGA register updates for Sc1..Sc17 animated scenes (mutually exclusive with i80) |
 
 ### 2.2 Master priority (mux at `TopTang20kHdmi.scala:500-530`)
 
-Priority is **bootstrap > host > i80/animator**, implemented via `RegBusArbiter`. i80/animator occupy the same slot (Master 2) and are mutually exclusive based on the `hostI80` parameter. The legacy SPI decoder occupies Master 1 when the legacy SPI top is built; on the canonical i80 top, Master 1 is unused.
+Priority is **bootstrap > host > i80/animator**, implemented via `RegBusArbiter`. i80/animator occupy the same slot (Master 2) and are mutually exclusive based on the `hostI80` parameter. The legacy QSPI decoder occupies Master 1 when the QSPI top is built; on the canonical i80 top, Master 1 is unused.
 
 ```
 Master 0: regWriteFromBoot : highest — bootstrap wins during boot window
-Master 1: legacy SPIActive       : next — post-boot legacy SPI writes (legacy, i80 builds leave unused)
+Master 1: qspiActive       : next — post-boot QSPI writes (legacy, i80 builds leave unused)
 Master 2: i80 / animator   : lowest — post-boot i80 host OR internal animator
 ```
 
@@ -65,10 +65,10 @@ The primary host interface is an 8-bit parallel Intel-8080-style bus driven by a
 - `DC#` low = opcode or address byte; `DC#` high = data byte.
 - `WR#` rising edge latches host output; `RD#` rising edge samples host input.
 
-**Readback semantics:** Most register reads return the **last value written to that address** (loopback). This is sufficient for host shadow verification but is not a full register-file readback. `0x0328`/`0x0329` return armed SDRAM debug data. Status snapshots use the `READ_STATUS` selector mechanism described in §5 on legacy SPI builds; the i80 RTL path does not currently implement `READ_STATUS`.
+**Readback semantics:** Most register reads return the **last value written to that address** (loopback). This is sufficient for host shadow verification but is not a full register-file readback. `0x0328`/`0x0329` return armed SDRAM debug data. Status snapshots use the `READ_STATUS` selector mechanism described in §5 on legacy QSPI builds; the i80 RTL path does not currently implement `READ_STATUS`.
 
-### 2.4 legacy SPI Transport Performance (Bench-validated 2026-05-23) — Retired
-The legacy SPI transport performance below is historical; legacy SPI is no longer the canonical Tang Nano 20K host path. See `archive/deleted legacy host control plan` for the full legacy SPI history.
+### 2.4 QSPI Transport Performance (Bench-validated 2026-05-23) — Retired
+The QSPI transport performance below is historical; QSPI is no longer the canonical Tang Nano 20K host path. See `archive/QSPI_HOST_CONTROL_PLAN.md` for the full QSPI history.
 
 | Platform | Direction | Production SCK | Effective Throughput |
 |---|---|---|---|
@@ -102,7 +102,7 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0317` | `L3_TRANS_KEY` — 4-bit transparency index for layer 3 | R6 / #3 | `VdpTop.scala` |
 | `0x0318..0x031F` | **Reserved** — global-control expansion | — | — |
 | `0x0320..0x0322` | **Task 35** — status registers, IRQ enables, sticky bits (see §3.1.1) | Task 35, 29 | `VdpTop.scala:878-921` |
-| `0x0323` | `UPLOAD_STATUS_CLEAR` — write-1-to-clear for bridge sticky bits (see §3.1.2). **Current bitstream: address is allocated and the helper issues the write, but the RTL clear decode is not yet implemented.** | **Landed (Phase 2) / decode pending** | `firmware/libvdp/vdp_host.c`; RTL decode TBD (`legacy SPIDecoder.scala`, `VdpTop.scala`) |
+| `0x0323` | `UPLOAD_STATUS_CLEAR` — write-1-to-clear for bridge sticky bits (see §3.1.2). **Current bitstream: address is allocated and the helper issues the write, but the RTL clear decode is not yet implemented.** | **Landed (Phase 2) / decode pending** | `firmware/libvdp/vdp_host.c`; RTL decode TBD (`QspiDecoder.scala`, `VdpTop.scala`) |
 | `0x0324..0x032F` | **Reserved** — status expansion | — | — |
 | `0x0330..0x0334` | **Task 20** — Window 1 + Color Math (`WIN1_X0`, `WIN1_X1`, `WIN1_Y0`, `WIN1_Y1`, `COLOR_MATH_CTRL`) | Task 20 / R6 | `VdpTop.scala:249,255-263` |
 | `0x0335..0x033B` | **Task 20** — Window 2 + combine (`WIN2_X0`, `WIN2_X1`, `WIN2_Y0`, `WIN2_Y1`, `WIN2_CTRL`, `WIN_COMBINE`, `LAYER_MASK`) | Task 20 / R6 | `VdpTop.scala` |
@@ -123,11 +123,7 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 | `0x0355` | `BITMAP_STRIDE` — bytes per bitmap row (direct-color default 512) | **Landed (Task 129)** | `VdpTop.scala` |
 | `0x0356` | `ATTR_STRIDE` — bytes per attribute row (direct-color default 512) | **Landed (Task 129)** | `VdpTop.scala` |
 | `0x0357` | `BITMAP_HEIGHT` — 10-bit source bitmap height (default 240) | **Landed (Task 129)** | `VdpTop.scala` |
-| `0x0358..0x0359` | `BITMAP_BASE_PENDING` (23-bit) — assemble LO/HI for staged bitmap base | **Landed (Task 145)** | `VdpTop.scala` |
-| `0x035A..0x035B` | `ATTR_BASE_PENDING` (23-bit) — assemble LO/HI for staged attribute base | **Landed (Task 145)** | `VdpTop.scala` |
-| `0x035C` | `BITMAP_SWAP_CTRL` — arm request / swap committed sticky for atomic base swap | **Landed (Task 145)** | `VdpTop.scala` |
-| `0x035D` | `BITMAP_CTRL2` — native-640 enable and BPP selector | **Landed (Task 148)** | `VdpTop.scala`, `BitmapFetch.scala` |
-| `0x035E..0x035F` | **Reserved** — bitmap expansion | — | — |
+| `0x0358..0x035F` | **Reserved** — bitmap expansion | — | — |
 | `0x0360..0x0362` | **Raster** — Trigger 1 (`TRIGGER1_LINE`, `TRIGGER1_PIXEL`, `TRIGGER1_CTRL`) | Task 35 / R6 | `VdpTop.scala`, `RasterTriggerUnit.scala` |
 | `0x0363` | **Reserved** — trigger alignment | — | — |
 | `0x0364..0x0366` | **Raster** — Trigger 2 (`TRIGGER2_LINE`, `TRIGGER2_PIXEL`, `TRIGGER2_CTRL`) | Task 35 / R6 | `VdpTop.scala`, `RasterTriggerUnit.scala` |
@@ -181,8 +177,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 |---|---|---|---|
 | 0 | `RASTER_MATCH` | `RasterTriggerUnit.triggerPulse` | Task 35 |
 | 1 | `SPRITE_OVERFLOW` | `SpriteEvaluator.overflowFlag` | Task 35 |
-| 2 | `HOST_READY` | host bridge accepted-command pulse (legacy alias: `LEGACY_SPI_READY`) | Task 35 |
-| 3 | `HOST_ERROR` | host bridge `last_error ≠ 0` (legacy alias: `LEGACY_SPI_ERROR`) | Task 35 |
+| 2 | `HOST_READY` | host bridge accepted-command pulse (legacy alias: `QSPI_READY`) | Task 35 |
+| 3 | `HOST_ERROR` | host bridge `last_error ≠ 0` (legacy alias: `QSPI_ERROR`) | Task 35 |
 | 4 | `SPRITE_0_HIT` | sprite slot 0 non-transparent over non-transparent BG | **Task 29** |
 | 5 | `SPRITE_BG_HIT` | any sprite non-transparent over non-transparent BG | **Task 29** |
 | 8 | `DMA_DONE` | `DmaEngine.io.done` — sticky pulse on transfer complete | **Task 47** |
@@ -209,9 +205,9 @@ ACK/NAK lane (#11500 / #11508 / #11557). The bridge's upload status is surfaced 
 
 byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 
-**`UPLOAD_STATUS_CLEAR` (`0x0323`, write-1-to-clear)** — within the reserved `0x0320..0x032F` block. The intended behavior is that a host `REG_WRITE` whose data bits mirror the sel=6 byte0 positions clears the corresponding sticky bit (bit2→`upload_error`, bit3→`fifoOverflow`, **bit4→`txn_dropped`**; bit5→`short_frame` once Fix A lands). The clear strobes would be decoded in the pixel domain by the host bridge (`legacy SPIDecoder` on legacy SPI builds, equivalent i80 decoder on i80 builds; no CDC): bit2/bit3 strobe into the bridge's Regs (a genuine re-set the same cycle wins, so a live error is never lost); bit4 clears the decoder's own `txn_dropped` Reg.
+**`UPLOAD_STATUS_CLEAR` (`0x0323`, write-1-to-clear)** — within the reserved `0x0320..0x032F` block. The intended behavior is that a host `REG_WRITE` whose data bits mirror the sel=6 byte0 positions clears the corresponding sticky bit (bit2→`upload_error`, bit3→`fifoOverflow`, **bit4→`txn_dropped`**; bit5→`short_frame` once Fix A lands). The clear strobes would be decoded in the pixel domain by the host bridge (`QspiDecoder` on legacy QSPI builds, equivalent i80 decoder on i80 builds; no CDC): bit2/bit3 strobe into the bridge's Regs (a genuine re-set the same cycle wins, so a live error is never lost); bit4 clears the decoder's own `txn_dropped` Reg.
 
-> **Current limitation (FULL-DOC-AUDIT-151):** As of the current `main` bitstream, address `0x0323` is **not decoded** in `VdpTop.scala` or `legacy SPIDecoder.scala`. Writing `0x0323` therefore has no effect on current hardware; upload sticky bits clear only at POR or through an upload-bridge reset path. The `vdp_clear_upload_status()` helper in `firmware/libvdp/vdp_host.c` has been updated to issue the `0x0323` write on both i80 and legacy SPI, but the RTL clear decode is still pending (escalated to BrightForge).
+> **Current limitation (FULL-DOC-AUDIT-151):** As of the current `main` bitstream, address `0x0323` is **not decoded** in `VdpTop.scala` or `QspiDecoder.scala`. Writing `0x0323` therefore has no effect on current hardware; upload sticky bits clear only at POR or through an upload-bridge reset path. The `vdp_clear_upload_status()` helper in `firmware/libvdp/vdp_host.c` has been updated to issue the `0x0323` write on both i80 and QSPI, but the RTL clear decode is still pending (escalated to BrightForge).
 
 ### 3.1.3 Auto-Generated Register Detail Tables
 
@@ -353,8 +349,8 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 |---|---|---|
 | `[0]` | RASTER_MATCH | Raster trigger match occurred. |
 | `[1]` | SPRITE_OVERFLOW | Sprite evaluation overflow occurred. |
-| `[2]` | HOST_READY | Host bridge reported ready (legacy alias: LEGACY_SPI_READY). |
-| `[3]` | HOST_ERROR | Host bridge reported an error (legacy alias: LEGACY_SPI_ERROR). |
+| `[2]` | HOST_READY | Host bridge reported ready (legacy alias: QSPI_READY). |
+| `[3]` | HOST_ERROR | Host bridge reported an error (legacy alias: QSPI_ERROR). |
 | `[4]` | SPRITE_0_HIT | Sprite 0 collision flag latched. |
 | `[5]` | SPRITE_BG_HIT | Sprite/background collision flag latched. |
 | `[8]` | DMA_DONE | DMA operation completed. |
@@ -866,86 +862,6 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 |---|---|---|
 | `[6:0]` | ADDR_HI | Address bits 22:16 for attribute or high-byte plane base. |
 
-### BITMAP_BASE_PENDING_LO (`0x0358`)
-
-| Attribute | Value |
-|---|---|
-| Addr | `0x0358` |
-| Width | 16 |
-| Access | RW |
-| Reset | `0x0000` |
-| Category | vblank-sensitive |
-| Description | Staged low 16 bits of the bitmap base address. Copied atomically to the active `BITMAP_BASE` register at the start of vblank if a swap is armed. |
-
-### BITMAP_BASE_PENDING_HI (`0x0359`)
-
-| Attribute | Value |
-|---|---|
-| Addr | `0x0359` |
-| Width | 16 |
-| Access | RW |
-| Reset | `0x0000` |
-| Category | vblank-sensitive |
-| Description | Staged high 7 bits of the bitmap base address. Copied atomically to the active `BITMAP_BASE` register at the start of vblank if a swap is armed. |
-
-### ATTR_BASE_PENDING_LO (`0x035A`)
-
-| Attribute | Value |
-|---|---|
-| Addr | `0x035A` |
-| Width | 16 |
-| Access | RW |
-| Reset | `0x0000` |
-| Category | vblank-sensitive |
-| Description | Staged low 16 bits of the attribute base address. Copied atomically to the active `ATTR_BASE` register at the start of vblank if a swap is armed. |
-
-### ATTR_BASE_PENDING_HI (`0x035B`)
-
-| Attribute | Value |
-|---|---|
-| Addr | `0x035B` |
-| Width | 16 |
-| Access | RW |
-| Reset | `0x0000` |
-| Category | vblank-sensitive |
-| Description | Staged high 7 bits of the attribute base address. Copied atomically to the active `ATTR_BASE` register at the start of vblank if a swap is armed. |
-
-### BITMAP_SWAP_CTRL (`0x035C`)
-
-| Attribute | Value |
-|---|---|
-| Addr | `0x035C` |
-| Width | 16 |
-| Access | RW |
-| Reset | `0x0000` |
-| Category | vblank-sensitive |
-| Description | Controls the atomic base swap at vblank start. |
-
-| Bits | Field | Description |
-|---|---|---|
-| `[0]` | `ARM_REQUEST` | Write `1` to arm the swap. Cleared by RTL upon commit at vblank start (`vSyncStart && hCounter == 0`). |
-| `[1]` | `SWAP_COMMITTED` | Sticky committed status; set by RTL when the swap occurs. Write `1` to clear. |
-| `[15:2]` | — | Reserved (0). |
-
-### BITMAP_CTRL2 (`0x035D`)
-
-| Attribute | Value |
-|---|---|
-| Addr | `0x035D` |
-| Width | 16 |
-| Access | RW |
-| Reset | `0x0000` |
-| Category | scanline-sensitive (commits at `hCounter === 0`) |
-| Description | Native-640 bitmap control. Commits at the scanline boundary. |
-
-| Bits | Field | Description |
-|---|---|---|
-| `[0]` | `NATIVE640_ENABLE` | `1` = enable native 640×480 1:1 bitmap mode, overriding standard BPP selectors. |
-| `[2:1]` | `NATIVE_BPP` | Native-640 format selector: `0b00` = 4bpp indexed, `0b01` = 2bpp indexed, `0b10` = 8bpp indexed, `0b11` = reserved. |
-| `[15:3]` | — | Reserved (0). |
-
-When `NATIVE640_ENABLE=1`, the bitmap uses the palette path (`directColorActive=False`) and 1:1 column-to-byte/nibble mapping.
-
 ### BITMAP_STRIDE (`0x0355`)
 
 | Attribute | Value |
@@ -1057,7 +973,7 @@ Registers marked W1C (e.g. `STATUS_STICKY` @ `0x0320`) are used to clear sticky 
 
 ## 5. READ_STATUS Response (Companion)
 
-Host `READ_STATUS` returns a 32-bit word over the active host transport. On legacy SPI builds this is the legacy SPI status command; on i80 builds the planned opcode is `0x04`, but **the i80 RTL path currently does not decode opcode `0x04`** — only register write (`0x00`), register read (`0x01`), and SDRAM block write (`0x02`) are implemented. Until `READ_STATUS` is added to the i80 decoder, i80 hosts must use normal register reads for status. The `sel` byte in the command picks the word:
+Host `READ_STATUS` returns a 32-bit word over the active host transport. On legacy QSPI builds this is the QSPI status command; on i80 builds the planned opcode is `0x04`, but **the i80 RTL path currently does not decode opcode `0x04`** — only register write (`0x00`), register read (`0x01`), and SDRAM block write (`0x02`) are implemented. Until `READ_STATUS` is added to the i80 decoder, i80 hosts must use normal register reads for status. The `sel` byte in the command picks the word:
 
 | sel | Response Word [31:0] |
 |---|---|
@@ -1115,7 +1031,7 @@ Added §3.1.3 with per-register detail tables generated from `firmware/libvdp/mo
 ## 8. Migration Notes for `libvdp`
 
 - **Scenario 45+**: Stop using Sc1..Sc4 debug selectors (sel=1..3); transition to sel=5 (`STATUS_STICKY`).
-- **Phase 2**: Use `vdp_legacy_spi_upload_status()` to poll for `txn_dropped`. Clear via `vdp_reg_write(0x0323, 1 << 4)`.
+- **Phase 2**: Use `vdp_qspi_upload_status()` to poll for `txn_dropped`. Clear via `vdp_reg_write(0x0323, 1 << 4)`.
 - **Task 129**: Bitmap base/stride/height are now host-programmable. Default reset values preserve legacy 0x3000/0x4000 layout.
 
 ---
