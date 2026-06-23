@@ -27,14 +27,14 @@ function_name(args);
 
 # Part I: libvdp API Guide
 
-The `libvdp` library is the authoritative host-side coordination layer. It handles the low-level hardware transport, timing synchronization, and high-level helpers for the Mode0 display engine. The current Tang Nano 20K host path is i80; QSPI remains available only through legacy aliases and sketches.
+The `libvdp` library is the authoritative host-side coordination layer. It handles the low-level hardware transport, timing synchronization, and high-level helpers for the Mode0 display engine. The current Tang Nano 20K host path is i80; legacy SPI remains available only through legacy aliases and sketches.
 
 ## 1. Initialization and Basic I/O
 
 ### `vdp_host_init`
 **Description**: Initializes the host microcontroller's interface to the VDP. 
 - **i80 (Primary)**: Configures the 8-bit parallel host interface used on the current Tang Nano 20K deployment. Provides the highest throughput and lowest latency.
-- **QSPI (Legacy)**: Retained for Pico 2 and earlier ESP32/ESP8266 bench setups through deprecated aliases such as `vdp_qspi_init()`.
+- **legacy SPI (Legacy)**: Retained for Pico 2 and earlier ESP32/ESP8266 bench setups through deprecated aliases such as `vdp_legacy_spi_init()`.
 
 This must be the first VDP-related function called in your `setup()` or `main()`.
 
@@ -51,9 +51,9 @@ void setup() {
 ### `vdp_read_status`
 **Description**: Performs a synchronous read from the VDP status registers. It takes a `selector` (0-255) to choose which internal data word to return.
 
-**Important**: On the current i80 parallel interface, the `READ_STATUS` opcode (`0x04`) is **not yet implemented in the RTL**. `vdp_read_status()` works only on legacy QSPI builds. For i80/ESP32-S3 deployments, poll status through normal register reads (for example, `vdp_reg_read(0x0320)` for sticky status) and use write-1-to-clear register writes (for example, `vdp_reg_write(0x0320, mask)`) as described in the register spec. Note that `0x0323` (`UPLOAD_STATUS_CLEAR`) is also not decoded in the current bitstream.
+**Important**: On the current i80 parallel interface, the `READ_STATUS` opcode (`0x04`) is **not yet implemented in the RTL**. `vdp_read_status()` works only on legacy SPI builds. For i80/ESP32-S3 deployments, poll status through normal register reads (for example, `vdp_reg_read(0x0320)` for sticky status) and use write-1-to-clear register writes (for example, `vdp_reg_write(0x0320, mask)`) as described in the register spec. Note that `0x0323` (`UPLOAD_STATUS_CLEAR`) is also not decoded in the current bitstream.
 
-**Real World Use**: On QSPI builds, use this to check if the FPGA is "alive" before starting a complex graphics sequence.
+**Real World Use**: On legacy SPI builds, use this to check if the FPGA is "alive" before starting a complex graphics sequence.
 
 ```c
 void check_vdp_status() {
@@ -87,7 +87,7 @@ void hide_sprites() {
 >
 > This limitation is tracked as `I80-STATUS-DECODE-152` and will be resolved when the i80 FSM adds a real readback/status-decode path.
 
-**Real World Use**: Avoid on i80. On legacy QSPI builds the read path may return live values, but portable code should treat register writes as fire-and-forget and verify by observation.
+**Real World Use**: Avoid on i80. On legacy SPI builds the read path may return live values, but portable code should treat register writes as fire-and-forget and verify by observation.
 
 ```c
 void do_not_do_this_on_i80() {
@@ -100,7 +100,7 @@ void do_not_do_this_on_i80() {
 ```
 
 ### `vdp_reg_write_burst`
-**Description**: Writes a contiguous block of registers. On the legacy QSPI backend, this sends a single command header followed by a stream of data words with an auto-incrementing address counter. On the canonical i80 backend, the helper issues a separate `opcode+addr+data` transaction for each word; the contiguous addresses are generated in firmware, not by an internal VDP counter.
+**Description**: Writes a contiguous block of registers. On the legacy SPI backend, this sends a single command header followed by a stream of data words with an auto-incrementing address counter. On the canonical i80 backend, the helper issues a separate `opcode+addr+data` transaction for each word; the contiguous addresses are generated in firmware, not by an internal VDP counter.
 
 **Real World Use**: Use this to setup a "Window" or a "Color Math" block in one high-level call. The i80 path is still faster than individual `vdp_reg_write()` calls because it avoids per-call overhead, but it does not use a hardware auto-increment protocol.
 
@@ -581,6 +581,9 @@ void vdp_soft_reset(void) {
 | `0x0350`          | `BITMAP_CTRL`          | bit[0]:enable, bits[2:1]:bpp, bits[6:3]:cellWidthLog2 |
 | `0x0351..0x0356` | `BITMAP_BASE / STRIDE` | Base/stride offsets for bitmap/attribute fetch (Task 129) |
 | `0x0357`          | `BITMAP_HEIGHT`        | Source bitmap height in rows (default 240) |
+| `0x0358..0x035B` | `BITMAP_BASE_PENDING` / `ATTR_BASE_PENDING` | Staged base addresses for atomic swap (Task 145) |
+| `0x035C`          | `BITMAP_SWAP_CTRL`     | arm/committed status for atomic base swap (Task 145) |
+| `0x035D`          | `BITMAP_CTRL2`         | native-640 enable + BPP selector (Task 148) |
 | `0x0360` | `TRIGGER1_LINE` | Target scanline for Raster Trigger 1 |
 | `0x0B00` | `DMA_DST` | Destination address for DMA operation |
 | `0x0C00` | `BLIT_CTRL` | bit0:Go, bits[2:1]:Mode, bit3:Done Ack |
@@ -681,7 +684,65 @@ void setup_rgb565_fullscreen(void) {
 }
 ```
 
-## 11. i80 Host Interface Notes
+## 11. Native-640 Indexed Bitmap Mode
+
+Native-640 mode disables the scaler and renders the bitmap layer at **1:1 pixel mapping** (640 source columns per 640 output columns). The output is produced through the palette path (`directColorActive=False`), so the uploaded plane is an indexed lookup into `palette[0..255]`.
+
+### Required configuration
+
+| Register | Recommended value | Why |
+|---|---|---|
+| `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | SDRAM base for the indexed plane |
+| `BITMAP_STRIDE` | `320` (4bpp), `160` (2bpp), or `640` (8bpp) | Bytes per source row |
+| `BITMAP_HEIGHT` | `480` | Source bitmap height in rows |
+| `BITMAP_CTRL2` | see below | `NATIVE640_ENABLE=1` + `NATIVE_BPP` selector |
+| `LAYER_ENABLE` | `0x0001` | Enable bitmap layer 0 |
+
+`BITMAP_CTRL2` (`0x035D`) value table:
+
+| Mode | Value | Meaning |
+|---|---|---|
+| 4bpp indexed | `0x0001` | `NATIVE640_ENABLE=1`, `NATIVE_BPP=0b00` |
+| 2bpp indexed | `0x0003` | `NATIVE640_ENABLE=1`, `NATIVE_BPP=0b01` |
+| 8bpp indexed | `0x0005` | `NATIVE640_ENABLE=1`, `NATIVE_BPP=0b10` |
+
+`BITMAP_CTRL2` commits at the scanline boundary (`hCounter === 0`). `BITMAP_BASE_PENDING` / `ATTR_BASE_PENDING` / `BITMAP_SWAP_CTRL` can be used to stage an atomic base swap at vblank start when double-buffering is needed.
+
+### Pixel packing
+
+- **4bpp:** Two pixels per byte. Column `c` uses the high nibble when `c` is even and the low nibble when `c` is odd, from byte `c / 2`.
+- **2bpp:** Four pixels per byte.
+- **8bpp:** One pixel per byte.
+
+### Code example
+
+```c
+#include "vdp_host.h"
+#include "vdp_mode0.h"
+
+void setup_native640_4bpp(void) {
+    vdp_host_init();
+
+    // Upload 640x480 4bpp indexed plane to BITMAP_BASE
+    // ...
+
+    vdp_mode0_set_bitmap_base(0x100000u);
+    vdp_mode0_set_bitmap_stride(320u);  // 640 pixels / 2
+    vdp_mode0_set_bitmap_height(480u);
+
+    // native-640 enable + 4bpp indexed
+    vdp_reg_write(0x035Du, 0x0001u);  // BITMAP_CTRL2
+
+    // Per-line linestate precondition: L0 on, L1 off, scrollX = 0
+    for (uint16_t line = 0; line < VDP_MODE0_LINESTATE_COUNT; ++line) {
+        vdp_mode0_write_linestate(line, 0x0800u);
+    }
+
+    vdp_mode0_set_layer_enable(0x0001u);
+}
+```
+
+## 12. i80 Host Interface Notes
 
 The canonical ESP32-S3 host path uses the i80 8-bit parallel bus:
 - Register writes use opcode `0x00`.
