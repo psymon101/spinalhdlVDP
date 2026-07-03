@@ -60,7 +60,8 @@ static const uint32_t I80_PCLK_HZ = 2000000u;  /* first bounded gate */
 static const uint16_t BURST_ROUNDS = 512u;
 
 static esp_lcd_i80_bus_handle_t s_i80_bus;
-static esp_lcd_panel_io_handle_t s_i80_io;
+static esp_lcd_panel_io_handle_t s_i80_setup_io;
+static esp_lcd_panel_io_handle_t s_i80_data_io;
 
 static void idle_manual_lines(void)
 {
@@ -128,9 +129,14 @@ static uint8_t manual_rd_byte(void)
 static esp_err_t i80_destroy(void)
 {
     esp_err_t ret = ESP_OK;
-    if (s_i80_io != NULL) {
-        ret = esp_lcd_panel_io_del(s_i80_io);
-        s_i80_io = NULL;
+    if (s_i80_data_io != NULL) {
+        ret = esp_lcd_panel_io_del(s_i80_data_io);
+        s_i80_data_io = NULL;
+        ESP_RETURN_ON_ERROR(ret, TAG, "delete data panel IO failed");
+    }
+    if (s_i80_setup_io != NULL) {
+        ret = esp_lcd_panel_io_del(s_i80_setup_io);
+        s_i80_setup_io = NULL;
         ESP_RETURN_ON_ERROR(ret, TAG, "delete panel IO failed");
     }
     if (s_i80_bus != NULL) {
@@ -139,6 +145,29 @@ static esp_err_t i80_destroy(void)
         ESP_RETURN_ON_ERROR(ret, TAG, "delete i80 bus failed");
     }
     return ESP_OK;
+}
+
+static esp_err_t create_panel_io(int dc_data_level, esp_lcd_panel_io_handle_t *out_io)
+{
+    esp_lcd_panel_io_i80_config_t io_config = {
+        .cs_gpio_num = -1,
+        .pclk_hz = I80_PCLK_HZ,
+        .trans_queue_depth = 1,
+        .lcd_cmd_bits = 8,
+        .lcd_param_bits = 8,
+        .dc_levels = {
+            .dc_idle_level = 0,
+            .dc_cmd_level = 0,
+            .dc_dummy_level = 0,
+            .dc_data_level = dc_data_level,
+        },
+        .flags = {
+            .cs_active_high = 0,
+            .pclk_active_neg = 0,
+            .pclk_idle_low = 0,
+        },
+    };
+    return esp_lcd_new_panel_io_i80(s_i80_bus, &io_config, out_io);
 }
 
 static esp_err_t i80_create(void)
@@ -158,34 +187,23 @@ static esp_err_t i80_create(void)
     ESP_RETURN_ON_ERROR(esp_lcd_new_i80_bus(&bus_config, &s_i80_bus),
                         TAG, "create i80 bus failed");
 
-    esp_lcd_panel_io_i80_config_t io_config = {
-        .cs_gpio_num = -1,
-        .pclk_hz = I80_PCLK_HZ,
-        .trans_queue_depth = 1,
-        .lcd_cmd_bits = 24,
-        .lcd_param_bits = 8,
-        .dc_levels = {
-            .dc_idle_level = 0,
-            .dc_cmd_level = 0,
-            .dc_dummy_level = 0,
-            .dc_data_level = 1,
-        },
-        .flags = {
-            .cs_active_high = 0,
-            .pclk_active_neg = 0,
-            .pclk_idle_low = 0,
-        },
-    };
-    ESP_RETURN_ON_ERROR(esp_lcd_new_panel_io_i80(s_i80_bus, &io_config, &s_i80_io),
-                        TAG, "create panel IO failed");
+    ESP_RETURN_ON_ERROR(create_panel_io(0, &s_i80_setup_io),
+                        TAG, "create setup panel IO failed");
+    ESP_RETURN_ON_ERROR(create_panel_io(1, &s_i80_data_io),
+                        TAG, "create data panel IO failed");
     return ESP_OK;
 }
 
-static int i80_cmd(uint8_t opcode, uint16_t addr)
+static esp_err_t reg_setup_hw(uint8_t opcode, uint16_t addr)
 {
-    return (int)(((uint32_t)opcode << 16) |
-                 (((uint32_t)addr & 0x00FFu) << 8) |
-                 (((uint32_t)addr >> 8) & 0x00FFu));
+    const uint8_t addr_bytes[2] = {
+        (uint8_t)(addr & 0xFFu),
+        (uint8_t)((addr >> 8) & 0xFFu),
+    };
+    ESP_RETURN_ON_FALSE(s_i80_setup_io != NULL, ESP_ERR_INVALID_STATE,
+                        TAG, "setup i80 not initialized");
+    return esp_lcd_panel_io_tx_param(s_i80_setup_io, opcode,
+                                     addr_bytes, sizeof(addr_bytes));
 }
 
 static esp_err_t reg_write_hw(uint16_t addr, uint16_t value)
@@ -194,10 +212,14 @@ static esp_err_t reg_write_hw(uint16_t addr, uint16_t value)
         (uint8_t)(value & 0xFFu),
         (uint8_t)((value >> 8) & 0xFFu),
     };
-    ESP_RETURN_ON_FALSE(s_i80_io != NULL, ESP_ERR_INVALID_STATE, TAG, "i80 not initialized");
+    ESP_RETURN_ON_FALSE(s_i80_data_io != NULL, ESP_ERR_INVALID_STATE,
+                        TAG, "data i80 not initialized");
     gpio_set_level(PIN_CS, 0);
-    esp_err_t ret = esp_lcd_panel_io_tx_param(s_i80_io, i80_cmd(0x00, addr),
-                                              payload, sizeof(payload));
+    esp_err_t ret = reg_setup_hw(0x00, addr);
+    if (ret == ESP_OK) {
+        ret = esp_lcd_panel_io_tx_param(s_i80_data_io, -1,
+                                        payload, sizeof(payload));
+    }
     gpio_set_level(PIN_CS, 1);
     return ret;
 }
@@ -206,10 +228,10 @@ static esp_err_t reg_read_manual(uint16_t addr, uint16_t *out)
 {
     ESP_RETURN_ON_FALSE(out != NULL, ESP_ERR_INVALID_ARG, TAG, "null read output");
 
-    ESP_RETURN_ON_FALSE(s_i80_io != NULL, ESP_ERR_INVALID_STATE, TAG, "i80 not initialized");
+    ESP_RETURN_ON_FALSE(s_i80_setup_io != NULL, ESP_ERR_INVALID_STATE,
+                        TAG, "setup i80 not initialized");
     gpio_set_level(PIN_CS, 0);
-    ESP_RETURN_ON_ERROR(esp_lcd_panel_io_tx_param(s_i80_io, i80_cmd(0x01, addr), NULL, 0),
-                        TAG, "read setup write failed");
+    ESP_RETURN_ON_ERROR(reg_setup_hw(0x01, addr), TAG, "read setup write failed");
 
     ESP_RETURN_ON_ERROR(i80_destroy(), TAG, "destroy i80 before manual read failed");
     configure_manual_read_pins_preserve_cs();
