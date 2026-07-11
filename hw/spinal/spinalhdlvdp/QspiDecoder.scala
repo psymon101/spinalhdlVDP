@@ -25,6 +25,14 @@ case class QspiDecoder() extends Component {
     val cmd_valid     = in Bool()
     val payload_byte  = in Bits (8 bits)
     val payload_valid = in Bool()
+    // #13888 structural drain fix — word-granular payload path. The QSPI transport
+    // packs 2 payload bytes into one 16-bit FIFO token SCLK-side and pops one WORD
+    // per clk_sys cycle, so the drain (27 Mword/s = 54 MB/s) outpaces the 80 MHz quad
+    // push (40 MB/s) and the CDC token FIFO can never overflow. ADDITIVE + mutually
+    // exclusive with the byte path above: a consumer drives exactly one. payload_word
+    // is a fully-assembled little-endian word (hi ## lo).
+    val payload_word       = in Bits (16 bits)
+    val payload_word_valid = in Bool()
     val tx_byte       = out Bits (8 bits)
     val tx_load       = out Bool()
     val tx_byte_sent  = in Bool()
@@ -58,6 +66,12 @@ case class QspiDecoder() extends Component {
     val sdramLenBytes    = out UInt(17 bits)
     val sdramByteOut     = out Bits(8 bits)
     val sdramByteValid   = out Bool()
+    // #13888 — word-granular SDRAM_WRITE egress (paired with payload_word). One 16-bit
+    // word per clk_sys cycle so the SDRAM path drains at the same word rate as REG_WRITE
+    // (aligns with the 32-bit SDRAM word too). VdpTop-184 consumes this; the bring-up
+    // top only lights the everSdram LED off sdramWordValid.
+    val sdramWordOut     = out Bits(16 bits)
+    val sdramWordValid   = out Bool()
     val upload_busy      = in Bool()
     val upload_done      = in Bool()
     // CP-A1 (Phase A #11411/#11419): sticky bridge watchdog-abort flag, surfaced
@@ -66,6 +80,13 @@ case class QspiDecoder() extends Component {
     // CP-A4 (#11443): sticky ingress-FIFO overflow flag, surfaced on sel=6 bit3 so
     // the host can detect a transport-ceiling drop (out-pacing the arbiter drain).
     val upload_overflow  = in Bool()
+
+    // QSPI-pivot: expose the full 32-bit READ_STATUS word + a valid pulse so the
+    // phase-based synchronous slave (QspiSlaveSync) can shift the response out
+    // directly, without the byte-serial tx_byte/tx_load handshake. Additive — the
+    // legacy tx_byte path is unchanged, so existing sims/consumers are unaffected.
+    val rx_word       = out Bits(32 bits)
+    val rx_word_valid = out Bool()
   }
 
   object Op {
@@ -94,6 +115,9 @@ case class QspiDecoder() extends Component {
   val sdramLenBytesReg    = Reg(UInt(17 bits)) init 0
   val sdramByteOutReg     = Reg(Bits(8 bits)) init 0
   val sdramByteValidReg   = Reg(Bool()) init False
+  // #13888 — word-granular SDRAM egress registers.
+  val sdramWordOutReg     = Reg(Bits(16 bits)) init 0
+  val sdramWordValidReg   = Reg(Bool()) init False
   // #11308 hardening: bound the SDRAM_WRITE payload to LEN so trailing/padding/glitch
   // bytes past the declared length are IGNORED (not forwarded as spurious writes that
   // desync the address stream — the libvdp 4-byte-padding corruption, #11297/#11305).
@@ -101,6 +125,7 @@ case class QspiDecoder() extends Component {
   val sdramBytesLeft = Reg(UInt(17 bits)) init 0
   sdramHeaderValidReg := False
   sdramByteValidReg   := False
+  sdramWordValidReg   := False
 
   // Last bus-error diagnostic — read by `statusEvQspiError` for the
   // QSPI_ERROR sticky bit (Task 35). Other diagnostic Regs removed for
@@ -129,16 +154,23 @@ case class QspiDecoder() extends Component {
   // Each payload byte arrives on `payload_valid`. Assemble low then high.
   when(io.payload_valid) {
     when(activeWrite) {
-      when(!haveLo) {
-        dataLo := io.payload_byte
-        haveLo := True
-      } otherwise {
-        val word = io.payload_byte ## dataLo
-        writeData  := word
-        writePulse := True
-        haveLo     := False
-        when(wordsLeft > U(0, 16 bits)) {
-          wordsLeft := wordsLeft - 1
+      // #13838/#13843 hardening: bound REG_WRITE assembly to LEN, mirroring the
+      // SDRAM_WRITE sdramBytesLeft guard (#11308). Without this, trailing/padding/
+      // glitch bytes past the declared LEN words (or any payload while LEN=0) keep
+      // assembling 16-bit words and pulsing regBus.enable onto the auto-incrementing
+      // writeAddr, clobbering registers past the intended range. wordsLeft counts
+      // WORDS; gating the whole assembly on wordsLeft>0 drops the lo-byte of a
+      // would-be extra word too, so exactly LEN writes fire and no more.
+      when(wordsLeft > U(0, 16 bits)) {
+        when(!haveLo) {
+          dataLo := io.payload_byte
+          haveLo := True
+        } otherwise {
+          val word = io.payload_byte ## dataLo
+          writeData  := word
+          writePulse := True
+          haveLo     := False
+          wordsLeft  := wordsLeft - 1
         }
       }
     } elsewhen(activeSdramWrite) {
@@ -153,6 +185,33 @@ case class QspiDecoder() extends Component {
       }
     } otherwise {
       // Unknown opcode — record error but drop the byte.
+      last_error := opcodeReg
+    }
+  }
+
+  // #13888 — word-granular payload path. Delivers a full 16-bit word per clk_sys
+  // cycle (no lo/hi byte assembly here — the transport packed it SCLK-side). Mutually
+  // exclusive with the byte path above (a consumer asserts payload_valid OR
+  // payload_word_valid, never both), so the two guarded blocks never collide on the
+  // shared wordsLeft/writeData/writePulse/sdramBytesLeft registers.
+  when(io.payload_word_valid) {
+    when(activeWrite) {
+      // Same LEN bound as the byte path (#13838/#13843): drop words past LEN.
+      when(wordsLeft > U(0, 16 bits)) {
+        writeData  := io.payload_word
+        writePulse := True
+        wordsLeft  := wordsLeft - 1
+      }
+    } elsewhen(activeSdramWrite) {
+      // Same LEN bound as #11308. sdramBytesLeft counts BYTES and (LEN=words) is always
+      // even. Guard on >=2 (not >0) so the -2 can never underflow even if a future
+      // LEN-injection bug left the counter odd — CoralReef #13893 hardening.
+      when(sdramBytesLeft >= U(2, 17 bits)) {
+        sdramWordOutReg   := io.payload_word
+        sdramWordValidReg := True
+        sdramBytesLeft    := sdramBytesLeft - 2
+      }
+    } otherwise {
       last_error := opcodeReg
     }
   }
@@ -197,7 +256,9 @@ case class QspiDecoder() extends Component {
   val rxWord    = Reg(Bits(32 bits)) init 0
   val rxLoad    = Reg(Bool()) init False
   val rxTxByte  = Reg(Bits(8 bits)) init 0
+  val rxWordValid = Reg(Bool()) init False   // QSPI-pivot: pulse when rxWord latched
   rxLoad := False
+  rxWordValid := False
 
   // Kick off READ_STATUS on header pulse. rxWord is sampled atomically
   // from the current diagnostic state; later changes don't leak in.
@@ -233,6 +294,7 @@ case class QspiDecoder() extends Component {
     }
     rxByteIdx := 0
     rxState   := RxState.Load
+    rxWordValid := True                        // QSPI-pivot: rxWord is now valid
   }
 
   switch(rxState) {
@@ -256,6 +318,8 @@ case class QspiDecoder() extends Component {
 
   io.tx_byte := rxTxByte
   io.tx_load := rxLoad
+  io.rx_word       := rxWord
+  io.rx_word_valid := rxWordValid
 
   // Task 34 — SDRAM bridge outputs
   io.sdramHeaderValid := sdramHeaderValidReg
@@ -263,4 +327,6 @@ case class QspiDecoder() extends Component {
   io.sdramLenBytes    := sdramLenBytesReg
   io.sdramByteOut     := sdramByteOutReg
   io.sdramByteValid   := sdramByteValidReg
+  io.sdramWordOut     := sdramWordOutReg
+  io.sdramWordValid   := sdramWordValidReg
 }
