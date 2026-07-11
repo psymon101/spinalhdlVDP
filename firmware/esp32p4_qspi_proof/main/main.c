@@ -382,11 +382,12 @@ static bool ham_reg_write(uint32_t reg_addr, uint16_t value)
 
 static bool ham_load_palette(void)
 {
+    // Palette paired with the verified selfie HAM6 asset.
     static const uint32_t palette_rgb888[16] = {
-        0x000000u, 0xFFFFFFu, 0xFF0000u, 0x00FF00u,
-        0x0000FFu, 0xFFFF00u, 0xFF00FFu, 0x00FFFFu,
-        0x884400u, 0x448800u, 0x004488u, 0x880044u,
-        0xCC6622u, 0x22CC66u, 0x6622CCu, 0x444444u,
+        0xFFFFFFu, 0xFFDDCCu, 0xFFCC99u, 0xBBDDCCu,
+        0xAABBBBu, 0xFFAA66u, 0xCC7755u, 0x889988u,
+        0x886655u, 0x884433u, 0x664433u, 0x443322u,
+        0x442211u, 0x222222u, 0x221100u, 0x000000u,
     };
 
     if (!ham_reg_write(0x0601u, 0u)) {
