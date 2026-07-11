@@ -75,6 +75,12 @@ static const uint16_t LOOPBACK_WRITE_VALUE = 0x1234u;
 static const uint32_t EXPECTED_MAGIC = 0x51560002u;
 static const uint32_t EXPECTED_LOOPBACK = 0x12340042u;
 static const uint32_t DMA_BUF_SIZE = 65536u;
+// ESP32-P4 SPI_MS_DATA_BITLEN is an 18-bit count of data-phase bits. Keep
+// every QIO TX transaction below its 32767-byte maximum.
+static const size_t QSPI_MAX_TX_BYTES = 32767u;
+// SDRAM_WRITE adds a 2-byte word-count prefix; keep payloads even and below
+// the transaction ceiling with a small margin for future framing changes.
+static const size_t HAM_UPLOAD_CHUNK_BYTES = 32760u;
 static const uint64_t PHASE4_DURATION_US = 30ull * 60ull * 1000000ull;
 static const uint64_t PHASE4_APPROX_PAYLOAD_BYTES_PER_ITER = 8ull;
 // The HAM image uses the legacy pixel-domain QSPI slave; keep all proof traffic
@@ -215,6 +221,8 @@ static esp_err_t qspi_tx(uint8_t cmd, uint64_t addr, const uint8_t *tx, size_t l
                          uint8_t dummy_bits, uint32_t override_freq_hz)
 {
     spi_transaction_ext_t t = {0};
+    ESP_RETURN_ON_FALSE(len <= QSPI_MAX_TX_BYTES, ESP_ERR_INVALID_ARG, TAG,
+                        "qspi tx exceeds P4 transaction limit");
     t.base.flags = SPI_TRANS_MODE_QIO | SPI_TRANS_VARIABLE_DUMMY;
     t.base.cmd = cmd;
     t.base.addr = qspi_encode_addr(cmd, (uint32_t)addr);
@@ -346,6 +354,8 @@ static esp_err_t qspi_sdram_write(uint32_t sdram_addr, const uint8_t *payload, s
 
     ESP_RETURN_ON_FALSE((len % 2u) == 0u, ESP_ERR_INVALID_ARG, TAG, "sdram write len must be even");
     total_len = len + 2u;
+    ESP_RETURN_ON_FALSE(total_len <= QSPI_MAX_TX_BYTES, ESP_ERR_INVALID_ARG, TAG,
+                        "sdram write exceeds P4 transaction limit");
     ESP_RETURN_ON_FALSE(total_len <= DMA_BUF_SIZE, ESP_ERR_INVALID_ARG, TAG, "sdram write too large");
 
     len_words = (uint16_t)(len / 2u);
@@ -424,8 +434,8 @@ static bool ham_upload_plane(void)
 
     while (remaining != 0u) {
         size_t chunk = remaining;
-        if (chunk > DMA_BUF_SIZE - 2u) {
-            chunk = DMA_BUF_SIZE - 2u;
+        if (chunk > HAM_UPLOAD_CHUNK_BYTES) {
+            chunk = HAM_UPLOAD_CHUNK_BYTES;
         }
         chunk &= ~1u;
         esp_err_t err = qspi_sdram_write(sdram_addr, src, chunk, QSPI_SDRAM_CLOCK_HZ);

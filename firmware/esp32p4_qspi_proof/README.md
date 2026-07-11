@@ -200,6 +200,14 @@ Register and status traffic can run at **40–80 MHz**. The `SDRAM_WRITE` bulk
 upload must run at the SDRAM-safe rate of **~8 MHz** to avoid overflowing the
 `QspiSdramBridge` ingress FIFO.
 
+The ESP32-P4 GPSPI master also limits each QIO TX data phase to **32,767
+bytes** (`SPI_MS_DATA_BITLEN`, 18 bits). `SDRAM_WRITE` consumes a 2-byte
+little-endian word-count prefix, and its payload must contain an even number
+of bytes, so split larger uploads into payload chunks of at most **32,760
+bytes**. The 76,800-byte HAM6 plane therefore uses three consecutive writes:
+32,760 bytes at `0x100000`, 32,760 bytes at `0x107FF8`, and 11,280 bytes at
+`0x10FFF0`.
+
 ```c
 // Helper: single 16-bit REG_WRITE (LEN = 1, so no address auto-increment).
 static void vdp_reg_write(uint32_t reg_addr, uint16_t value) {
