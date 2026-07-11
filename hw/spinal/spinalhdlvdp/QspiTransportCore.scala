@@ -40,6 +40,11 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
     val sdramWordOut   = out Bits(16 bits)
     val sdramWordValid = out Bool()
     val sdramHeaderValid = out Bool()
+    // Option A (#13974) — header fields the byte-granular QspiSdramBridge samples on
+    // sdramHeaderValid (the barebones bring-up top never wired a real bridge, so these
+    // were not surfaced). Sourced from the internal decoder.
+    val sdramAddrInit  = out UInt(23 bits)
+    val sdramLenBytes  = out UInt(17 bits)
     val overflow       = out Bool()        // sticky: token FIFO overflowed (should never fire post-drain-fix)
     val malformed      = out Bool()        // sticky: a header arrived with a dangling half-word (odd payload)
     val hdrErr         = out Bool()        // sticky: a header parity mismatch was seen (hdrParity only)
@@ -155,19 +160,31 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
   slave.io.rxWord := rxWordSel
 
   val pop = new ClockingArea(sysCd) {
-    fifo.io.pop.ready := True
-    val fire = fifo.io.pop.valid
     val t    = fifo.io.pop.payload
+    // Option A (#13974) — VdpTop integration feeds the byte-granular QspiDecoder byte
+    // path + the byte-addressed QspiSdramBridge (no word-capable bridge exists in-tree).
+    // Unpack each popped payload word into two byte pulses (lo then hi) and HOLD the FIFO
+    // token across both cycles so nothing is dropped (real backpressure, unlike a naive
+    // fire-and-forget word->byte splitter). The FIFO still carries WORD tokens, so the
+    // #13888 half-rate-push anti-overflow property is preserved. Headers still pop in one
+    // cycle. Reg-write word assembly happens inside the decoder from these two bytes.
+    val hiPhase   = Reg(Bool()) init False    // False = emit lo byte, True = emit hi byte
+    val isPayload = fifo.io.pop.valid && !t.isHeader
+    // Pop the token on a header (1 cycle) or after the hi byte of a payload word.
+    fifo.io.pop.ready := Mux(isPayload, hiPhase, fifo.io.pop.valid)
+    val fire = fifo.io.pop.valid
     sys.dec.io.cmd_valid     := fire && t.isHeader
     sys.dec.io.cmd_opcode    := t.opcode
     sys.dec.io.cmd_addr      := t.addr
     sys.dec.io.cmd_len       := t.len
-    // #13888 — drive the decoder's WORD path (one 16-bit word per clk_sys cycle).
-    sys.dec.io.payload_word       := t.word
-    sys.dec.io.payload_word_valid := fire && !t.isHeader
-    // Legacy byte path is unused in the word-token transport — tie off.
-    sys.dec.io.payload_valid := False
-    sys.dec.io.payload_byte  := B(0, 8 bits)
+    // Byte path: word = hi ## lo (assembled SCLK-side), so emit t.word[7:0] (host's
+    // 1st byte) then t.word[15:8]; the decoder reassembles word = 2nd ## 1st = t.word.
+    sys.dec.io.payload_valid := isPayload
+    sys.dec.io.payload_byte  := Mux(hiPhase, t.word(15 downto 8), t.word(7 downto 0))
+    when(isPayload) { hiPhase := !hiPhase }
+    // Word path unused in the byte-bridge integration — tie off.
+    sys.dec.io.payload_word       := B(0, 16 bits)
+    sys.dec.io.payload_word_valid := False
     val overflowCC  = BufferCC(push.overflow, False)
     val malformedCC = BufferCC(push.malformed, False)
   }
@@ -178,6 +195,8 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
   io.sdramWordOut     := sys.dec.io.sdramWordOut
   io.sdramWordValid   := sys.dec.io.sdramWordValid
   io.sdramHeaderValid := sys.dec.io.sdramHeaderValid
+  io.sdramAddrInit    := sys.dec.io.sdramAddrInit
+  io.sdramLenBytes    := sys.dec.io.sdramLenBytes
   io.overflow         := pop.overflowCC
   io.malformed        := pop.malformedCC
   io.hdrErr           := loop.hdrErrSticky
