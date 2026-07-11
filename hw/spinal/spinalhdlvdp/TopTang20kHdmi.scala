@@ -374,58 +374,52 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val (animWriteAddr, animWriteData, animWriteActive): (UInt, Bits, Bool) =
       (U(0, 15 bits), B(0, 16 bits), False)
 
-    // QSPI host-control frontend (phase 1 — Checkpoint A control contract).
-    // The QspiSlave lives in the pixel clock domain and oversamples the async
-    // CS/SCK/IO inputs.  After bootstrap completes it may assert regWriteEnable
-    // via the QspiDecoder; bootstrap always takes priority while active.
-    val qspi = QspiSlave()
+    // QSPI host-control frontend — Option A (#13973/#13974): the synchronous
+    // word-drain QspiTransportCore (SCLK-domain capture + CDC token FIFO + an
+    // internal QspiDecoder) replaces the legacy pixel-oversampled QspiSlave/QspiDecoder
+    // pair. It fixes the READ_STATUS read-header framing mismatch (#13966: legacy
+    // required a QUAD header with a LEN phase; the P4 firmware sends a single-lane
+    // header with no LEN on reads) that stalled the legacy slave at 0x22222222.
+    // Instantiated unconditionally (idle-tied in the i80 build) so RegBusArbiter
+    // master(1) always has a driver. Its sys domain runs on the pixel clock
+    // (clkdiv.CLKOUT) — the same edge as pixelClockDomain, so the core's
+    // sysCd(BOOT) -> pixelClockDomain(ASYNC) signal crossings are same-clock
+    // synchronous, not CDC.
+    val qspiCore = QspiTransportCore()
+    qspiCore.io.clk := clkdiv.CLKOUT
     if (!hostI80) {
-      qspi.io.spi_cs_n := I_qspi_cs
-      qspi.io.spi_sck  := I_qspi_sck
+      qspiCore.io.csn  := I_qspi_cs
+      qspiCore.io.sclk := I_qspi_sck
     } else {
-      qspi.io.spi_cs_n := True   // QSPI host removed in the i80 build; hold idle
-      qspi.io.spi_sck  := False
+      qspiCore.io.csn  := True    // QSPI host removed in the i80 build; hold idle
+      qspiCore.io.sclk := False
     }
-    // Task 38a: bidirectional IO via Gowin IOBUF primitives. During Respond
-    // state (spi_io_oe=1), the slave drives spi_io_out onto the pad. During
-    // all other states (OEN=1), the pad is high-Z and we sense the host's
-    // drive on .O back into spi_io_in. Pin order: IO3 high bit, IO0 low bit
-    // — matches QspiSlave's {IO3,IO2,IO1,IO0} sampling expectation.
+    // Bidirectional quad IO via Gowin IOBUF primitives. The core drives ioOut when
+    // ioOe=1 (READ_STATUS respond, answered SCLK-side); high-Z otherwise so the host's
+    // drive is sensed back on .O into ioIn. Pin order IO3 high .. IO0 low.
     if (!hostI80) {
       val qspiIobuf = Seq.tabulate(4) { i =>
         val buf = GowinIobuf()
-        buf.I   := qspi.io.spi_io_out(i)
-        buf.OEN := !qspi.io.spi_io_oe
+        buf.I   := qspiCore.io.ioOut(i)
+        buf.OEN := !qspiCore.io.ioOe
         buf
       }
       qspiIobuf(0).IO <> IO_qspi_io0
       qspiIobuf(1).IO <> IO_qspi_io1
       qspiIobuf(2).IO <> IO_qspi_io2
       qspiIobuf(3).IO <> IO_qspi_io3
-      qspi.io.spi_io_in := (qspiIobuf(3).O ## qspiIobuf(2).O ## qspiIobuf(1).O ## qspiIobuf(0).O)
+      qspiCore.io.ioIn := (qspiIobuf(3).O ## qspiIobuf(2).O ## qspiIobuf(1).O ## qspiIobuf(0).O)
     } else {
-      qspi.io.spi_io_in := B(0, 4 bits)   // no pads; host drive sensed as 0
+      qspiCore.io.ioIn := B(0, 4 bits)   // no pads; host drive sensed as 0
     }
-    val qspiDec = QspiDecoder()
-    qspiDec.io.cmd_opcode    := qspi.io.cmd_opcode
-    qspiDec.io.cmd_addr      := qspi.io.cmd_addr
-    qspiDec.io.cmd_len       := qspi.io.cmd_len
-    qspiDec.io.cmd_valid     := qspi.io.cmd_valid
-    qspiDec.io.payload_byte  := qspi.io.payload_byte
-    qspiDec.io.payload_valid := qspi.io.payload_valid
-    qspiDec.io.tx_byte_sent  := qspi.io.tx_byte_sent
-    qspiDec.io.active        := qspi.io.active
-    qspi.io.tx_byte := qspiDec.io.tx_byte
-    qspi.io.tx_load := qspiDec.io.tx_load
 
-    // Task 35 status surface wiring. video produces the sticky word; the
-    // decoder exposes it over READ_STATUS sel=5. QSPI_READY fires on every
-    // cmd_valid (command accepted); QSPI_ERROR follows last_error != 0.
-    qspiDec.io.status_sticky := video.io.statusSticky
-    // Task 1 (#9154) — LIVE_MODE wire per CyanPeak #9161 audit correction.
-    qspiDec.io.live_mode := video.io.modeSelect
-    video.io.statusEvQspiReady := qspi.io.cmd_valid
-    video.io.statusEvQspiError := qspiDec.io.last_error =/= B(0, 8 bits)
+    // Status-event wiring. MVP READ_STATUS surface (#13975) carries sel=0/9/10 only,
+    // answered SCLK-side inside the core; the legacy sel=5 sticky / sel=7 live_mode
+    // surface is not carried, so status_sticky/live_mode are no longer routed.
+    // QSPI_READY proxies off an accepted register write; QSPI_ERROR is unused in the
+    // MVP surface (transport health is exposed via sel=10, not last_error).
+    video.io.statusEvQspiReady := qspiCore.io.regBus.enable
+    video.io.statusEvQspiError := False
 
     // Task 34 — QSPI → SDRAM bridge. Bridge takes the decoder's raw byte
     // stream plus the latched header fields and issues per-byte writes to
@@ -472,11 +466,11 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
       qspiSdramBridge.io.byteIn      := i80.io.blockWr.payload
       qspiSdramBridge.io.byteValid   := i80.io.blockWr.valid
     } else {
-      qspiSdramBridge.io.headerValid := qspiDec.io.sdramHeaderValid
-      qspiSdramBridge.io.addrInit    := qspiDec.io.sdramAddrInit
-      qspiSdramBridge.io.lenBytes    := qspiDec.io.sdramLenBytes
-      qspiSdramBridge.io.byteIn      := qspiDec.io.sdramByteOut
-      qspiSdramBridge.io.byteValid   := qspiDec.io.sdramByteValid
+      qspiSdramBridge.io.headerValid := qspiCore.io.sdramHeaderValid
+      qspiSdramBridge.io.addrInit    := qspiCore.io.sdramAddrInit
+      qspiSdramBridge.io.lenBytes    := qspiCore.io.sdramLenBytes
+      qspiSdramBridge.io.byteIn      := qspiCore.io.sdramByteOut
+      qspiSdramBridge.io.byteValid   := qspiCore.io.sdramByteValid
     }
     // #11246 F5: drain the upload byteFifo CONTINUOUSLY, not only in blanking. The
     // old !de gate stalled the bridge during active video, so at the production QSPI
@@ -493,14 +487,14 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // otherwise the host poll-clear races ahead of the SDRAM-side drain and the CC
     // backs up (sentinel+32 tiles = 132 > depth 128 -> tile[31] overflow + watchdog abort,
     // proven in CpA5UploadDrainSim). Driven at the uploadCc instantiation site.
-    qspiDec.io.upload_done := qspiSdramBridge.io.uploadDone
-    qspiDec.io.upload_error := qspiSdramBridge.io.uploadError   // CP-A1: sticky abort -> READ_STATUS sel=6 bit2
-    qspiDec.io.upload_overflow := qspiSdramBridge.io.fifoOverflow  // CP-A4: sticky ingress overflow -> sel=6 bit3
+    // MVP surface (#13975): the core ties its internal decoder's upload_* status
+    // inputs off (sel=6 not carried), so the bridge's uploadDone/uploadError/
+    // fifoOverflow outputs are not routed back to a host-readable surface here.
 
     val regWriteFromBoot = bootWrite && bootIdx <= lastStepIdx
     // QSPI can only assert after bootstrap completes, preventing any
     // bus contention during the power-on register-write sequence.
-    val qspiActive = bootDoneR && qspiDec.io.regBus.enable
+    val qspiActive = bootDoneR && qspiCore.io.regBus.enable
 
     // Task 32b: unified register bus via RegBusArbiter. Master priority
     // index 0=bootstrap > 1=qspi > 2=animator — matches the pre-refactor
@@ -511,8 +505,8 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     regBusArbiter.io.masters(0).addr   := bootAddr
     regBusArbiter.io.masters(0).data   := bootDataMux
     regBusArbiter.io.masters(0).enable := regWriteFromBoot
-    regBusArbiter.io.masters(1).addr   := qspiDec.io.regBus.addr
-    regBusArbiter.io.masters(1).data   := qspiDec.io.regBus.data
+    regBusArbiter.io.masters(1).addr   := qspiCore.io.regBus.addr
+    regBusArbiter.io.masters(1).data   := qspiCore.io.regBus.data
     regBusArbiter.io.masters(1).enable := qspiActive
 
     // Master 2 is reserved for an on-chip animator slot. With no animator
@@ -568,8 +562,9 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     }
     val dbgAddr = dbgArmedAddr   // stable, CDC-coherent 23-bit armed address
     // Result wire driven from the sdram-domain read FSM via BufferCC (top level).
+    // Still consumed by the i80 reg-read path (0x0328/9) below; the QSPI READ_STATUS
+    // sel=8 consumer is dropped under the MVP surface (#13975).
     val debugSdramDataPix = Bits(32 bits)
-    qspiDec.io.debug_sdram_data := debugSdramDataPix
 
     // === Lane P22: i80 reg-read access to the SDRAM debug readback surface =====
     // P21's i80 reg-read was a last-write loopback. P22 needs byte-exact SDRAM
@@ -844,12 +839,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // dbgReadArea) consumes one entry only when the controller can accept it.
   val uploadCc = StreamFifoCC(Bits(31 bits), 128, pixelClockDomain, sdramClockDomain)
   uploadCc.io.push << pixelArea.qspiSdramBridge.io.wrCmd
-  // CP-A5: host-visible upload_busy = bridge active OR uploadCc still holding entries.
-  // pushOccupancy is in the PIXEL (push) clock domain — same domain as qspiDec — so no
-  // extra CDC. Makes the host poll-clear wait for SDRAM-side drain; the CC never backs
-  // up -> no tile[31] overflow/abort (CpA5UploadDrainSim: 132/132, no abort).
-  pixelArea.qspiDec.io.upload_busy := pixelArea.qspiSdramBridge.io.uploadBusy ||
-                                      (uploadCc.io.pushOccupancy =/= 0)
+  // CP-A5 (MVP surface #13975): the QspiTransportCore ties its internal decoder's
+  // upload_busy off (sel=6 host-readable upload status is not carried), so the
+  // bridge.uploadBusy OR uploadCc-occupancy signal is no longer routed to a host
+  // surface. The lossless uploadCc drain path itself is unchanged (push wired above).
   // Task 3 fix (BronzeGate #9344, CoralReef convergence #9343):
   // `planarDataReadyArea` defined AFTER `sdramArbiter` below — see post-
   // arbiter wiring for the toggle-based pulse regeneration of
