@@ -487,8 +487,15 @@ static bool run_ham6_proof(void)
     ok &= ham_reg_write(0x034Bu, 480u);
     ok &= ham_reg_write(0x0351u, 0x0000u); // bitmap base 0x100000
     ok &= ham_reg_write(0x0352u, 0x0010u);
-    ok &= ham_reg_write(0x0353u, 0x0000u); // attrs are don't-care in HAM6
-    ok &= ham_reg_write(0x0354u, 0x0000u);
+    // #14059 CoralReef Candidate-2 test: HAM6 STILL fetches the attr plane every row
+    // (BitmapRowFetch runs the interleaved bitmap+attr burst loop regardless of bpp).
+    // ATTR_BASE=0 makes every row burst-read 0x0000 AND 0x100000 = two far-apart SDRAM
+    // rows/banks -> activate/precharge thrash the real controller never sees in the
+    // timing-ideal behavioral sim. Point ATTR_BASE into the same open row as the bitmap
+    // (0x100020, 32-byte aligned) to kill the cross-region traffic. If the warp clears,
+    // the unnecessary address-0 attr fetch is the root cause.
+    ok &= ham_reg_write(0x0353u, 0x0020u); // ATTR_BASE_LO = 0x100020 (same SDRAM row as bitmap)
+    ok &= ham_reg_write(0x0354u, 0x0010u); // ATTR_BASE_HI
     ok &= ham_reg_write(0x0355u, 320u);
     ok &= ham_reg_write(0x0356u, 320u);
     ok &= ham_reg_write(0x0357u, 240u);
