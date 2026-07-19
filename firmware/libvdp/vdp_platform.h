@@ -103,7 +103,7 @@
 /* SCK frequency policy on legacy SPI/SPI2 backends (bench-validated
  * 2026-05-23 via the throughput sweep sketch on FSPI IOMUX pins 9..14):
  *
- *   - Reads (READ_STATUS, sticky status, etc.): FPGA LegacySpiSlave response FSM
+ *   - Reads (READ_STATUS, sticky status, etc.): FPGA QspiSlave response FSM
  *     caps cleanly at 3 MHz. Above 3 MHz, reads fail 100% binary (likely
  *     pixel-clock bound on the FPGA side). Read throughput is CPU-overhead-
  *     bound anyway (~103 µs per call) so SCK rate doesn't matter for reads.

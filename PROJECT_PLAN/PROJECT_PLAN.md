@@ -35,7 +35,7 @@ The project has one recently closed critical-path RTL lane and one active docs/e
 
 The long-term strategic roadmap is in [`VOODOO_ADOPTION_PLAN.md`](VOODOO_ADOPTION_PLAN.md).
 
-**Host interface:** the canonical Tang Nano 20K host path is **i80/ESP32-S3**. The legacy QSPI path remains supported on Pico 2 and older ESP8266/ESP32 bench setups but is retired as the primary development target.
+**Host interface:** the canonical Tang Nano 20K host path is **QSPI/ESP32-P4** (`QspiSlave`/`QspiDecoder`/`QspiSdramBridge`). The i80/ESP32-S3 path and the legacy SPI path remain in the tree as historical references but are retired as primary development targets.
 
 Authoritative execution status: [`TASKS.md`](TASKS.md).
 Summary of recent closeouts:

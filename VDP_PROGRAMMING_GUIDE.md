@@ -717,21 +717,21 @@ The first pixel of every scanline is decoded as a SET operation using palette en
 - Source size: 320×240 logical pixels.
 - Display expectation: 640×480 after 2× horizontal/vertical stretch.
 - One byte per source pixel, packed as little-endian 16-bit words for `vdp_sdram_write()`.
-- Only the **`BITMAP_BASE` byte plane** is used. `ATTR_BASE` is **don't-care** for HAM6; it is not fetched and does not need to be populated.
+- Only the **`BITMAP_BASE` byte plane** is used to decode HAM6 pixels. However, the RTL currently fetches both the bitmap and attribute planes unconditionally. To prevent SDRAM precharge and row-activation thrashing, `ATTR_BASE` must be configured to point to a memory location in the same SDRAM row/bank as `BITMAP_BASE` (e.g., `0x100020`).
 
 ### Required configuration
 
 | Register | Recommended value | Why |
 |---|---|---|
 | `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | Aligned SDRAM base for the HAM byte plane |
-| `ATTR_BASE_LO` / `ATTR_BASE_HI` | `0x0000` / `0x0000` → `0x000000` | Don't-care; set to any aligned value |
+| `ATTR_BASE_LO` / `ATTR_BASE_HI` | `0x0020` / `0x0010` → `0x100020` | Same SDRAM bank/row as BITMAP_BASE (to prevent thrashing) |
 | `BITMAP_STRIDE` / `ATTR_STRIDE` | `320` | One byte per source pixel, 320 bytes/row |
 | `BITMAP_HEIGHT` | `240` | Source bitmap height in rows |
 | `BITMAP_CTRL` | `0x0007` | enable (`bit0=1`) + BPP=`0b11` (`bits[2:1]=3`) |
 | `LAYER_ENABLE` | `0x0001` | Enable bitmap layer 0 |
 
 > [!IMPORTANT]
-> `ATTR_BASE`, `ATTR_STRIDE`, and the high-byte plane are **not used** in HAM6 mode. Upload only the `BITMAP_BASE` plane. Setting `ATTR_BASE` to a non-overlapping value is harmless but unnecessary.
+> Although the attribute plane is not used to decode HAM6 pixels, the RTL fetches both planes in an interleaved burst loop. **You must set `ATTR_BASE` to the same SDRAM bank and row as `BITMAP_BASE` (e.g., `0x100020` vs. `0x100000`)**. Setting `ATTR_BASE` to `0x000000` (which resides in a different bank) will thrash the SDRAM controller timing and cause bitmap fetch starvation, leading to a geometric screen warp.
 >
 > The 16 base colors (`palette[0..15]`) must be loaded before enabling the layer. Each 4-bit channel stored in palette RAM is nibble-replicated to 8-bit RGB (e.g., `R4` → `{R4, R4}`).
 
@@ -766,7 +766,7 @@ void setup_ham6(void) {
 
     // 3. Configure bitmap geometry.
     vdp_mode0_set_bitmap_base(0x100000u);
-    vdp_mode0_set_attr_base(0x000000u);      // don't-care for HAM6
+    vdp_mode0_set_attr_base(0x100020u);      // must be in the same SDRAM row/bank to prevent thrashing
     vdp_mode0_set_bitmap_stride(320u);
     vdp_mode0_set_attr_stride(320u);         // don't-care but harmless
     vdp_mode0_set_bitmap_height(240u);

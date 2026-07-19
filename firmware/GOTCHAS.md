@@ -276,7 +276,7 @@ vdp_mode0_set_scale_ctrl(
 
 ### GOTCHA-033: legacy SPI Physical SCK Ceiling (25.2 MHz Oversampling)
 
-**Fact:** The `LegacySpiSlave.scala` oversamples the asynchronous SCK pin using the 25.2 MHz pixel clock.
+**Fact:** The `QspiSlave.scala` oversamples the asynchronous SCK pin using the 25.2 MHz pixel clock.
 
 **Logic Ceiling:** Per Nyquist-Shannon, the SCK frequency MUST be less than 12.6 MHz (half the oversampling rate). In practice, with routing jitter and setup/hold requirements, the stable ceiling is ~8 MHz.
 

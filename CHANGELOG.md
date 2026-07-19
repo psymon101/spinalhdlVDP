@@ -1,5 +1,16 @@
 # spinalhdlVDP Changelog
 
+## 2026-07-19 — QSPI Front-End Restoration & DOC-AUDIT-184 Phase 3 (IN-PROGRESS)
+
+- **QSPI Front-End Restoration (QSPI-SI-CEILING-183)** — RTL compile fix landed.
+  - Restored mis-archived `QspiSlave.scala` + `QspiSlaveSim.scala` to `hw/spinal/spinalhdlvdp/` (commit `7893811`).
+  - `sbt compile` clean; `TopTang20kHdmi` elaboration PASS; 4 targeted QSPI sims PASS.
+  - Fresh bitstream built/flashed/verified: `fpga/tang20k/impl/pnr/project.fs` SHA-256 `6c94e4efe3c208c390c1dde4a9403ce87354b79b39e72aa362f6c538b08dee6f`.
+  - The repo-wide `Qspi`→`LegacySpi` rename was never committed and is **de-scoped** from this lane.
+- **DOC-AUDIT-184 Phase 3 — Qspi* Naming Reconciliation** — RUNNING
+  - Reconciled top-level docs (`README.md`, `PROJECT_PLAN.md`, `CHANGELOG.md`, `VDP_PROGRAMMING_GUIDE.md` §1/§11, `GLOSSARY.md`) to the actual on-disk RTL naming: `QspiSlave`, `QspiDecoder`, `QspiSdramBridge`.
+  - Canonical Tang Nano 20K host path updated to **QSPI/ESP32-P4**; i80/ESP32-S3 retired to historical reference.
+
 ## 2026-06-16 — Soft Reset & Spec Sync (DONE)
 
 - **VDP Soft Reset (VDP-SOFT-RESET-135)** — DONE (#12665)

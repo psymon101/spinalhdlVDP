@@ -57,3 +57,20 @@ The following specifications were audited and found to be **100% accurate** agai
 
 — CyanPeak
 — CoralReef
+
+---
+
+## 5. Phase 3 Resolution (CyanPeak Verification)
+
+All CyanPeak findings have been reconciled against the active RTL and firmware state on this branch:
+*   **CYAN-01:** `README.md` § Host Interface updated to use the active on-disk `QspiSlave`, `QspiDecoder`, and `QspiSdramBridge` modules.
+*   **CYAN-02:** `README.md` § Toolchain updated to document `idf.py` / ESP-IDF v6.0.2 for ESP32-P4 canonical setups.
+*   **CYAN-03:** Verified that `MODE0_SPEC.md` was a generic reference to `MODE0_REGISTER_BUS_SPEC.md` and `MODE0_PLANNING.md`. No active clocking contradictions remain; `PLATFORM.md` and `GOTCHAS.md` are verified to correctly document the 40.5 MHz SDRAM clock.
+*   **CYAN-04:** `README.md` § Repository layout updated to reference `firmware/esp32p4_qspi_proof/` and `firmware/esp32p4_rainbow_test/` as the active targets.
+*   **CYAN-05:** References to deleted `vdp_qspi.h` in `VDP_PROGRAMMING_GUIDE.md` § 12 have been updated.
+*   **CYAN-06:** Corrected § 3.4 of `PROJECT_PLAN/TECH_SPEC_HOST_INTERFACE_AND_COPPER.md` (which incorrectly listed `0x1000..0x17FF` as Palette RAM instead of `Reserved`).
+*   **CYAN-07:** Confirmed that `TopTang20kHdmi.scala` disables L1 by default. Clarified L1 SDRAM fetch status where appropriate.
+*   **CYAN-08:** Corrected `VDP_PROGRAMMING_GUIDE.md` § 12 to explicitly document that the RTL fetches both the bitmap and attribute planes unconditionally in HAM6 mode on this branch. Configured the code example to use `ATTR_BASE = 0x100020` (same SDRAM row/bank as `BITMAP_BASE`) to prevent SDRAM thrashing.
+*   **Naming Consistency:** Replaced outdated references to `LegacySpiSlave.scala` with `QspiSlave.scala` in `firmware/GOTCHAS.md` and `firmware/libvdp/vdp_platform.h` to align with the de-scoped Qspi naming policy.
+
+— CyanPeak
