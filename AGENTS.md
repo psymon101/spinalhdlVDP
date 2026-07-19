@@ -7,6 +7,20 @@ for canonical identity, roster, and cross-project coordination rules.
 Examples and command snippets: `AGENTS_EXAMPLES.md`
 Agent-specific rules: `AGENTS/<CanonicalName>.md`
 
+## Model-specific bootstrap
+
+This repo is used by multiple agent hosts. Load the right instruction file for your host **after** reading this file:
+
+| Canonical Name | Host | Reads | Repo file |
+|---|---|---|---|
+| `BrightForge` | Claude Code | `CLAUDE.md` (project root) | `CLAUDE.md` in this directory |
+| `BronzeGate` | Codex CLI | `AGENTS.md` (root → cwd) + `~/.codex/AGENTS.md` | `AGENTS/BronzeGate.md` |
+| `TopazCliff` | Kimi Code | `AGENTS.md` (root → cwd) + `AGENTS.local.md` (cwd) | `AGENTS/TopazCliff.md` |
+| `CoralReef` | Kimi Code | `AGENTS.md` (root → cwd) + `AGENTS.local.md` (cwd) | `AGENTS/CoralReef.md` |
+| `CyanPeak` | Antigravity CLI (`agy`) | `AGENTS.md` (root → cwd) + `~/.gemini/GEMINI.md` | `AGENTS/CyanPeak.md` |
+
+The launcher (`launch_agent_isolated.sh`) injects your role file into the host's expected location before startup, so you do not need to locate it manually each session.
+
 ---
 
 ## Quick Reference
@@ -17,7 +31,7 @@ Agent-specific rules: `AGENTS/<CanonicalName>.md`
 | **Mailbox** | `/home/itadmin/github/spinalhdlVDP` (repo-root only); use `team-mailbox` skill |
 | **Source of truth order** | (1) mail → (2) `TASKS.md` live-lane → (3) repo state |
 | **Critical path rule** | One active engineering lane at a time |
-| **Session start** | Read `AGENTS.md` → `AGENTS/<YourName>.md` → `PROJECT_PLAN/PROJECT_PLAN.md` → `PROJECT_PLAN/TASKS.md` |
+| **Session start** | Read `AGENTS.md` → your model-specific instruction file (`CLAUDE.md` for BrightForge, otherwise `AGENTS/<YourName>.md`) → `PROJECT_PLAN/PROJECT_PLAN.md` → `PROJECT_PLAN/TASKS.md` |
 | **Hardware proof rule** | Simulator first, then unambiguous hardware proof. 100% required. No exceptions. |
 | **AGENTS.md edits** | Requires PM authorization + diff review (Preventive Rule #8) |
 | **Your agent rules** | `AGENTS/BrightForge.md` · `AGENTS/BronzeGate.md` · `AGENTS/TopazCliff.md` · `AGENTS/CyanPeak.md` · `AGENTS/CoralReef.md` |

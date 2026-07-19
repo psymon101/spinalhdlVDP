@@ -26,6 +26,10 @@ fpga/tang20k/*.fs
 fpga/tang20k/*.tmp
 fpga/tang20k/*.log
 
+# ESP-IDF / firmware build artefacts that live outside the standard `build/` dir
+**/build_*
+!scripts/regression/build_*.sh
+
 hw/gen/**
 !hw/gen/.gitkeep
 !hw/verilog/.gitkeep
@@ -35,3 +39,11 @@ hw/gen/**
 fpga/tang20k/captures/*.mp4
 fpga/tang20k/captures/*.png
 fpga/tang20k/captures/*.json
+.aider*
+
+# Agent host local instruction files injected by launch_agent_isolated.sh
+AGENTS.local.md
+.kimi/
+.claude/
+.codex/
+.gemini/
