@@ -70,7 +70,7 @@ The hardware controller that drives the render pipeline through the phases of ea
 
 ### QSPI
 
-Quad SPI — the external host interface used to program and control the VDP from a breadboard host (e.g. microcontroller or FPGA). In the initial implementation, this is the only external control path. The QSPI interface lives in the Tang20K wrapper. The register map and protocol details are defined in `sw/qspi/`.
+Quad SPI — the external host interface used to program and control the VDP from a host microcontroller (currently ESP32-P4 on Tang Nano 20K). The active RTL front-end consists of `QspiSlave` (SPI-clock-synchronous or oversampled slave), `QspiDecoder` (command decode and `READ_STATUS` response FSM), and `QspiSdramBridge` (SDRAM write command buffering) in `hw/spinal/spinalhdlvdp/`. QSPI is the current canonical host path; i80 and legacy SPI are retired to historical reference.
 
 ### Raster Effect
 

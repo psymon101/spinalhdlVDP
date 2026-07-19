@@ -27,14 +27,15 @@ function_name(args);
 
 # Part I: libvdp API Guide
 
-The `libvdp` library is the authoritative host-side coordination layer. It handles the low-level hardware transport, timing synchronization, and high-level helpers for the Mode0 display engine. The current Tang Nano 20K host path is i80; QSPI remains available only through legacy aliases and sketches.
+The `libvdp` library is the authoritative host-side coordination layer. It handles the low-level hardware transport, timing synchronization, and high-level helpers for the Mode0 display engine. The current Tang Nano 20K host path is **QSPI/ESP32-P4**; i80/ESP32-S3 and legacy SPI remain in the tree as historical references.
 
 ## 1. Initialization and Basic I/O
 
 ### `vdp_host_init`
 **Description**: Initializes the host microcontroller's interface to the VDP. 
-- **i80 (Primary)**: Configures the 8-bit parallel host interface used on the current Tang Nano 20K deployment. Provides the highest throughput and lowest latency.
-- **QSPI (Legacy)**: Retained for Pico 2 and earlier ESP32/ESP8266 bench setups through deprecated aliases such as `vdp_qspi_init()`.
+- **QSPI (Primary)**: Configures the 1-1-4 quad-SPI host interface used on the current Tang Nano 20K deployment (ESP32-P4). The active RTL front-end is `QspiSlave` → `QspiDecoder` → `QspiSdramBridge`.
+- **i80 (Retired)**: The 8-bit parallel ESP32-S3 interface is no longer the canonical path. It remains supported as a historical reference.
+- **Legacy SPI**: Retained for Pico 2 and earlier ESP32/ESP8266 bench setups through aliases such as `vdp_qspi_init()`.
 
 This must be the first VDP-related function called in your `setup()` or `main()`.
 
@@ -51,7 +52,7 @@ void setup() {
 ### `vdp_read_status`
 **Description**: Performs a synchronous read from the VDP status registers. It takes a `selector` (0-255) to choose which internal data word to return.
 
-**Important**: On the current i80 parallel interface, the `READ_STATUS` opcode (`0x04`) is **not yet implemented in the RTL**. `vdp_read_status()` works only on legacy QSPI builds. For i80/ESP32-S3 deployments, poll status through normal register reads (for example, `vdp_reg_read(0x0320)` for sticky status) and use write-1-to-clear register writes (for example, `vdp_reg_write(0x0320, mask)`) as described in the register spec. Note that `0x0323` (`UPLOAD_STATUS_CLEAR`) is also not decoded in the current bitstream.
+**Important**: On the current QSPI interface, the `READ_STATUS` opcode (`0x04`) **is implemented** in `QspiDecoder` and returns live transport/SDRAM status via `vdp_read_status()`. On retired i80 builds the opcode was not implemented; historical i80 code should poll status through normal register reads or write-1-to-clear operations as described in the register spec.
 
 **Real World Use**: On QSPI builds, use this to check if the FPGA is "alive" before starting a complex graphics sequence.
 
@@ -681,19 +682,21 @@ void setup_rgb565_fullscreen(void) {
 }
 ```
 
-## 11. i80 Host Interface Notes
+## 11. Host Interface Notes
 
-The canonical ESP32-S3 host path uses the i80 8-bit parallel bus:
+The canonical Tang Nano 20K host path is **QSPI/ESP32-P4**, with RTL front-end `QspiSlave` → `QspiDecoder` → `QspiSdramBridge`:
 - Register writes use opcode `0x00`.
-- Register reads use opcode `0x01` and return the **last-written value** for most addresses (loopback), not a full register-file readback.
-- SDRAM block writes use opcode `0x02`.
+- SDRAM writes use opcode `0x01`.
+- `READ_STATUS` reads use opcode `0x04` and return live transport/SDRAM status.
 
-Use `firmware/libvdp/vdp_i80.h` for transport-agnostic calls such as `vdp_reg_write()`, `vdp_reg_read()`, and `vdp_sdram_write()`.
+Use `firmware/libvdp/vdp_host.h` for transport-agnostic calls such as `vdp_reg_write()`, `vdp_reg_read()`, `vdp_sdram_write()`, and `vdp_read_status()`.
 
 > [!WARNING]
-> **`vdp_reg_read()` is not a reliable verification primitive on i80.** Until `I80-STATUS-DECODE-152` lands, the readback path does not decode the live register file. It may return the last host-written value or the idle-bus pattern `0x7F7F`. Code that reads back `BITMAP_CTRL`, `LAYER_ENABLE`, `BITMAP_BASE`, etc., to decide whether a configuration step succeeded is at risk of false positives. Treat i80 writes as fire-and-forget and verify by visual output or a dedicated capture/status lane.
->
-> The unrelated `vdp_read_status()` helper (opcode `0x04`) is also not implemented on i80 in the current bitstream; see §1.
+> **`vdp_reg_read()` is not a reliable verification primitive on QSPI.** The readback path returns the **last-written value** for most addresses (loopback), not the live committed register-file contents. Code that reads back `BITMAP_CTRL`, `LAYER_ENABLE`, `BITMAP_BASE`, etc., to decide whether a configuration step succeeded is at risk of false positives. Treat register writes as fire-and-forget and verify by visual output or a dedicated status read.
+
+### i80 (retired)
+
+The historical ESP32-S3 i80 8-bit parallel bus used opcodes `0x00` (register write), `0x01` (register read, loopback), and `0x02` (SDRAM block write). `vdp_i80.h` is preserved as a historical reference. `READ_STATUS` (opcode `0x04`) was not implemented on the i80 path; see `I80-STATUS-DECODE-152` in the task backlog.
 
 > [!WARNING]
 > **Full-Screen RGB565 Bitmap Limitation (legacy warning):** The power-on reset (POR) default bases for the bitmap layer are `0x3000` (Bitmap) and `0x4000` (Attribute). These defaults overlap after 8 rows when rendering direct-color (RGB565) mode at a 512-byte stride. For full-screen RGB565 bitmaps, you **must** configure non-overlapping bases (e.g., `0x100000` and `0x200000`) using registers `0x0351..0x0354`. The defaults are retained for backward compatibility with legacy indexed 1/2bpp mode demos.

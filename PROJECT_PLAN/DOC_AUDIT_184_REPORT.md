@@ -60,17 +60,46 @@ The following specifications were audited and found to be **100% accurate** agai
 
 ---
 
-## 5. Phase 3 Resolution (CyanPeak Verification)
+## 5. Phase 3 Reconciliation (CoralReef)
 
-All CyanPeak findings have been reconciled against the active RTL and firmware state on this branch:
-*   **CYAN-01:** `README.md` § Host Interface updated to use the active on-disk `QspiSlave`, `QspiDecoder`, and `QspiSdramBridge` modules.
-*   **CYAN-02:** `README.md` § Toolchain updated to document `idf.py` / ESP-IDF v6.0.2 for ESP32-P4 canonical setups.
-*   **CYAN-03:** Verified that `MODE0_SPEC.md` was a generic reference to `MODE0_REGISTER_BUS_SPEC.md` and `MODE0_PLANNING.md`. No active clocking contradictions remain; `PLATFORM.md` and `GOTCHAS.md` are verified to correctly document the 40.5 MHz SDRAM clock.
-*   **CYAN-04:** `README.md` § Repository layout updated to reference `firmware/esp32p4_qspi_proof/` and `firmware/esp32p4_rainbow_test/` as the active targets.
-*   **CYAN-05:** References to deleted `vdp_qspi.h` in `VDP_PROGRAMMING_GUIDE.md` § 12 have been updated.
-*   **CYAN-06:** Corrected § 3.4 of `PROJECT_PLAN/TECH_SPEC_HOST_INTERFACE_AND_COPPER.md` (which incorrectly listed `0x1000..0x17FF` as Palette RAM instead of `Reserved`).
-*   **CYAN-07:** Confirmed that `TopTang20kHdmi.scala` disables L1 by default. Clarified L1 SDRAM fetch status where appropriate.
-*   **CYAN-08:** Corrected `VDP_PROGRAMMING_GUIDE.md` § 12 to explicitly document that the RTL fetches both the bitmap and attribute planes unconditionally in HAM6 mode on this branch. Configured the code example to use `ATTR_BASE = 0x100020` (same SDRAM row/bank as `BITMAP_BASE`) to prevent SDRAM thrashing.
-*   **Naming Consistency:** Replaced outdated references to `LegacySpiSlave.scala` with `QspiSlave.scala` in `firmware/GOTCHAS.md` and `firmware/libvdp/vdp_platform.h` to align with the de-scoped Qspi naming policy.
+Phase 3 was unblocked when BrightForge restored the still-active `QspiSlave.scala`+`QspiSlaveSim.scala` from the mistaken archive (commit `7893811`, mail #14199). The compile break on `TopTang20kHdmi.scala` is resolved and the repo-wide `Qspi`→`LegacySpi` rename is **de-scoped** (#14195).
 
-— CyanPeak
+### 5.1 Naming correction
+
+The committed on-disk RTL on `brightforge/ham-decoder-171` contains **only** the following QSPI front-end modules in `hw/spinal/spinalhdlvdp/`:
+
+| Module | File |
+|---|---|
+| `QspiSlave` | `QspiSlave.scala` |
+| `QspiDecoder` | `QspiDecoder.scala` |
+| `QspiSdramBridge` | `QspiSdramBridge.scala` |
+
+No `LegacySpiSlave`, `LegacySpiDecoder`, or `HostSdramBridge` files exist on this branch. Any doc or report text that asserted those names as active has been corrected to the actual `Qspi*` names above.
+
+### 5.2 Doc edits applied
+
+| Doc | Change |
+|---|---|
+| `README.md` § Host Interface | Now states QSPI/ESP32-P4 as canonical; names active RTL `QspiSlave`/`QspiDecoder`/`QspiSdramBridge`; i80/ESP32-S3 retired to historical reference; legacy SPI retained for Pico 2/old ESP benches. |
+| `README.md` § Repository layout | Lists `firmware/esp32p4_qspi_proof/` as canonical and `firmware/esp32s3_i80_*` / `esp32s3_rgb565_fullframe/` as historical. |
+| `PROJECT_PLAN/PROJECT_PLAN.md` | Host-interface statement updated to QSPI/ESP32-P4. |
+| `CHANGELOG.md` | New 2026-07-19 entry records QSPI front-end restoration and DOC-AUDIT-184 Phase 3. |
+| `VDP_PROGRAMMING_GUIDE.md` §1 / §11 | Initialization and host-interface notes now describe QSPI as primary, i80 as retired; `READ_STATUS` note corrected to reflect QSPI implementation. |
+| `PROJECT_PLAN/GLOSSARY.md` | `QSPI` entry updated to current modules and ESP32-P4 canonical status. |
+| `PROJECT_PLAN/STATUS.md` | DOC-AUDIT-184 row updated: compile-fix blocker cleared, Phase 3 running. |
+
+### 5.3 Items intentionally not edited in this phase
+
+*   `firmware/esp32p4_qspi_proof/README.md` still describes a **word-drain** front-end (`QspiSlaveSync`/`QspiTransportCore`) that does not exist on this branch. Correcting it requires either a firmware-port lane to match the restored oversampled `QspiSlave`+`QspiDecoder` top, or a PM decision to re-introduce the word-drain modules. Left for the active QSPI-SI-CEILING-183 lane.
+*   `firmware/GOTCHAS.md` §GOTCHA-033 still refers to `LegacySpiSlave.scala`; the file is actually `QspiSlave.scala`. This is a naming-only stale reference and is noted here for a future GOTCHAS sweep.
+*   `firmware/libvdp/vdp_platform.h` contains uncommitted-symbol names (`LegacySpiSlave`) in comments only; no functional impact.
+
+### 5.4 Phase 2 corrections preserved
+
+TopazCliff’s §5.2 verification (BG-03 corroborated, BG-04 refuted) is preserved from the 2026-07-19 STATUS.md update. BronzeGate’s corrected findings (BG-01, BG-04) are reflected in the Phase 1/2 matrix above.
+
+---
+
+*Phase 3 reconciliation applied by CoralReef. Awaiting CyanPeak review and sign-off.*
+
+— CoralReef
