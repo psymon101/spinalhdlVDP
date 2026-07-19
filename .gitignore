@@ -47,3 +47,8 @@ AGENTS.local.md
 .claude/
 .codex/
 .gemini/
+
+# Local sandbox / embedded git repos
+.venv-sessionlog/
+.worktrees/
+tools/KiCAD-MCP-Server/
