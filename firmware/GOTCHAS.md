@@ -286,3 +286,23 @@ vdp_mode0_set_scale_ctrl(
 
 **Fix:** Cap the legacy SPI write clock to **8 MHz** max. Adjust `VDP_SPI_SCK_WRITE_HZ` in `vdp_platform.h` and the ESP32 probe firmware.
 
+---
+
+### GOTCHA-034: Persistent FPGA flash does not prove active SRAM configuration
+
+**Fact:** On the Tang Nano 20K bench, `openFPGALoader --write-flash --verify`
+successfully erased, programmed, and verified the persistent bitstream, but its
+completion left FPGA SRAM unconfigured. The ESP32-P4 QSPI proof then read
+`0xFFFFFFFF` for the magic/status values. A separate
+`openFPGALoader --board tangnano20k --bitstream project.fs` SRAM load restored
+the active design; the same firmware immediately produced magic `0x51560002`,
+health `0x00000000`, and `HAM6_PROOF_DONE pass=1`.
+
+**Implication:** A flash hash/verify result is not sufficient for a live host
+proof. Load SRAM explicitly for the current session, or power-cycle and verify
+the device's configure-from-flash path before interpreting all-ones QSPI reads
+as a transport or pin failure.
+
+**Related pin distinction:** The Tang CST numbers (`CS=85`, `SCK=77`,
+`IO0..3=25..28`) are FPGA package pins, not ESP32-P4 GPIO numbers. The P4
+adapter uses `SCLK=21`, `CS=20`, `IO0=32`, `IO1=33`, `IO2=22`, `IO3=23`.
