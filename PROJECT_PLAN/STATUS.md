@@ -42,7 +42,7 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 | Lane | Owner | Blocker | Mail Thread |
 |---|---|---|---|
-| HAM6 removal + 2bpp indexed replacement | BronzeGate | Serial proof is PASS, but HDMI capture is black with the lower-right cyan canary; exact prior-art receiver-lock signature (#8738). Awaiting capture re-lock guidance before visible-bars PASS. Firmware ELF `33dab75369597c887a057b8bbddd586ebcaed0ee0b8d2a894ce1ae919b279bc3`, BIN `7f3ddc4ee15e489cdf993eaf1bf8cf9f605d0a50362fc3651cf05c0ca4046057`, partition unchanged `fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17`. | #14227 |
+| HAM6 removal + 2bpp indexed replacement | BronzeGate | Serial proof remains PASS, but RTSP camera-at-monitor confirms the black canvas with only the lower-right cyan canary; the #8738 receiver-lock hypothesis is REFUTED. Instrumented firmware commit `91eb9d1` dumps the exact REG_WRITE sequence, per-write sel=9 loopbacks (all PASS), bitmap/attr prefixes, and sel=6 health before/upload/enable (all `0x00000000`). QSPITop has no REG_READ opcode, so direct `0x0350..0x0357` readback is unavailable; indexed display-path blocker remains pending BrightForge co-sim. ELF `46f0012c996461b2e80e7a07d60986293092e38bad02e70dfb8de5de785cd257`, BIN `ff990ac5aba4b6fe0c31781c1fd4aaa4c8b7b9c172852f95cb9973a3980fb450`. | #14228/#14229/#14230 |
 
 ---
 
