@@ -707,37 +707,69 @@ The current Tang Nano 20K reference image uses a **2bpp indexed-color bitmap** u
 
 ### 12.1 2bpp Indexed Bitmap Mode (active reference)
 
-Mode0 supports an indexed bitmap layer with configurable bits-per-pixel. The active lane uses **2bpp** (`bpp=0b01`), giving four palette-selectable colors — enough for a clear vertical-bar or checkerboard reference pattern while staying safely within SDRAM fetch bandwidth.
+Mode0 supports an indexed bitmap layer with configurable bits-per-pixel. The active Tang Nano 20K reference image uses **2bpp** (`bpp=0b01`), giving four palette-selectable colors — enough for a clear vertical-bar or checkerboard reference pattern while staying safely within SDRAM fetch bandwidth.
+
+This mode is **hardware-proven** on the HAM6-removal lane (firmware commit `90b892d`, capture `captures/indexed2_linestate_l0_2026-07-20.jpg`).
 
 #### Memory layout
 
 - **Bits per pixel:** 2 (`bpp=0b01`).
 - **Pixels per byte:** 4 (packed MSB-first within each byte).
 - **Logical size:** 320×240 source pixels, scaled 2× to 640×480 display pixels.
-- **Stride:** 80 bytes per source row (320 pixels ÷ 4 pixels/byte).
-- **Total image size:** 80 bytes/row × 240 rows = 19 200 bytes.
-- **Upload packing:** Pack each row into little-endian 16-bit words (`word = byte[x] | (byte[x + 1] << 8)`) and upload to `BITMAP_BASE`.
+- **Hardware row stride:** 128 bytes (hardwired in `BitmapRowFetch.scala:270` as `lineReg << 7`). The effective data for 320 source pixels is only 80 bytes/row, so the remaining 48 bytes per row are padding.
+- **Attribute plane:** The RTL fetches both the bitmap and attribute planes unconditionally. For the 2bpp reference pattern, upload a second plane filled with `0xE4` (identity attribute) to the same 128-byte stride. The attribute byte determines how each pixel maps to the palette; `0xE4` gives a direct pixel-value → palette-index mapping.
+- **Total upload size:** 128 bytes/row × 240 rows = 30 720 bytes per plane.
+- **Upload packing:** Pack each row into little-endian 16-bit words (`word = byte[x] | (byte[x + 1] << 8)`) and upload to `BITMAP_BASE` and `ATTR_BASE`.
 
 #### Required configuration
 
 | Register | Recommended value | Why |
 |---|---|---|
-| `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | Aligned SDRAM base for the indexed byte plane |
-| `BITMAP_STRIDE` | `80` | 320 source pixels at 2bpp = 80 bytes/row |
-| `BITMAP_HEIGHT` | `240` | Source bitmap height in rows |
+| `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | SDRAM base for the 2bpp bitmap plane |
+| `ATTR_BASE_LO` / `ATTR_BASE_HI` | `0x0000` / `0x0022` → base `0x110000` | SDRAM base for the identity attribute plane (proven on bench) |
+| `BITMAP_STRIDE` / `ATTR_STRIDE` | `128` (`0x0080`) | Hardware hardwires 128-byte row stride |
+| `BITMAP_HEIGHT` | `240` (`0x00F0`) | Source bitmap height in rows |
 | `BITMAP_CTRL` | `0x0003` | enable (`bit0=1`) + BPP=`0b01` (`bits[2:1]=1`) |
-| `LAYER_ENABLE` | `0x0001` | Enable bitmap layer 0 |
+| `LAYER_ENABLE` | `0x0001` | Enable bitmap layer 0 globally |
 
-> [!NOTE]
-> The 2bpp indexed mode uses only the `BITMAP_BASE` plane. `ATTR_BASE` is ignored for indexed fetch; set it to the same SDRAM row/bank as `BITMAP_BASE` (e.g., `0x100020`) so the unused attribute fetch does not introduce SDRAM bank thrashing.
+> [!WARNING]
+> **Do not rely on `BITMAP_STRIDE`/`ATTR_STRIDE` to set the actual fetch stride.** The current RTL hardwires the row increment to 128 bytes. Setting the stride register to 80 will not change the hardware fetch address sequence; the attribute plane must be laid out at 128 bytes/row to stay in sync.
 
-#### Linestate precondition
+#### Linestate precondition (the gotcha)
 
-As with RGB565 direct-color, enabling `LAYER_ENABLE` bit 0 is not enough. Write `0x0800` to every active line's linestate entry (`0x0000..0x01DF`) to enable L0 for the full screen.
+Enabling the global `LAYER_ENABLE` bit 0 is **not enough** to make the bitmap visible. The render pipeline ANDs the global enable with a **per-line linestate** `layer0Enable` bit (`VdpTop.scala:1689`):
+
+```
+effectiveL0Enable = linestate.io.layer0Enable && layerEnableReg(0)
+```
+
+Soft reset clears every linestate entry, so `layer0Enable` defaults to 0 and the screen shows only the backdrop (black). Before enabling the layer, write `0x0800` to every active line's linestate entry (`0x0000..0x01DF`, one 16-bit word per line):
+
+- bit `[11]` = `layer0Enable`
+- bit `[10]` = `layer1Enable`
+- bits `[9:0]` = `layer0ScrollX`
+
+```c
+for (uint16_t line = 0; line < VDP_MODE0_LINESTATE_COUNT; ++line) {
+    vdp_mode0_write_linestate(line, 0x0800u); // L0 on, L1 off, scrollX = 0
+}
+```
+
+Without this step the QSPI transport, palette, geometry, and layer enable can all be correct and the screen will still be black. This was the root cause of the black-canvas blocker in #14232.
 
 #### Palette
 
 Load the four display colors into palette entries `0..3` before enabling the layer. Palette entries are 24-bit RGB888, written through `PALETTE_PTR` (`0x0601`) and `PALETTE_DATA` (`0x0600`) as described in §4.
+
+#### Canonical 2bpp enable sequence
+
+1. Load palette entries `0..3`.
+2. SDRAM_WRITE bitmap plane → `BITMAP_BASE` (`0x100000`).
+3. SDRAM_WRITE identity attribute plane (`0xE4`) → `ATTR_BASE` (`0x110000`).
+4. Configure geometry: `BITMAP_BASE`, `ATTR_BASE`, `BITMAP_STRIDE`/`ATTR_STRIDE` = 128, `BITMAP_HEIGHT` = 240.
+5. Write `BITMAP_CTRL` = `0x0003` (enable + 2bpp).
+6. Write linestate `0x0000..0x01DF` = `0x0800` (per-line L0 enable).
+7. Write `LAYER_ENABLE` = `0x0001`.
 
 #### Code example
 
@@ -752,7 +784,8 @@ static const uint32_t indexed2bpp_palette[4] = {
     0x000000FF, // 3: blue
 };
 
-static const uint16_t indexed2bpp_image[80 * 240]; // packed row data, MSB-first
+static const uint16_t indexed2bpp_image[64 * 240];      // 128 bytes/row packed
+static const uint16_t indexed2bpp_attr[64 * 240];       // 128 bytes/row, fill with 0xE4E4
 
 void setup_2bpp_indexed(void) {
     vdp_host_init();
@@ -765,20 +798,21 @@ void setup_2bpp_indexed(void) {
              indexed2bpp_palette[i]        & 0xFF);
     }
 
-    // 2. Upload the packed 2bpp byte plane to SDRAM.
-    vdp_sdram_write(0x100000u, indexed2bpp_image, 80u * 240u);
+    // 2. Upload the packed 2bpp planes to SDRAM.
+    vdp_sdram_write(0x100000u, indexed2bpp_image, 64u * 240u);
+    vdp_sdram_write(0x110000u, indexed2bpp_attr,  64u * 240u);
 
     // 3. Configure bitmap geometry.
     vdp_mode0_set_bitmap_base(0x100000u);
-    vdp_mode0_set_attr_base(0x100020u);      // same row/bank, unused but safe
-    vdp_mode0_set_bitmap_stride(80u);
-    vdp_mode0_set_attr_stride(80u);          // unused but harmless
+    vdp_mode0_set_attr_base(0x110000u);
+    vdp_mode0_set_bitmap_stride(128u);
+    vdp_mode0_set_attr_stride(128u);
     vdp_mode0_set_bitmap_height(240u);
 
     // 4. Enable 2bpp indexed (BPP = 0b01).
     vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL, 0x0003u);
 
-    // 5. Enable L0 for every line.
+    // 5. Enable L0 for every line. THIS STEP IS REQUIRED.
     for (uint16_t line = 0; line < VDP_MODE0_LINESTATE_COUNT; ++line) {
         vdp_mode0_write_linestate(line, 0x0800u);
     }
@@ -787,9 +821,6 @@ void setup_2bpp_indexed(void) {
     vdp_mode0_set_layer_enable(0x0001u);
 }
 ```
-
-> [!IMPORTANT]
-> The exact stride, logical resolution, and scaling factor for the reference pattern are subject to final RTL confirmation by BrightForge. Update this section once the bitstream proof is available.
 
 ---
 

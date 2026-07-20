@@ -1,12 +1,14 @@
 # spinalhdlVDP Changelog
 
-## 2026-07-20 — HAM6 Shelved + 2bpp Indexed Replacement Mode (RUNNING)
+## 2026-07-20 — HAM6 Shelved + 2bpp Indexed Replacement Mode (DONE)
 
 - **HAM6 Removal / Display Lane Reframe (#14224)** — Owner-directed scope change.
   - **HAM6 render mode is shelved** from the active critical path; `bpp=0b11` is reserved for future work.
   - **Replacement reference mode:** basic **2bpp indexed-color bitmap** (`bpp=0b01`) uploaded via the proven word-drain QSPI transport.
   - BrightForge removes `HamDecoder.scala` and HAM6-specific paths from `VdpTop`; BronzeGate ports `firmware/esp32p4_qspi_proof/` to the 2bpp indexed pattern.
-  - CoralReef updates `VDP_PROGRAMMING_GUIDE.md` §12, `README.md`, and `CHANGELOG.md` to reflect the shelved status and document the replacement mode.
+  - **Hardware proof achieved (#14232):** visible indexed bars rendered after adding the missing per-line **LINESTATE L0-enable** step (`0x0000..0x01DF = 0x0800`). Root cause was a documentation/spec gap, not an RTL bug.
+  - **RTL notes:** 2bpp indexed row stride is hardwired to 128 bytes; attribute plane must be uploaded with identity value `0xE4`.
+  - CoralReef updates `VDP_PROGRAMMING_GUIDE.md` §12, `README.md`, and `CHANGELOG.md` to reflect the shelved status and document the corrected 2bpp indexed sequence.
 
 ## 2026-07-19 — QSPI Front-End Restoration & DOC-AUDIT-184 Phase 3 (DONE)
 
