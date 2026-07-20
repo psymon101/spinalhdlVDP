@@ -40,9 +40,11 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 ## Escalated Blockers (also in mail)
 
+> **BronzeGate update (2026-07-20):** the LINESTATE firmware fix from #14232 is hardware-proven. All 480 writes (`0x0000..0x01DF = 0x0800`) looped back PASS, the QSPI proof remained PASS, and visible indexed bars were captured. The remaining lane action is documentation closeout.
+
 | Lane | Owner | Blocker | Mail Thread |
 |---|---|---|---|
-| HAM6 removal + 2bpp indexed replacement | BronzeGate | Serial proof remains PASS, but RTSP camera-at-monitor confirms the black canvas with only the lower-right cyan canary; the #8738 receiver-lock hypothesis is REFUTED. Instrumented firmware commit `91eb9d1` dumps the exact REG_WRITE sequence, per-write sel=9 loopbacks (all PASS), bitmap/attr prefixes, and sel=6 health before/upload/enable (all `0x00000000`). QSPITop has no REG_READ opcode, so direct `0x0350..0x0357` readback is unavailable; indexed display-path blocker remains pending BrightForge co-sim. ELF `46f0012c996461b2e80e7a07d60986293092e38bad02e70dfb8de5de785cd257`, BIN `ff990ac5aba4b6fe0c31781c1fd4aaa4c8b7b9c172852f95cb9973a3980fb450`. | #14228/#14229/#14230/#14231 |
+| HAM6 removal + 2bpp indexed replacement | BronzeGate | Co-sim root cause #14232 resolved: firmware now writes LINESTATE `0x0000..0x01DF = 0x0800` before enabling indexed L0. Hardware proof: all 480 loopbacks PASS, magic/health/proof PASS, and visible indexed bars captured. Firmware commit `90b892d`; ELF `7dd93bbe9f493d973acb44fbb21fc45f787e406217faf4b06c9e67dee11842e6`, BIN `efb0d5893ff63ee181eb064d4c2044e07dca00585f3121586b2536912151ab49`; capture `captures/indexed2_linestate_l0_2026-07-20.jpg` SHA-256 `6b7c6da0cd29a7380dfb63e86ae24ca890c329e0dc63b6565dc27e40af7e7374`. Awaiting docs closeout. | #14232 |
 
 ---
 
