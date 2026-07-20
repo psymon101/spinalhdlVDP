@@ -473,6 +473,21 @@ static bool indexed2_upload_image(void)
     return true;
 }
 
+static bool indexed2_enable_linestate_l0(void)
+{
+    // LINESTATE prepare entries are one register per active display line.
+    // The low 12 bits are {layer1Enable, layer0Enable, layer0ScrollX}; keep
+    // both scroll and L1 disabled while enabling L0 for the indexed proof.
+    for (uint16_t line = 0; line < 480u; ++line) {
+        if (!indexed2_reg_write(line, 0x0800u)) {
+            ESP_LOGE(TAG, "INDEXED2 LINESTATE write failed line=%u", line);
+            return false;
+        }
+    }
+    ESP_LOGI(TAG, "INDEXED2 LINESTATE L0 enabled lines=480 value=0x0800");
+    return true;
+}
+
 static bool run_indexed2_proof(void)
 {
     uint32_t magic = 0;
@@ -523,6 +538,7 @@ static bool run_indexed2_proof(void)
                          SANITY_FREQ_HZ) != ESP_OK) {
         ok = false;
     }
+    ok &= indexed2_enable_linestate_l0();
     ok &= indexed2_reg_write(0x0350u, 0x0003u); // enable + BPP=0b01 (2bpp indexed)
     ok &= indexed2_reg_write(0x0300u, 0x0001u); // enable bitmap layer L0
     if (!ok) {
