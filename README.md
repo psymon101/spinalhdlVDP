@@ -46,6 +46,10 @@ The current Tang Nano 20K deployment uses a **1-1-4 quad-SPI (QSPI) bus** driven
 - **i80 (retired):** the 8-bit parallel i80 path driven by ESP32-S3 is **retired from the canonical path**. It remains in the tree as historical reference only.
 - **Legacy SPI:** the 4-wire legacy SPI path remains supported for Raspberry Pi Pico 2 and earlier ESP32/ESP8266 bench setups, but it is **retired from the canonical ESP32-P4 path**. See `PROJECT_PLAN/PLATFORM.md` for pinouts and `PROJECT_PLAN/archive/deleted legacy host control plan` for historical legacy SPI details.
 
+## Current Development Focus
+
+The active lane is **QSPI word-drain transport + 2bpp indexed bitmap display** on Tang Nano 20K with an ESP32-P4 host. The previous HAM6 render mode has been **shelved** from the critical path and `bpp=0b11` is reserved for future work. See `VDP_PROGRAMMING_GUIDE.md` §12 for the 2bpp indexed reference-mode programming sequence and `PROJECT_PLAN/STATUS.md` for lane state.
+
 ## Mode0 Architecture
 
 `Mode0` is a foundational rendering substrate providing generic primitives: raster timing, fetch, composition, palette, sprites, scrolling, Copper, and HDMA.

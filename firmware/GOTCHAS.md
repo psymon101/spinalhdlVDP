@@ -296,7 +296,8 @@ completion left FPGA SRAM unconfigured. The ESP32-P4 QSPI proof then read
 `0xFFFFFFFF` for the magic/status values. A separate
 `openFPGALoader --board tangnano20k --bitstream project.fs` SRAM load restored
 the active design; the same firmware immediately produced magic `0x51560002`,
-health `0x00000000`, and `HAM6_PROOF_DONE pass=1`.
+health `0x00000000`, and the display-pass marker (`HAM6_PROOF_DONE` at the time;
+now the 2bpp indexed reference-mode marker).
 
 **Implication:** A flash hash/verify result is not sufficient for a live host
 proof. Load SRAM explicitly for the current session, or power-cycle and verify

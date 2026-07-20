@@ -701,81 +701,82 @@ The historical ESP32-S3 i80 8-bit parallel bus used opcodes `0x00` (register wri
 > [!WARNING]
 > **Full-Screen RGB565 Bitmap Limitation (legacy warning):** The power-on reset (POR) default bases for the bitmap layer are `0x3000` (Bitmap) and `0x4000` (Attribute). These defaults overlap after 8 rows when rendering direct-color (RGB565) mode at a 512-byte stride. For full-screen RGB565 bitmaps, you **must** configure non-overlapping bases (e.g., `0x100000` and `0x200000`) using registers `0x0351..0x0354`. The defaults are retained for backward compatibility with legacy indexed 1/2bpp mode demos.
 
-## 12. HAM6 Bitmap Mode
+## 12. Bitmap Reference Modes
 
-Mode0 supports a **HAM6** (Hold-And-Modify 6-bit) bitmap layer. In this mode the source image is a single byte plane: each source pixel is a 6-bit code that either selects a base color from palette entries `0..15` or modifies one channel of the previous pixel's color.
+The current Tang Nano 20K reference image uses a **2bpp indexed-color bitmap** uploaded over the word-drain QSPI transport. The earlier **HAM6** mode has been **shelved** from the active critical path and is documented below for historical reference only.
 
-### HAM6 code format
+### 12.1 2bpp Indexed Bitmap Mode (active reference)
 
-| Bits | Field | Meaning |
-|---|---|---|
-| `[5:4]` | Control | `00` = SET from palette, `01` = modify blue, `10` = modify red, `11` = modify green |
-| `[3:0]` | Data | For SET: palette index `0..15`. For modify: new 4-bit channel value. |
-| `[7:6]` | — | Always zero. |
+Mode0 supports an indexed bitmap layer with configurable bits-per-pixel. The active lane uses **2bpp** (`bpp=0b01`), giving four palette-selectable colors — enough for a clear vertical-bar or checkerboard reference pattern while staying safely within SDRAM fetch bandwidth.
 
-The first pixel of every scanline is decoded as a SET operation using palette entry `0` as the seed color, regardless of the control field.
+#### Memory layout
 
-### Memory layout
+- **Bits per pixel:** 2 (`bpp=0b01`).
+- **Pixels per byte:** 4 (packed MSB-first within each byte).
+- **Logical size:** 320×240 source pixels, scaled 2× to 640×480 display pixels.
+- **Stride:** 80 bytes per source row (320 pixels ÷ 4 pixels/byte).
+- **Total image size:** 80 bytes/row × 240 rows = 19 200 bytes.
+- **Upload packing:** Pack each row into little-endian 16-bit words (`word = byte[x] | (byte[x + 1] << 8)`) and upload to `BITMAP_BASE`.
 
-- Source size: 320×240 logical pixels.
-- Display expectation: 640×480 after 2× horizontal/vertical stretch.
-- One byte per source pixel, packed as little-endian 16-bit words for `vdp_sdram_write()`.
-- Only the **`BITMAP_BASE` byte plane** is used to decode HAM6 pixels. However, the RTL currently fetches both the bitmap and attribute planes unconditionally. To prevent SDRAM precharge and row-activation thrashing, `ATTR_BASE` must be configured to point to a memory location in the same SDRAM row/bank as `BITMAP_BASE` (e.g., `0x100020`).
-
-### Required configuration
+#### Required configuration
 
 | Register | Recommended value | Why |
 |---|---|---|
-| `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | Aligned SDRAM base for the HAM byte plane |
-| `ATTR_BASE_LO` / `ATTR_BASE_HI` | `0x0020` / `0x0010` → `0x100020` | Same SDRAM bank/row as BITMAP_BASE (to prevent thrashing) |
-| `BITMAP_STRIDE` / `ATTR_STRIDE` | `320` | One byte per source pixel, 320 bytes/row |
+| `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | Aligned SDRAM base for the indexed byte plane |
+| `BITMAP_STRIDE` | `80` | 320 source pixels at 2bpp = 80 bytes/row |
 | `BITMAP_HEIGHT` | `240` | Source bitmap height in rows |
-| `BITMAP_CTRL` | `0x0007` | enable (`bit0=1`) + BPP=`0b11` (`bits[2:1]=3`) |
+| `BITMAP_CTRL` | `0x0003` | enable (`bit0=1`) + BPP=`0b01` (`bits[2:1]=1`) |
 | `LAYER_ENABLE` | `0x0001` | Enable bitmap layer 0 |
 
-> [!IMPORTANT]
-> Although the attribute plane is not used to decode HAM6 pixels, the RTL fetches both planes in an interleaved burst loop. **You must set `ATTR_BASE` to the same SDRAM bank and row as `BITMAP_BASE` (e.g., `0x100020` vs. `0x100000`)**. Setting `ATTR_BASE` to `0x000000` (which resides in a different bank) will thrash the SDRAM controller timing and cause bitmap fetch starvation, leading to a geometric screen warp.
->
-> The 16 base colors (`palette[0..15]`) must be loaded before enabling the layer. Each 4-bit channel stored in palette RAM is nibble-replicated to 8-bit RGB (e.g., `R4` → `{R4, R4}`).
+> [!NOTE]
+> The 2bpp indexed mode uses only the `BITMAP_BASE` plane. `ATTR_BASE` is ignored for indexed fetch; set it to the same SDRAM row/bank as `BITMAP_BASE` (e.g., `0x100020`) so the unused attribute fetch does not introduce SDRAM bank thrashing.
 
-### Linestate precondition
+#### Linestate precondition
 
 As with RGB565 direct-color, enabling `LAYER_ENABLE` bit 0 is not enough. Write `0x0800` to every active line's linestate entry (`0x0000..0x01DF`) to enable L0 for the full screen.
 
-### Uploading the image
+#### Palette
 
-For each row, pack pairs of HAM bytes into little-endian 16-bit words (`word = byte[x] | (byte[x + 1] << 8)`) and upload to `BITMAP_BASE`. The canonical asset `firmware/assets/ham_decoder_171/ham6_320x240_codes_words_le.bin` is already packed this way.
+Load the four display colors into palette entries `0..3` before enabling the layer. Palette entries are 24-bit RGB888, written through `PALETTE_PTR` (`0x0601`) and `PALETTE_DATA` (`0x0600`) as described in §4.
 
-### Code example
+#### Code example
 
 ```c
 #include "vdp_host.h"
 #include "vdp_mode0.h"
 
-void setup_ham6(void) {
+static const uint32_t indexed2bpp_palette[4] = {
+    0x00000000, // 0: black
+    0x00FF0000, // 1: red
+    0x0000FF00, // 2: green
+    0x000000FF, // 3: blue
+};
+
+static const uint16_t indexed2bpp_image[80 * 240]; // packed row data, MSB-first
+
+void setup_2bpp_indexed(void) {
     vdp_host_init();
 
-    // 1. Load palette entries 0..15 (RGB888 base colors).
-    //    Each 4-bit channel is nibble-replicated by the hardware.
-    for (uint8_t i = 0; i < 16; ++i) {
-        vdp_mode0_palette_write_rgb888(i, ham_palette[i].r,
-                                            ham_palette[i].g,
-                                            ham_palette[i].b);
+    // 1. Load palette entries 0..3.
+    for (uint8_t i = 0; i < 4; ++i) {
+        vdp_mode0_palette_write_rgb888(i,
+            (indexed2bpp_palette[i] >> 16) & 0xFF,
+            (indexed2bpp_palette[i] >>  8) & 0xFF,
+             indexed2bpp_palette[i]        & 0xFF);
     }
 
-    // 2. Upload the HAM byte plane to SDRAM.
-    //    ham_codes is a 38400-word array of little-endian packed byte pairs.
-    vdp_sdram_write(0x100000u, ham_codes, 38400u);
+    // 2. Upload the packed 2bpp byte plane to SDRAM.
+    vdp_sdram_write(0x100000u, indexed2bpp_image, 80u * 240u);
 
     // 3. Configure bitmap geometry.
     vdp_mode0_set_bitmap_base(0x100000u);
-    vdp_mode0_set_attr_base(0x100020u);      // must be in the same SDRAM row/bank to prevent thrashing
-    vdp_mode0_set_bitmap_stride(320u);
-    vdp_mode0_set_attr_stride(320u);         // don't-care but harmless
+    vdp_mode0_set_attr_base(0x100020u);      // same row/bank, unused but safe
+    vdp_mode0_set_bitmap_stride(80u);
+    vdp_mode0_set_attr_stride(80u);          // unused but harmless
     vdp_mode0_set_bitmap_height(240u);
 
-    // 4. Enable HAM6 (BPP = 0b11).
-    vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL, 0x0007u);
+    // 4. Enable 2bpp indexed (BPP = 0b01).
+    vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL, 0x0003u);
 
     // 5. Enable L0 for every line.
     for (uint16_t line = 0; line < VDP_MODE0_LINESTATE_COUNT; ++line) {
@@ -787,8 +788,45 @@ void setup_ham6(void) {
 }
 ```
 
-> [!NOTE]
-> **Bitmap pipeline latency:** HAM6 shares the same double-buffered line buffer as RGB565 direct-color. The current implementation uses **zero-cycle write alignment** (`BITMAP_PIPELINE_LATENCY = 0`), so decoded source pixel `k` is displayed at the screen column corresponding to `k`.
+> [!IMPORTANT]
+> The exact stride, logical resolution, and scaling factor for the reference pattern are subject to final RTL confirmation by BrightForge. Update this section once the bitstream proof is available.
+
+---
+
+### 12.2 HAM6 Bitmap Mode (shelved)
+
+> [!WARNING]
+> **HAM6 is shelved from the active critical path.** The owner decided on 2026-07-20 that HAM6 was too problematic to keep on the current lane (#14224). The `bpp=0b11` encoding is **reserved** for future HAM6 work. Do not use it on the current Tang Nano 20K deployment unless a new lane explicitly re-enables it.
+
+Mode0 previously supported a **HAM6** (Hold-And-Modify 6-bit) bitmap layer. In this mode the source image is a single byte plane: each source pixel is a 6-bit code that either selects a base color from palette entries `0..15` or modifies one channel of the previous pixel's color.
+
+#### HAM6 code format
+
+| Bits | Field | Meaning |
+|---|---|---|
+| `[5:4]` | Control | `00` = SET from palette, `01` = modify blue, `10` = modify red, `11` = modify green |
+| `[3:0]` | Data | For SET: palette index `0..15`. For modify: new 4-bit channel value. |
+| `[7:6]` | — | Always zero. |
+
+The first pixel of every scanline is decoded as a SET operation using palette entry `0` as the seed color, regardless of the control field.
+
+#### Memory layout
+
+- Source size: 320×240 logical pixels.
+- Display expectation: 640×480 after 2× horizontal/vertical stretch.
+- One byte per source pixel, packed as little-endian 16-bit words for `vdp_sdram_write()`.
+- Only the **`BITMAP_BASE` byte plane** was used to decode HAM6 pixels. However, the RTL fetched both the bitmap and attribute planes unconditionally, so `ATTR_BASE` had to be configured to point to a memory location in the same SDRAM row/bank as `BITMAP_BASE` (e.g., `0x100020`).
+
+#### Required configuration (historical)
+
+| Register | Recommended value | Why |
+|---|---|---|
+| `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | Aligned SDRAM base for the HAM byte plane |
+| `ATTR_BASE_LO` / `ATTR_BASE_HI` | `0x0020` / `0x0010` → `0x100020` | Same SDRAM bank/row as BITMAPBase (to prevent thrashing) |
+| `BITMAP_STRIDE` / `ATTR_STRIDE` | `320` | One byte per source pixel, 320 bytes/row |
+| `BITMAP_HEIGHT` | `240` | Source bitmap height in rows |
+| `BITMAP_CTRL` | `0x0007` | enable (`bit0=1`) + BPP=`0b11` (`bits[2:1]=3`) |
+| `LAYER_ENABLE` | `0x0001` | Enable bitmap layer 0 |
 
 ---
 *End of Guide.*
