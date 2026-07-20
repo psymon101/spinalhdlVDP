@@ -50,8 +50,11 @@ enum {
     CMD_REG_WRITE = 0x01,
     CMD_SDRAM_WRITE = 0x02,
     PHASE3_PATTERN_SIZE = 4094,
-    HAM_LINE_COUNT = 480,
-    HAM_SOURCE_BYTES = 76800,
+    INDEXED2_WIDTH = 320,
+    INDEXED2_HEIGHT = 240,
+    INDEXED2_ROW_BYTES = INDEXED2_WIDTH / 4,
+    INDEXED2_ROW_STRIDE = 128,
+    INDEXED2_IMAGE_BYTES = INDEXED2_HEIGHT * INDEXED2_ROW_STRIDE,
 };
 
 static const uint32_t QSPI_CLOCK_HZ = 20u * 1000u * 1000u;
@@ -80,11 +83,9 @@ static const uint32_t DMA_BUF_SIZE = 65536u;
 static const size_t QSPI_MAX_TX_BYTES = 32767u;
 // SDRAM_WRITE adds a 2-byte word-count prefix; keep payloads even and below
 // the transaction ceiling with a small margin for future framing changes.
-static const size_t HAM_UPLOAD_CHUNK_BYTES = 32760u;
 static const uint64_t PHASE4_DURATION_US = 30ull * 60ull * 1000000ull;
 static const uint64_t PHASE4_APPROX_PAYLOAD_BYTES_PER_ITER = 8ull;
-// The HAM image uses the legacy pixel-domain QSPI slave; keep all proof traffic
-// below its reviewed oversampling ceiling.
+// Keep all proof traffic below the reviewed QSPI oversampling ceiling.
 static const uint32_t SANITY_FREQ_HZ = 4u * 1000u * 1000u;
 static const uint32_t CLOCK_PROBE_ITERATIONS = 64u;
 static const uint32_t PHASE1_ITERATIONS = 10000000u;
@@ -95,11 +96,10 @@ static uint8_t *s_tx_buf = NULL;
 static uint8_t *s_rx_buf = NULL;
 static uint8_t s_phase3_pattern[PHASE3_PATTERN_SIZE];
 static uint16_t s_reg_burst_words[PHASE3_BURST_WORDS];
+static uint8_t s_indexed2_bitmap[INDEXED2_IMAGE_BYTES];
+static uint8_t s_indexed2_attr[INDEXED2_IMAGE_BYTES];
 static uint32_t s_input_delay_ns = 0;
 static bool s_use_header_parity = true;
-
-extern const uint8_t ham6_codes_words_le_start[] asm("_binary_ham6_codes_words_le_start");
-extern const uint8_t ham6_codes_words_le_end[] asm("_binary_ham6_codes_words_le_end");
 
 typedef struct {
     uint32_t iterations;
@@ -369,93 +369,82 @@ static esp_err_t qspi_sdram_write(uint32_t sdram_addr, const uint8_t *payload, s
     return qspi_tx(CMD_SDRAM_WRITE, sdram_addr & 0xFFFFFFu, s_tx_buf, total_len, 0, override_freq_hz);
 }
 
-static bool ham_reg_write(uint32_t reg_addr, uint16_t value)
+static bool indexed2_reg_write(uint32_t reg_addr, uint16_t value)
 {
     esp_err_t err = qspi_reg_write(reg_addr, value, SANITY_FREQ_HZ);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "HAM6_REG_WRITE addr=0x%04" PRIX32 " value=0x%04X err=%s",
+        ESP_LOGE(TAG, "INDEXED2_REG_WRITE addr=0x%04" PRIX32 " value=0x%04X err=%s",
                  reg_addr, value, esp_err_to_name(err));
         return false;
     }
     return true;
 }
 
-static bool ham_load_palette(void)
+static bool indexed2_load_palette(void)
 {
-    // Palette paired with the verified selfie HAM6 asset.
-    static const uint32_t palette_rgb888[16] = {
-        0xFFFFFFu, 0xFFDDCCu, 0xFFCC99u, 0xBBDDCCu,
-        0xAABBBBu, 0xFFAA66u, 0xCC7755u, 0x889988u,
-        0x886655u, 0x884433u, 0x664433u, 0x443322u,
-        0x442211u, 0x222222u, 0x221100u, 0x000000u,
+    static const uint32_t palette_rgb888[4] = {
+        0x000000u, 0xFF0000u, 0x00FF00u, 0x0000FFu,
     };
 
-    if (!ham_reg_write(0x0601u, 0u)) {
+    if (!indexed2_reg_write(0x0601u, 0u)) {
         return false;
     }
-    for (size_t i = 0; i < 16u; ++i) {
+    for (size_t i = 0; i < 4u; ++i) {
         uint8_t r = (uint8_t)((palette_rgb888[i] >> 16) & 0xFFu);
         uint8_t g = (uint8_t)((palette_rgb888[i] >> 8) & 0xFFu);
         uint8_t b = (uint8_t)(palette_rgb888[i] & 0xFFu);
-        if (!ham_reg_write(0x0600u, (uint16_t)(((uint16_t)g << 8) | b)) ||
-            !ham_reg_write(0x0600u, r)) {
+        if (!indexed2_reg_write(0x0600u, (uint16_t)(((uint16_t)g << 8) | b)) ||
+            !indexed2_reg_write(0x0600u, r)) {
             return false;
         }
     }
-    ESP_LOGI(TAG, "HAM6 palette loaded entries=16 writes=32");
+    ESP_LOGI(TAG, "INDEXED2 palette loaded entries=4 writes=8");
     return true;
 }
 
-static bool ham_enable_linestate(void)
+static void indexed2_build_image(void)
 {
-    for (size_t i = 0; i < HAM_LINE_COUNT; ++i) {
-        s_reg_burst_words[i] = 0x0800u;
+    memset(s_indexed2_bitmap, 0, sizeof(s_indexed2_bitmap));
+    memset(s_indexed2_attr, 0xE4, sizeof(s_indexed2_attr));
+
+    // Four vertical palette bars. Each byte packs four 2-bit pixels, and the
+    // indexed fetch path displays each source pixel across two HDMI columns.
+    for (size_t y = 0; y < INDEXED2_HEIGHT; ++y) {
+        uint8_t *row = s_indexed2_bitmap + (y * INDEXED2_ROW_STRIDE);
+        for (size_t x = 0; x < INDEXED2_WIDTH; ++x) {
+            uint8_t palette_index = (uint8_t)(x / (INDEXED2_WIDTH / 4));
+            size_t byte_index = x / 4u;
+            unsigned shift = 6u - (unsigned)((x & 3u) * 2u);
+            row[byte_index] |= (uint8_t)(palette_index << shift);
+        }
     }
-    esp_err_t err = qspi_reg_write_burst(0x0000u, s_reg_burst_words,
-                                         HAM_LINE_COUNT, SANITY_FREQ_HZ);
+    ESP_LOGI(TAG, "INDEXED2 image generated width=%u height=%u row_bytes=%u stride=%u",
+             INDEXED2_WIDTH, INDEXED2_HEIGHT, INDEXED2_ROW_BYTES, INDEXED2_ROW_STRIDE);
+}
+
+static bool indexed2_upload_image(void)
+{
+    esp_err_t err = qspi_sdram_write(0x100000u, s_indexed2_bitmap,
+                                     sizeof(s_indexed2_bitmap), QSPI_SDRAM_CLOCK_HZ);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "HAM6_LINESTATE err=%s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "INDEXED2 bitmap upload err=%s", esp_err_to_name(err));
         return false;
     }
-    ESP_LOGI(TAG, "HAM6 linestate loaded lines=%u value=0x0800", HAM_LINE_COUNT);
+    ESP_LOGI(TAG, "INDEXED2 bitmap uploaded bytes=%u actual_freq=%" PRIu32,
+             (unsigned)sizeof(s_indexed2_bitmap), qspi_get_actual_freq_hz());
+
+    err = qspi_sdram_write(0x110000u, s_indexed2_attr,
+                           sizeof(s_indexed2_attr), QSPI_SDRAM_CLOCK_HZ);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "INDEXED2 attr upload err=%s", esp_err_to_name(err));
+        return false;
+    }
+    ESP_LOGI(TAG, "INDEXED2 attr uploaded bytes=%u actual_freq=%" PRIu32,
+             (unsigned)sizeof(s_indexed2_attr), qspi_get_actual_freq_hz());
     return true;
 }
 
-static bool ham_upload_plane(void)
-{
-    const uint8_t *src = ham6_codes_words_le_start;
-    size_t remaining = (size_t)(ham6_codes_words_le_end - ham6_codes_words_le_start);
-    uint32_t sdram_addr = 0x100000u;
-    uint32_t chunks = 0;
-
-    if (remaining != HAM_SOURCE_BYTES || (remaining & 1u) != 0u) {
-        ESP_LOGE(TAG, "HAM6 asset size=%u expected=%u", (unsigned)remaining, HAM_SOURCE_BYTES);
-        return false;
-    }
-
-    while (remaining != 0u) {
-        size_t chunk = remaining;
-        if (chunk > HAM_UPLOAD_CHUNK_BYTES) {
-            chunk = HAM_UPLOAD_CHUNK_BYTES;
-        }
-        chunk &= ~1u;
-        esp_err_t err = qspi_sdram_write(sdram_addr, src, chunk, QSPI_SDRAM_CLOCK_HZ);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "HAM6 upload chunk=%u addr=0x%06" PRIX32 " bytes=%u err=%s",
-                     chunks, sdram_addr, (unsigned)chunk, esp_err_to_name(err));
-            return false;
-        }
-        src += chunk;
-        remaining -= chunk;
-        sdram_addr += (uint32_t)chunk;
-        chunks++;
-        ESP_LOGI(TAG, "HAM6 upload chunk=%u bytes=%u remaining=%u actual_freq=%" PRIu32,
-                 chunks, (unsigned)chunk, (unsigned)remaining, qspi_get_actual_freq_hz());
-    }
-    return true;
-}
-
-static bool run_ham6_proof(void)
+static bool run_indexed2_proof(void)
 {
     uint32_t magic = 0;
     uint32_t health_before = 0;
@@ -463,15 +452,14 @@ static bool run_ham6_proof(void)
     uint32_t health_after_enable = 0;
     bool ok = true;
 
-    ESP_LOGI(TAG, "HAM6_PROOF begin asset_bytes=%u source=320x240 display=640x480",
-             HAM_SOURCE_BYTES);
+    ESP_LOGI(TAG, "INDEXED2_PROOF begin source=320x240 display=640x480");
     if (qspi_read_status(READ_STATUS_SEL_MAGIC, &magic, 2, SANITY_FREQ_HZ) != ESP_OK) {
-        ESP_LOGE(TAG, "HAM6_MAGIC read failed");
+        ESP_LOGE(TAG, "INDEXED2_MAGIC read failed");
         return false;
     }
-    ESP_LOGI(TAG, "HAM6_MAGIC value=0x%08" PRIX32 " actual_freq=%" PRIu32,
+    ESP_LOGI(TAG, "INDEXED2_MAGIC value=0x%08" PRIX32 " actual_freq=%" PRIu32,
              magic, qspi_get_actual_freq_hz());
-    ok &= read_and_log_transport_health("HAM6_HEALTH_BEFORE", SANITY_FREQ_HZ);
+    ok &= read_and_log_transport_health("INDEXED2_HEALTH_BEFORE", SANITY_FREQ_HZ);
     if (!ok) {
         return false;
     }
@@ -480,50 +468,44 @@ static bool run_ham6_proof(void)
         return false;
     }
 
-    ok &= ham_reg_write(0x0300u, 0x0000u); // disable visible layers while loading
-    ok &= ham_reg_write(0x0313u, 0x0000u); // native Mode0
-    ok &= ham_reg_write(0x0349u, 0x0000u); // no integer scaler; HAM path doubles naturally
-    ok &= ham_reg_write(0x034Au, 640u);
-    ok &= ham_reg_write(0x034Bu, 480u);
-    ok &= ham_reg_write(0x0351u, 0x0000u); // bitmap base 0x100000
-    ok &= ham_reg_write(0x0352u, 0x0010u);
-    // #14059 CoralReef Candidate-2 test: HAM6 STILL fetches the attr plane every row
-    // (BitmapRowFetch runs the interleaved bitmap+attr burst loop regardless of bpp).
-    // ATTR_BASE=0 makes every row burst-read 0x0000 AND 0x100000 = two far-apart SDRAM
-    // rows/banks -> activate/precharge thrash the real controller never sees in the
-    // timing-ideal behavioral sim. Point ATTR_BASE into the same open row as the bitmap
-    // (0x100020, 32-byte aligned) to kill the cross-region traffic. If the warp clears,
-    // the unnecessary address-0 attr fetch is the root cause.
-    ok &= ham_reg_write(0x0353u, 0x0020u); // ATTR_BASE_LO = 0x100020 (same SDRAM row as bitmap)
-    ok &= ham_reg_write(0x0354u, 0x0010u); // ATTR_BASE_HI
-    ok &= ham_reg_write(0x0355u, 320u);
-    ok &= ham_reg_write(0x0356u, 320u);
-    ok &= ham_reg_write(0x0357u, 240u);
-    ok &= ham_load_palette();
-    ok &= ham_enable_linestate();
-    ok &= ham_reg_write(0x0350u, 0x0007u); // enable + BPP=0b11 (HAM6)
+    indexed2_build_image();
+    ok &= indexed2_reg_write(0x0300u, 0x0000u); // disable visible layers while loading
+    ok &= indexed2_reg_write(0x0313u, 0x0000u); // native Mode0
+    ok &= indexed2_reg_write(0x0349u, 0x0000u); // no integer scaler; indexed path doubles naturally
+    ok &= indexed2_reg_write(0x034Au, 640u);
+    ok &= indexed2_reg_write(0x034Bu, 480u);
+    ok &= indexed2_reg_write(0x0351u, 0x0000u); // bitmap base 0x100000
+    ok &= indexed2_reg_write(0x0352u, 0x0010u);
+    ok &= indexed2_reg_write(0x0353u, 0x0000u); // attribute base 0x110000
+    ok &= indexed2_reg_write(0x0354u, 0x0011u);
+    ok &= indexed2_reg_write(0x0355u, INDEXED2_ROW_STRIDE);
+    ok &= indexed2_reg_write(0x0356u, INDEXED2_ROW_STRIDE);
+    ok &= indexed2_reg_write(0x0357u, INDEXED2_HEIGHT);
+    ok &= indexed2_load_palette();
+    ok &= indexed2_reg_write(0x0350u, 0x0002u); // bpp=0b01, fetch disabled while uploading
     if (!ok) {
         return false;
     }
 
-    ok &= ham_upload_plane();
-    ok &= read_and_log_transport_health("HAM6_HEALTH_AFTER_UPLOAD", SANITY_FREQ_HZ);
+    ok &= indexed2_upload_image();
+    ok &= read_and_log_transport_health("INDEXED2_HEALTH_AFTER_UPLOAD", SANITY_FREQ_HZ);
     if (qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_after_upload, 2,
                          SANITY_FREQ_HZ) != ESP_OK) {
         ok = false;
     }
-    ok &= ham_reg_write(0x0300u, 0x0001u); // enable bitmap layer L0
+    ok &= indexed2_reg_write(0x0350u, 0x0003u); // enable + BPP=0b01 (2bpp indexed)
+    ok &= indexed2_reg_write(0x0300u, 0x0001u); // enable bitmap layer L0
     if (!ok) {
         return false;
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
-    ok &= read_and_log_transport_health("HAM6_HEALTH_AFTER_ENABLE", SANITY_FREQ_HZ);
+    ok &= read_and_log_transport_health("INDEXED2_HEALTH_AFTER_ENABLE", SANITY_FREQ_HZ);
     if (qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_after_enable, 2,
                          SANITY_FREQ_HZ) != ESP_OK) {
         ok = false;
     }
-    ESP_LOGI(TAG, "HAM6_PROOF_DONE pass=%u health_before=0x%08" PRIX32
+    ESP_LOGI(TAG, "INDEXED2_PROOF_DONE pass=%u health_before=0x%08" PRIX32
              " health_after_upload=0x%08" PRIX32 " health_after_enable=0x%08" PRIX32,
              ok ? 1u : 0u, health_before, health_after_upload, health_after_enable);
     return ok;
@@ -1414,8 +1396,8 @@ void app_main(void)
                  write80.iterations, write80.write_errors);
         read_and_log_transport_health("P4_QSPI_BULK_ONLY_HEALTH", SANITY_FREQ_HZ);
     } else {
-        ESP_LOGI(TAG, "P4_QSPI_HAM starting authorized HAM6 link-closure proof");
-        smoke_pass = run_ham6_proof();
+        ESP_LOGI(TAG, "P4_QSPI_INDEXED2 starting authorized 2bpp indexed proof");
+        smoke_pass = run_indexed2_proof();
         ESP_LOGI(TAG, "P4_QSPI_APP done pass=%u", smoke_pass ? 1u : 0u);
     }
 
