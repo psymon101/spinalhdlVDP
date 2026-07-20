@@ -9,20 +9,11 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
                   logicWidthInit:  Int = 640,
                   logicHeightInit: Int = 480,
                   borderCtrlInit:  Int = 0,
-                  // HAM-DECODER-171 CP-D: shared bitmap write-pipeline alignment.
-                  // writeAddr = hCounter - delay shifts the directcolor/HAM image LEFT by
-                  // `delay` columns. EMPIRICALLY (HamIntegrationSim, even/odd vmap + 2-cycle
-                  // sampling): delay=0 lands the image at dh=0 (correct alignment) byte-exact;
-                  // delay>0 shifts it left (dh=-delay). So 0 is the aligned value for the
-                  // odd-column HAM step path. Kept as a knob for the directcolor path.
-                  bitmapWritePipelineDelay: Int = 0,
-                  // HAM-DECODER-171 CP-D Option-1 sweep: first display column at which the HAM
-                  // decoder begins stepping (once per source pixel, every 2 cols thereafter).
-                  // The decoder must NOT step until bmByteSel holds the first VALID source byte
-                  // (col/2 read + readSync + rdLaneD latency); stepping earlier consumes stale
-                  // bytes and corrupts the per-line hold (worst for modify-led rows). =1 is the
-                  // prior (broken) behavior. Swept in HamIntegrationSim to find the real latency.
-                  hamStepStart: Int = 1) extends Component {
+                  // Shared bitmap write-pipeline alignment. writeAddr = hCounter - delay
+                  // shifts the RGB565 directcolor image LEFT by `delay` columns: delay=0 lands
+                  // the image at dh=0 (aligned) byte-exact; delay>0 shifts it left (dh=-delay).
+                  // (HAM6 shelved 2026-07-20 #14224; this knob now serves the directcolor path.)
+                  bitmapWritePipelineDelay: Int = 0) extends Component {
   // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM is migrated
   // into the SDRAM clock domain. When `sdramCd` is null (sim-default),
   // use the current pixel ClockDomain so single-clock sims keep working;
@@ -1636,10 +1627,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   io.bitmapModeActive      := bitmapEnable
   // CP-1c: tell BitmapRowFetch to use the RGB565 directcolor fetch
   // schedule (2 bytes/pixel, 320 px/row) when bpp=0b10 is selected.
-  // bpp=0b10 RGB565 directcolor and bpp=0b11 HAM (HAM-DECODER-171) both use the
-  // directcolor fetch schedule (col/2, 320 source px/row, burst). HAM carries its
-  // 6-bit code in the low byte of each source entry; the decode happens in the fill.
-  io.bitmapDirectColor     := bitmapEnable && (bitmapBpp === U(2, 2 bits) || bitmapBpp === U(3, 2 bits))
+  // (HAM6 shelved #14224 — bpp=0b11 is now reserved and no longer selects directcolor.)
+  io.bitmapDirectColor     := bitmapEnable && (bitmapBpp === U(2, 2 bits))
   // BITMAP-PLUMB-129: assemble the 23-bit bases (HI##LO) and drive the
   // geometry outputs to BitmapRowFetch via the top level.
   io.bitmapBase            := (bitmapBaseHiReg ## bitmapBaseLoReg).asUInt
@@ -2035,53 +2024,24 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // drained directcolor pixel lands in the same cycle as `paletteRgb`.
   // The fill-side value is the 565→888-expanded pixel from BitmapFetch,
   // gated by bitmapEnable so non-bitmap scenes never see directcolor.
-  // HAM-DECODER-171: HAM SET base colours mirror palette[0..15] truncated to 4:4:4
-  // (distributed regs → 0 BSRAM; avoids a 2nd palette read port). The mirror-write
-  // lives with the palette commit logic below. Host must load palette[0..15] for HAM.
-  val hamBase = Vec(Reg(Bits(12 bits)) init 0, 16)
+  // (HAM6 shelved 2026-07-20 #14224: HamDecoder + hamBase/hamMode/hamCode removed and
+  // bpp=0b11 reserved. The directcolor carrier below is now RGB565-only.)
 
-  // HAM-DECODER-171: Amiga HAM6 decode shares the directcolor carrier (dcLineBuf +
-  // bypass mux). HAM (bpp=0b11) reuses the directcolor fetch (col/2, 320 source px
-  // ×2-stretched); the 6-bit HAM code = low 6 bits of the fetched bitmap byte. The
-  // decoder advances every fill column — the ×2 source repeat is harmless because
-  // re-applying the same HAM code is idempotent (SET reloads base; modify rewrites a
-  // channel to the same value → fixed point), so both columns of a pair agree.
-  val hamMode    = bitmapEnable && (bitmapBpp === U(3, 2 bits))
-  val hamCode    = bmByteSel(5 downto 0)
-  val hamDecoder = HamDecoder()
-  hamDecoder.io.lineStart := hCounter === hTotal - 1   // reset hold one cycle before col 0
-  // HAM-DECODER-171 CP-D (CyanPeak #12998 / PM #12999): the directColor read path
-  // (col/2 + readSync) presents each source byte on a PAIR of display columns. HAM's
-  // accumulator is STATEFUL, so stepping every display column applies each code twice
-  // (and steps at col 0 on stale data) → modify-chain desync (~0.69 match). Step ONCE
-  // per source pixel by gating on ODD columns (hCounter(0)); this also avoids stepping
-  // at col 0 (even) without an extra guard. (Stateless RGB565 is unaffected by the
-  // doubling, so this gate is HAM-only and lives here, not in the shared fetch.)
-  // Step once per source pixel, starting at column `hamStepStart` and every 2 cols after
-  // (parity = parity of hamStepStart). lineStart already reset hold at hTotal-1; the no-step
-  // idle from col 0..hamStepStart-1 holds the seed, so the first step consumes the first
-  // VALID source byte rather than stale data.
-  hamDecoder.io.step := (hCounter >= hamStepStart) && (hCounter < hActive) &&
-                        (hCounter(0) === Bool((hamStepStart & 1) == 1))
-  hamDecoder.io.code      := hamCode
-  hamDecoder.io.baseColor := hamBase(hamCode(3 downto 0).asUInt)
-  hamDecoder.io.seedColor := hamBase(0)
-
-  // RGB565 directcolor (CP-1b) + HAM share this parallel line buffer carrying the
-  // 24-bit RGB plus its active flag {active, rgb[23:0]}, drained co-timed with
-  // `paletteRgb` and bypass-muxed at output.
-  val dcFillActive = (bitmapEnable && (bitmapFetch.io.directColorActive || hamMode)).simPublic()
-  val dcFillRgb    = Mux(hamMode, hamDecoder.io.rgb888, bitmapFetch.io.directRgb)
+  // RGB565 directcolor (CP-1b) parallel line buffer carrying the 24-bit RGB plus its
+  // active flag {active, rgb[23:0]}, drained co-timed with `paletteRgb` and
+  // bypass-muxed at output.
+  val dcFillActive = (bitmapEnable && bitmapFetch.io.directColorActive).simPublic()
+  val dcFillRgb    = bitmapFetch.io.directRgb
   val dcLineBuf = LineBuffer(pixelWidth = 25, lineWidth = hActive)
   // HAM-DECODER-171 CP-D (TopazCliff #12987 / CyanPeak #12986): shared bitmap write-
   // pipeline alignment. The fetch→select→decode path delivers `dcFillRgb` for source
   // column k some cycles AFTER hCounter==k (BitmapRowFetch readSync +1, registered
   // hCounter, etc.), so the dcLineBuf write address lagged its data → +N-column display
-  // shift for BOTH HAM (bpp=0b11) and RGB565 directcolor (bpp=0b10), which share this
+  // shift for RGB565 directcolor (bpp=0b10), which uses this
   // carrier. Delay the write addr/enable by `bitmapWritePipelineDelay` columns so that
   // the value computed for source k lands at dcLineBuf[k]. Compile-time param:
   //   0 = legacy (pre-fix, write addr == hCounter) — exact prior behavior.
-  //   3 = measured-aligned (verified to 100% match by HamIntegrationSim).
+  //   3 = measured-aligned (measured on the directcolor path).
   // Bounds stay Scala-Int constants (hActive/hTotal are Ints) so hCounter is compared
   // against literals — no width extension. writeEnable gates the underflow window when
   // hCounter < delay, so the wrapped writeAddr there is never committed.
@@ -2182,19 +2142,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     paletteWritePtr := paletteWritePtr + 1
   }
 
-  // HAM-DECODER-171: mirror palette[0..15] (8:8:8 → 4:4:4 truncation) into hamBase
-  // on commit, so HAM SET codes index the base palette without a 2nd palette read
-  // port (hamBase is distributed regs → 0 BSRAM). paletteCommitData = R##G##B (888).
-  // CyanPeak #12958: also clear hamBase[0..15] during the soft-reset memory sweep
-  // (matches the palette clear) so HAM SET base does not go stale after a soft reset.
-  when(softResetMemClear) {
-    when(softResetMemAddr < U(16, 14 bits)) {
-      hamBase(softResetMemAddr(3 downto 0)) := B(0, 12 bits)
-    }
-  }.elsewhen(paletteCommitNow && (paletteEntryIdx < U(16, 7 bits))) {
-    hamBase(paletteEntryIdx(3 downto 0)) :=
-      paletteCommitData(23 downto 20) ## paletteCommitData(15 downto 12) ## paletteCommitData(7 downto 4)
-  }
+  // (HAM6 shelved #14224: hamBase palette-mirror + soft-reset clear removed.)
 
   val palette = Mem(Bits(24 bits), initialContent = TileAttributeAssets.paletteInit)
   // Lane #10686: force BSRAM inference (no LUT-RAM / distributed SSRAM).

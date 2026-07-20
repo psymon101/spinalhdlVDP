@@ -18,7 +18,7 @@ import scala.collection.mutable
   *     byte-exact at zero shift (s==0), i.e. it CORRECTS the shift without breaking
   *     the path.
   *
-  * Same faithful mini-Top as HamIntegrationSim (VdpTop + real BitmapRowFetch + a
+  * Same faithful mini-Top pattern (VdpTop + real BitmapRowFetch + a
   * behavioral SDRAM model), but loads a deterministic 320×240 RGB565 pattern and
   * compares the drained directcolor RGB against the RTL's exact 565→888 bit-
   * replication (BitmapFetch.scala:63-69): r8=r5##r5[4:2], g8=g6##g6[5:4],
