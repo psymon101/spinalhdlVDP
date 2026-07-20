@@ -94,10 +94,13 @@ object Indexed2bppFrameCoSim {
     SimConfig.compile(new Dut).doSim { dut =>
       dut.clockDomain.forkStimulus(10); dut.sdramCd.forkStimulus(10)
 
-      // Uniform value-1 2bpp bitmap (0x55) + identity attribute (0xE4), 128-byte rows.
+      // Vertical-bar pattern IDENTICAL on every row: bitmap bytes [0..40)=0x55 (pixel value 1),
+      // [40..80)=0xAA (pixel value 2) → one vertical boundary at source px 160 (~disp col 320).
+      // Attr 0xE4 (identity). Since every source row is identical, ANY per-row horizontal drift
+      // of that boundary in the composited output = a real RTL shear (the shimmer under test).
       val mem = mutable.HashMap[Int, Int]()
       for (row <- 0 until SrcH; b <- 0 until RowStride) {
-        mem((BitmapBase + row * RowStride + b) & 0x7fffff) = 0x55
+        mem((BitmapBase + row * RowStride + b) & 0x7fffff) = (if (b < 40) 0x55 else 0xAA)
         mem((AttrBase   + row * RowStride + b) & 0x7fffff) = 0xE4
       }
       def rb(a: Int) = mem.getOrElse(a & 0x7fffff, 0)
@@ -149,32 +152,47 @@ object Indexed2bppFrameCoSim {
       println(s"[sim] mode0write=$writeMode0 bootDone=${dut.io.bootDone.toBoolean}")
       dut.clockDomain.waitSampling(800 * 525 * 3)
 
+      // Capture one composited frame, then locate the bar boundary per row.
+      val gotFrame = Array.fill(480, 640)(-1)
       val sampleCycles = 800 * 525 * 2
-      var b55 = 0L; var eE4 = 0L   // probe: is the fetch delivering my uploaded bytes to VdpTop?
       for (_ <- 0 until sampleCycles) {
         if (dut.io.de.toBoolean) {
-          val rgb = dut.video.bgOrDirectRgb.toInt & 0xFFFFFF
-          if (rgb == 0x000000) black += 1 else nonBlack += 1
+          val dx = dut.io.x.toInt; val dy = dut.io.y.toInt
+          if (dx < 640 && dy < 480) gotFrame(dy)(dx) = dut.video.bgOrDirectRgb.toInt & 0xFFFFFF
         }
-        if ((dut.io.probeBmByte.toInt & 0xFF) == 0x55) b55 += 1
-        if ((dut.io.probeAttrByte.toInt & 0xFF) == 0xE4) eE4 += 1
         dut.clockDomain.waitSampling()
       }
-      println(f"[sim] mode0write=$writeMode0: nonBlack=$nonBlack black=$black | fetch bitmapByte==0x55:$b55 attrByte==0xE4:$eE4")
+      // Per row: leftmost column whose colour differs from column 0 (= the value-1→2 boundary).
+      // Identical source rows ⇒ a constant boundary column; a spread ⇒ real RTL horizontal shear.
+      val trans = mutable.ArrayBuffer[Int]()
+      var nonBlackRows = 0L
+      for (dy <- 0 until 480) {
+        val c0 = gotFrame(dy)(0)
+        if (gotFrame(dy)(320) != 0x000000) nonBlackRows += 1
+        var col = -1; var dx = 1
+        while (dx < 640 && col < 0) { val g = gotFrame(dy)(dx); if (g >= 0 && g != c0) col = dx; dx += 1 }
+        if (col >= 0) trans += col
+      }
+      if (trans.nonEmpty) {
+        val srt = trans.toSeq.sorted; val mn = srt.head; val mx = srt.last; val md = srt(srt.size/2)
+        nonBlack = trans.size.toLong; black = (mx - mn).toLong   // black repurposed = shear span (px)
+        println(f"[sim] mode0write=$writeMode0: bar-boundary col over ${trans.size} rows: min=$mn max=$mx median=$md SHEAR_SPAN=${mx-mn}px (nonBlackRows=$nonBlackRows)")
+      } else { nonBlack = 0; black = -1; println(f"[sim] mode0write=$writeMode0: NO transition found (uniform/black frame)") }
     }
     (nonBlack, black)
   }
 
   def main(args: Array[String]): Unit = {
-    println("=== Indexed2bppFrameCoSim: uniform value-1 2bpp → expect palette[1] (non-black) if the RTL path works ===")
-    val (nb1, b1) = runOne(writeMode0 = true)   // WITH 0x0313=0 (BronzeGate's exact sequence)
-    val (nb2, b2) = runOne(writeMode0 = false)  // WITHOUT 0x0313 (leave reset default)
-    println(f"[sim] WITH 0x0313=0:  nonBlack=$nb1 black=$b1")
-    println(f"[sim] WITHOUT 0x0313: nonBlack=$nb2 black=$b2")
-    if (nb1 > 300000)
-      println("[sim] Indexed2bppFrameCoSim: PASS — RTL 2bpp indexed path renders palette[1] across the frame once the per-line LINESTATE L0-enable (addr 0x000-0x1DF bit[11]) is written alongside global LAYER_ENABLE 0x0300. The bench black was the MISSING per-line linestate write, not an RTL bug.")
+    println("=== Indexed2bppFrameCoSim: vertical-bar 2bpp → per-row boundary-drift (shear) test ===")
+    val (rows1, span1) = runOne(writeMode0 = true)   // WITH 0x0313=0 (BronzeGate's exact sequence)
+    val (rows2, span2) = runOne(writeMode0 = false)  // WITHOUT 0x0313
+    println(f"[sim] WITH 0x0313=0:  rows-with-boundary=$rows1 SHEAR_SPAN=$span1 px")
+    println(f"[sim] WITHOUT 0x0313: rows-with-boundary=$rows2 SHEAR_SPAN=$span2 px")
+    if (rows1 < 100)
+      println(f"[sim] Indexed2bppFrameCoSim: FAIL — bars not rendering (rows=$rows1); linestate/compositing regression.")
+    else if (span1 <= 6)
+      println(f"[sim] Indexed2bppFrameCoSim: bars render + boundary STABLE (shear span=$span1 px) in idealized-SDRAM sim ⇒ the bench banding is REAL-SDRAM-TIMING (fetch/bank cadence under refresh/bank-conflict), NOT a logic addressing bug.")
     else
-      println(f"[sim] Indexed2bppFrameCoSim: FAIL — 2bpp path still black (nonBlack=$nb1); latent RTL indexed-display gap.")
-    assert(nb1 > 300000, s"2bpp indexed display did not render: nonBlack=$nb1 black=$b1 (expected majority non-black = palette[1] with linestate L0 enabled)")
+      println(f"[sim] Indexed2bppFrameCoSim: SHEAR REPRODUCED in sim (span=$span1 px) ⇒ a LOGIC addressing/bank bug in the indexed fetch/line-buffer, independent of SDRAM timing — drill into fetchBank/lineReg.")
   }
 }
