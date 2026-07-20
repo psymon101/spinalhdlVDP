@@ -377,7 +377,34 @@ static bool indexed2_reg_write(uint32_t reg_addr, uint16_t value)
                  reg_addr, value, esp_err_to_name(err));
         return false;
     }
+    // The word-drain QSPI top has no REG_READ opcode.  READ_STATUS sel=9 is
+    // its authoritative last-register-write loopback, so capture it after
+    // every indexed2 write for the hardware debug packet.
+    uint32_t loopback = 0;
+    esp_err_t read_err = qspi_read_status(READ_STATUS_SEL_LOOPBACK, &loopback,
+                                          2, SANITY_FREQ_HZ);
+    uint32_t expected = ((uint32_t)value << 16) | (reg_addr & 0xFFFFu);
+    if (read_err == ESP_OK) {
+        ESP_LOGI(TAG, "INDEXED2_REG_WRITE addr=0x%04" PRIX32
+                 " value=0x%04X loopback=0x%08" PRIX32 "%s",
+                 reg_addr, value, loopback,
+                 loopback == expected ? " PASS" : " MISMATCH");
+    } else {
+        ESP_LOGE(TAG, "INDEXED2_REG_WRITE addr=0x%04" PRIX32
+                 " value=0x%04X loopback_read err=%s",
+                 reg_addr, value, esp_err_to_name(read_err));
+    }
     return true;
+}
+
+static void indexed2_log_prefix(const char *name, const uint8_t *bytes)
+{
+    for (size_t i = 0; i < 32u; i += 8u) {
+        ESP_LOGI(TAG, "INDEXED2_%s[%u..%u] %02X %02X %02X %02X %02X %02X %02X %02X",
+                 name, (unsigned)i, (unsigned)(i + 7u), bytes[i + 0u],
+                 bytes[i + 1u], bytes[i + 2u], bytes[i + 3u], bytes[i + 4u],
+                 bytes[i + 5u], bytes[i + 6u], bytes[i + 7u]);
+    }
 }
 
 static bool indexed2_load_palette(void)
@@ -420,6 +447,8 @@ static void indexed2_build_image(void)
     }
     ESP_LOGI(TAG, "INDEXED2 image generated width=%u height=%u row_bytes=%u stride=%u",
              INDEXED2_WIDTH, INDEXED2_HEIGHT, INDEXED2_ROW_BYTES, INDEXED2_ROW_STRIDE);
+    indexed2_log_prefix("BITMAP_PREFIX", s_indexed2_bitmap);
+    indexed2_log_prefix("ATTR_PREFIX", s_indexed2_attr);
 }
 
 static bool indexed2_upload_image(void)
@@ -453,6 +482,7 @@ static bool run_indexed2_proof(void)
     bool ok = true;
 
     ESP_LOGI(TAG, "INDEXED2_PROOF begin source=320x240 display=640x480");
+    ESP_LOGI(TAG, "INDEXED2_READ_REG note=QSPITop has no REG_READ; sel=9 loopback follows each REG_WRITE");
     if (qspi_read_status(READ_STATUS_SEL_MAGIC, &magic, 2, SANITY_FREQ_HZ) != ESP_OK) {
         ESP_LOGE(TAG, "INDEXED2_MAGIC read failed");
         return false;
