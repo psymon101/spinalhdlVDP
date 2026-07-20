@@ -52,6 +52,10 @@ object QspiFramingSim extends App {
     dec.io.upload_done      := False
     dec.io.upload_error     := False
     dec.io.upload_overflow  := False
+    // Word-drain byte/word egress inputs (added by transport-core cherry-pick a4dcdf4);
+    // this legacy-slave framing sim exercises the payload_byte path, so tie them inactive.
+    dec.io.payload_word       := 0
+    dec.io.payload_word_valid := False
     io.cmd_opcode       := slave.io.cmd_opcode
     io.cmd_valid        := slave.io.cmd_valid
     io.last_error       := dec.io.last_error

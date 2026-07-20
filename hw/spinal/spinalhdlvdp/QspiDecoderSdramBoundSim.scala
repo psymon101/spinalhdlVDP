@@ -25,6 +25,10 @@ object QspiDecoderSdramBoundSim extends App {
     dut.io.tx_byte_sent #= false; dut.io.active #= false; dut.io.status_sticky #= 0
     dut.io.live_mode #= 0; dut.io.debug_sdram_data #= 0
     dut.io.upload_busy #= false; dut.io.upload_done #= false; dut.io.upload_error #= false; dut.io.upload_overflow #= false
+    // Word-drain word-egress inputs (added by transport-core cherry-pick a4dcdf4). This sim
+    // exercises the legacy payload_byte SDRAM path; hold the word path inactive so it cannot
+    // drain sdramBytesLeft (-2/word) and starve the byte forward under test.
+    dut.io.payload_word #= 0; dut.io.payload_word_valid #= false
     dut.clockDomain.waitSampling(5)
 
     val fwd = mutable.ArrayBuffer[Int]()

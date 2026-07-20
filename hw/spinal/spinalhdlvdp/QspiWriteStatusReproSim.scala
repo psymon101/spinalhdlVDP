@@ -83,6 +83,10 @@ object QspiWriteStatusReproSim extends App {
     dec.io.upload_done := bridge.io.uploadDone
     dec.io.upload_error := bridge.io.uploadError
     dec.io.upload_overflow := bridge.io.fifoOverflow
+    // Word-drain byte/word egress inputs (added by transport-core cherry-pick a4dcdf4);
+    // this legacy write-status sim exercises the payload_byte path, so tie them inactive.
+    dec.io.payload_word       := 0
+    dec.io.payload_word_valid := False
 
     val fireCnt = Reg(UInt(16 bits)) init 0
     when(bridge.io.wrCmd.fire) { fireCnt := fireCnt + 1 }
