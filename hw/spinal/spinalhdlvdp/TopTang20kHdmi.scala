@@ -562,9 +562,11 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     }
     val dbgAddr = dbgArmedAddr   // stable, CDC-coherent 23-bit armed address
     // Result wire driven from the sdram-domain read FSM via BufferCC (top level).
-    // Still consumed by the i80 reg-read path (0x0328/9) below; the QSPI READ_STATUS
-    // sel=8 consumer is dropped under the MVP surface (#13975).
+    // Consumed by the i80 reg-read path (0x0328/9) below AND by the QSPI word-drain
+    // READ_STATUS sel=8 surface (#14246 — re-enabled to split upload vs downstream on the
+    // 2bpp banding). qspiCore CDCs it into its SCLK responder (quasi-static, 2FF-safe).
     val debugSdramDataPix = Bits(32 bits)
+    qspiCore.io.debug_sdram_data := debugSdramDataPix
 
     // === Lane P22: i80 reg-read access to the SDRAM debug readback surface =====
     // P21's i80 reg-read was a last-write loopback. P22 needs byte-exact SDRAM

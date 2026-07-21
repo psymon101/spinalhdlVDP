@@ -48,6 +48,12 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
     val overflow       = out Bool()        // sticky: token FIFO overflowed (should never fire post-drain-fix)
     val malformed      = out Bool()        // sticky: a header arrived with a dangling half-word (odd payload)
     val hdrErr         = out Bool()        // sticky: a header parity mismatch was seen (hdrParity only)
+    // HAM6-2bpp #14246: 32-bit SDRAM debug readback word (armed via TopTang regs
+    // 0x0326/0x0327, one-shot read in the sdram domain), surfaced over READ_STATUS sel=8.
+    // Quasi-static in the clk_sys domain (armed once → one-shot read completes → then read
+    // via sel=8), so a 2FF BufferCC into the SCLK responder is safe — same justification as
+    // the sel=9 loopback. Lets the host split QSPI-upload corruption from downstream defects.
+    val debug_sdram_data = in Bits(32 bits)
   }
 
   val sysCd = ClockDomain(clock = io.clk, config = ClockDomainConfig(resetKind = BOOT))
@@ -87,6 +93,9 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
   val loop = new ClockingArea(sclkGlobalCd) {
     val lastDataCC = BufferCC(sys.lastRegData, B(0, 16 bits))
     val lastAddrCC = BufferCC(sys.lastRegAddr, U(0, 16 bits))
+    // sel=8 SDRAM readback: quasi-static debug word (armed via 0x0326/0x0327), 2FF-synced
+    // into the SCLK responder — same static-value CDC justification as the loopback above.
+    val dbgSdramCC = BufferCC(io.debug_sdram_data, B(0, 32 bits))
     // header parity error: sticky flag + running count (survive CS# on the global reset)
     val hdrErrSticky = Reg(Bool()) init False
     val hdrErrCount  = Reg(UInt(16 bits)) init 0
@@ -153,6 +162,7 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
   switch(sel) {
     is(U(0, 8 bits)) { rxWordSel := B"32'h51560002" }                                 // magic
     is(U(7, 8 bits)) { rxWordSel := B(0, 15 bits) ## loop.hdrErrSticky ## loop.hdrErrCount.asBits }  // {sticky, count}
+    is(U(8, 8 bits)) { rxWordSel := loop.dbgSdramCC }                                  // SDRAM debug readback (#14246; armed via 0x0326/0x0327)
     is(U(9, 8 bits)) { rxWordSel := loop.lastDataCC ## loop.lastAddrCC.asBits }        // loopback {data,addr}
     is(U(10, 8 bits)){ rxWordSel := B(0, 30 bits) ## push.malformed ## push.overflow } // transport health
     default          { rxWordSel := B(0, 32 bits) }
