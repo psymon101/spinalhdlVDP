@@ -718,7 +718,9 @@ static bool run_indexed2_proof(void)
     }
     readback_pass = indexed2_readback_samples();
     if (!readback_pass) {
-        return false;
+        // Keep the proof sequence running so the post-enable transport-health
+        // sample is still collected; the final result remains FAIL.
+        ok = false;
     }
     if (!indexed2_enable_linestate_l0() ||
         !indexed2_reg_write(0x0350u, 0x0003u) || // enable + BPP=0b01 (2bpp indexed)
