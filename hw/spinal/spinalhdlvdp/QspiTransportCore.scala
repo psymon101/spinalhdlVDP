@@ -23,7 +23,7 @@ case class QspiToken() extends Bundle {
   *                    GLOBAL reset (survives CS# deassert).
   * [clk_sys]          QspiDecoder + regBus + SDRAM bridge outputs.
   */
-case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrParity: Boolean = false) extends Component {
+case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrParity: Boolean = false, externalSysCd: ClockDomain = null) extends Component {
   val io = new Bundle {
     val clk   = in  Bool()                 // continuous system clock
     val sclk  = in  Bool()                 // QSPI clock (gated)
@@ -56,7 +56,10 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
     val debug_sdram_data = in Bits(32 bits)
   }
 
-  val sysCd = ClockDomain(clock = io.clk, config = ClockDomainConfig(resetKind = BOOT))
+  // DIAG #14260 sim integration: allow a parent to supply the sys clock domain so the
+  // core can be wired to downstream logic (e.g. QspiSdramBridge) in the SAME domain.
+  // Default preserves legacy behavior: core creates its own sysCd from io.clk.
+  val sysCd = if (externalSysCd != null) externalSysCd else ClockDomain(clock = io.clk, config = ClockDomainConfig(resetKind = BOOT))
 
   val slave = QspiSlaveSync(dummyCycles = dummyCycles, hdrParity = hdrParity)
   slave.io.sclk := io.sclk

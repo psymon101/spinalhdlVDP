@@ -67,6 +67,10 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
     // Routed to READ_STATUS sel=6 bit3 for host diagnosis. byteValid has no flow
     // control, so this is the only signal that a byte was dropped at ingress.
     val fifoOverflow = out Bool()
+    // DIAG #14260: temporary debug taps for sim integration diagnosis.
+    val dbgHdrPushed  = out Bool()
+    val dbgBytePushed = out Bool()
+    val dbgFsmState   = out Bits(3 bits)
   }
 
   val addrReg   = Reg(UInt(23 bits)) init 0
@@ -186,4 +190,12 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
   io.uploadDone := donePulse
   io.uploadError := uploadError
   io.fifoOverflow := fifoOverflow
+
+  io.dbgHdrPushed  := RegNext(io.headerValid && hdrFifo.io.push.ready, False)
+  io.dbgBytePushed := RegNext(io.byteValid && byteFifo.io.push.ready, False)
+  io.dbgFsmState   := Cat(
+    fsm.isActive(fsm.sIdle),
+    fsm.isActive(fsm.sActive),
+    fsm.isActive(fsm.sDone)
+  )
 }
