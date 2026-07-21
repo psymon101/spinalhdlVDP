@@ -50,7 +50,7 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 | Lane | Owner | Blocker | Mail Thread |
 |---|---|---|---|
-| HAM6 removal + 2bpp indexed replacement | BronzeGate | Readback now shows first lower bitmap mismatch at `0x106400` (`0xFFFFFFFF` vs expected `0x00000000`); upper bitmap/color samples and attribute samples match. Needs BrightForge/TopazCliff decision on upload/SDRAM-path ownership before any firmware or RTL change. | #14232/#14234/#14239/#14241/#14244/#14246/#14247/#14249 |
+| HAM6 removal + 2bpp indexed replacement | BronzeGate | Ownership settled: BrightForge #14252 verified `dbgReadArea` is race-protected and #14255 row-coded co-sim proves VdpTop lookahead is correct (479/480 rows). The display path is exonerated; the defect is genuine SDRAM content corruption in bitmap rows 200-201 produced by the QSPI upload/transport path. Transport health at sel=0x0A is clean even during corruption, so the fault is subtle (chunk boundary, address slip, or transient SCLK/nibble issue near byte offset 25,600). | #14232/#14234/#14239/#14241/#14244/#14246/#14247/#14249/#14250/#14251/#14252/#14254/#14255 |
 
 ---
 
