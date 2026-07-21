@@ -109,6 +109,8 @@ static const spi_clock_source_t QSPI_CLOCK_SOURCE = SPI_CLK_SRC_SPLL;
 static const uint32_t EXPECTED_MAGIC = 0x51560002u;
 static const uint32_t BITMAP_BASE = 0x100000u;
 static const uint32_t ATTR_BASE = 0x110000u;
+static const uint32_t ROW200_BASE = BITMAP_BASE + (200u * ROW_STRIDE);
+static const uint32_t ROW201_BASE = BITMAP_BASE + (201u * ROW_STRIDE);
 
 /* --------------------------------------------------------------------------
  * State
@@ -409,6 +411,8 @@ static bool upload_planes(void)
         return false;
     }
 
+    ESP_LOGI(TAG, "bitmap upload addr=0x%06" PRIX32 " bytes=%u tx_bytes=%u chunking=single",
+             BITMAP_BASE, (unsigned)sizeof(s_bitmap), (unsigned)(sizeof(s_bitmap) + 2u));
     err = qspi_sdram_write(BITMAP_BASE, s_bitmap, sizeof(s_bitmap));
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "bitmap upload err=%s", esp_err_to_name(err));
@@ -432,6 +436,38 @@ static bool upload_planes(void)
         return false;
     }
     return true;
+}
+
+static void dump_upload_window(void)
+{
+    /* Dump the source words spanning bitmap byte offset 25,600..25,900
+     * before any SDRAM transaction, so image-generation errors are separated
+     * from transport corruption. */
+    for (size_t offset = 25600u; offset <= 25896u; offset += 16u) {
+        ESP_LOGI(TAG,
+                 "UPLOAD_WINDOW offset=%u addr=0x%06" PRIX32
+                 " words=0x%08" PRIX32 ",0x%08" PRIX32 ",0x%08" PRIX32 ",0x%08" PRIX32,
+                 (unsigned)offset, BITMAP_BASE + (uint32_t)offset,
+                 bytes_to_u32_le(s_bitmap + offset),
+                 bytes_to_u32_le(s_bitmap + offset + 4u),
+                 bytes_to_u32_le(s_bitmap + offset + 8u),
+                 bytes_to_u32_le(s_bitmap + offset + 12u));
+    }
+}
+
+static bool log_transport_health(const char *label)
+{
+    uint32_t raw = 0u;
+    esp_err_t err = qspi_read_status(SEL_TRANSPORT_HEALTH, &raw);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "%s err=%s", label, esp_err_to_name(err));
+        return false;
+    }
+    bool overflow = (raw & 0x1u) != 0u;
+    bool malformed = (raw & 0x2u) != 0u;
+    ESP_LOGI(TAG, "%s raw=0x%08" PRIX32 " overflow=%u malformed=%u",
+             label, raw, overflow ? 1u : 0u, malformed ? 1u : 0u);
+    return !overflow && !malformed;
 }
 
 /* --------------------------------------------------------------------------
@@ -485,12 +521,44 @@ static bool verify_checkerboard_samples(void)
     return pass;
 }
 
+static bool verify_row200_samples(void)
+{
+    static const uint32_t offsets[] = {0u, 8u, 16u, 24u};
+    bool pass = true;
+
+    for (size_t row = 0; row < 2u; ++row) {
+        uint32_t row_base = (row == 0u) ? ROW200_BASE : ROW201_BASE;
+        for (size_t i = 0; i < (sizeof(offsets) / sizeof(offsets[0])); ++i) {
+            uint32_t addr = row_base + offsets[i];
+            uint32_t got = 0u;
+            uint32_t expected = bytes_to_u32_le(s_bitmap + (addr - BITMAP_BASE));
+
+            if (!readback_word(addr, &got)) {
+                ESP_LOGE(TAG, "ROW200_READBACK FAIL addr=0x%06" PRIX32 " read failed", addr);
+                pass = false;
+            } else if (got != expected) {
+                ESP_LOGE(TAG,
+                         "ROW200_READBACK FAIL addr=0x%06" PRIX32
+                         " expected=0x%08" PRIX32 " got=0x%08" PRIX32,
+                         addr, expected, got);
+                pass = false;
+            } else {
+                ESP_LOGI(TAG, "ROW200_READBACK PASS addr=0x%06" PRIX32 " value=0x%08" PRIX32,
+                         addr, got);
+            }
+        }
+    }
+    return pass;
+}
+
 /* --------------------------------------------------------------------------
  * Main display bring-up
  * -------------------------------------------------------------------------- */
 
 static bool bringup_display(void)
 {
+    bool proof_ok = true;
+
     if (!reg_write(REG_LAYER_ENABLE, 0x0000u) ||       /* disable all layers */
         !reg_write(REG_MODE_SELECT, 0x0000u) ||        /* native Mode0 */
         !reg_write(REG_BITMAP_BASE_LO, (uint16_t)(BITMAP_BASE & 0xFFFFu)) ||
@@ -516,9 +584,20 @@ static bool bringup_display(void)
         return false;
     }
 
-    if (!verify_checkerboard_samples()) {
+    proof_ok &= log_transport_health("HEALTH_AFTER_UPLOAD");
+    bool basic_readback_pass = verify_checkerboard_samples();
+    bool row200_readback_pass = verify_row200_samples();
+    proof_ok &= basic_readback_pass && row200_readback_pass;
+    if (!basic_readback_pass || !row200_readback_pass) {
         /* Continue to enable anyway so the failure is visible on HDMI too. */
         ESP_LOGW(TAG, "readback verification failed; continuing to enable display");
+        if (!row200_readback_pass) {
+            /* Capture the sticky transport state immediately and twice more
+             * after a row-200 failure, per the upload investigation packet. */
+            log_transport_health("HEALTH_AFTER_ROW200_FAIL_1");
+            log_transport_health("HEALTH_AFTER_ROW200_FAIL_2");
+            log_transport_health("HEALTH_AFTER_ROW200_FAIL_3");
+        }
     }
 
     if (!write_linestate_l0()) {
@@ -531,8 +610,9 @@ static bool bringup_display(void)
         return false;
     }
 
+    proof_ok &= log_transport_health("HEALTH_AFTER_ENABLE");
     ESP_LOGI(TAG, "display enabled");
-    return true;
+    return proof_ok;
 }
 
 /* --------------------------------------------------------------------------
@@ -571,6 +651,7 @@ void app_main(void)
              magic, qspi_get_actual_freq_hz());
 
     build_checkerboard();
+    dump_upload_window();
     ok = bringup_display();
 
     if (ok) {
