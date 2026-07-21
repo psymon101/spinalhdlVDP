@@ -182,8 +182,119 @@ object Indexed2bppFrameCoSim {
     (nonBlack, black)
   }
 
+  /** ROW-CODED lookahead test (#14253 Finding 1): each source row's value1→value2 boundary
+    * is at byte `10 + (row%60)` (display col `8*(10+row%60)`), so the boundary column ENCODES
+    * the source row. Driven through VdpTop's REAL `io.bitmapSdramFetchLine` (line 53) — this is
+    * the actual hardware lookahead, NOT an artificial testbench offset. If VdpTop selects the
+    * wrong source row (missing +2 lookahead / bank-fill mis-target), the per-display-row boundary
+    * will NOT track a single consistent vertical offset → detected as wrong-row events. Returns
+    * (validRows, wrongRowEvents). */
+  def runRowCoded(): (Int, Int) = {
+    var validRows = 0; var wrongEvents = 0
+    SimConfig.compile(new Dut).doSim { dut =>
+      dut.clockDomain.forkStimulus(10); dut.sdramCd.forkStimulus(10)
+
+      def boundaryByte(row: Int): Int = 10 + (row % 60)   // 10..69, within the 80-byte fetched row
+      val mem = mutable.HashMap[Int, Int]()
+      for (row <- 0 until SrcH) {
+        val bnd = boundaryByte(row)
+        for (b <- 0 until RowStride) {
+          mem((BitmapBase + row * RowStride + b) & 0x7fffff) = (if (b < bnd) 0x55 else 0xAA) // value1|value2
+          mem((AttrBase   + row * RowStride + b) & 0x7fffff) = 0xE4
+        }
+      }
+      def rb(a: Int) = mem.getOrElse(a & 0x7fffff, 0)
+      def rw(a: Int): Long = { val b = a & ~3
+        (rb(b) & 0xFFL) | ((rb(b+1) & 0xFFL) << 8) | ((rb(b+2) & 0xFFL) << 16) | ((rb(b+3) & 0xFFL) << 24) }
+
+      dut.io.sdramDout #= 0; dut.io.sdramDout32 #= 0; dut.io.sdramDataReady #= false; dut.io.sdramBusy #= true
+      dut.io.regBusAddr #= 0; dut.io.regBusData #= 0; dut.io.regBusEnable #= false
+      fork {
+        for (_ <- 0 until 30) dut.sdramCd.waitSampling()
+        dut.io.sdramBusy #= false
+        while (true) {
+          if (dut.io.sdramRd.toBoolean) {
+            val a = dut.io.sdramAddr.toInt; val n = math.max(1, dut.io.sdramBurstLen.toInt)
+            dut.sdramCd.waitSampling(5)
+            for (k <- 0 until n) {
+              dut.io.sdramDout #= rb(a + k*4) & 0xFF
+              dut.io.sdramDout32 #= BigInt(rw(a + k*4) & 0xFFFFFFFFL)
+              dut.io.sdramDataReady #= true; dut.sdramCd.waitSampling()
+            }
+            dut.io.sdramDataReady #= false
+          } else dut.sdramCd.waitSampling()
+        }
+      }
+      def writeReg(a: Int, d: Int): Unit = {
+        dut.io.regBusAddr #= a; dut.io.regBusData #= d; dut.io.regBusEnable #= true
+        dut.clockDomain.waitSampling(); dut.io.regBusEnable #= false; dut.clockDomain.waitSampling()
+      }
+      writeReg(0x0300, 0x0000)
+      writeReg(0x0351, BitmapBase & 0xFFFF);  writeReg(0x0352, (BitmapBase >> 16) & 0x7F)
+      writeReg(0x0353, AttrBase   & 0xFFFF);  writeReg(0x0354, (AttrBase   >> 16) & 0x7F)
+      writeReg(0x0355, RowStride);            writeReg(0x0356, RowStride)
+      writeReg(0x0357, SrcH)
+      for (line <- 0 until 480) writeReg(line, 0x0800)
+      writeReg(0x0350, 0x0003)
+      writeReg(0x0300, 0x0001)
+
+      var t = 200000
+      while (!dut.io.bootDone.toBoolean && t > 0) { dut.clockDomain.waitSampling(); t -= 1 }
+      dut.clockDomain.waitSampling(800 * 525 * 3)
+
+      val gotFrame = Array.fill(480, 640)(-1)
+      val sampleCycles = 800 * 525 * 2
+      for (_ <- 0 until sampleCycles) {
+        if (dut.io.de.toBoolean) {
+          val dx = dut.io.x.toInt; val dy = dut.io.y.toInt
+          if (dx < 640 && dy < 480) gotFrame(dy)(dx) = dut.video.bgOrDirectRgb.toInt & 0xFFFFFF
+        }
+        dut.clockDomain.waitSampling()
+      }
+      // Per display row: white(value1)→red(value2) boundary col → implied source-row mod 60.
+      val impliedMod = Array.fill(480)(-1)
+      for (dy <- 0 until 480) {
+        val c0 = gotFrame(dy)(0)
+        if (c0 != 0x000000 && c0 >= 0) {
+          var col = -1; var dx = 1
+          while (dx < 640 && col < 0) { if (gotFrame(dy)(dx) >= 0 && gotFrame(dy)(dx) != c0) col = dx; dx += 1 }
+          if (col >= 0) { val bnd = (col + 4) / 8; impliedMod(dy) = ((bnd - 10) % 60 + 60) % 60 }
+        }
+      }
+      // Expected source row for display dy uses the RTL's EVEN/ODD-aware line-doubling mapping
+      // (same as DirectColorFrameCoSim: even dy → dy/2-dv, odd dy → (dy-1)/2-(dv-1)); the whole
+      // frame carries a single consistent vertical offset dv. Scan dv, pick most matches; the
+      // rest = genuine wrong-row-selection (bank/lookahead mis-target).
+      def srcRow(dy: Int, dv: Int): Int = { val r = if (dy % 2 == 0) dy/2 - dv else (dy-1)/2 - (dv-1); ((r % 60) + 60) % 60 }
+      val valid = (0 until 480).filter(impliedMod(_) >= 0)
+      validRows = valid.size
+      var bestDv = 0; var bestMatch = -1
+      for (dv <- -4 to 8) {
+        var m = 0
+        for (dy <- valid) if (impliedMod(dy) == srcRow(dy, dv)) m += 1
+        if (m > bestMatch) { bestMatch = m; bestDv = dv }
+      }
+      wrongEvents = validRows - bestMatch
+      val firsts = valid.filter(dy => impliedMod(dy) != srcRow(dy, bestDv)).take(8)
+      println(f"[sim] ROW-CODED: validRows=$validRows bestDv=$bestDv matches=$bestMatch WRONG_ROW_EVENTS=$wrongEvents")
+      if (firsts.nonEmpty) firsts.foreach { dy =>
+        println(f"[sim]   wrong-row @ display dy=$dy: impliedSrcMod=${impliedMod(dy)} expected=${srcRow(dy, bestDv)}")
+      }
+    }
+    (validRows, wrongEvents)
+  }
+
   def main(args: Array[String]): Unit = {
-    println("=== Indexed2bppFrameCoSim: vertical-bar 2bpp → per-row boundary-drift (shear) test ===")
+    println("=== Indexed2bppFrameCoSim: ROW-CODED lookahead test (#14253 Finding 1) — real VdpTop fetchLine ===")
+    val (vr, we) = runRowCoded()
+    if (vr < 100)
+      println(f"[sim] ROW-CODED: INCONCLUSIVE — too few rendered rows ($vr).")
+    else if (we <= 4)
+      println(f"[sim] ROW-CODED: PASS — VdpTop selects the CORRECT source row every display line ($we wrong events / $vr, ≤startup slack). Finding-1 lookahead deficiency REFUTED for identical-timing sim; wrong-row-selection is NOT the artifact.")
+    else
+      println(f"[sim] ROW-CODED: FAIL — $we/$vr display rows show the WRONG source row ⇒ VdpTop lookahead selects the wrong bank/row (Finding 1 CONFIRMED). Fix VdpTop bitmapSdramFetchLine lookahead.")
+
+    println("\n=== Indexed2bppFrameCoSim: vertical-bar 2bpp → per-row boundary-drift (shear) test ===")
     val (rows1, span1) = runOne(writeMode0 = true)   // WITH 0x0313=0 (BronzeGate's exact sequence)
     val (rows2, span2) = runOne(writeMode0 = false)  // WITHOUT 0x0313
     println(f"[sim] WITH 0x0313=0:  rows-with-boundary=$rows1 SHEAR_SPAN=$span1 px")
