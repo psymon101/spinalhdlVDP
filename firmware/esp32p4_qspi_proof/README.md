@@ -118,10 +118,11 @@ Note: a retired legacy front-end required a 2-byte `LEN=0` field on reads; the a
 | `4` | `{24'b0, last_error[7:0]}` | Last unknown-opcode / framing error byte. Legacy front-end only; not implemented on active word-drain transport. |
 | `6` | `{28'b0, upload_overflow, upload_error, upload_done, upload_busy}` | SDRAM upload bridge status. Legacy front-end only; not implemented on active word-drain transport. |
 | `7` | `{1'b0, hdrErrSticky, hdrErrCount[14:0]}` | Header-parity error sticky + count. Word-drain parity build only. |
+| `8` | 32-bit SDRAM word at the address armed by register writes to `0x0326` (LO) and `0x0327` (HI) | Readback-enabled word-drain bitstream `aaa0fea2`; HI write arms the one-shot read. |
 | `9` | `{lastData[15:0], lastAddr[15:0]}` | Loopback: final `REG_WRITE` data and address. Used for content-exact verification. |
 | `10` | `{30'b0, malformed, overflow}` | **Transport health word.** `overflow` = SCLK→`clk_sys` FIFO overflowed. `malformed` = odd-byte framing detected. **Active word-drain transport.** |
 
-On the word-drain bring-up top (`TopTang20kQspi`) the VdpTop diagnostic sels (`5`, `6`, `8`) are tied to zero or not connected. `sel=8` SDRAM content reads `0` here; real SDRAM readback is a VdpTop-184 integration test. The legacy HAM top used `sel=4` (last_error) and `sel=6` (upload status) instead of `sel=10`, but that path is retired.
+The readback-enabled word-drain bitstream (`project.fs` SHA-256 `aaa0fea2336081dfb2905246555ecc8e31d3c11528149600a56ef207ba86004a`) exposes `sel=8`. Write the low address to `0x0326`, then the high 7 address bits to `0x0327`; the high write arms a one-shot SDRAM read. Read `sel=8` after a short settling delay. The legacy HAM top used `sel=4` (last_error) and `sel=6` (upload status) instead of `sel=10`, but that path is retired.
 
 ---
 
@@ -311,8 +312,8 @@ assert(health == 0x00000000);           // overflow=0, malformed=0
 | Visual output | HDMI capture matches the reference HAM6 image within agreed tolerance (e.g. no macroscopic color corruption, no tearing). |
 | No watchdog resets | P4 log shows no `Task watchdog got triggered` messages. |
 
-### What does NOT need to pass on this bitstream
-- `READ_STATUS sel=8` SDRAM content readback: it is hardwired to `0` on the bring-up top and requires VdpTop-184 for real SDRAM readback.
+### Readback proof on the current bitstream
+- `READ_STATUS sel=8` is part of the current readback-enabled proof surface. Compare returned words against the exact uploaded bitmap/attribute bytes at upper and lower rows; the high-address write arms the one-shot SDRAM read.
 - `READ_STATUS sel=4` and `sel=6`: these are legacy-front-end diagnostics; the active word-drain transport uses `sel=10` for health.
 
 ### Proof packet

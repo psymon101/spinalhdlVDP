@@ -29,6 +29,7 @@
 #include "esp_err.h"
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_rom_sys.h"
 #include "esp_timer.h"
 #include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
@@ -86,6 +87,7 @@ static const uint32_t PHASE1_PROGRESS_INTERVAL = 1000000u;
 static const uint32_t PHASE2_PROGRESS_INTERVAL = 25000u;
 static const uint8_t READ_STATUS_SEL_MAGIC = 0x00u;
 static const uint8_t READ_STATUS_SEL_HDR_ERR = 0x07u;
+static const uint8_t READ_STATUS_SEL_SDRAM = 0x08u;
 static const uint8_t READ_STATUS_SEL_LOOPBACK = 0x09u;
 static const uint8_t READ_STATUS_SEL_TRANSPORT_HEALTH = 0x06u;
 static const uint32_t REG_WRITE_ADDR = 0x0305u;
@@ -94,6 +96,8 @@ static const uint32_t LOOPBACK_WRITE_ADDR = 0x0042u;
 static const uint16_t LOOPBACK_WRITE_VALUE = 0x1234u;
 static const uint32_t EXPECTED_MAGIC = 0x51560002u;
 static const uint32_t EXPECTED_LOOPBACK = 0x12340042u;
+static const uint32_t REG_SDRAM_READ_ADDR_LO = 0x0326u;
+static const uint32_t REG_SDRAM_READ_ADDR_HI = 0x0327u;
 static const uint32_t DMA_BUF_SIZE = 65536u;
 // ESP32-P4 SPI_MS_DATA_BITLEN is an 18-bit count of data-phase bits. Keep
 // every QIO TX transaction below its 32767-byte maximum.
@@ -547,6 +551,90 @@ static bool indexed2_upload_image(void)
     return true;
 }
 
+static bool indexed2_expected_word(uint32_t addr, uint32_t *expected_out)
+{
+    const uint32_t bitmap_base = 0x100000u;
+    const uint32_t attr_base = 0x110000u;
+    const uint8_t *source = NULL;
+    size_t offset = 0u;
+
+    if (expected_out == NULL) {
+        return false;
+    }
+    if (addr >= bitmap_base && (addr - bitmap_base) <= (sizeof(s_indexed2_bitmap) - 4u)) {
+        source = s_indexed2_bitmap;
+        offset = (size_t)(addr - bitmap_base);
+    } else if (addr >= attr_base && (addr - attr_base) <= (sizeof(s_indexed2_attr) - 4u)) {
+        source = s_indexed2_attr;
+        offset = (size_t)(addr - attr_base);
+    } else {
+        return false;
+    }
+    *expected_out = bytes_to_u32_le(source + offset);
+    return true;
+}
+
+static bool indexed2_readback_samples(void)
+{
+    // Upper/lower rows plus one word from each visible color bar and both
+    // planes.  The arm protocol is fixed by BrightForge #14249:
+    // 0x0326=address[15:0], 0x0327=address[22:16] and the HI write arms the
+    // one-shot SDRAM read returned by READ_STATUS sel=8.
+    static const uint32_t sample_addresses[] = {
+        0x100000u, 0x100080u, 0x100100u,
+        0x100014u, 0x100028u, 0x10003Cu,
+        0x106400u, 0x106480u, 0x106500u,
+        0x106414u, 0x106428u, 0x10643Cu,
+        0x110000u, 0x110080u, 0x116400u,
+    };
+    bool pass = true;
+    uint32_t first_bad_addr = 0u;
+    uint32_t first_bad_expected = 0u;
+    uint32_t first_bad_got = 0u;
+
+    for (size_t i = 0; i < (sizeof(sample_addresses) / sizeof(sample_addresses[0])); ++i) {
+        const uint32_t addr = sample_addresses[i];
+        uint32_t expected = 0u;
+        uint32_t got = 0u;
+        if (!indexed2_expected_word(addr, &expected)) {
+            ESP_LOGE(TAG, "INDEXED2_READBACK invalid sample addr=0x%06" PRIX32, addr);
+            return false;
+        }
+        if (!indexed2_reg_write(REG_SDRAM_READ_ADDR_LO, (uint16_t)(addr & 0xFFFFu)) ||
+            !indexed2_reg_write(REG_SDRAM_READ_ADDR_HI, (uint16_t)((addr >> 16) & 0x007Fu))) {
+            ESP_LOGE(TAG, "INDEXED2_READBACK arm failed addr=0x%06" PRIX32, addr);
+            return false;
+        }
+        esp_rom_delay_us(20u);
+        esp_err_t err = qspi_read_status(READ_STATUS_SEL_SDRAM, &got, 2, 0u);
+        if (err != ESP_OK || got != expected) {
+            if (pass) {
+                first_bad_addr = addr;
+                first_bad_expected = expected;
+                first_bad_got = got;
+            }
+            pass = false;
+            ESP_LOGE(TAG,
+                     "INDEXED2_READBACK FAIL addr=0x%06" PRIX32
+                     " expected=0x%08" PRIX32 " got=0x%08" PRIX32 " err=%s",
+                     addr, expected, got, esp_err_to_name(err));
+        } else {
+            ESP_LOGI(TAG, "INDEXED2_READBACK PASS addr=0x%06" PRIX32 " value=0x%08" PRIX32,
+                     addr, got);
+        }
+    }
+    if (!pass) {
+        ESP_LOGE(TAG,
+                 "INDEXED2_READBACK_DONE pass=0 first_bad_addr=0x%06" PRIX32
+                 " expected=0x%08" PRIX32 " got=0x%08" PRIX32,
+                 first_bad_addr, first_bad_expected, first_bad_got);
+        return false;
+    }
+    ESP_LOGI(TAG, "INDEXED2_READBACK_DONE pass=1 samples=%u",
+             (unsigned)(sizeof(sample_addresses) / sizeof(sample_addresses[0])));
+    return true;
+}
+
 static bool indexed2_enable_linestate_l0(void)
 {
     // LINESTATE prepare entries are one register per active display line.
@@ -568,6 +656,7 @@ static bool run_indexed2_proof(void)
     uint32_t health_before = 0;
     uint32_t health_after_upload = 0;
     uint32_t health_after_enable = 0;
+    bool readback_pass = false;
     bool ok = true;
 
     if (qspi_reconfigure_device(QSPI_FUNCTIONAL_CLOCK_HZ, s_input_delay_ns) != ESP_OK) {
@@ -619,6 +708,10 @@ static bool run_indexed2_proof(void)
         qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_after_upload, 2, 0u) != ESP_OK) {
         return false;
     }
+    readback_pass = indexed2_readback_samples();
+    if (!readback_pass) {
+        return false;
+    }
     if (!indexed2_enable_linestate_l0() ||
         !indexed2_reg_write(0x0350u, 0x0003u) || // enable + BPP=0b01 (2bpp indexed)
         !indexed2_reg_write(0x0300u, 0x0001u)) { // enable bitmap layer L0
@@ -631,9 +724,11 @@ static bool run_indexed2_proof(void)
         return false;
     }
     ESP_LOGI(TAG, "INDEXED2_PROOF_DONE pass=%u health_before=0x%08" PRIX32
-             " health_after_upload=0x%08" PRIX32 " health_after_enable=0x%08" PRIX32,
-             ok ? 1u : 0u, health_before, health_after_upload, health_after_enable);
-    return ok;
+             " health_after_upload=0x%08" PRIX32 " health_after_enable=0x%08" PRIX32
+             " readback_pass=%u",
+             (ok && readback_pass) ? 1u : 0u, health_before, health_after_upload,
+             health_after_enable, readback_pass ? 1u : 0u);
+    return ok && readback_pass;
 }
 
 static void report_result(const char *label, esp_err_t err, uint32_t got, uint32_t expect)
