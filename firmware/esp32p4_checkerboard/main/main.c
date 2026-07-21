@@ -230,7 +230,8 @@ static esp_err_t qspi_reconfigure_device(uint32_t clock_hz, uint32_t input_delay
     return qspi_add_device(clock_hz, input_delay_ns);
 }
 
-static esp_err_t qspi_tx(uint8_t cmd, uint64_t addr, const uint8_t *tx, size_t len)
+static esp_err_t qspi_tx(uint8_t cmd, uint64_t addr, const uint8_t *tx, size_t len,
+                         uint8_t dummy_bits)
 {
     spi_transaction_ext_t t = {0};
     uint64_t max_addr = s_use_header_parity ? 0x7FFFFFu : 0xFFFFFFu;
@@ -247,7 +248,7 @@ static esp_err_t qspi_tx(uint8_t cmd, uint64_t addr, const uint8_t *tx, size_t l
     t.base.addr = qspi_encode_addr(cmd, (uint32_t)addr);
     t.base.length = len * 8u;
     t.base.tx_buffer = tx;
-    t.dummy_bits = 2;
+    t.dummy_bits = dummy_bits;
     return spi_device_polling_transmit(s_spi, (spi_transaction_t *)&t);
 }
 
@@ -293,7 +294,7 @@ static esp_err_t qspi_reg_write(uint32_t reg_addr, uint16_t value)
 
     ESP_RETURN_ON_FALSE(s_tx_buf != NULL, ESP_ERR_INVALID_STATE, TAG, "TX DMA buffer unavailable");
     memcpy(s_tx_buf, payload, sizeof(payload));
-    return qspi_tx(CMD_REG_WRITE, reg_addr, s_tx_buf, sizeof(payload));
+    return qspi_tx(CMD_REG_WRITE, reg_addr, s_tx_buf, sizeof(payload), 0);
 }
 
 static esp_err_t qspi_sdram_write(uint32_t sdram_addr, const uint8_t *payload, size_t len)
@@ -315,7 +316,7 @@ static esp_err_t qspi_sdram_write(uint32_t sdram_addr, const uint8_t *payload, s
     s_tx_buf[0] = (uint8_t)(len_words & 0xFFu);
     s_tx_buf[1] = (uint8_t)((len_words >> 8) & 0xFFu);
     memcpy(s_tx_buf + 2u, payload, len);
-    return qspi_tx(CMD_SDRAM_WRITE, sdram_addr, s_tx_buf, total_len);
+    return qspi_tx(CMD_SDRAM_WRITE, sdram_addr, s_tx_buf, total_len, 0);
 }
 
 /* --------------------------------------------------------------------------
