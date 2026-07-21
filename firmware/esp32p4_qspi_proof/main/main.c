@@ -57,11 +57,28 @@ enum {
     INDEXED2_IMAGE_BYTES = INDEXED2_HEIGHT * INDEXED2_ROW_STRIDE,
 };
 
-static const uint32_t QSPI_CLOCK_HZ = 20u * 1000u * 1000u;
+static const uint32_t QSPI_DEFAULT_CLOCK_HZ = 20u * 1000u * 1000u;
+static const uint32_t QSPI_FUNCTIONAL_CLOCK_HZ = 40u * 1000u * 1000u;
 static const uint32_t QSPI_EIGHTY_CLOCK_HZ = 80u * 1000u * 1000u;
 static const uint32_t QSPI_SDRAM_CLOCK_HZ = 8u * 1000u * 1000u;
 static const spi_clock_source_t QSPI_CLOCK_SOURCE = SPI_CLK_SRC_SPLL;
-static const bool RUN_BULK_THROUGHPUT_ONLY = false;
+// Select proof stages intentionally at compile time.  The default is the
+// bounded indexed display proof; the 30-minute campaign is opt-in.
+#ifndef P4_QSPI_RUN_BASIC_PROOF
+#define P4_QSPI_RUN_BASIC_PROOF 0
+#endif
+#ifndef P4_QSPI_RUN_INDEXED2_PROOF
+#define P4_QSPI_RUN_INDEXED2_PROOF 1
+#endif
+#ifndef P4_QSPI_RUN_SHORT_SMOKE
+#define P4_QSPI_RUN_SHORT_SMOKE 0
+#endif
+#ifndef P4_QSPI_RUN_DEFINITIVE_CAMPAIGN
+#define P4_QSPI_RUN_DEFINITIVE_CAMPAIGN 0
+#endif
+#ifndef P4_QSPI_RUN_BULK_THROUGHPUT_ONLY
+#define P4_QSPI_RUN_BULK_THROUGHPUT_ONLY 0
+#endif
 static const uint32_t LONG_PHASE_YIELD_INTERVAL = 10000u;
 static const uint32_t SHORT_SMOKE_ROUNDTRIPS = 1000000u;
 static const uint32_t SHORT_SMOKE_BULK_BYTES = 131072u;
@@ -80,17 +97,16 @@ static const uint32_t EXPECTED_LOOPBACK = 0x12340042u;
 static const uint32_t DMA_BUF_SIZE = 65536u;
 // ESP32-P4 SPI_MS_DATA_BITLEN is an 18-bit count of data-phase bits. Keep
 // every QIO TX transaction below its 32767-byte maximum.
-static const size_t QSPI_MAX_TX_BYTES = 32767u;
+#define QSPI_MAX_TX_BYTES 32767u
 // SDRAM_WRITE adds a 2-byte word-count prefix; keep payloads even and below
 // the transaction ceiling with a small margin for future framing changes.
 static const uint64_t PHASE4_DURATION_US = 30ull * 60ull * 1000000ull;
 static const uint64_t PHASE4_APPROX_PAYLOAD_BYTES_PER_ITER = 8ull;
 // Keep all proof traffic below the reviewed QSPI oversampling ceiling.
-static const uint32_t SANITY_FREQ_HZ = 4u * 1000u * 1000u;
 static const uint32_t CLOCK_PROBE_ITERATIONS = 64u;
 static const uint32_t PHASE1_ITERATIONS = 10000000u;
 static const uint32_t PHASE2_ITERATIONS = 100000u;
-enum { PHASE3_BURST_WORDS = 16384u };
+enum { PHASE3_BURST_WORDS = (QSPI_MAX_TX_BYTES - 2u) / 2u };
 static spi_device_handle_t s_spi = NULL;
 static uint8_t *s_tx_buf = NULL;
 static uint8_t *s_rx_buf = NULL;
@@ -99,6 +115,7 @@ static uint16_t s_reg_burst_words[PHASE3_BURST_WORDS];
 static uint8_t s_indexed2_bitmap[INDEXED2_IMAGE_BYTES];
 static uint8_t s_indexed2_attr[INDEXED2_IMAGE_BYTES];
 static uint32_t s_input_delay_ns = 0;
+static uint32_t s_configured_freq_hz = 0;
 static bool s_use_header_parity = true;
 
 typedef struct {
@@ -121,6 +138,10 @@ static uint32_t qspi_get_actual_freq_hz(void);
 
 static void log_hex_bytes(const char *label, const uint8_t *buf, size_t len)
 {
+    if (label == NULL || (buf == NULL && len != 0u)) {
+        ESP_LOGE(TAG, "hex log rejected null argument");
+        return;
+    }
     char line[3 * 8 + 1] = {0};
     size_t pos = 0;
     for (size_t i = 0; i < len && pos + 3 < sizeof(line); ++i) {
@@ -138,10 +159,14 @@ static uint32_t bytes_to_u32_le(const uint8_t *buf)
            ((uint32_t)buf[3] << 24);
 }
 
-static void fill_tx_bytes(const uint8_t *src, size_t len)
+static esp_err_t fill_tx_bytes(const uint8_t *src, size_t len)
 {
-    memset(s_tx_buf, 0, DMA_BUF_SIZE);
+    ESP_RETURN_ON_FALSE(s_tx_buf != NULL, ESP_ERR_INVALID_STATE, TAG, "TX DMA buffer unavailable");
+    ESP_RETURN_ON_FALSE(src != NULL, ESP_ERR_INVALID_ARG, TAG, "null TX source");
+    ESP_RETURN_ON_FALSE(len != 0u && len <= DMA_BUF_SIZE, ESP_ERR_INVALID_ARG, TAG,
+                        "invalid TX length");
     memcpy(s_tx_buf, src, len);
+    return ESP_OK;
 }
 
 static uint8_t parity31(uint8_t cmd, uint32_t addr)
@@ -158,7 +183,7 @@ static uint8_t parity31(uint8_t cmd, uint32_t addr)
 
 static uint32_t qspi_encode_addr(uint8_t cmd, uint32_t addr)
 {
-    uint32_t trimmed = addr & 0x7FFFFFu;
+    uint32_t trimmed = addr;
 
     if (!s_use_header_parity) {
         return trimmed;
@@ -168,6 +193,7 @@ static uint32_t qspi_encode_addr(uint8_t cmd, uint32_t addr)
 
 static esp_err_t qspi_add_device(uint32_t clock_hz, uint32_t input_delay_ns, spi_clock_source_t clock_source)
 {
+    ESP_RETURN_ON_FALSE(clock_hz != 0u, ESP_ERR_INVALID_ARG, TAG, "zero QSPI clock");
     spi_device_interface_config_t dev_cfg = {
         .clock_speed_hz = (int)clock_hz,
         .clock_source = clock_source,
@@ -185,6 +211,7 @@ static esp_err_t qspi_add_device(uint32_t clock_hz, uint32_t input_delay_ns, spi
     s_input_delay_ns = input_delay_ns;
     ESP_RETURN_ON_ERROR(spi_bus_add_device(SPI2_HOST, &dev_cfg, &s_spi),
                         TAG, "spi device add failed");
+    s_configured_freq_hz = clock_hz;
     return ESP_OK;
 }
 
@@ -205,7 +232,7 @@ static esp_err_t qspi_init(void)
     };
     ESP_RETURN_ON_ERROR(spi_bus_initialize(SPI2_HOST, &bus_cfg, SPI_DMA_CH_AUTO),
                         TAG, "spi bus init failed");
-    return qspi_add_device(QSPI_CLOCK_HZ, 0, QSPI_CLOCK_SOURCE);
+    return qspi_add_device(QSPI_DEFAULT_CLOCK_HZ, 0, QSPI_CLOCK_SOURCE);
 }
 
 static esp_err_t qspi_reconfigure_device(uint32_t clock_hz, uint32_t input_delay_ns)
@@ -221,13 +248,23 @@ static esp_err_t qspi_tx(uint8_t cmd, uint64_t addr, const uint8_t *tx, size_t l
                          uint8_t dummy_bits, uint32_t override_freq_hz)
 {
     spi_transaction_ext_t t = {0};
+    uint64_t max_addr = s_use_header_parity ? 0x7FFFFFu : 0xFFFFFFu;
+    ESP_RETURN_ON_FALSE(s_spi != NULL, ESP_ERR_INVALID_STATE, TAG, "QSPI device unavailable");
+    ESP_RETURN_ON_FALSE(addr <= max_addr, ESP_ERR_INVALID_ARG, TAG, "QSPI address out of range");
+    ESP_RETURN_ON_FALSE(tx != NULL, ESP_ERR_INVALID_ARG, TAG, "null QSPI TX buffer");
+    ESP_RETURN_ON_FALSE(len != 0u, ESP_ERR_INVALID_ARG, TAG, "zero-length QSPI TX");
     ESP_RETURN_ON_FALSE(len <= QSPI_MAX_TX_BYTES, ESP_ERR_INVALID_ARG, TAG,
                         "qspi tx exceeds P4 transaction limit");
+    // ESP-IDF 6.0.2: QIO selects quad data only here; command/address remain
+    // single-line because no multiline command/address flags are set.
+    // SPI_DEVICE_NO_DUMMY suppresses device auto-dummy insertion, while
+    // SPI_TRANS_VARIABLE_DUMMY makes t.dummy_bits authoritative for reads.
     t.base.flags = SPI_TRANS_MODE_QIO | SPI_TRANS_VARIABLE_DUMMY;
     t.base.cmd = cmd;
     t.base.addr = qspi_encode_addr(cmd, (uint32_t)addr);
     t.base.length = len * 8u;
-    t.base.override_freq_hz = override_freq_hz;
+    t.base.override_freq_hz = (override_freq_hz != 0u && override_freq_hz != s_configured_freq_hz)
+                                  ? override_freq_hz : 0u;
     t.base.tx_buffer = tx;
     t.dummy_bits = dummy_bits;
     return spi_device_polling_transmit(s_spi, (spi_transaction_t *)&t);
@@ -237,11 +274,19 @@ static esp_err_t qspi_rx(uint8_t cmd, uint64_t addr, uint8_t *rx, size_t len,
                          uint8_t dummy_bits, uint32_t override_freq_hz)
 {
     spi_transaction_ext_t t = {0};
+    uint64_t max_addr = s_use_header_parity ? 0x7FFFFFu : 0xFFFFFFu;
+    ESP_RETURN_ON_FALSE(s_spi != NULL, ESP_ERR_INVALID_STATE, TAG, "QSPI device unavailable");
+    ESP_RETURN_ON_FALSE(addr <= max_addr, ESP_ERR_INVALID_ARG, TAG, "QSPI address out of range");
+    ESP_RETURN_ON_FALSE(rx != NULL, ESP_ERR_INVALID_ARG, TAG, "null QSPI RX buffer");
+    ESP_RETURN_ON_FALSE(len != 0u, ESP_ERR_INVALID_ARG, TAG, "zero-length QSPI RX");
+    ESP_RETURN_ON_FALSE(len <= (DMA_BUF_SIZE / sizeof(uint8_t)), ESP_ERR_INVALID_ARG, TAG,
+                        "qspi RX exceeds DMA buffer");
     t.base.flags = SPI_TRANS_MODE_QIO | SPI_TRANS_VARIABLE_DUMMY;
     t.base.cmd = cmd;
     t.base.addr = qspi_encode_addr(cmd, (uint32_t)addr);
     t.base.rxlength = len * 8u;
-    t.base.override_freq_hz = override_freq_hz;
+    t.base.override_freq_hz = (override_freq_hz != 0u && override_freq_hz != s_configured_freq_hz)
+                                  ? override_freq_hz : 0u;
     t.base.rx_buffer = rx;
     t.dummy_bits = dummy_bits;
     return spi_device_polling_transmit(s_spi, (spi_transaction_t *)&t);
@@ -251,7 +296,7 @@ static esp_err_t qspi_read_status(uint8_t sel, uint32_t *out_value,
                                   uint8_t dummy_bits, uint32_t override_freq_hz)
 {
     ESP_RETURN_ON_FALSE(out_value != NULL, ESP_ERR_INVALID_ARG, TAG, "null status output");
-    memset(s_rx_buf, 0, DMA_BUF_SIZE);
+    ESP_RETURN_ON_FALSE(s_rx_buf != NULL, ESP_ERR_INVALID_STATE, TAG, "RX DMA buffer unavailable");
     esp_err_t err = qspi_rx(CMD_READ_STATUS, sel, s_rx_buf, 4, dummy_bits, override_freq_hz);
     if (err != ESP_OK) {
         return err;
@@ -267,16 +312,22 @@ static esp_err_t qspi_reg_write(uint32_t reg_addr, uint16_t value, uint32_t over
         (uint8_t)(value & 0xFFu),
         (uint8_t)((value >> 8) & 0xFFu),
     };
-    fill_tx_bytes(payload, sizeof(payload));
-    return qspi_tx(CMD_REG_WRITE, reg_addr & 0xFFFFFFu, s_tx_buf, sizeof(payload), 0, override_freq_hz);
+    ESP_RETURN_ON_ERROR(fill_tx_bytes(payload, sizeof(payload)), TAG, "reg TX staging failed");
+    return qspi_tx(CMD_REG_WRITE, reg_addr, s_tx_buf, sizeof(payload), 0, override_freq_hz);
 }
 
 static esp_err_t qspi_reg_write_burst(uint32_t reg_addr, const uint16_t *words, size_t word_count,
                                       uint32_t override_freq_hz)
 {
-    size_t total_len = 2u + (word_count * 2u);
+    size_t total_len = 0u;
 
     ESP_RETURN_ON_FALSE(words != NULL, ESP_ERR_INVALID_ARG, TAG, "null reg burst words");
+    ESP_RETURN_ON_FALSE(s_tx_buf != NULL, ESP_ERR_INVALID_STATE, TAG, "TX DMA buffer unavailable");
+    ESP_RETURN_ON_FALSE(word_count != 0u, ESP_ERR_INVALID_ARG, TAG, "empty reg burst");
+    ESP_RETURN_ON_FALSE(word_count <= UINT16_MAX, ESP_ERR_INVALID_ARG, TAG, "reg burst word count too large");
+    ESP_RETURN_ON_FALSE(word_count <= ((QSPI_MAX_TX_BYTES - 2u) / 2u), ESP_ERR_INVALID_ARG, TAG,
+                        "reg burst exceeds QSPI transaction limit");
+    total_len = 2u + (word_count * 2u);
     ESP_RETURN_ON_FALSE(total_len <= DMA_BUF_SIZE, ESP_ERR_INVALID_ARG, TAG, "reg burst too large");
 
     s_tx_buf[0] = (uint8_t)(word_count & 0xFFu);
@@ -285,7 +336,7 @@ static esp_err_t qspi_reg_write_burst(uint32_t reg_addr, const uint16_t *words, 
         s_tx_buf[2u + (i * 2u)] = (uint8_t)(words[i] & 0xFFu);
         s_tx_buf[3u + (i * 2u)] = (uint8_t)((words[i] >> 8) & 0xFFu);
     }
-    return qspi_tx(CMD_REG_WRITE, reg_addr & 0xFFFFFFu, s_tx_buf, total_len, 0, override_freq_hz);
+    return qspi_tx(CMD_REG_WRITE, reg_addr, s_tx_buf, total_len, 0, override_freq_hz);
 }
 
 static esp_err_t qspi_read_hdr_err_status(uint32_t *raw_out, uint16_t *count_out,
@@ -352,26 +403,29 @@ static esp_err_t qspi_sdram_write(uint32_t sdram_addr, const uint8_t *payload, s
     uint16_t len_words = 0;
     size_t total_len = 0;
 
+    ESP_RETURN_ON_FALSE(payload != NULL, ESP_ERR_INVALID_ARG, TAG, "null SDRAM payload");
+    ESP_RETURN_ON_FALSE(s_tx_buf != NULL, ESP_ERR_INVALID_STATE, TAG, "TX DMA buffer unavailable");
+    ESP_RETURN_ON_FALSE(len != 0u, ESP_ERR_INVALID_ARG, TAG, "zero-length SDRAM write");
     ESP_RETURN_ON_FALSE((len % 2u) == 0u, ESP_ERR_INVALID_ARG, TAG, "sdram write len must be even");
+    ESP_RETURN_ON_FALSE(len <= (QSPI_MAX_TX_BYTES - 2u), ESP_ERR_INVALID_ARG, TAG,
+                        "sdram write payload exceeds P4 transaction limit");
     total_len = len + 2u;
     ESP_RETURN_ON_FALSE(total_len <= QSPI_MAX_TX_BYTES, ESP_ERR_INVALID_ARG, TAG,
                         "sdram write exceeds P4 transaction limit");
     ESP_RETURN_ON_FALSE(total_len <= DMA_BUF_SIZE, ESP_ERR_INVALID_ARG, TAG, "sdram write too large");
 
+    ESP_RETURN_ON_FALSE((len / 2u) <= UINT16_MAX, ESP_ERR_INVALID_ARG, TAG,
+                        "sdram write word count too large");
     len_words = (uint16_t)(len / 2u);
     s_tx_buf[0] = (uint8_t)(len_words & 0xFFu);
     s_tx_buf[1] = (uint8_t)((len_words >> 8) & 0xFFu);
     memcpy(s_tx_buf + 2u, payload, len);
-    if (total_len < DMA_BUF_SIZE) {
-        memset(s_tx_buf + total_len, 0, DMA_BUF_SIZE - total_len);
-    }
-
-    return qspi_tx(CMD_SDRAM_WRITE, sdram_addr & 0xFFFFFFu, s_tx_buf, total_len, 0, override_freq_hz);
+    return qspi_tx(CMD_SDRAM_WRITE, sdram_addr, s_tx_buf, total_len, 0, override_freq_hz);
 }
 
 static bool indexed2_reg_write(uint32_t reg_addr, uint16_t value)
 {
-    esp_err_t err = qspi_reg_write(reg_addr, value, SANITY_FREQ_HZ);
+    esp_err_t err = qspi_reg_write(reg_addr, value, 0u);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "INDEXED2_REG_WRITE addr=0x%04" PRIX32 " value=0x%04X err=%s",
                  reg_addr, value, esp_err_to_name(err));
@@ -382,23 +436,33 @@ static bool indexed2_reg_write(uint32_t reg_addr, uint16_t value)
     // every indexed2 write for the hardware debug packet.
     uint32_t loopback = 0;
     esp_err_t read_err = qspi_read_status(READ_STATUS_SEL_LOOPBACK, &loopback,
-                                          2, SANITY_FREQ_HZ);
+                                          2, 0u);
     uint32_t expected = ((uint32_t)value << 16) | (reg_addr & 0xFFFFu);
-    if (read_err == ESP_OK) {
+    if (read_err == ESP_OK && loopback == expected) {
         ESP_LOGI(TAG, "INDEXED2_REG_WRITE addr=0x%04" PRIX32
                  " value=0x%04X loopback=0x%08" PRIX32 "%s",
                  reg_addr, value, loopback,
-                 loopback == expected ? " PASS" : " MISMATCH");
+                 " PASS");
+        return true;
+    }
+    if (read_err == ESP_OK) {
+        ESP_LOGE(TAG, "INDEXED2_REG_WRITE addr=0x%04" PRIX32
+                 " value=0x%04X loopback=0x%08" PRIX32 " MISMATCH expect=0x%08" PRIX32,
+                 reg_addr, value, loopback, expected);
     } else {
         ESP_LOGE(TAG, "INDEXED2_REG_WRITE addr=0x%04" PRIX32
                  " value=0x%04X loopback_read err=%s",
                  reg_addr, value, esp_err_to_name(read_err));
     }
-    return true;
+    return false;
 }
 
 static void indexed2_log_prefix(const char *name, const uint8_t *bytes)
 {
+    if (name == NULL || bytes == NULL) {
+        ESP_LOGE(TAG, "INDEXED2 prefix log rejected null argument");
+        return;
+    }
     for (size_t i = 0; i < 32u; i += 8u) {
         ESP_LOGI(TAG, "INDEXED2_%s[%u..%u] %02X %02X %02X %02X %02X %02X %02X %02X",
                  name, (unsigned)i, (unsigned)(i + 7u), bytes[i + 0u],
@@ -453,8 +517,13 @@ static void indexed2_build_image(void)
 
 static bool indexed2_upload_image(void)
 {
-    esp_err_t err = qspi_sdram_write(0x100000u, s_indexed2_bitmap,
-                                     sizeof(s_indexed2_bitmap), QSPI_SDRAM_CLOCK_HZ);
+    esp_err_t err = qspi_reconfigure_device(QSPI_SDRAM_CLOCK_HZ, s_input_delay_ns);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "INDEXED2 SDRAM clock configure err=%s", esp_err_to_name(err));
+        return false;
+    }
+    err = qspi_sdram_write(0x100000u, s_indexed2_bitmap,
+                           sizeof(s_indexed2_bitmap), 0u);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "INDEXED2 bitmap upload err=%s", esp_err_to_name(err));
         return false;
@@ -463,9 +532,14 @@ static bool indexed2_upload_image(void)
              (unsigned)sizeof(s_indexed2_bitmap), qspi_get_actual_freq_hz());
 
     err = qspi_sdram_write(0x110000u, s_indexed2_attr,
-                           sizeof(s_indexed2_attr), QSPI_SDRAM_CLOCK_HZ);
+                           sizeof(s_indexed2_attr), 0u);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "INDEXED2 attr upload err=%s", esp_err_to_name(err));
+        return false;
+    }
+    err = qspi_reconfigure_device(QSPI_FUNCTIONAL_CLOCK_HZ, s_input_delay_ns);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "INDEXED2 functional clock restore err=%s", esp_err_to_name(err));
         return false;
     }
     ESP_LOGI(TAG, "INDEXED2 attr uploaded bytes=%u actual_freq=%" PRIu32,
@@ -496,60 +570,65 @@ static bool run_indexed2_proof(void)
     uint32_t health_after_enable = 0;
     bool ok = true;
 
-    ESP_LOGI(TAG, "INDEXED2_PROOF begin source=320x240 display=640x480");
+    if (qspi_reconfigure_device(QSPI_FUNCTIONAL_CLOCK_HZ, s_input_delay_ns) != ESP_OK) {
+        ESP_LOGE(TAG, "INDEXED2 functional clock configure failed");
+        return false;
+    }
+    ESP_LOGI(TAG, "INDEXED2_PROOF begin source=320x240 display=640x480 functional_freq=%" PRIu32
+             " sdram_freq=%" PRIu32, QSPI_FUNCTIONAL_CLOCK_HZ, QSPI_SDRAM_CLOCK_HZ);
     ESP_LOGI(TAG, "INDEXED2_READ_REG note=QSPITop has no REG_READ; sel=9 loopback follows each REG_WRITE");
-    if (qspi_read_status(READ_STATUS_SEL_MAGIC, &magic, 2, SANITY_FREQ_HZ) != ESP_OK) {
+    if (qspi_read_status(READ_STATUS_SEL_MAGIC, &magic, 2, 0u) != ESP_OK) {
         ESP_LOGE(TAG, "INDEXED2_MAGIC read failed");
+        return false;
+    }
+    if (magic != EXPECTED_MAGIC) {
+        ESP_LOGE(TAG, "INDEXED2_MAGIC mismatch got=0x%08" PRIX32 " expect=0x%08" PRIX32,
+                 magic, EXPECTED_MAGIC);
         return false;
     }
     ESP_LOGI(TAG, "INDEXED2_MAGIC value=0x%08" PRIX32 " actual_freq=%" PRIu32,
              magic, qspi_get_actual_freq_hz());
-    ok &= read_and_log_transport_health("INDEXED2_HEALTH_BEFORE", SANITY_FREQ_HZ);
+    ok &= read_and_log_transport_health("INDEXED2_HEALTH_BEFORE", QSPI_FUNCTIONAL_CLOCK_HZ);
     if (!ok) {
         return false;
     }
-    if (qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_before, 2,
-                         SANITY_FREQ_HZ) != ESP_OK) {
+    if (qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_before, 2, 0u) != ESP_OK) {
         return false;
     }
 
     indexed2_build_image();
-    ok &= indexed2_reg_write(0x0300u, 0x0000u); // disable visible layers while loading
-    ok &= indexed2_reg_write(0x0313u, 0x0000u); // native Mode0
-    ok &= indexed2_reg_write(0x0349u, 0x0000u); // no integer scaler; indexed path doubles naturally
-    ok &= indexed2_reg_write(0x034Au, 640u);
-    ok &= indexed2_reg_write(0x034Bu, 480u);
-    ok &= indexed2_reg_write(0x0351u, 0x0000u); // bitmap base 0x100000
-    ok &= indexed2_reg_write(0x0352u, 0x0010u);
-    ok &= indexed2_reg_write(0x0353u, 0x0000u); // attribute base 0x110000
-    ok &= indexed2_reg_write(0x0354u, 0x0011u);
-    ok &= indexed2_reg_write(0x0355u, INDEXED2_ROW_STRIDE);
-    ok &= indexed2_reg_write(0x0356u, INDEXED2_ROW_STRIDE);
-    ok &= indexed2_reg_write(0x0357u, INDEXED2_HEIGHT);
-    ok &= indexed2_load_palette();
-    ok &= indexed2_reg_write(0x0350u, 0x0002u); // bpp=0b01, fetch disabled while uploading
-    if (!ok) {
+    if (!indexed2_reg_write(0x0300u, 0x0000u) || // disable visible layers while loading
+        !indexed2_reg_write(0x0313u, 0x0000u) || // native Mode0
+        !indexed2_reg_write(0x0349u, 0x0000u) || // no integer scaler; indexed path doubles naturally
+        !indexed2_reg_write(0x034Au, 640u) ||
+        !indexed2_reg_write(0x034Bu, 480u) ||
+        !indexed2_reg_write(0x0351u, 0x0000u) || // bitmap base 0x100000
+        !indexed2_reg_write(0x0352u, 0x0010u) ||
+        !indexed2_reg_write(0x0353u, 0x0000u) || // attribute base 0x110000
+        !indexed2_reg_write(0x0354u, 0x0011u) ||
+        !indexed2_reg_write(0x0355u, INDEXED2_ROW_STRIDE) ||
+        !indexed2_reg_write(0x0356u, INDEXED2_ROW_STRIDE) ||
+        !indexed2_reg_write(0x0357u, INDEXED2_HEIGHT) ||
+        !indexed2_load_palette() ||
+        !indexed2_reg_write(0x0350u, 0x0002u)) { // bpp=0b01, fetch disabled while uploading
         return false;
     }
 
-    ok &= indexed2_upload_image();
-    ok &= read_and_log_transport_health("INDEXED2_HEALTH_AFTER_UPLOAD", SANITY_FREQ_HZ);
-    if (qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_after_upload, 2,
-                         SANITY_FREQ_HZ) != ESP_OK) {
-        ok = false;
+    if (!indexed2_upload_image() ||
+        !read_and_log_transport_health("INDEXED2_HEALTH_AFTER_UPLOAD", QSPI_FUNCTIONAL_CLOCK_HZ) ||
+        qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_after_upload, 2, 0u) != ESP_OK) {
+        return false;
     }
-    ok &= indexed2_enable_linestate_l0();
-    ok &= indexed2_reg_write(0x0350u, 0x0003u); // enable + BPP=0b01 (2bpp indexed)
-    ok &= indexed2_reg_write(0x0300u, 0x0001u); // enable bitmap layer L0
-    if (!ok) {
+    if (!indexed2_enable_linestate_l0() ||
+        !indexed2_reg_write(0x0350u, 0x0003u) || // enable + BPP=0b01 (2bpp indexed)
+        !indexed2_reg_write(0x0300u, 0x0001u)) { // enable bitmap layer L0
         return false;
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
-    ok &= read_and_log_transport_health("INDEXED2_HEALTH_AFTER_ENABLE", SANITY_FREQ_HZ);
-    if (qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_after_enable, 2,
-                         SANITY_FREQ_HZ) != ESP_OK) {
-        ok = false;
+    if (!read_and_log_transport_health("INDEXED2_HEALTH_AFTER_ENABLE", QSPI_FUNCTIONAL_CLOCK_HZ) ||
+        qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_after_enable, 2, 0u) != ESP_OK) {
+        return false;
     }
     ESP_LOGI(TAG, "INDEXED2_PROOF_DONE pass=%u health_before=0x%08" PRIX32
              " health_after_upload=0x%08" PRIX32 " health_after_enable=0x%08" PRIX32,
@@ -627,6 +706,7 @@ static bool run_cross_freq_roundtrip(uint32_t addr, uint16_t value, uint32_t wri
 {
     uint32_t got = 0;
     uint32_t retry = 0;
+    ESP_RETURN_ON_FALSE(stats != NULL, false, TAG, "null cross-frequency stats");
     uint32_t expect = ((uint32_t)value << 16) | (addr & 0xFFFFu);
 
     esp_err_t err = qspi_reg_write(addr, value, write_freq_hz);
@@ -666,6 +746,11 @@ static void run_cross_freq_ber(const char *label, uint32_t iterations,
                                uint32_t write_freq_hz, uint32_t read_freq_hz,
                                uint8_t dummy_bits, phase_stats_t *stats)
 {
+    if (label == NULL || stats == NULL || iterations == 0u ||
+        write_freq_hz == 0u || read_freq_hz == 0u) {
+        ESP_LOGE(TAG, "cross-frequency BER invalid arguments");
+        return;
+    }
     reset_phase_stats(stats);
     for (uint32_t i = 0; i < iterations; ++i) {
         uint32_t addr = 0;
@@ -698,6 +783,10 @@ static bool run_burst_roundtrip(uint32_t base_addr, const uint16_t *words, size_
 {
     uint32_t got = 0;
     uint32_t retry = 0;
+    if (words == NULL || word_count == 0u || stats == NULL) {
+        ESP_LOGE(TAG, "burst roundtrip invalid arguments");
+        return false;
+    }
     uint32_t expect_addr = (base_addr + (uint32_t)word_count - 1u) & 0xFFFFu;
     uint32_t expect = ((uint32_t)words[word_count - 1u] << 16) | expect_addr;
 
@@ -772,6 +861,10 @@ static bool run_loopback_roundtrip(uint32_t addr, uint16_t value, uint32_t freq_
 {
     uint32_t got = 0;
     uint32_t retry = 0;
+    if (stats == NULL) {
+        ESP_LOGE(TAG, "loopback roundtrip null stats");
+        return false;
+    }
     uint32_t expect = ((uint32_t)value << 16) | (addr & 0xFFFFu);
     esp_err_t err = qspi_reg_write(addr, value, freq_hz);
     if (err != ESP_OK) {
@@ -809,14 +902,23 @@ static bool run_loopback_roundtrip(uint32_t addr, uint16_t value, uint32_t freq_
 static void run_phase_ber(const char *label, uint32_t iterations, uint32_t freq_hz,
                           uint8_t dummy_bits, phase_stats_t *stats)
 {
+    if (label == NULL || stats == NULL || iterations == 0u || freq_hz == 0u) {
+        ESP_LOGE(TAG, "phase BER invalid arguments");
+        return;
+    }
     reset_phase_stats(stats);
+    if (qspi_reconfigure_device(freq_hz, s_input_delay_ns) != ESP_OK) {
+        ESP_LOGE(TAG, "%s frequency configure failed", label);
+        stats->write_errors++;
+        return;
+    }
     for (uint32_t i = 0; i < iterations; ++i) {
         uint32_t addr = 0;
         uint16_t value = 0;
         uint32_t got = 0;
 
         make_pattern(i, &addr, &value);
-        bool ok = run_loopback_roundtrip(addr, value, freq_hz, dummy_bits, stats, &got);
+        bool ok = run_loopback_roundtrip(addr, value, 0u, dummy_bits, stats, &got);
         stats->iterations++;
 
         if (!ok && total_phase_errors(stats) <= 8u) {
@@ -840,6 +942,10 @@ static bool run_proof_ladder(uint32_t freq_hz)
     uint32_t magic = 0;
 
     ESP_LOGI(TAG, "P4_QSPI_PROOF_PHASE0 begin req_freq=%" PRIu32, freq_hz);
+    if (qspi_reconfigure_device(freq_hz, s_input_delay_ns) != ESP_OK) {
+        ESP_LOGE(TAG, "P4_QSPI_PROOF_PHASE0 frequency configure failed");
+        return false;
+    }
     for (uint32_t attempt = 0; attempt < 1000u; ++attempt) {
         esp_err_t err = qspi_read_status(READ_STATUS_SEL_MAGIC, &magic, 2, freq_hz);
         if (err == ESP_OK && magic == EXPECTED_MAGIC) {
@@ -867,7 +973,11 @@ static bool run_proof_ladder(uint32_t freq_hz)
 
     {
         const uint8_t reg_write_payload[4] = {0x01u, 0x00u, 0x5Au, 0xA5u};
-        ESP_ERROR_CHECK(qspi_reg_write(REG_WRITE_ADDR, REG_WRITE_VALUE, freq_hz));
+        esp_err_t write_err = qspi_reg_write(REG_WRITE_ADDR, REG_WRITE_VALUE, 0u);
+        if (write_err != ESP_OK) {
+            ESP_LOGE(TAG, "P4_QSPI_REG_WRITE result=ERR err=%s", esp_err_to_name(write_err));
+            return false;
+        }
         ESP_LOGI(TAG, "P4_QSPI_REG_WRITE result=PASS addr=0x%04" PRIX32 " value=0x%04X tx=%02X %02X %02X %02X",
                  REG_WRITE_ADDR, REG_WRITE_VALUE,
                  reg_write_payload[0], reg_write_payload[1], reg_write_payload[2], reg_write_payload[3]);
@@ -876,19 +986,30 @@ static bool run_proof_ladder(uint32_t freq_hz)
     {
         const uint8_t loopback_prime_payload[4] = {0x01u, 0x00u, 0x34u, 0x12u};
         uint32_t loopback = 0;
-        ESP_ERROR_CHECK(qspi_reg_write(LOOPBACK_WRITE_ADDR, LOOPBACK_WRITE_VALUE, freq_hz));
+        esp_err_t write_err = qspi_reg_write(LOOPBACK_WRITE_ADDR, LOOPBACK_WRITE_VALUE, 0u);
+        if (write_err != ESP_OK) {
+            ESP_LOGE(TAG, "P4_QSPI_LOOPBACK_PRIME result=ERR err=%s", esp_err_to_name(write_err));
+            return false;
+        }
         ESP_LOGI(TAG, "P4_QSPI_LOOPBACK_PRIME result=PASS addr=0x%04" PRIX32 " value=0x%04X tx=%02X %02X %02X %02X",
                  LOOPBACK_WRITE_ADDR, LOOPBACK_WRITE_VALUE,
                  loopback_prime_payload[0], loopback_prime_payload[1],
                  loopback_prime_payload[2], loopback_prime_payload[3]);
-        ESP_ERROR_CHECK(qspi_read_status(READ_STATUS_SEL_LOOPBACK, &loopback, 2, freq_hz));
-        report_result("P4_QSPI_LOOPBACK", ESP_OK, loopback, EXPECTED_LOOPBACK);
+        esp_err_t read_err = qspi_read_status(READ_STATUS_SEL_LOOPBACK, &loopback, 2, 0u);
+        report_result("P4_QSPI_LOOPBACK", read_err, loopback, EXPECTED_LOOPBACK);
+        if (read_err != ESP_OK || loopback != EXPECTED_LOOPBACK) {
+            return false;
+        }
         log_hex_bytes("P4_QSPI_LOOPBACK bytes=", s_rx_buf, 4);
     }
 
     {
         const uint8_t sdram_payload[4] = {0xDEu, 0xADu, 0xBEu, 0xEFu};
-        ESP_ERROR_CHECK(qspi_sdram_write(0x001000u, sdram_payload, sizeof(sdram_payload), freq_hz));
+        esp_err_t write_err = qspi_sdram_write(0x001000u, sdram_payload, sizeof(sdram_payload), 0u);
+        if (write_err != ESP_OK) {
+            ESP_LOGE(TAG, "P4_QSPI_SDRAM_WRITE result=ERR err=%s", esp_err_to_name(write_err));
+            return false;
+        }
         ESP_LOGI(TAG, "P4_QSPI_SDRAM_WRITE result=PASS addr=0x001000 tx=%02X %02X %02X %02X %02X %02X",
                  0x02u, 0x00u, sdram_payload[0], sdram_payload[1], sdram_payload[2], sdram_payload[3]);
     }
@@ -927,6 +1048,10 @@ static bool read_and_log_hdr_err_status(const char *label, uint32_t freq_hz,
 static void run_magic_only_ber(const char *label, uint32_t iterations, uint32_t freq_hz,
                                phase_stats_t *stats)
 {
+    if (label == NULL || stats == NULL || iterations == 0u || freq_hz == 0u) {
+        ESP_LOGE(TAG, "magic BER invalid arguments");
+        return;
+    }
     reset_phase_stats(stats);
     for (uint32_t i = 0; i < iterations; ++i) {
         uint32_t got = 0;
@@ -959,6 +1084,9 @@ static void run_magic_only_ber(const char *label, uint32_t iterations, uint32_t 
 static esp_err_t probe_clock_rate(const char *label, uint32_t freq_hz, phase_stats_t *stats,
                                   uint32_t *actual_freq_out)
 {
+    ESP_RETURN_ON_FALSE(label != NULL, ESP_ERR_INVALID_ARG, TAG, "null clock probe label");
+    ESP_RETURN_ON_FALSE(stats != NULL, ESP_ERR_INVALID_ARG, TAG, "null clock probe stats");
+    ESP_RETURN_ON_FALSE(freq_hz != 0u, ESP_ERR_INVALID_ARG, TAG, "zero clock probe frequency");
     reset_phase_stats(stats);
     ESP_LOGI(TAG, "%s reconfigure_device req_freq=%" PRIu32, label, freq_hz);
     ESP_RETURN_ON_ERROR(qspi_reconfigure_device(freq_hz, s_input_delay_ns), TAG, "reconfigure failed");
@@ -967,10 +1095,10 @@ static esp_err_t probe_clock_rate(const char *label, uint32_t freq_hz, phase_sta
     if (actual_freq_out != NULL) {
         *actual_freq_out = qspi_get_actual_freq_hz();
     }
-    return ESP_OK;
+    return phase_passed(stats) ? ESP_OK : ESP_FAIL;
 }
 
-static void run_phase3_throughput(uint32_t freq_hz)
+static bool run_phase3_throughput(uint32_t freq_hz)
 {
     static const size_t burst_sizes[] = {256u, 1024u, 4096u, 16384u, 65536u};
     for (size_t i = 0; i < sizeof(s_phase3_pattern); ++i) {
@@ -978,6 +1106,11 @@ static void run_phase3_throughput(uint32_t freq_hz)
     }
 
     ESP_LOGI(TAG, "P4_QSPI_PHASE3 note=current bring-up top has no real SDRAM backpressure; this phase is throughput-only");
+    bool pass = qspi_reconfigure_device(freq_hz, s_input_delay_ns) == ESP_OK;
+    if (!pass) {
+        ESP_LOGE(TAG, "P4_QSPI_PHASE3 frequency configure failed");
+        return false;
+    }
     for (size_t i = 0; i < sizeof(burst_sizes) / sizeof(burst_sizes[0]); ++i) {
         uint32_t bytes_remaining = (uint32_t)burst_sizes[i];
         uint32_t addr = 0x001000u;
@@ -993,14 +1126,30 @@ static void run_phase3_throughput(uint32_t freq_hz)
             if ((chunk & 1u) != 0u) {
                 chunk--;
             }
+            if (chunk == 0u) {
+                ESP_LOGE(TAG, "P4_QSPI_PHASE3 rejected zero-length chunk remaining=%" PRIu32,
+                         bytes_remaining);
+                pass = false;
+                break;
+            }
 
-            ESP_ERROR_CHECK(qspi_sdram_write(addr, s_phase3_pattern, chunk, freq_hz));
+            esp_err_t err = qspi_sdram_write(addr, s_phase3_pattern, chunk, 0u);
+            if (err != ESP_OK) {
+                ESP_LOGE(TAG, "P4_QSPI_PHASE3 sdram_write err=%s addr=0x%06" PRIX32 " chunk=%u",
+                         esp_err_to_name(err), addr, (unsigned)chunk);
+                pass = false;
+                break;
+            }
             addr += (uint32_t)chunk;
             bytes_remaining -= (uint32_t)chunk;
             chunks++;
         }
 
-        ESP_ERROR_CHECK(qspi_read_status(READ_STATUS_SEL_LOOPBACK, &verify, 2, freq_hz));
+        esp_err_t verify_err = qspi_read_status(READ_STATUS_SEL_LOOPBACK, &verify, 2, 0u);
+        if (verify_err != ESP_OK) {
+            ESP_LOGE(TAG, "P4_QSPI_PHASE3 loopback read err=%s", esp_err_to_name(verify_err));
+            pass = false;
+        }
         {
             int64_t end_us = esp_timer_get_time();
             uint32_t actual_freq_hz = qspi_get_actual_freq_hz();
@@ -1014,16 +1163,26 @@ static void run_phase3_throughput(uint32_t freq_hz)
                      end_us - start_us, mbps, verify);
         }
     }
+    return pass;
 }
 
-static void run_write_throughput_80m(phase_stats_t *stats)
+static bool run_write_throughput_80m(phase_stats_t *stats)
 {
     static const size_t burst_sizes[] = {256u, 1024u, 4096u, 16384u, 65536u, 131072u};
     for (size_t i = 0; i < sizeof(s_phase3_pattern); ++i) {
         s_phase3_pattern[i] = (uint8_t)(0xA5u ^ (i & 0xFFu));
     }
 
+    if (stats == NULL) {
+        ESP_LOGE(TAG, "P4_QSPI_WRITE_AT_80 null stats");
+        return false;
+    }
     reset_phase_stats(stats);
+    if (qspi_reconfigure_device(QSPI_EIGHTY_CLOCK_HZ, s_input_delay_ns) != ESP_OK) {
+        ESP_LOGE(TAG, "P4_QSPI_WRITE_AT_80 frequency configure failed");
+        stats->write_errors++;
+        return false;
+    }
     ESP_LOGI(TAG, "P4_QSPI_WRITE_AT_80 note=throughput proof only on this top; no SDRAM storage or sel=8 readback is wired");
     for (size_t i = 0; i < sizeof(burst_sizes) / sizeof(burst_sizes[0]); ++i) {
         uint32_t bytes_remaining = (uint32_t)burst_sizes[i];
@@ -1039,8 +1198,14 @@ static void run_write_throughput_80m(phase_stats_t *stats)
             if ((chunk & 1u) != 0u) {
                 chunk--;
             }
+            if (chunk == 0u) {
+                ESP_LOGE(TAG, "P4_QSPI_WRITE_AT_80 rejected zero-length chunk remaining=%" PRIu32,
+                         bytes_remaining);
+                stats->write_errors++;
+                return false;
+            }
 
-            esp_err_t err = qspi_sdram_write(addr, s_phase3_pattern, chunk, QSPI_EIGHTY_CLOCK_HZ);
+            esp_err_t err = qspi_sdram_write(addr, s_phase3_pattern, chunk, 0u);
             if (err != ESP_OK) {
                 stats->write_errors++;
                 ESP_LOGW(TAG, "P4_QSPI_WRITE_AT_80 sdram_write err=%s addr=0x%06" PRIX32 " chunk=%u",
@@ -1062,20 +1227,30 @@ static void run_write_throughput_80m(phase_stats_t *stats)
                  (unsigned)burst_sizes[i], chunks, QSPI_EIGHTY_CLOCK_HZ, qspi_get_actual_freq_hz(),
                  end_us - start_us, mbps);
     }
+    return stats->write_errors == 0u;
 }
 
-static void run_bulk_write_smoke_80m(const char *label, uint32_t total_bytes, phase_stats_t *stats)
+static bool run_bulk_write_smoke_80m(const char *label, uint32_t total_bytes, phase_stats_t *stats)
 {
     uint32_t bytes_remaining = total_bytes;
     uint32_t addr = 0x001000u;
     uint32_t chunks = 0;
     int64_t start_us = 0;
 
+    if (label == NULL || stats == NULL || total_bytes == 0u || (total_bytes & 1u) != 0u) {
+        ESP_LOGE(TAG, "bulk smoke invalid arguments");
+        return false;
+    }
     for (size_t i = 0; i < sizeof(s_phase3_pattern); ++i) {
         s_phase3_pattern[i] = (uint8_t)(0x5Au ^ (i & 0xFFu));
     }
 
     reset_phase_stats(stats);
+    if (qspi_reconfigure_device(QSPI_EIGHTY_CLOCK_HZ, s_input_delay_ns) != ESP_OK) {
+        ESP_LOGE(TAG, "%s frequency configure failed", label);
+        stats->write_errors++;
+        return false;
+    }
     start_us = esp_timer_get_time();
     while (bytes_remaining != 0u) {
         size_t chunk = bytes_remaining;
@@ -1085,8 +1260,13 @@ static void run_bulk_write_smoke_80m(const char *label, uint32_t total_bytes, ph
         if ((chunk & 1u) != 0u) {
             chunk--;
         }
+        if (chunk == 0u) {
+            ESP_LOGE(TAG, "%s rejected zero-length chunk remaining=%" PRIu32, label, bytes_remaining);
+            stats->write_errors++;
+            return false;
+        }
 
-        esp_err_t err = qspi_sdram_write(addr, s_phase3_pattern, chunk, QSPI_EIGHTY_CLOCK_HZ);
+        esp_err_t err = qspi_sdram_write(addr, s_phase3_pattern, chunk, 0u);
         if (err != ESP_OK) {
             stats->write_errors++;
             ESP_LOGW(TAG, "%s sdram_write err=%s addr=0x%06" PRIX32 " chunk=%u",
@@ -1109,20 +1289,32 @@ static void run_bulk_write_smoke_80m(const char *label, uint32_t total_bytes, ph
                  label, total_bytes, chunks, QSPI_EIGHTY_CLOCK_HZ, qspi_get_actual_freq_hz(),
                  end_us - start_us, mbps, stats->write_errors);
     }
+    return stats->write_errors == 0u;
 }
 
 static void run_phase4_back_to_back(uint32_t freq_hz, uint8_t dummy_bits, phase_stats_t *stats);
 
-static void relax_task_wdt_for_bench(void)
+static bool relax_task_wdt_for_bench(void)
 {
+#if defined(CONFIG_FREERTOS_NUMBER_OF_CORES)
+    const uint32_t idle_core_mask = (1u << CONFIG_FREERTOS_NUMBER_OF_CORES) - 1u;
+#else
+    const uint32_t idle_core_mask = 0x1u;
+#endif
     const esp_task_wdt_config_t config = {
         .timeout_ms = 300000u,
-        .idle_core_mask = 0x3u,
+        .idle_core_mask = idle_core_mask,
         .trigger_panic = true,
     };
 
-    ESP_LOGI(TAG, "P4_QSPI_CAMPAIGN task_wdt timeout_ms=%" PRIu32, config.timeout_ms);
-    ESP_ERROR_CHECK(esp_task_wdt_reconfigure(&config));
+    ESP_LOGI(TAG, "P4_QSPI_CAMPAIGN task_wdt timeout_ms=%" PRIu32 " idle_core_mask=0x%" PRIX32,
+             config.timeout_ms, config.idle_core_mask);
+    esp_err_t err = esp_task_wdt_reconfigure(&config);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "P4_QSPI_CAMPAIGN task_wdt reconfigure err=%s", esp_err_to_name(err));
+        return false;
+    }
+    return true;
 }
 
 static void fill_reg_burst_words(uint32_t base_addr, size_t word_count)
@@ -1134,6 +1326,10 @@ static void fill_reg_burst_words(uint32_t base_addr, size_t word_count)
 
 static void fill_reg_burst_words_for_length_sweep(size_t word_count)
 {
+    if (word_count == 0u || word_count > PHASE3_BURST_WORDS) {
+        ESP_LOGE(TAG, "invalid register burst sweep length=%u", (unsigned)word_count);
+        return;
+    }
     for (size_t i = 0; i < word_count; ++i) {
         s_reg_burst_words[i] = (uint16_t)(0x5A00u ^ (uint16_t)i);
     }
@@ -1239,34 +1435,34 @@ static bool run_definitive_campaign(void)
 
     ESP_LOGI(TAG, "P4_QSPI_CAMPAIGN phase1 begin 40W/40R");
     run_cross_freq_ber("P4_QSPI_PHASE1_40W40R", PHASE1_ITERATIONS,
-                       SANITY_FREQ_HZ, SANITY_FREQ_HZ, 2, &phase1_40);
-    log_phase_summary("P4_QSPI_PHASE1_40W40R", SANITY_FREQ_HZ, 2, &phase1_40);
-    phase1_40_health_ok = read_and_log_transport_health("P4_QSPI_PHASE1_40W40R_HEALTH", SANITY_FREQ_HZ);
+                       QSPI_FUNCTIONAL_CLOCK_HZ, QSPI_FUNCTIONAL_CLOCK_HZ, 2, &phase1_40);
+    log_phase_summary("P4_QSPI_PHASE1_40W40R", QSPI_FUNCTIONAL_CLOCK_HZ, 2, &phase1_40);
+    phase1_40_health_ok = read_and_log_transport_health("P4_QSPI_PHASE1_40W40R_HEALTH", QSPI_FUNCTIONAL_CLOCK_HZ);
 
     ESP_LOGI(TAG, "P4_QSPI_CAMPAIGN phase1 begin 80W/40R");
     run_cross_freq_ber("P4_QSPI_PHASE1_80W40R", PHASE1_ITERATIONS,
-                       QSPI_EIGHTY_CLOCK_HZ, SANITY_FREQ_HZ, 2, &phase1_80);
+                       QSPI_EIGHTY_CLOCK_HZ, QSPI_FUNCTIONAL_CLOCK_HZ, 2, &phase1_80);
     log_phase_summary("P4_QSPI_PHASE1_80W40R", QSPI_EIGHTY_CLOCK_HZ, 2, &phase1_80);
-    phase1_80_health_ok = read_and_log_transport_health("P4_QSPI_PHASE1_80W40R_HEALTH", SANITY_FREQ_HZ);
+    phase1_80_health_ok = read_and_log_transport_health("P4_QSPI_PHASE1_80W40R_HEALTH", QSPI_FUNCTIONAL_CLOCK_HZ);
 
     ESP_LOGI(TAG, "P4_QSPI_CAMPAIGN phase2 begin min-gap hammer @40W/40R");
-    run_phase_ber("P4_QSPI_PHASE2_HAMMER", PHASE2_ITERATIONS, SANITY_FREQ_HZ, 2, &phase2);
-    log_phase_summary("P4_QSPI_PHASE2_HAMMER", SANITY_FREQ_HZ, 2, &phase2);
-    phase2_health_ok = read_and_log_transport_health("P4_QSPI_PHASE2_HAMMER_HEALTH", SANITY_FREQ_HZ);
+    run_phase_ber("P4_QSPI_PHASE2_HAMMER", PHASE2_ITERATIONS, QSPI_FUNCTIONAL_CLOCK_HZ, 2, &phase2);
+    log_phase_summary("P4_QSPI_PHASE2_HAMMER", QSPI_FUNCTIONAL_CLOCK_HZ, 2, &phase2);
+    phase2_health_ok = read_and_log_transport_health("P4_QSPI_PHASE2_HAMMER_HEALTH", QSPI_FUNCTIONAL_CLOCK_HZ);
 
     ESP_LOGI(TAG, "P4_QSPI_CAMPAIGN phase3 begin REG_WRITE bursts @80W/40R");
-    run_reg_burst_matrix("P4_QSPI_PHASE3_BURST_80W40R", QSPI_EIGHTY_CLOCK_HZ, SANITY_FREQ_HZ, &phase3_80);
-    phase3_80_health_ok = read_and_log_transport_health("P4_QSPI_PHASE3_BURST_80W40R_HEALTH", SANITY_FREQ_HZ);
+    run_reg_burst_matrix("P4_QSPI_PHASE3_BURST_80W40R", QSPI_EIGHTY_CLOCK_HZ, QSPI_FUNCTIONAL_CLOCK_HZ, &phase3_80);
+    phase3_80_health_ok = read_and_log_transport_health("P4_QSPI_PHASE3_BURST_80W40R_HEALTH", QSPI_FUNCTIONAL_CLOCK_HZ);
 
     ESP_LOGI(TAG, "P4_QSPI_CAMPAIGN phase4 begin back-to-back control @40W/40R");
-    run_phase4_back_to_back(SANITY_FREQ_HZ, 2, &phase4);
-    log_phase_summary("P4_QSPI_PHASE4", SANITY_FREQ_HZ, 2, &phase4);
-    phase4_health_ok = read_and_log_transport_health("P4_QSPI_PHASE4_HEALTH", SANITY_FREQ_HZ);
+    run_phase4_back_to_back(QSPI_FUNCTIONAL_CLOCK_HZ, 2, &phase4);
+    log_phase_summary("P4_QSPI_PHASE4", QSPI_FUNCTIONAL_CLOCK_HZ, 2, &phase4);
+    phase4_health_ok = read_and_log_transport_health("P4_QSPI_PHASE4_HEALTH", QSPI_FUNCTIONAL_CLOCK_HZ);
 
     ESP_LOGI(TAG, "P4_QSPI_CAMPAIGN final control verify @40W/40R after 80W upload");
-    ESP_ERROR_CHECK(qspi_reconfigure_device(SANITY_FREQ_HZ, s_input_delay_ns));
-    ESP_ERROR_CHECK(qspi_reg_write(LOOPBACK_WRITE_ADDR, LOOPBACK_WRITE_VALUE, SANITY_FREQ_HZ));
-    if (qspi_read_status(READ_STATUS_SEL_LOOPBACK, &final_loopback, 2, SANITY_FREQ_HZ) != ESP_OK ||
+    if (qspi_reconfigure_device(QSPI_FUNCTIONAL_CLOCK_HZ, s_input_delay_ns) != ESP_OK ||
+        qspi_reg_write(LOOPBACK_WRITE_ADDR, LOOPBACK_WRITE_VALUE, 0u) != ESP_OK ||
+        qspi_read_status(READ_STATUS_SEL_LOOPBACK, &final_loopback, 2, 0u) != ESP_OK ||
         final_loopback != EXPECTED_LOOPBACK) {
         ESP_LOGW(TAG,
                  "P4_QSPI_CAMPAIGN_FINAL_VERIFY failed got=0x%08" PRIX32 " expect=0x%08" PRIX32
@@ -1279,7 +1475,7 @@ static bool run_definitive_campaign(void)
                  final_loopback, qspi_get_actual_freq_hz());
         final_verify_ok = true;
     }
-    final_health_ok = read_and_log_transport_health("P4_QSPI_CAMPAIGN_FINAL_HEALTH", SANITY_FREQ_HZ);
+    final_health_ok = read_and_log_transport_health("P4_QSPI_CAMPAIGN_FINAL_HEALTH", QSPI_FUNCTIONAL_CLOCK_HZ);
 
     {
         bool pass = phase_passed(&phase1_40) &&
@@ -1324,18 +1520,18 @@ static bool run_short_transport_smoke(void)
     ESP_LOGI(TAG, "P4_QSPI_SHORT_SMOKE phase1 begin 40W/40R roundtrips=%" PRIu32,
              SHORT_SMOKE_ROUNDTRIPS);
     run_cross_freq_ber("P4_QSPI_PHASE1_40W40R", SHORT_SMOKE_ROUNDTRIPS,
-                       SANITY_FREQ_HZ, SANITY_FREQ_HZ, 2, &phase1_40);
-    log_phase_summary("P4_QSPI_PHASE1_40W40R", SANITY_FREQ_HZ, 2, &phase1_40);
-    phase1_40_health_ok = read_and_log_transport_health("P4_QSPI_PHASE1_40W40R_HEALTH", SANITY_FREQ_HZ);
+                       QSPI_FUNCTIONAL_CLOCK_HZ, QSPI_FUNCTIONAL_CLOCK_HZ, 2, &phase1_40);
+    log_phase_summary("P4_QSPI_PHASE1_40W40R", QSPI_FUNCTIONAL_CLOCK_HZ, 2, &phase1_40);
+    phase1_40_health_ok = read_and_log_transport_health("P4_QSPI_PHASE1_40W40R_HEALTH", QSPI_FUNCTIONAL_CLOCK_HZ);
 
     ESP_LOGI(TAG, "P4_QSPI_SHORT_SMOKE phase2 begin 80W bulk bytes=%" PRIu32,
              SHORT_SMOKE_BULK_BYTES);
-    run_bulk_write_smoke_80m("P4_QSPI_BULK_WRITE_80M", SHORT_SMOKE_BULK_BYTES, &bulk80);
-    bulk80_health_ok = read_and_log_transport_health("P4_QSPI_BULK_WRITE_80M_HEALTH", SANITY_FREQ_HZ);
+    bool bulk80_pass = run_bulk_write_smoke_80m("P4_QSPI_BULK_WRITE_80M", SHORT_SMOKE_BULK_BYTES, &bulk80);
+    bulk80_health_ok = read_and_log_transport_health("P4_QSPI_BULK_WRITE_80M_HEALTH", QSPI_FUNCTIONAL_CLOCK_HZ);
 
     {
         bool pass = phase_passed(&phase1_40) &&
-                    phase_passed(&bulk80) &&
+                    bulk80_pass && phase_passed(&bulk80) &&
                     phase1_40_health_ok &&
                     bulk80_health_ok;
         ESP_LOGI(TAG,
@@ -1357,7 +1553,16 @@ static void run_phase4_back_to_back(uint32_t freq_hz, uint8_t dummy_bits, phase_
     int64_t start_us = esp_timer_get_time();
     int64_t next_progress_us = start_us + 60ll * 1000000ll;
 
+    if (stats == NULL || freq_hz == 0u) {
+        ESP_LOGE(TAG, "P4_QSPI_PHASE4 invalid arguments");
+        return;
+    }
     reset_phase_stats(stats);
+    if (qspi_reconfigure_device(freq_hz, s_input_delay_ns) != ESP_OK) {
+        ESP_LOGE(TAG, "P4_QSPI_PHASE4 frequency configure failed");
+        stats->write_errors++;
+        return;
+    }
     ESP_LOGI(TAG,
              "P4_QSPI_PHASE4 note=driver exposes no explicit inter-CS gap knob; this run uses minimum implicit gap from back-to-back polling transactions");
     ESP_LOGI(TAG, "P4_QSPI_PHASE4 target duration_s=%" PRIu64,
@@ -1369,7 +1574,7 @@ static void run_phase4_back_to_back(uint32_t freq_hz, uint8_t dummy_bits, phase_
         uint32_t got = 0;
 
         make_pattern(stats->iterations, &addr, &value);
-        bool ok = run_loopback_roundtrip(addr, value, freq_hz, dummy_bits, stats, &got);
+        bool ok = run_loopback_roundtrip(addr, value, 0u, dummy_bits, stats, &got);
         stats->iterations++;
 
         if (!ok && total_phase_errors(stats) <= 8u) {
@@ -1400,14 +1605,16 @@ static void run_phase4_back_to_back(uint32_t freq_hz, uint8_t dummy_bits, phase_
 void app_main(void)
 {
     uint32_t magic = 0;
+    esp_err_t err = ESP_OK;
     phase_stats_t write80 = {0};
-    bool smoke_pass = false;
+    bool overall_pass = true;
+    bool any_test_enabled = false;
 
     ESP_LOGI(TAG, "P4_QSPI_PROOF start");
     ESP_LOGI(TAG, "pins sclk=%d cs=%d io0=%d io1=%d io2=%d io3=%d",
              PIN_SCLK, PIN_CS, PIN_IO0, PIN_IO1, PIN_IO2, PIN_IO3);
     ESP_LOGI(TAG, "qspi clock=%" PRIu32 " dummy_bits=2 addr_bits=24 cmd_bits=8 parity=%s",
-             QSPI_CLOCK_HZ, s_use_header_parity ? "on" : "off");
+             QSPI_DEFAULT_CLOCK_HZ, s_use_header_parity ? "on" : "off");
 
     s_tx_buf = heap_caps_aligned_calloc(64, 1, DMA_BUF_SIZE, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
     s_rx_buf = heap_caps_aligned_calloc(64, 1, DMA_BUF_SIZE, MALLOC_CAP_DMA | MALLOC_CAP_INTERNAL);
@@ -1418,34 +1625,77 @@ void app_main(void)
     }
 
     vTaskDelay(pdMS_TO_TICKS(200));
-    ESP_ERROR_CHECK(qspi_init());
+    err = qspi_init();
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "P4_QSPI_INIT result=ERR err=%s", esp_err_to_name(err));
+        return;
+    }
     ESP_LOGI(TAG, "P4_QSPI_INIT actual_freq=%" PRIu32, qspi_get_actual_freq_hz());
 
-    esp_err_t err = qspi_read_status(READ_STATUS_SEL_MAGIC, &magic, 2, SANITY_FREQ_HZ);
-    if (err == ESP_OK) {
-    ESP_LOGI(TAG, "P4_QSPI_MAGIC result=PASS value=0x%08" PRIX32 " actual_freq=%" PRIu32,
+    err = qspi_reconfigure_device(QSPI_FUNCTIONAL_CLOCK_HZ, s_input_delay_ns);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "P4_QSPI functional clock configure err=%s", esp_err_to_name(err));
+        return;
+    }
+    err = qspi_read_status(READ_STATUS_SEL_MAGIC, &magic, 2, 0u);
+    bool magic_pass = (err == ESP_OK && magic == EXPECTED_MAGIC);
+    if (magic_pass) {
+        ESP_LOGI(TAG, "P4_QSPI_MAGIC result=PASS value=0x%08" PRIX32 " actual_freq=%" PRIu32,
                  magic, qspi_get_actual_freq_hz());
         log_hex_bytes("P4_QSPI_MAGIC bytes=", s_rx_buf, 4);
+    } else if (err == ESP_OK) {
+        ESP_LOGE(TAG, "P4_QSPI_MAGIC result=FAIL value=0x%08" PRIX32 " expect=0x%08" PRIX32
+                 " actual_freq=%" PRIu32, magic, EXPECTED_MAGIC, qspi_get_actual_freq_hz());
     } else {
         ESP_LOGE(TAG, "P4_QSPI_MAGIC result=ERR err=%s actual_freq=%" PRIu32,
                  esp_err_to_name(err), qspi_get_actual_freq_hz());
     }
+    overall_pass = magic_pass;
 
-    relax_task_wdt_for_bench();
-    if (RUN_BULK_THROUGHPUT_ONLY) {
+    bool wdt_pass = relax_task_wdt_for_bench();
+    overall_pass = overall_pass && wdt_pass;
+    if (P4_QSPI_RUN_BULK_THROUGHPUT_ONLY) {
+        any_test_enabled = true;
         ESP_LOGI(TAG, "P4_QSPI_BULK_ONLY starting 80 MHz bulk throughput rerun");
-        run_write_throughput_80m(&write80);
+        bool bulk_pass = run_write_throughput_80m(&write80);
+        overall_pass = overall_pass && bulk_pass;
         ESP_LOGI(TAG,
-                 "P4_QSPI_BULK_ONLY summary req_freq=%" PRIu32 " actual_freq=%" PRIu32
+                 "P4_QSPI_BULK_ONLY summary pass=%u req_freq=%" PRIu32 " actual_freq=%" PRIu32
                  " iterations=%" PRIu32 " write_err=%" PRIu32,
+                 bulk_pass ? 1u : 0u,
                  QSPI_EIGHTY_CLOCK_HZ, qspi_get_actual_freq_hz(),
                  write80.iterations, write80.write_errors);
-        read_and_log_transport_health("P4_QSPI_BULK_ONLY_HEALTH", SANITY_FREQ_HZ);
-    } else {
-        ESP_LOGI(TAG, "P4_QSPI_INDEXED2 starting authorized 2bpp indexed proof");
-        smoke_pass = run_indexed2_proof();
-        ESP_LOGI(TAG, "P4_QSPI_APP done pass=%u", smoke_pass ? 1u : 0u);
+        bool health_pass = read_and_log_transport_health("P4_QSPI_BULK_ONLY_HEALTH", QSPI_FUNCTIONAL_CLOCK_HZ);
+        overall_pass = overall_pass && health_pass;
     }
+    if (P4_QSPI_RUN_BASIC_PROOF) {
+        any_test_enabled = true;
+        bool pass = run_proof_ladder(QSPI_FUNCTIONAL_CLOCK_HZ);
+        overall_pass = overall_pass && pass;
+    }
+    if (P4_QSPI_RUN_INDEXED2_PROOF) {
+        any_test_enabled = true;
+        ESP_LOGI(TAG, "P4_QSPI_INDEXED2 starting authorized 2bpp indexed proof");
+        bool pass = run_indexed2_proof();
+        overall_pass = overall_pass && pass;
+    }
+    if (P4_QSPI_RUN_SHORT_SMOKE) {
+        any_test_enabled = true;
+        bool pass = run_short_transport_smoke();
+        overall_pass = overall_pass && pass;
+    }
+    if (P4_QSPI_RUN_DEFINITIVE_CAMPAIGN) {
+        any_test_enabled = true;
+        bool pass = run_definitive_campaign();
+        overall_pass = overall_pass && pass;
+    }
+    if (!any_test_enabled) {
+        ESP_LOGE(TAG, "P4_QSPI_APP no tests enabled; define at least one P4_QSPI_RUN_* flag");
+        overall_pass = false;
+    }
+
+    ESP_LOGI(TAG, "P4_QSPI_APP done pass=%u magic_pass=%u tests_enabled=%u",
+             overall_pass ? 1u : 0u, magic_pass ? 1u : 0u, any_test_enabled ? 1u : 0u);
 
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000));
