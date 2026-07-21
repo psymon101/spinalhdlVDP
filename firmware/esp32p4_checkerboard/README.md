@@ -43,5 +43,8 @@ idf.py -p /dev/ttyACM0 flash monitor
 ## Notes
 
 - Attribute plane is filled with `0xE4` for identity pixel → palette mapping.
-- Bulk upload runs at 8 MHz QSPI; register traffic runs at 40 MHz.
+- Bulk SDRAM upload runs at 4 MHz QSPI; register traffic runs at 40 MHz.
+  The 4 MHz setting is the canonical safe rate for 30,720-byte bitmap and
+  attribute planes on the current ESP32-P4-to-Tang-Nano-20K wiring. An 8 MHz
+  upload passed some runs but corrupted bitmap words intermittently.
 - A small SDRAM readback sanity check runs after upload.

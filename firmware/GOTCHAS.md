@@ -307,3 +307,13 @@ as a transport or pin failure.
 **Related pin distinction:** The Tang CST numbers (`CS=85`, `SCK=77`,
 `IO0..3=25..28`) are FPGA package pins, not ESP32-P4 GPIO numbers. The P4
 adapter uses `SCLK=21`, `CS=20`, `IO0=32`, `IO1=33`, `IO2=22`, `IO3=23`.
+
+### GOTCHA-035: ESP32-P4 bulk SDRAM upload clock is 4 MHz on current wiring
+
+**Fact:** The clean-room 30,720-byte checkerboard plane upload passed 3/3 cold-start cycles at 4 MHz and 3/3 at 2 MHz, while 8 MHz passed only 4/10. At 8 MHz, readback showed intermittent byte/nibble shifts in lower bitmap rows even though transport health (`READ_STATUS` selector `0x0A`) stayed `overflow=0`, `malformed=0`.
+
+**Implication:** The current ESP32-P4-to-Tang-Nano-20K QSPI wiring has insufficient signal-integrity margin for the 8 MHz bulk SDRAM upload. This is a host-clock policy, not evidence of FPGA FIFO congestion or a new register/QSPI command.
+
+**Fix:** Keep `QSPI_SDRAM_CLOCK_HZ = 4u * 1000u * 1000u` for checkerboard and other 30,720-byte SDRAM plane uploads on this wiring. Register traffic may return to the 40 MHz functional clock after the upload. Revalidate on any physical wiring, pin, level-shifter, or board revision change.
+
+**Proof:** Checkerboard firmware commit `3d40636` fixed write dummy framing; the 4 MHz policy was directed in mail `#14261`. The 4 MHz canonical rerun must retain 10+ cold-start logs and clean HDMI capture before closeout.

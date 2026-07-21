@@ -99,7 +99,7 @@ enum {
 /* Clocking */
 static const uint32_t QSPI_DEFAULT_CLOCK_HZ = 20u * 1000u * 1000u;
 static const uint32_t QSPI_FUNCTIONAL_CLOCK_HZ = 40u * 1000u * 1000u;
-static const uint32_t QSPI_SDRAM_CLOCK_HZ = 8u * 1000u * 1000u;
+static const uint32_t QSPI_SDRAM_CLOCK_HZ = 4u * 1000u * 1000u;
 static const spi_clock_source_t QSPI_CLOCK_SOURCE = SPI_CLK_SRC_SPLL;
 
 /* Transaction limits */
