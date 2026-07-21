@@ -89,7 +89,10 @@ static const uint8_t READ_STATUS_SEL_MAGIC = 0x00u;
 static const uint8_t READ_STATUS_SEL_HDR_ERR = 0x07u;
 static const uint8_t READ_STATUS_SEL_SDRAM = 0x08u;
 static const uint8_t READ_STATUS_SEL_LOOPBACK = 0x09u;
-static const uint8_t READ_STATUS_SEL_TRANSPORT_HEALTH = 0x06u;
+// QspiTransportCore exposes {malformed, overflow} on READ_STATUS sel=10.
+// sel=6 is a legacy-front-end selector and reads the default zero value on
+// the active word-drain transport.
+static const uint8_t READ_STATUS_SEL_TRANSPORT_HEALTH = 0x0Au;
 static const uint32_t REG_WRITE_ADDR = 0x0305u;
 static const uint16_t REG_WRITE_VALUE = 0xA55Au;
 static const uint32_t LOOPBACK_WRITE_ADDR = 0x0042u;
@@ -591,6 +594,11 @@ static bool indexed2_readback_samples(void)
     uint32_t first_bad_addr = 0u;
     uint32_t first_bad_expected = 0u;
     uint32_t first_bad_got = 0u;
+
+    // Discriminator #1: all samples are taken after upload while fetch is
+    // explicitly disabled (BITMAP_CTRL=0x0002, layer enable=0), before the
+    // line-state and visible-layer enable writes below.
+    ESP_LOGI(TAG, "INDEXED2_READBACK fetch=disabled bitmap_ctrl=0x0002 layer_enable=0");
 
     for (size_t i = 0; i < (sizeof(sample_addresses) / sizeof(sample_addresses[0])); ++i) {
         const uint32_t addr = sample_addresses[i];

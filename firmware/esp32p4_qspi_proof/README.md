@@ -307,13 +307,14 @@ assert(health == 0x00000000);           // overflow=0, malformed=0
 | Check | Pass condition |
 |---|---|
 | Magic / transport alive | `READ_STATUS sel=0` == `0x51560002` at the start of the test. |
-| Transport health | `READ_STATUS sel=10` == `0x00000000` after register config and after upload. |
+| Transport health | `READ_STATUS sel=10` == `0x00000000` after register config and after upload. The firmware selector is `0x0A`; `sel=6` is legacy-only. |
 | Content sanity | `READ_STATUS sel=9` after the final `REG_WRITE` returns the expected `{lastData, lastAddr}` if a loopback register was written. |
 | Visual output | HDMI capture matches the reference HAM6 image within agreed tolerance (e.g. no macroscopic color corruption, no tearing). |
 | No watchdog resets | P4 log shows no `Task watchdog got triggered` messages. |
 
 ### Readback proof on the current bitstream
 - `READ_STATUS sel=8` is part of the current readback-enabled proof surface. Compare returned words against the exact uploaded bitmap/attribute bytes at upper and lower rows; the high-address write arms the one-shot SDRAM read.
+- The indexed proof performs this readback while fetch is disabled (`BITMAP_CTRL=0x0002`, layer enable `0`), before line-state and visible-layer enable. This is discriminator #1 for separating upload corruption from a display-fetch interaction.
 - `READ_STATUS sel=4` and `sel=6`: these are legacy-front-end diagnostics; the active word-drain transport uses `sel=10` for health.
 
 ### Proof packet
