@@ -34,6 +34,8 @@ object QspiTransportBridgeSim extends App {
       val dbgBridgeFsm = out Bits(3 bits)
     }
 
+    // BOOT reset matches the original harness; the bridge StateMachine reaches sIdle and
+    // fires correctly under it (verified — reset was NOT the bug; the measurement was).
     val sysCd = ClockDomain(clock = io.clk, config = ClockDomainConfig(resetKind = BOOT))
 
     // Don't wrap core in a ClockingArea; pass externalSysCd directly.
@@ -79,12 +81,19 @@ object QspiTransportBridgeSim extends App {
       }
     }
 
+    // Shared measurement (updated by the continuous monitor fork below). The FSM fires all
+    // wrCmds and pulses uploadDone DURING the SCLK transaction; a main-loop sampler that starts
+    // after the send races past them (SilentCrane's false "wrFires=0"). Count continuously.
+    var monWrFires = 0
+    var uploadDoneSeen = false
+
     fork {
       var pClk = false
       var nHdr = 0
       var nByte = 0
       var nBridgeHdr = 0
       var nBridgeByte = 0
+      var pFsm = -1
       while (true) {
         sleep(1)
         val c = dut.io.clk.toBoolean
@@ -93,6 +102,11 @@ object QspiTransportBridgeSim extends App {
           if (dut.io.dbgByteValid.toBoolean) { nByte += 1; if (nByte <= 10 || nByte % 16 == 0) println(s"[mon] sdramByte nByte=$nByte data=${dut.io.dbgByteOut.toInt}") }
           if (dut.io.dbgBridgeHdrPushed.toBoolean) { nBridgeHdr += 1; println(s"[mon] bridgeHdrPushed nBridgeHdr=$nBridgeHdr") }
           if (dut.io.dbgBridgeBytePushed.toBoolean) { nBridgeByte += 1; if (nBridgeByte <= 10 || nBridgeByte % 16 == 0) println(s"[mon] bridgeBytePushed nBridgeByte=$nBridgeByte") }
+          val fsmv = dut.io.dbgBridgeFsm.toInt   // {sIdle,sActive,sDone}
+          if (fsmv != pFsm) { println(s"[mon] FSM state {sIdle,sActive,sDone}=0b${fsmv.toBinaryString} uploadBusy=${dut.io.uploadBusy.toBoolean} wrCmdValid=${dut.io.wrCmdValid.toBoolean}"); pFsm = fsmv }
+          // Count wrCmd fires CONTINUOUSLY (main loop starts too late and misses fires during the txn).
+          if (dut.io.wrCmdValid.toBoolean && dut.io.wrCmdReady.toBoolean) { monWrFires += 1; if (monWrFires <= 3 || monWrFires % 32 == 0 || monWrFires == 128) println(s"[mon] wrCmd FIRE monWrFires=$monWrFires") }
+          if (dut.io.uploadDone.toBoolean) { uploadDoneSeen = true; println(s"[mon] uploadDone PULSE seen at monWrFires=$monWrFires") }
         }
         pClk = c
       }
@@ -118,17 +132,16 @@ object QspiTransportBridgeSim extends App {
     sendQuad(lenBytes(nWords) ++ data)
     endTxn()
 
+    // Settle: the FSM completes the whole transaction (all 128 wrCmd fires + uploadDone pulse)
+    // DURING the SCLK transaction above. Wait for the bridge to return to idle, then assert on
+    // the CONTINUOUSLY-counted values (monWrFires / uploadDoneSeen) — not a post-hoc level sample.
     var guard = 0
-    var wrFires = 0
-    while ((!dut.io.uploadDone.toBoolean || dut.io.uploadBusy.toBoolean) && guard < 100000) {
-      sleep(sysPeriod); guard += 1
-      if (dut.io.wrCmdValid.toBoolean && dut.io.wrCmdReady.toBoolean) wrFires += 1
-      if (guard % 20000 == 0) println(s"[dbg] guard=$guard uploadDone=${dut.io.uploadDone.toBoolean} uploadBusy=${dut.io.uploadBusy.toBoolean} wrFires=$wrFires")
-    }
-    println(s"[dbg] ended guard=$guard uploadDone=${dut.io.uploadDone.toBoolean} uploadBusy=${dut.io.uploadBusy.toBoolean} wrFires=$wrFires")
+    while (dut.io.uploadBusy.toBoolean && guard < 20000) { sleep(sysPeriod); guard += 1 }
+    sleep(50 * sysPeriod)
+    println(s"[dbg] ended: monWrFires=$monWrFires uploadDoneSeen=$uploadDoneSeen uploadBusy=${dut.io.uploadBusy.toBoolean}")
 
-    assert(dut.io.uploadDone.toBoolean, "uploadDone never asserted")
-    assert(wrFires == 128, s"expected 128 wrCmd fires, got $wrFires")
-    println("QspiTransportBridgeSim: PASS")
+    assert(uploadDoneSeen, "uploadDone pulse never observed (continuous monitor)")
+    assert(monWrFires == 128, s"expected 128 wrCmd fires, got $monWrFires")
+    println("QspiTransportBridgeSim: PASS — core->bridge SDRAM_WRITE fires 128 wrCmds + uploadDone (integration correct)")
   }
 }
