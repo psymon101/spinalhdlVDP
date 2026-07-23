@@ -284,8 +284,96 @@ object Indexed2bppFrameCoSim {
     (validRows, wrongEvents)
   }
 
+  /** LEFT-EDGE discriminator (#14285): render a UNIFORM value-1 (white) frame through the REAL
+    * scanout + fetch, then histogram black pixels PER DISPLAY COLUMN. A clean RTL scanout paints
+    * every active column white (only the frame-0 startup row may differ). If the LEFT-EDGE columns
+    * (0..31) carry materially more black than the interior, that is a real VDP left-edge
+    * scanout/fetch artifact; if the left edge matches the interior, the RTL renders a clean left
+    * edge and the bench streaks are downstream (monitor/capture/camera geometry). Returns
+    * (leftEdgeBlack, interiorBlack). */
+  def runLeftEdge(): (Long, Long) = {
+    var leftBlack = 0L; var interiorBlack = 0L
+    SimConfig.compile(new Dut).doSim { dut =>
+      dut.clockDomain.forkStimulus(10); dut.sdramCd.forkStimulus(10)
+
+      // Uniform value-1 (0x55) bitmap + identity attr (0xE4) → every pixel = palette[1] (white).
+      val mem = mutable.HashMap[Int, Int]()
+      for (row <- 0 until SrcH; b <- 0 until RowStride) {
+        mem((BitmapBase + row * RowStride + b) & 0x7fffff) = 0x55
+        mem((AttrBase   + row * RowStride + b) & 0x7fffff) = 0xE4
+      }
+      def rb(a: Int) = mem.getOrElse(a & 0x7fffff, 0)
+      def rw(a: Int): Long = { val b = a & ~3
+        (rb(b) & 0xFFL) | ((rb(b+1) & 0xFFL) << 8) | ((rb(b+2) & 0xFFL) << 16) | ((rb(b+3) & 0xFFL) << 24) }
+
+      dut.io.sdramDout #= 0; dut.io.sdramDout32 #= 0; dut.io.sdramDataReady #= false; dut.io.sdramBusy #= true
+      dut.io.regBusAddr #= 0; dut.io.regBusData #= 0; dut.io.regBusEnable #= false
+      fork {
+        for (_ <- 0 until 30) dut.sdramCd.waitSampling()
+        dut.io.sdramBusy #= false
+        while (true) {
+          if (dut.io.sdramRd.toBoolean) {
+            val a = dut.io.sdramAddr.toInt; val n = math.max(1, dut.io.sdramBurstLen.toInt)
+            dut.sdramCd.waitSampling(5)
+            for (k <- 0 until n) {
+              dut.io.sdramDout #= rb(a + k*4) & 0xFF
+              dut.io.sdramDout32 #= BigInt(rw(a + k*4) & 0xFFFFFFFFL)
+              dut.io.sdramDataReady #= true; dut.sdramCd.waitSampling()
+            }
+            dut.io.sdramDataReady #= false
+          } else dut.sdramCd.waitSampling()
+        }
+      }
+      def writeReg(a: Int, d: Int): Unit = {
+        dut.io.regBusAddr #= a; dut.io.regBusData #= d; dut.io.regBusEnable #= true
+        dut.clockDomain.waitSampling(); dut.io.regBusEnable #= false; dut.clockDomain.waitSampling()
+      }
+      writeReg(0x0300, 0x0000)
+      writeReg(0x0351, BitmapBase & 0xFFFF);  writeReg(0x0352, (BitmapBase >> 16) & 0x7F)
+      writeReg(0x0353, AttrBase   & 0xFFFF);  writeReg(0x0354, (AttrBase   >> 16) & 0x7F)
+      writeReg(0x0355, RowStride);            writeReg(0x0356, RowStride)
+      writeReg(0x0357, SrcH)
+      for (line <- 0 until 480) writeReg(line, 0x0800)
+      writeReg(0x0350, 0x0003)
+      writeReg(0x0300, 0x0001)
+
+      var t = 200000
+      while (!dut.io.bootDone.toBoolean && t > 0) { dut.clockDomain.waitSampling(); t -= 1 }
+      dut.clockDomain.waitSampling(800 * 525 * 3)
+
+      // Per-column black histogram over DE pixels, skipping frame-0 startup row (dy==0).
+      val colBlack = Array.fill(640)(0L); val colSeen = Array.fill(640)(0L)
+      val sampleCycles = 800 * 525 * 2
+      for (_ <- 0 until sampleCycles) {
+        if (dut.io.de.toBoolean) {
+          val dx = dut.io.x.toInt; val dy = dut.io.y.toInt
+          if (dx < 640 && dy >= 1 && dy < 480) {
+            colSeen(dx) += 1
+            if ((dut.video.bgOrDirectRgb.toInt & 0xFFFFFF) == 0x000000) colBlack(dx) += 1
+          }
+        }
+        dut.clockDomain.waitSampling()
+      }
+      for (dx <- 0 until 32)   leftBlack     += colBlack(dx)
+      for (dx <- 32 until 608) interiorBlack += colBlack(dx)
+      // Report the per-column black in the first 8 cols + a couple interior cols for the record.
+      val head = (0 until 8).map(dx => f"c$dx=${colBlack(dx)}").mkString(" ")
+      println(f"[sim] LEFT-EDGE black/col: $head | interior c320=${colBlack(320)} c500=${colBlack(500)} | leftSum(0..31)=$leftBlack interiorSum(32..607)=$interiorBlack")
+    }
+    (leftBlack, interiorBlack)
+  }
+
   def main(args: Array[String]): Unit = {
-    println("=== Indexed2bppFrameCoSim: ROW-CODED lookahead test (#14253 Finding 1) — real VdpTop fetchLine ===")
+    println("=== Indexed2bppFrameCoSim: LEFT-EDGE discriminator (#14285) — real scanout, per-column black histogram ===")
+    val (le, ie) = runLeftEdge()
+    val interiorPerCol = ie.toDouble / 576.0
+    val leftPerCol = le.toDouble / 32.0
+    if (leftPerCol <= interiorPerCol + 2.0)
+      println(f"[sim] LEFT-EDGE: CLEAN — left-edge black/col ($leftPerCol%.1f) ≈ interior ($interiorPerCol%.1f). RTL scanout paints the left edge like the interior ⇒ the bench left-edge streaks are DOWNSTREAM (monitor/capture/camera geometry), NOT a VDP scanout/fetch artifact.")
+    else
+      println(f"[sim] LEFT-EDGE: ARTIFACT — left-edge black/col ($leftPerCol%.1f) >> interior ($interiorPerCol%.1f) ⇒ a real VDP left-edge scanout/fetch defect; drill into hCounter/readSync/line-buffer start.")
+
+    println("\n=== Indexed2bppFrameCoSim: ROW-CODED lookahead test (#14253 Finding 1) — real VdpTop fetchLine ===")
     val (vr, we) = runRowCoded()
     if (vr < 100)
       println(f"[sim] ROW-CODED: INCONCLUSIVE — too few rendered rows ($vr).")
