@@ -93,6 +93,18 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
   // sel=9 loopback (last reg write, crossed clk_sys->SCLK via BufferCC — static between
   // writes so 2FF sync is safe). Combinational off slave.cmdAddr (stable after cmdValid).
   slave.io.hdrErr.addTag(crossClockDomain)
+  slave.io.crcBad.addTag(crossClockDomain)
+  // QSPI-CRC8-185 (#14274): the CRC byte is the last frame byte (no trailing SCLK edge), so the
+  // mismatch arrives as a combinational LEVEL (`slave.io.crcBad`) held through the CS#-hold
+  // window. Capture it in the CONTINUOUS clk_sys domain (the SCLK/loop domains stop clocking
+  // once SCLK idles), then surface {sticky,count} back to the SCLK read responder via BufferCC.
+  val crcCap = new ClockingArea(sysCd) {
+    val badSync    = BufferCC(slave.io.crcBad, False)
+    val badPrev    = RegNext(badSync) init False
+    val errSticky  = Reg(Bool()) init False
+    val errCount   = Reg(UInt(16 bits)) init 0
+    when(badSync && !badPrev) { errSticky := True; errCount := errCount + 1 }   // one per rising edge
+  }
   val loop = new ClockingArea(sclkGlobalCd) {
     val lastDataCC = BufferCC(sys.lastRegData, B(0, 16 bits))
     val lastAddrCC = BufferCC(sys.lastRegAddr, U(0, 16 bits))
@@ -103,6 +115,10 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
     val hdrErrSticky = Reg(Bool()) init False
     val hdrErrCount  = Reg(UInt(16 bits)) init 0
     when(slave.io.hdrErr) { hdrErrSticky := True; hdrErrCount := hdrErrCount + 1 }
+    // QSPI-CRC8-185 (#14274): surface the clk_sys-captured CRC {sticky,count} into the SCLK read
+    // responder via BufferCC (static once set — 2FF sync is safe, same as the sel=9 loopback).
+    val crcErrSticky = BufferCC(crcCap.errSticky, False)
+    val crcErrCount  = BufferCC(crcCap.errCount, U(0, 16 bits))
   }
   // Read-responder switch is defined AFTER `push` (below) so sel=10 can surface the
   // token-FIFO overflow + malformed-length sticky flags, which live in the push area.
@@ -168,6 +184,7 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
     is(U(8, 8 bits)) { rxWordSel := loop.dbgSdramCC }                                  // SDRAM debug readback (#14246; armed via 0x0326/0x0327)
     is(U(9, 8 bits)) { rxWordSel := loop.lastDataCC ## loop.lastAddrCC.asBits }        // loopback {data,addr}
     is(U(10, 8 bits)){ rxWordSel := B(0, 30 bits) ## push.malformed ## push.overflow } // transport health
+    is(U(11, 8 bits)){ rxWordSel := B(0, 15 bits) ## loop.crcErrSticky ## loop.crcErrCount.asBits } // CRC8 {sticky, count} (#14274)
     default          { rxWordSel := B(0, 32 bits) }
   }
   slave.io.rxWord := rxWordSel

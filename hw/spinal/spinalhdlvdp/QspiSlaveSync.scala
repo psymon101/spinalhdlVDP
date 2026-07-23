@@ -55,6 +55,31 @@ case class QspiSlaveSync(dummyCycles: Int = 2, extSclkCd: ClockDomain = null, hd
     // ---- header integrity: pulse at header-complete when ADDR[23] parity mismatches
     // (only meaningful when hdrParity=true; else held False) ----
     val hdrErr = out Bool()
+
+    // ---- QSPI-CRC8-185 (#14274): per-write-transaction CRC8 detect-and-flag. When the
+    // host appends a CRC-8-CCITT byte (poly 0x07, init 0x00, over CMD+ADDR+LEN+payload)
+    // after the payload, the slave recomputes the CRC over the same bytes and compares it
+    // to the received CRC byte on the CRC-byte edge. `crcErr` pulses (one SCLK cycle) on a
+    // mismatch. The CRC byte is NOT forwarded as payload to the decoder. Backward-compatible:
+    // a host that sends exactly LEN*2 payload bytes and NO trailing CRC byte uploads normally
+    // and never fires crcErr (the CRC byte is simply the optional (LEN*2+1)-th byte). ----
+    // COMBINATIONAL level: a CRC byte was received AND it mismatches the recomputed CRC. Held
+    // from the CRC-byte edge until CS# deassert. The consumer (QspiTransportCore, in the
+    // continuous clk_sys domain) samples this level across the CS#-hold window — a REGISTERED
+    // pulse would be lost because the CRC byte is the last byte with no trailing SCLK edge.
+    val crcBad = out Bool()
+  }
+
+  // CRC-8-CCITT one-byte update: poly 0x07, MSB-first, no reflection. Standard table-less
+  // form (XOR the data byte into the running CRC, then 8 shift/conditional-XOR rounds).
+  // Chained over CMD, the 3 ADDR bytes (MSB-first as sent), the 2 LEN bytes (lo then hi as
+  // sent), and each payload byte, starting from init 0x00. Host MUST match this exactly.
+  def crc8Byte(crcIn: Bits, data: Bits): Bits = {
+    var c: Bits = crcIn ^ data
+    for (_ <- 0 until 8) {
+      c = Mux(c(7), (c(6 downto 0) ## False) ^ B"8'h07", c(6 downto 0) ## False)
+    }
+    c
   }
 
   // ===========================================================================
@@ -94,6 +119,14 @@ case class QspiSlaveSync(dummyCycles: Int = 2, extSclkCd: ClockDomain = null, hd
     // first 2 quad-data bytes (LEN_lo, LEN_hi) after the 24-bit ADDR phase.
     val lenLo      = Reg(Bits(8 bits)) init 0
     val lenByteCnt = Reg(UInt(1 bits)) init 0
+
+    // QSPI-CRC8-185: running CRC over CMD+ADDR+LEN+payload, payload-byte counter (to detect
+    // the CRC byte after LEN*2 payload bytes), and the mismatch pulse. All CS#-reset (sclkCd),
+    // so they restart fresh each transaction. crcReg is seeded at ADDR-complete.
+    val crcReg         = Reg(Bits(8 bits))  init 0
+    val payloadByteCnt = Reg(UInt(17 bits)) init 0   // counts payload bytes (LEN*2 = 17b max)
+    val rxCrcR         = Reg(Bits(8 bits)) init 0    // the received CRC byte, latched on its edge
+    val crcSeenR       = Reg(Bool()) init False      // a CRC byte was received this transaction
 
     // write nibble assembly (high nibble first). payload is COMBINATIONAL so the
     // decoder commits the byte ON the low-nibble edge — no trailing SCLK edge
@@ -136,6 +169,10 @@ case class QspiSlaveSync(dummyCycles: Int = 2, extSclkCd: ClockDomain = null, hd
             phase      := Phase.LENCAP
             nibHigh    := True
             lenByteCnt := 0
+            // QSPI-CRC8-185: seed CRC over CMD then the 3 ADDR bytes (MSB-first, as sent).
+            crcReg := crc8Byte(crc8Byte(crc8Byte(crc8Byte(B"8'h00", cmdSh),
+                        a24(23 downto 16)), a24(15 downto 8)), a24(7 downto 0))
+            payloadByteCnt := 0
           }
         } otherwise { bitc := bitc + 1 }
       }
@@ -144,6 +181,8 @@ case class QspiSlaveSync(dummyCycles: Int = 2, extSclkCd: ClockDomain = null, hd
         when(nibHigh) { hiNib := io.ioIn; nibHigh := False } otherwise {
           val b = hiNib ## io.ioIn
           nibHigh := True
+          // QSPI-CRC8-185: fold each LEN byte into the CRC (lo then hi, as sent).
+          crcReg := crc8Byte(crcReg, b)
           when(lenByteCnt === 0) { lenLo := b; lenByteCnt := 1 } otherwise {
             lenR      := (b ## lenLo).asUInt   // {LEN_hi, LEN_lo}
             cmdValidR := True
@@ -154,7 +193,24 @@ case class QspiSlaveSync(dummyCycles: Int = 2, extSclkCd: ClockDomain = null, hd
       is(Phase.WDATA) {
         // quad TX-in: capture high nibble, toggle. The byte + valid are driven
         // combinationally below so the decoder consumes on the low-nibble edge.
-        when(nibHigh) { hiNib := io.ioIn; nibHigh := False } otherwise { nibHigh := True }
+        when(nibHigh) { hiNib := io.ioIn; nibHigh := False } otherwise {
+          nibHigh := True
+          // QSPI-CRC8-185: the first LEN*2 bytes are payload (fold into CRC + count); the
+          // byte after them is the trailing CRC8 — compare it, pulse crcErr on mismatch, and
+          // do NOT count/fold/forward it. `payloadValid` (below) is gated the same way so the
+          // CRC byte is never delivered to the decoder as payload.
+          val fullByte = hiNib ## io.ioIn
+          when(payloadByteCnt < (lenR << 1)) {
+            crcReg         := crc8Byte(crcReg, fullByte)
+            payloadByteCnt := payloadByteCnt + 1
+          } otherwise {
+            // CRC byte (the LEN*2+1-th): latch it on its own edge + mark seen. The mismatch
+            // is exposed as the combinational `crcBad` level below (no registered pulse — the
+            // CRC byte is the last byte, so there is no trailing edge to register a pulse on).
+            rxCrcR   := fullByte
+            crcSeenR := True
+          }
+        }
       }
       is(Phase.DUMMY) {
         when(bitc === (dummyCycles - 1)) {
@@ -179,7 +235,10 @@ case class QspiSlaveSync(dummyCycles: Int = 2, extSclkCd: ClockDomain = null, hd
   // combinational payload: valid during the low-nibble cycle; byte = hiNib##ioIn.
   // Consumed by the decoder ON the low-nibble edge (no trailing-edge dependency).
   io.payloadByte  := area.hiNib ## io.ioIn
-  io.payloadValid := (area.phase === Phase.WDATA) && !area.nibHigh
+  // QSPI-CRC8-185: forward payload bytes only while within the LEN*2 budget — the trailing
+  // CRC byte (payloadByteCnt === LEN*2) is checked, not delivered to the decoder.
+  io.payloadValid := (area.phase === Phase.WDATA) && !area.nibHigh &&
+                     (area.payloadByteCnt < (area.lenR << 1))
   // ===========================================================================
   // FALLING-edge output launch (SPI mode-0 read timing). Presenting read data on
   // the falling edge gives the master a half-cycle of setup before it samples on
@@ -206,4 +265,6 @@ case class QspiSlaveSync(dummyCycles: Int = 2, extSclkCd: ClockDomain = null, hd
   io.ioOe   := outArea.ioOeF
   io.active := !io.csn
   io.hdrErr := area.hdrErrR
+  // Combinational mismatch level (valid from the CRC-byte edge through the CS#-hold window).
+  io.crcBad := area.crcSeenR && (area.rxCrcR =/= area.crcReg)
 }
