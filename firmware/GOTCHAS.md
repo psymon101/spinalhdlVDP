@@ -280,11 +280,14 @@ vdp_mode0_set_scale_ctrl(
 
 **Logic Ceiling:** Per Nyquist-Shannon, the SCK frequency MUST be less than 12.6 MHz (half the oversampling rate). In practice, with routing jitter and setup/hold requirements, the stable ceiling is ~8 MHz.
 
+**Physical Ceiling:** The current ESP32-P4-to-Tang-Nano-20K wiring shows intermittent byte/nibble shifts at 8 MHz bulk SDRAM upload (QSPI-SI-CEILING-183). Bench logs: 8 MHz = 4/10 pass, 4 MHz = 3/3 pass, 2 MHz = 3/3 pass.
+
 **Implication:**
 - The 60 MHz write speed recommended in earlier firmware versions is **physically invalid**.
 - At 60 MHz, the FPGA sees aliased/random transitions, causing protocol collapse and non-deterministic register/SDRAM write failures.
+- At 8 MHz, signal-integrity margin is insufficient for reliable bulk SDRAM upload on this wiring.
 
-**Fix:** Cap the legacy SPI write clock to **8 MHz** max. Adjust `VDP_SPI_SCK_WRITE_HZ` in `vdp_platform.h` and the ESP32 probe firmware.
+**Fix:** Cap the legacy SPI write clock to **4 MHz** max for production bulk uploads. Adjust `VDP_SPI_SCK_WRITE_HZ` in `vdp_platform.h` and the ESP32 probe firmware. Register traffic may still use higher functional clocks after the upload.
 
 ---
 

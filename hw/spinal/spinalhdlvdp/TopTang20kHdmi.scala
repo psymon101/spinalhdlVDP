@@ -477,7 +477,7 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // rate the 16-deep byteFifo overflowed and silently dropped bytes
     // (UploadByteRateSim #11231: 200/256 lost @60 MHz). The pop side
     // (uploadPopArea.canAccept) now defers to fetch activity per-cycle with one-cycle
-    // look-ahead, so emitting anytime is safe; BronzeGate's 8 MHz host write cap (F3)
+    // look-ahead, so emitting anytime is safe; BronzeGate's 4 MHz host write cap (F3)
     // keeps the average source rate under the SDRAM byte-write sink.
     qspiSdramBridge.io.allowUpload := True
     // #11123 FIX 1: bridge no longer takes raw cross-domain busy; its wrCmd
@@ -836,7 +836,7 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // of partial sentinel bytes and writes landing at the wrong address.
   // depth=128 (power-of-two, GT-022). #11246 F5b: deepened 16->128 alongside the
   // bridge byteFifo so the CDC stage isn't the bottleneck — UploadSeamSim proved
-  // depth 128 yields ZERO upload drops at the 8 MHz cap under per-line fetch read
+  // depth 128 yields ZERO upload drops at the 4 MHz cap under per-line fetch read
   // bursts (16 dropped most, 64 dropped 13). The SDRAM-side pop (uploadPopArea, below
   // dbgReadArea) consumes one entry only when the controller can accept it.
   val uploadCc = StreamFifoCC(Bits(31 bits), 128, pixelClockDomain, sdramClockDomain)
@@ -1101,7 +1101,7 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // Fix: gate on each contending client's CURRENT and NEXT-cycle (getAheadValue)
     // request, plus refresh. This also removes the de/deSync gating (F4/F5) — uploads
     // drain during ANY truly-idle SDRAM cycle (incl. active video), bounded by the
-    // 8 MHz host cap, instead of only in blanking (which overflowed the byteFifo).
+    // 4 MHz host cap, instead of only in blanking (which overflowed the byteFifo).
     val fetchBusy = pixelArea.fetch.io.sdramRd   || pixelArea.fetch.io.sdramWr   ||
                     pixelArea.fetch.io.sdramRdNext || pixelArea.fetch.io.sdramWrNext ||
                     pixelArea.fetch.io.sdramRefresh || pixelArea.fetch.io.sdramRefreshNext

@@ -56,7 +56,7 @@ path ignores `vdp_host_set_speed_hz()`.
 | Direction | Recommended Speed | Rationale |
 |---|---|---|
 | **Reads** | **3 MHz** (`VDP_HOST_SCK_HZ`, legacy alias `VDP_SPI_SCK_HZ`) | FPGA response FSM caps at 3 MHz; higher rates cause read failure. |
-| **Writes** | **8 MHz** (`VDP_HOST_SCK_WRITE_HZ`, legacy alias `VDP_SPI_SCK_WRITE_HZ`) | Firmware physical cap for compatibility builds. |
+| **Writes** | **4 MHz** (`VDP_HOST_SCK_WRITE_HZ`, legacy alias `VDP_SPI_SCK_WRITE_HZ`) | Firmware physical cap for reliable bulk SDRAM upload on current wiring (QSPI-SI-CEILING-183). |
 
 ### Usage Example
 

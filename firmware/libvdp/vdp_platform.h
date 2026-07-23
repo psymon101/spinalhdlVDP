@@ -110,13 +110,14 @@
  *
  *   - Writes (REG_WRITE, SDRAM_WRITE): bench-clean at 80 MHz (IOMUX max).
  *     However, Phase 1A physical constraints (25.2 MHz oversampler) dictate
- *     a strict Nyquist ceiling of 12.6 MHz. The maximum stable production
- *     write speed is therefore capped at 8 MHz to prevent protocol aliasing.
+ *     a strict Nyquist ceiling of 12.6 MHz, and the current wiring shows
+ *     intermittent byte/nibble corruption at 8 MHz (QSPI-SI-CEILING-183).
+ *     The maximum stable production write speed is therefore capped at 4 MHz.
  *
  * Default = 3 MHz so first-call READ_STATUS magic works out of the box.
  * Sketches doing bulk uploads should call:
  *
- *     vdp_host_set_speed_hz(8000000u);   // before write-heavy section
+ *     vdp_host_set_speed_hz(4000000u);   // before write-heavy section
  *     ...
  *     vdp_host_set_speed_hz( 3000000u);   // before next read
  *
@@ -124,7 +125,7 @@
  * cadence — the set_speed_hz call is a no-op there. */
 #if defined(VDP_SPI_BACKEND_SPI2)
 #define VDP_SPI_SCK_HZ    3000000u    /* boot/read default */
-#define VDP_SPI_SCK_WRITE_HZ 8000000u  /* firmware physical cap */
+#define VDP_SPI_SCK_WRITE_HZ 4000000u  /* firmware physical cap */
 #else
 #define VDP_SPI_SCK_HZ    2000000u
 #endif

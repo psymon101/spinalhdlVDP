@@ -13,7 +13,7 @@ import scala.collection.mutable.ArrayBuffer
   * byte pulses on the decoder BYTE path (holding the FIFO token across both cycles =
   * real backpressure). The FIFO still carries WORD tokens (half-rate push preserved),
   * but the drain is now ~2 clk_sys cycles/word. Upload throughput is therefore bounded
-  * by the SDRAM byte-write sink (~8 MHz), NOT the 80 MHz link (premise correction
+  * by the SDRAM byte-write sink (~4 MHz), NOT the 80 MHz link (premise correction
   * #13976, accepted #13984) — an unbounded 80 MHz burst is EXPECTED to overflow and is
   * gated host-side, so this sim proves correctness at the real operating point instead.
   *

@@ -40,7 +40,7 @@ A dual-clock async FIFO would only move the CDC boundary from "QSPI byte stream 
 | Response path (READ_STATUS) | Currently turnaround is timed in `clk_pixel`. Would need a second async FIFO or a CDC-safe handshaking path back to `SPI_CLK` for driving IO outputs. |
 | Files touched | `QspiSlave.scala`, `TopTang20kHdmi.scala` (clock routing), `tang20k_hdmi.sdc`, possibly `QspiTransportCore.scala`. |
 | Sim gate | New `QspiSlave` unit test, FIFO CDC formal, top-level `QspiHamIntegrationSim` regression. |
-| Bitstream validation | STA, re-run QSPI word-drain / HAM integration sims, bench flash at 8 MHz/20 MHz/40 MHz. |
+| Bitstream validation | STA, re-run QSPI word-drain / HAM integration sims, bench flash at 4 MHz/20 MHz/40 MHz. |
 | Schedule estimate | 1–2 days RTL + sim, 1 day STA/PnR, 1 day bench validation (optimistic). |
 
 ## 4. Comparison of four options

@@ -97,7 +97,10 @@ enum {
 };
 
 /* Clocking */
-static const uint32_t QSPI_DEFAULT_CLOCK_HZ = 20u * 1000u * 1000u;
+// DIAG #14260 / QSPI-SI-CEILING-183: 4 MHz is the reliable ceiling for bulk
+// SDRAM upload on the current ESP32-P4-to-Tang-Nano-20K wiring. 8 MHz is
+// intermittent (4/10 pass) due to signal integrity; 4 MHz is 3/3 pass.
+static const uint32_t QSPI_DEFAULT_CLOCK_HZ = 4u * 1000u * 1000u;
 static const uint32_t QSPI_FUNCTIONAL_CLOCK_HZ = 40u * 1000u * 1000u;
 static const uint32_t QSPI_SDRAM_CLOCK_HZ = 4u * 1000u * 1000u;
 static const spi_clock_source_t QSPI_CLOCK_SOURCE = SPI_CLK_SRC_SPLL;

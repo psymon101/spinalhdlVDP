@@ -2,7 +2,7 @@
 
 This directory contains the ESP32-P4 firmware that drives the Tang Nano 20K VDP over a **1-1-4 quad-SPI (QSPI) transport**. It replaces the legacy ESP32-S3 i80 parallel interface for the current spinalhdlVDP implementation lane.
 
-**Active transport (Option A / word-drain):** `QspiSlaveSync` + `QspiTransportCore` (proven at 40–80 MHz link rates; bulk SDRAM upload is sink-bound to ~8 MHz). The legacy oversampled `QspiSlave` path attempted in Option B has been retired because its quad+LEN header cannot be emitted by the ESP32-P4 GPSPI driver within the 32-bit address limit.
+**Active transport (Option A / word-drain):** `QspiSlaveSync` + `QspiTransportCore` (proven at 40–80 MHz link rates; bulk SDRAM upload is sink-bound to ~4 MHz on current wiring). The legacy oversampled `QspiSlave` path attempted in Option B has been retired because its quad+LEN header cannot be emitted by the ESP32-P4 GPSPI driver within the 32-bit address limit.
 
 This document is the single consolidated reference for the P4-side host interface. It is intended both for the link-certification campaign and as the hand-off for anyone writing a P4 QSPI host driver for VdpTop.
 
@@ -38,7 +38,7 @@ Do not use this command against the retired legacy HAM bitstream.
 
 | Signal | P4 GPIO | Direction | Description |
 |---|---|---|---|
-| `SCLK` | 21 | Host → FPGA | QSPI clock. Mode 0 (CPOL=0, CPHA=0). Link proven up to 80 MHz for register/status traffic; bulk SDRAM upload is sink-bound to ~8 MHz. |
+| `SCLK` | 21 | Host → FPGA | QSPI clock. Mode 0 (CPOL=0, CPHA=0). Link proven up to 80 MHz for register/status traffic; bulk SDRAM upload is sink-bound to ~4 MHz on current wiring (QSPI-SI-CEILING-183). |
 | `CS#`  | 20 | Host → FPGA | Active-low chip-select. Async reset of the FPGA slave FSM when high. |
 | `IO0`  | 32 | Bidir | MOSI / data0. Used for CMD and ADDR phases, then data. |
 | `IO1`  | 33 | Bidir | MISO / data1. Used for CMD and ADDR phases, then data. |
@@ -144,7 +144,7 @@ The harness reconfigures the SPI device (remove + add) for each major frequency 
 |---|---|---|---|
 | Sanity | 40 MHz | 40 MHz | Baseline smoke test. |
 | Register / status traffic | 40–80 MHz | 40 / 80 MHz | Fast register writes and `READ_STATUS` polls. |
-| SDRAM_WRITE bulk upload | ~8 MHz | ~8 MHz | **SDRAM-sink bound**, not link bound. The `QspiSdramBridge` accepts one byte per SDRAM write command; sustained throughput above ~8 MHz overflows the ingress FIFO and trips `sel=10` `overflow=1`. |
+| SDRAM_WRITE bulk upload | ~4 MHz | ~4 MHz | **SDRAM-sink / SI bound** on current wiring, not link bound. The `QspiSdramBridge` accepts one byte per SDRAM write command; sustained throughput above ~4 MHz overflows the ingress FIFO or sees byte/nibble shifts and trips `sel=10` `overflow=1`. |
 | Stress | 60 MHz or 48 MHz | exact | Use exact SPLL divisors; avoid 53.333 MHz. |
 
 ---
@@ -158,7 +158,7 @@ The harness reconfigures the SPI device (remove + add) for each major frequency 
 5. **`dummy_bits = 2`** is required for `READ_STATUS` to give the FPGA time to load the response shifter.
 6. **CS# setup/hold.** Use `cs_ena_pretrans = 2` and `cs_ena_posttrans = 2` to meet the async-reset slave timing.
 7. **`data4–7 = -1`.** Always initialize the unused octal pins to `-1` in `spi_bus_config_t` to avoid GPIO0 conflict warnings.
-8. **Bulk upload is SDRAM-sink-bound (~8 MHz), not link-bound.** Do not run sustained `SDRAM_WRITE` above ~8 MHz even though the link itself is clean at 80 MHz; the bridge FIFO will overflow. Register/status traffic may run at 40–80 MHz.
+8. **Bulk upload is SDRAM-sink / SI-bound (~4 MHz), not link-bound.** Do not run sustained `SDRAM_WRITE` above ~4 MHz on the current wiring even though the link itself is clean at 80 MHz; the bridge FIFO will overflow or signal-integrity errors will corrupt bytes. Register/status traffic may run at 40–80 MHz.
 9. **Parity bit must match the bitstream.** The active parity-enabled word-drain build uses `ADDR[23]` parity. Set `s_use_header_parity = true` for that build.
 
 ---
@@ -198,8 +198,8 @@ The VDP fetch engine halves the display X/Y coordinates in HAM6 mode, so the
 (`0x0349`) at its reset value of `0x0000`.
 
 Register and status traffic can run at **40–80 MHz**. The `SDRAM_WRITE` bulk
-upload must run at the SDRAM-safe rate of **~8 MHz** to avoid overflowing the
-`QspiSdramBridge` ingress FIFO.
+upload must run at the wiring-safe rate of **~4 MHz** to avoid overflowing the
+`QspiSdramBridge` ingress FIFO or incurring SI corruption.
 
 The ESP32-P4 GPSPI master also limits each QIO TX data phase to **32,767
 bytes** (`SPI_MS_DATA_BITLEN`, 18 bits). `SDRAM_WRITE` consumes a 2-byte
@@ -268,7 +268,7 @@ vdp_reg_write(0x0300, 0x0001);          // LAYER_ENABLE
 
 // 7. Upload the HAM6 byte plane via SDRAM_WRITE.
 //    LEN = bytes / 2.  For 320×240 = 76800 bytes = 38400 words.
-//    Run at the SDRAM-safe rate (~8 MHz), NOT the link rate.
+//    Run at the wiring-safe rate (~4 MHz), NOT the link rate.
 qspi_sdram_write(0x100000, ham6_plane, 38400, QSPI_UPLOAD_CLOCK_HZ);
 
 // 8. Poll transport health after every phase.
