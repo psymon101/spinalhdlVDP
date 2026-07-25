@@ -56,6 +56,10 @@ object Indexed2bppBwCosim extends App {
         for (h <- 0 until hTotal) {
           dut.io.col #= h
           if (h == 4) dut.io.fetchGrant #= false
+          // NOTE (#14327): `row + 2` is a MANUAL testbench lookahead for this
+          // bandwidth-measurement sim ONLY — NOT the production fetch-line policy.
+          // Production drives bitmapSdramFetchLine := fillLine (= vCounter+1); the
+          // fetch pipeline depth comes from the 3-bank machinery, not this offset.
           if (h == hTotal - 1) { dut.io.fetchLine #= (row + 2); dut.io.fetchGrant #= true }
           dut.clockDomain.waitSampling()
         }
@@ -129,6 +133,9 @@ object Indexed2bppBwCosim extends App {
         for (h <- 0 until hTotal) {
           dut.io.col #= h
           if (h == 4) dut.io.fetchGrant #= false
+          // NOTE (#14327): `screenLine + 5` is a MANUAL over-provisioned testbench
+          // lookahead for bandwidth measurement ONLY — NOT a production requirement.
+          // Production uses fillLine (vCounter+1); do NOT read this +5 as a spec.
           if (h == hTotal - 1 && (screenLine % 2 == 1)) { dut.io.fetchLine #= (screenLine + 5); dut.io.fetchGrant #= true }
           dut.clockDomain.waitSampling()
           if (screenLine >= warmup && h < 640 && (h % 8 == 0)) {

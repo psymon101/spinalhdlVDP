@@ -189,8 +189,8 @@ object Indexed2bppFrameCoSim {
     * wrong source row (missing +2 lookahead / bank-fill mis-target), the per-display-row boundary
     * will NOT track a single consistent vertical offset → detected as wrong-row events. Returns
     * (validRows, wrongRowEvents). */
-  def runRowCoded(): (Int, Int) = {
-    var validRows = 0; var wrongEvents = 0
+  def runRowCoded(): (Int, Int, Int) = {
+    var validRows = 0; var wrongEvents = 0; var bestDvOut = 0
     SimConfig.compile(new Dut).doSim { dut =>
       dut.clockDomain.forkStimulus(10); dut.sdramCd.forkStimulus(10)
 
@@ -274,14 +274,14 @@ object Indexed2bppFrameCoSim {
         for (dy <- valid) if (impliedMod(dy) == srcRow(dy, dv)) m += 1
         if (m > bestMatch) { bestMatch = m; bestDv = dv }
       }
-      wrongEvents = validRows - bestMatch
+      wrongEvents = validRows - bestMatch; bestDvOut = bestDv
       val firsts = valid.filter(dy => impliedMod(dy) != srcRow(dy, bestDv)).take(8)
       println(f"[sim] ROW-CODED: validRows=$validRows bestDv=$bestDv matches=$bestMatch WRONG_ROW_EVENTS=$wrongEvents")
       if (firsts.nonEmpty) firsts.foreach { dy =>
         println(f"[sim]   wrong-row @ display dy=$dy: impliedSrcMod=${impliedMod(dy)} expected=${srcRow(dy, bestDv)}")
       }
     }
-    (validRows, wrongEvents)
+    (validRows, wrongEvents, bestDvOut)
   }
 
   /** LEFT-EDGE discriminator (#14285): render a UNIFORM value-1 (white) frame through the REAL
@@ -580,13 +580,18 @@ object Indexed2bppFrameCoSim {
       println(f"[sim] LEFT-EDGE: ARTIFACT — left-edge black/col ($leftPerCol%.1f) >> interior ($interiorPerCol%.1f) ⇒ a real VDP left-edge scanout/fetch defect; drill into hCounter/readSync/line-buffer start.")
 
     println("\n=== Indexed2bppFrameCoSim: ROW-CODED lookahead test (#14253 Finding 1) — real VdpTop fetchLine ===")
-    val (vr, we) = runRowCoded()
+    val (vr, we, dv) = runRowCoded()
+    // 2bpp-row-assertions (#14327): assert the CANONICAL absolute line-doubling
+    // offset bestDv==3 rather than searching for the best offset; ≤4 wrong-row events
+    // is frame-0 startup slack (the 3-bank fetch pipeline fills over the first ~2
+    // source rows). Any shift off dv==3 is a real lookahead/bank mis-target.
     if (vr < 100)
       println(f"[sim] ROW-CODED: INCONCLUSIVE — too few rendered rows ($vr).")
-    else if (we <= 4)
-      println(f"[sim] ROW-CODED: PASS — VdpTop selects the CORRECT source row every display line ($we wrong events / $vr, ≤startup slack). Finding-1 lookahead deficiency REFUTED for identical-timing sim; wrong-row-selection is NOT the artifact.")
+    else if (dv == 3 && we <= 4)
+      println(f"[sim] ROW-CODED: PASS — canonical offset bestDv=3 and $we/$vr wrong-row events (≤startup slack). VdpTop selects the CORRECT source row every display line; wrong-row-selection is NOT the artifact.")
     else
-      println(f"[sim] ROW-CODED: FAIL — $we/$vr display rows show the WRONG source row ⇒ VdpTop lookahead selects the wrong bank/row (Finding 1 CONFIRMED). Fix VdpTop bitmapSdramFetchLine lookahead.")
+      println(f"[sim] ROW-CODED: FAIL — bestDv=$dv (expected 3) and/or $we/$vr wrong-row events > startup slack ⇒ VdpTop lookahead selects the wrong bank/row. Fix VdpTop bitmapSdramFetchLine lookahead.")
+    assert(vr < 100 || (dv == 3 && we <= 4), s"ROW-CODED: expected bestDv==3 with <=4 startup events, got bestDv=$dv wrongEvents=$we/$vr")
 
     println("\n=== Indexed2bppFrameCoSim: vertical-bar 2bpp → per-row boundary-drift (shear) test ===")
     val (rows1, span1) = runOne(writeMode0 = true)   // WITH 0x0313=0 (BronzeGate's exact sequence)
