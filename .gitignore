@@ -41,6 +41,15 @@ fpga/tang20k/captures/*.png
 fpga/tang20k/captures/*.json
 .aider*
 
+# ESP-IDF generated sdkconfig (sdkconfig.defaults is the committed template)
+sdkconfig
+sdkconfig.old
+**/sdkconfig
+**/sdkconfig.old
+
+# Large generated review bundles for external reviewers (kept on disk, not tracked)
+kb/reviews/spinalhdlvdp_all_*.md
+
 # Agent host local instruction files injected by launch_agent_isolated.sh
 AGENTS.local.md
 .kimi/

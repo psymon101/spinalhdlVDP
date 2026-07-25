@@ -37,7 +37,7 @@
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "../../libvdp/vdp_crc8.h"
+#include "../../../../../firmware/libvdp/vdp_crc8.h"
 
 static const char *TAG = "p4_checkerboard";
 
