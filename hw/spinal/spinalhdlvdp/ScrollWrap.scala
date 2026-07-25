@@ -58,7 +58,7 @@ case class ScrollWrap(
   val sum = (io.coord +^ io.scroll).resize(sumBits)
 
   // Wrap tree — walk thresholds from largest (maxQ * mapWidth) down to 1*mapWidth.
-  // `foldRight` starts from the no-wrap default (sum) and wraps with each
+  // `foldLeft` starts from the no-wrap default (sum) and wraps with each
   // larger branch, so the outermost Mux tests the LARGEST threshold first,
   // which is what we want: any sum falling in [k*mapWidth, (k+1)*mapWidth)
   // matches exactly one branch and yields a result in [0, mapWidth).

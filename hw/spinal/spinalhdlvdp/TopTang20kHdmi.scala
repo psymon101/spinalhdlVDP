@@ -263,7 +263,12 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val colorMathIdx  = U(copperLen + 8, 7 bits)
     val LinestateCount = 60
     val linestateBase  = colorMathIdx + 1   // first linestate step
-    val lastStepIdx    = colorMathIdx
+    // external-review Tier A (#14322): the linestate upload loop runs bootIdx in
+    // [linestateBase .. lastStepIdx]. The old `lastStepIdx = colorMathIdx` left
+    // linestateBase (colorMathIdx+1) > lastStepIdx, so the loop was empty and the
+    // standalone (useHostInit=false) bootstrap wrote ZERO linestate entries. Dead
+    // in production (host-init bypasses bootstrap) but the diagnostic path needs it.
+    val lastStepIdx    = (linestateBase.resize(7) + U(LinestateCount - 1, 7 bits)).resize(7)
     val bootIdx     = Reg(UInt(7 bits)) init 0
     // #9026 (BronzeGate #9133): when useHostInit=true, bootDoneR initializes
     // True so the bootstrap copper FSM is bypassed entirely (bootWrite =
@@ -725,7 +730,7 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     fetchL1.io.fetchLine        := video.io.layer1FetchLine
     fetchL1.io.fetchScrollX     := video.io.layer1FetchScrollX
     fetchL1.io.fetchScrollY     := video.io.layer1FetchScrollY
-    fetchL1.io.pixelAddr        := video.io.layer0FetchPixelAddr   // same hCounter
+    fetchL1.io.pixelAddr        := video.io.layer1FetchPixelAddr   // L1 uses its own scheduling surface (external-review Tier A #14322)
     // L1 is enabled only on scenarios that opt in (default off so pre-CP-B
     // scenes remain bit-identical). Scenario-specific tops can override.
     video.io.layer1UseSdram      := False
