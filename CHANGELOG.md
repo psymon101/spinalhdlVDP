@@ -1,5 +1,17 @@
 # spinalhdlVDP Changelog
 
+## 2026-07-25 — External Static Review Tier A Fixes (DONE)
+
+- **External static review of Tang Nano 20K VDP RTL** produced ten findings; the team assessed each against the canonical QSPI/ESP32-P4 host-driven production path.
+- **Tier A — confirmed low-risk fixes (commit `10756d1`):**
+  - `TopTang20kHdmi` bootstrap `lastStepIdx` range corrected so the standalone (`useHostInit=false`) diagnostic path writes the default linestate table instead of skipping it.
+  - Layer 1 fetch pixel address wired to `layer1FetchPixelAddr` (was `layer0FetchPixelAddr`).
+  - `ScrollWrap.scala` comment corrected (`foldRight` → `foldLeft`).
+- **Impact:** Both F2 and F3 are latent in production (`useHostInit=true`, `enableL1Fetch=false`) but are real wiring/logic bugs for standalone/L1 paths.
+- **Proof:** `sbt compile` + `TopTang20kHdmiVerilog` elaborate PASS; 2bpp regression all green (`Indexed2bppFineCoSim` MATCH, `Indexed2bppCheckerCoSim` CLEAN, `Indexed2bppFrameCoSim` LEFT-EDGE CLEAN / ROW-CODED 479/480 / shear 0px); Gowin PnR TNS=0, worst setup slack +4.596 ns.
+- **Doc updates:** CoralReef added `GOTCHA-037`, `VDP_PROGRAMMING_GUIDE.md` notes on Layer 1 scheduling surface and internal bootstrap linestate, and `PROJECT_PLAN/external_review_doc_impact.md` tracking file.
+- **Tier B/C items** (HDMI reset sequencing, `LineBuffer` BSRAM inference, RGB565 direct-color delay, scaler architecture, `BasicPatternSource` pipelining) remain open for measurement / backlog per PM disposition.
+
 ## 2026-07-20 — HAM6 Shelved + 2bpp Indexed Replacement Mode (DONE)
 
 - **HAM6 Removal / Display Lane Reframe (#14224)** — Owner-directed scope change.

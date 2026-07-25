@@ -328,3 +328,16 @@ adapter uses `SCLK=21`, `CS=20`, `IO0=32`, `IO1=33`, `IO2=22`, `IO3=23`.
 **Implication:** A stable cyan block, chroma block, or repeated left-edge horizontal streak in this capture path is not by itself evidence of SDRAM corruption, fetch/bank cadence failure, or HDMI scanout failure. Treat serial readback, transport health, and repeat-frame hashes as the authoritative checks before changing firmware or RTL.
 
 **Fix:** If those checks pass, retain the firmware/bitstream and pair-verify with a monitor or alternate capture path. Do not retune QSPI clock, fetch cadence, or bank sequencing solely from this Guermok artifact.
+
+---
+
+### GOTCHA-037: External static review Tier A latent fixes
+
+**Fact:** An external static review of the RTL surfaced two real but dormant wiring/logic issues in `TopTang20kHdmi.scala`, both fixed in commit `10756d1`:
+
+1. **Bootstrap `lastStepIdx` range:** The standalone (`useHostInit=false`) bootstrap FSM wrote zero linestate entries because `lastStepIdx` was set to `colorMathIdx`, which is one less than `linestateBase`. The fix sets `lastStepIdx = linestateBase + LinestateCount - 1`.
+2. **Layer 1 pixel-address wiring:** `fetchL1.io.pixelAddr` was wired to `video.io.layer0FetchPixelAddr` instead of `video.io.layer1FetchPixelAddr`. The two scheduling surfaces differ because Layer 0 fetch is pre-registered one pixel ahead of Layer 1.
+
+**Implication:** Neither issue affects the current production path. Production uses `useHostInit=true` (the host writes linestate explicitly) and generates `enableL1Fetch=false` (Layer 1 SDRAM fetch is disabled). They would only become visible in standalone diagnostic builds or in future scenarios that enable Layer 1 fetch.
+
+**Fix status:** Fixed in RTL commit `10756d1`. `VDP_PROGRAMMING_GUIDE.md` notes the Layer 1 scheduling surface and the internal bootstrap linestate behavior.

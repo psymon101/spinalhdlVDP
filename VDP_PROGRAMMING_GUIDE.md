@@ -153,6 +153,9 @@ void toggle_ui(bool show) {
 }
 ```
 
+> [!NOTE]
+> **Layer fetch scheduling surfaces:** `VdpTop` exposes independent fetch pixel addresses for each layer. `TopTang20kHdmi` wires the Layer 1 fetch engine to `video.io.layer1FetchPixelAddr` (commit `10756d1`). Earlier revisions accidentally used `layer0FetchPixelAddr`; the two surfaces differ because the Layer 0 fetch address is pre-registered one pixel ahead of Layer 1. This only matters when Layer 1 SDRAM fetch is enabled.
+
 ---
 
 ## 3. Asset Management (SDRAM)
@@ -557,6 +560,9 @@ void vdp_soft_reset(void) {
 > Do not poll `VDP_CTRL` inside an interrupt-critical section for longer than necessary. If the readback path is loopback-only, use a fixed delay or a status interrupt instead.
 >
 > `affineTexture`, immutable tile ROMs, transient per-line render buffers, and legacy demo sprite input ports are **not** affected by the reset.
+
+> [!NOTE]
+> **Internal bootstrap linestate upload (standalone / diagnostic builds only).** When `TopTang20kHdmi` is built with `useHostInit=false`, an internal bootstrap FSM writes a default linestate table before the first frame. Commit `10756d1` corrected the `lastStepIdx` range from `colorMathIdx` to `linestateBase + LinestateCount - 1`; the old value made the linestate loop empty, so the standalone bootstrap wrote zero linestate entries and produced a black screen. The production QSPI/ESP32-P4 path uses `useHostInit=true` and relies on the host to write linestate explicitly, so this bug was latent.
 
 ---
 
