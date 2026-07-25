@@ -1599,7 +1599,15 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val bmAttrSel = io.bitmapSdramAttrByte
   bitmapFetch.io.bitmapByte      := bmByteSel
   bitmapFetch.io.attrByte        := bmAttrSel
-  bitmapFetch.io.pixelWithinByte := hCounter(2 downto 0)
+  // PIXELWITHINBYTE-ALIGN (#14293, owner-authorized 2026-07-25): the bitmap/attr
+  // bytes arrive from BitmapRowFetch's readSync line buffer one cycle after their
+  // column is requested (io.bitmapSdramCol := hCounter, line below), so the
+  // intra-byte pixel index must carry the same 1-cycle latency to stay aligned
+  // with the byte it indexes. Sourcing pixelWithinByte from the live hCounter left
+  // it 1 display column ahead of the byte, rotating the intra-byte pixel order for
+  // NON-uniform 1bpp/2bpp graphics (byte-uniform content e.g. the checkerboard was
+  // immune, which is why this stayed latent). Register it to match the byte.
+  bitmapFetch.io.pixelWithinByte := RegNext(hCounter(2 downto 0)) init 0
   bitmapFetch.io.bpp             := bitmapBpp
   // RGB565 directcolor (bpp=10): the 16-bit directcolor pixel is the two
   // fetched bytes packed {hi=attr, lo=bitmap}. CP-1b reuses the existing
