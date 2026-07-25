@@ -34,6 +34,7 @@
 #include "esp_task_wdt.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "../../libvdp/vdp_crc8.h"
 
 static const char *TAG = "p4_qspi_proof";
 
@@ -64,6 +65,7 @@ static const uint32_t QSPI_DEFAULT_CLOCK_HZ = 4u * 1000u * 1000u;
 static const uint32_t QSPI_FUNCTIONAL_CLOCK_HZ = 40u * 1000u * 1000u;
 static const uint32_t QSPI_EIGHTY_CLOCK_HZ = 80u * 1000u * 1000u;
 static const uint32_t QSPI_SDRAM_CLOCK_HZ = 4u * 1000u * 1000u;
+static const uint32_t QSPI_CRC8_PROOF_CLOCK_HZ = 2u * 1000u * 1000u;
 static const spi_clock_source_t QSPI_CLOCK_SOURCE = SPI_CLK_SRC_SPLL;
 // Select proof stages intentionally at compile time.  The default is the
 // bounded indexed display proof; the 30-minute campaign is opt-in.
@@ -82,6 +84,9 @@ static const spi_clock_source_t QSPI_CLOCK_SOURCE = SPI_CLK_SRC_SPLL;
 #ifndef P4_QSPI_RUN_BULK_THROUGHPUT_ONLY
 #define P4_QSPI_RUN_BULK_THROUGHPUT_ONLY 0
 #endif
+#ifndef P4_QSPI_RUN_CRC8_ONLY
+#define P4_QSPI_RUN_CRC8_ONLY 0
+#endif
 static const uint32_t LONG_PHASE_YIELD_INTERVAL = 10000u;
 static const uint32_t SHORT_SMOKE_ROUNDTRIPS = 1000000u;
 static const uint32_t SHORT_SMOKE_BULK_BYTES = 131072u;
@@ -95,6 +100,7 @@ static const uint8_t READ_STATUS_SEL_LOOPBACK = 0x09u;
 // sel=6 is a legacy-front-end selector and reads the default zero value on
 // the active word-drain transport.
 static const uint8_t READ_STATUS_SEL_TRANSPORT_HEALTH = 0x0Au;
+static const uint8_t READ_STATUS_SEL_CRC8 = 0x0Bu;
 static const uint32_t REG_WRITE_ADDR = 0x0305u;
 static const uint16_t REG_WRITE_VALUE = 0xA55Au;
 static const uint32_t LOOPBACK_WRITE_ADDR = 0x0042u;
@@ -115,7 +121,7 @@ static const uint64_t PHASE4_APPROX_PAYLOAD_BYTES_PER_ITER = 8ull;
 static const uint32_t CLOCK_PROBE_ITERATIONS = 64u;
 static const uint32_t PHASE1_ITERATIONS = 10000000u;
 static const uint32_t PHASE2_ITERATIONS = 100000u;
-enum { PHASE3_BURST_WORDS = (QSPI_MAX_TX_BYTES - 2u) / 2u };
+enum { PHASE3_BURST_WORDS = (QSPI_MAX_TX_BYTES - 3u) / 2u };
 static spi_device_handle_t s_spi = NULL;
 static uint8_t *s_tx_buf = NULL;
 static uint8_t *s_rx_buf = NULL;
@@ -126,6 +132,8 @@ static uint8_t s_indexed2_attr[INDEXED2_IMAGE_BYTES];
 static uint32_t s_input_delay_ns = 0;
 static uint32_t s_configured_freq_hz = 0;
 static bool s_use_header_parity = true;
+static bool s_crc8_sdram_logged = false;
+static const uint32_t QSPI_INDEXED2_PROOF_CLOCK_HZ = 4u * 1000u * 1000u;
 
 typedef struct {
     uint32_t iterations;
@@ -214,7 +222,9 @@ static esp_err_t qspi_add_device(uint32_t clock_hz, uint32_t input_delay_ns, spi
         .dummy_bits = 2,
         .input_delay_ns = (int)input_delay_ns,
         .cs_ena_pretrans = 2,
-        .cs_ena_posttrans = 2,
+        /* CRC8 capture is in clk_sys after the final CRC byte; retain a
+         * multi-cycle CS# hold before deassertion for the cross-domain latch. */
+        .cs_ena_posttrans = 8,
         .flags = SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_NO_DUMMY,
     };
     s_input_delay_ns = input_delay_ns;
@@ -253,8 +263,8 @@ static esp_err_t qspi_reconfigure_device(uint32_t clock_hz, uint32_t input_delay
     return qspi_add_device(clock_hz, input_delay_ns, QSPI_CLOCK_SOURCE);
 }
 
-static esp_err_t qspi_tx(uint8_t cmd, uint64_t addr, const uint8_t *tx, size_t len,
-                         uint8_t dummy_bits, uint32_t override_freq_hz)
+static esp_err_t qspi_tx_raw(uint8_t cmd, uint64_t addr, const uint8_t *tx, size_t len,
+                             uint8_t dummy_bits, uint32_t override_freq_hz)
 {
     spi_transaction_ext_t t = {0};
     uint64_t max_addr = s_use_header_parity ? 0x7FFFFFu : 0xFFFFFFu;
@@ -314,6 +324,70 @@ static esp_err_t qspi_read_status(uint8_t sel, uint32_t *out_value,
     return ESP_OK;
 }
 
+static esp_err_t qspi_write_frame(uint8_t cmd, uint32_t addr, uint8_t *frame,
+                                  size_t frame_len, uint32_t override_freq_hz,
+                                  bool corrupt_first)
+{
+    uint32_t wire_addr = qspi_encode_addr(cmd, addr);
+    uint8_t crc;
+
+    ESP_RETURN_ON_FALSE(frame != NULL, ESP_ERR_INVALID_ARG, TAG, "null QSPI write frame");
+    ESP_RETURN_ON_FALSE(frame == s_tx_buf, ESP_ERR_INVALID_ARG, TAG,
+                        "QSPI write frame must use DMA TX buffer");
+    ESP_RETURN_ON_FALSE(frame_len >= 2u, ESP_ERR_INVALID_ARG, TAG,
+                        "QSPI write frame missing LEN");
+    ESP_RETURN_ON_FALSE(frame_len + 1u <= QSPI_MAX_TX_BYTES, ESP_ERR_INVALID_ARG, TAG,
+                        "QSPI write frame exceeds transaction limit");
+
+    crc = vdp_crc8_qspi_write_frame(cmd, wire_addr, frame, frame_len);
+    for (unsigned attempt = 0; attempt < 3u; ++attempt) {
+        uint32_t before = 0u;
+        uint32_t after = 0u;
+        /* Keep status reads on the configured host clock. Campaign modes may
+         * override the write frequency, but CRC status is read conservatively. */
+        esp_err_t err = qspi_read_status(READ_STATUS_SEL_CRC8, &before, 2u, 0u);
+        if (err != ESP_OK) {
+            return err;
+        }
+
+        frame[frame_len] = crc ^ ((corrupt_first && attempt == 0u) ? 0x01u : 0u);
+        err = qspi_tx_raw(cmd, addr, frame, frame_len + 1u, 0u, override_freq_hz);
+        if (err != ESP_OK) {
+            return err;
+        }
+        /* QspiTransportCore captures crcBad in clk_sys after the CRC byte;
+         * leave CS# postamble time before polling the synchronized counter. */
+        esp_rom_delay_us(10u);
+        err = qspi_read_status(READ_STATUS_SEL_CRC8, &after, 2u, 0u);
+        if (err != ESP_OK) {
+            return err;
+        }
+
+        uint16_t before_count = (uint16_t)(before & 0xFFFFu);
+        uint16_t after_count = (uint16_t)(after & 0xFFFFu);
+        if (before_count == after_count) {
+            if (cmd == CMD_SDRAM_WRITE && !s_crc8_sdram_logged) {
+                ESP_LOGI(TAG,
+                         "CRC8_SDRAM_WRITE PASS addr=0x%06" PRIX32
+                         " payload_bytes=%u count=%u",
+                         addr, (unsigned)(frame_len - 2u), (unsigned)after_count);
+                s_crc8_sdram_logged = true;
+            }
+            return ESP_OK;
+        }
+
+        ESP_LOGW(TAG,
+                 "CRC8 mismatch cmd=0x%02X addr=0x%06" PRIX32
+                 " count=%u->%u attempt=%u%s",
+                 cmd, addr, (unsigned)before_count, (unsigned)after_count,
+                 attempt + 1u, (attempt + 1u < 3u) ? " retrying" : " exhausted");
+        if (attempt + 1u >= 3u) {
+            return ESP_FAIL;
+        }
+    }
+    return ESP_FAIL;
+}
+
 static esp_err_t qspi_reg_write(uint32_t reg_addr, uint16_t value, uint32_t override_freq_hz)
 {
     const uint8_t payload[4] = {
@@ -322,7 +396,20 @@ static esp_err_t qspi_reg_write(uint32_t reg_addr, uint16_t value, uint32_t over
         (uint8_t)((value >> 8) & 0xFFu),
     };
     ESP_RETURN_ON_ERROR(fill_tx_bytes(payload, sizeof(payload)), TAG, "reg TX staging failed");
-    return qspi_tx(CMD_REG_WRITE, reg_addr, s_tx_buf, sizeof(payload), 0, override_freq_hz);
+    return qspi_write_frame(CMD_REG_WRITE, reg_addr, s_tx_buf, sizeof(payload),
+                            override_freq_hz, false);
+}
+
+static esp_err_t qspi_reg_write_corrupt_once(uint32_t reg_addr, uint16_t value)
+{
+    const uint8_t payload[4] = {
+        0x01u, 0x00u,
+        (uint8_t)(value & 0xFFu),
+        (uint8_t)((value >> 8) & 0xFFu),
+    };
+    ESP_RETURN_ON_ERROR(fill_tx_bytes(payload, sizeof(payload)), TAG,
+                        "corrupt-reg TX staging failed");
+    return qspi_write_frame(CMD_REG_WRITE, reg_addr, s_tx_buf, sizeof(payload), 0u, true);
 }
 
 static esp_err_t qspi_reg_write_burst(uint32_t reg_addr, const uint16_t *words, size_t word_count,
@@ -334,7 +421,7 @@ static esp_err_t qspi_reg_write_burst(uint32_t reg_addr, const uint16_t *words, 
     ESP_RETURN_ON_FALSE(s_tx_buf != NULL, ESP_ERR_INVALID_STATE, TAG, "TX DMA buffer unavailable");
     ESP_RETURN_ON_FALSE(word_count != 0u, ESP_ERR_INVALID_ARG, TAG, "empty reg burst");
     ESP_RETURN_ON_FALSE(word_count <= UINT16_MAX, ESP_ERR_INVALID_ARG, TAG, "reg burst word count too large");
-    ESP_RETURN_ON_FALSE(word_count <= ((QSPI_MAX_TX_BYTES - 2u) / 2u), ESP_ERR_INVALID_ARG, TAG,
+    ESP_RETURN_ON_FALSE(word_count <= ((QSPI_MAX_TX_BYTES - 3u) / 2u), ESP_ERR_INVALID_ARG, TAG,
                         "reg burst exceeds QSPI transaction limit");
     total_len = 2u + (word_count * 2u);
     ESP_RETURN_ON_FALSE(total_len <= DMA_BUF_SIZE, ESP_ERR_INVALID_ARG, TAG, "reg burst too large");
@@ -345,7 +432,8 @@ static esp_err_t qspi_reg_write_burst(uint32_t reg_addr, const uint16_t *words, 
         s_tx_buf[2u + (i * 2u)] = (uint8_t)(words[i] & 0xFFu);
         s_tx_buf[3u + (i * 2u)] = (uint8_t)((words[i] >> 8) & 0xFFu);
     }
-    return qspi_tx(CMD_REG_WRITE, reg_addr, s_tx_buf, total_len, 0, override_freq_hz);
+    return qspi_write_frame(CMD_REG_WRITE, reg_addr, s_tx_buf, total_len,
+                            override_freq_hz, false);
 }
 
 static esp_err_t qspi_read_hdr_err_status(uint32_t *raw_out, uint16_t *count_out,
@@ -416,7 +504,7 @@ static esp_err_t qspi_sdram_write(uint32_t sdram_addr, const uint8_t *payload, s
     ESP_RETURN_ON_FALSE(s_tx_buf != NULL, ESP_ERR_INVALID_STATE, TAG, "TX DMA buffer unavailable");
     ESP_RETURN_ON_FALSE(len != 0u, ESP_ERR_INVALID_ARG, TAG, "zero-length SDRAM write");
     ESP_RETURN_ON_FALSE((len % 2u) == 0u, ESP_ERR_INVALID_ARG, TAG, "sdram write len must be even");
-    ESP_RETURN_ON_FALSE(len <= (QSPI_MAX_TX_BYTES - 2u), ESP_ERR_INVALID_ARG, TAG,
+    ESP_RETURN_ON_FALSE(len <= (QSPI_MAX_TX_BYTES - 3u), ESP_ERR_INVALID_ARG, TAG,
                         "sdram write payload exceeds P4 transaction limit");
     total_len = len + 2u;
     ESP_RETURN_ON_FALSE(total_len <= QSPI_MAX_TX_BYTES, ESP_ERR_INVALID_ARG, TAG,
@@ -429,7 +517,8 @@ static esp_err_t qspi_sdram_write(uint32_t sdram_addr, const uint8_t *payload, s
     s_tx_buf[0] = (uint8_t)(len_words & 0xFFu);
     s_tx_buf[1] = (uint8_t)((len_words >> 8) & 0xFFu);
     memcpy(s_tx_buf + 2u, payload, len);
-    return qspi_tx(CMD_SDRAM_WRITE, sdram_addr, s_tx_buf, total_len, 0, override_freq_hz);
+    return qspi_write_frame(CMD_SDRAM_WRITE, sdram_addr, s_tx_buf, total_len,
+                            override_freq_hz, false);
 }
 
 static bool indexed2_reg_write(uint32_t reg_addr, uint16_t value)
@@ -546,7 +635,7 @@ static bool indexed2_upload_image(void)
         ESP_LOGE(TAG, "INDEXED2 attr upload err=%s", esp_err_to_name(err));
         return false;
     }
-    err = qspi_reconfigure_device(QSPI_FUNCTIONAL_CLOCK_HZ, s_input_delay_ns);
+    err = qspi_reconfigure_device(QSPI_INDEXED2_PROOF_CLOCK_HZ, s_input_delay_ns);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "INDEXED2 functional clock restore err=%s", esp_err_to_name(err));
         return false;
@@ -660,6 +749,74 @@ static bool indexed2_enable_linestate_l0(void)
     return true;
 }
 
+static bool prove_crc8_retry(void)
+{
+    uint32_t before = 0u;
+    uint32_t after = 0u;
+
+    if (qspi_read_status(READ_STATUS_SEL_CRC8, &before, 2u, 0u) != ESP_OK) {
+        ESP_LOGE(TAG, "CRC8_PROOF initial status read failed");
+        return false;
+    }
+    if (qspi_reg_write_corrupt_once(0x0300u, 0u) != ESP_OK) {
+        ESP_LOGE(TAG, "CRC8_PROOF corrupted register write/retry failed");
+        return false;
+    }
+    if (qspi_read_status(READ_STATUS_SEL_CRC8, &after, 2u, 0u) != ESP_OK) {
+        ESP_LOGE(TAG, "CRC8_PROOF final status read failed");
+        return false;
+    }
+
+    uint16_t before_count = (uint16_t)(before & 0xFFFFu);
+    uint16_t after_count = (uint16_t)(after & 0xFFFFu);
+    uint16_t delta = (uint16_t)(after_count - before_count);
+    ESP_LOGI(TAG,
+             "CRC8_PROOF corrupted_crc detected count_before=%u count_after=%u"
+             " delta=%u retry=PASS",
+             (unsigned)before_count, (unsigned)after_count, (unsigned)delta);
+    return delta == 1u;
+}
+
+static bool run_crc8_proof(void)
+{
+    static const uint8_t sdram_payload[] = {0xDEu, 0xADu, 0xBEu, 0xEFu};
+    uint32_t before = 0u;
+    uint32_t after = 0u;
+    bool pass = true;
+
+    if (qspi_reconfigure_device(QSPI_CRC8_PROOF_CLOCK_HZ, s_input_delay_ns) != ESP_OK) {
+        ESP_LOGE(TAG, "CRC8_PROOF clock configure failed");
+        return false;
+    }
+    ESP_LOGI(TAG, "CRC8_PROOF begin clock=%" PRIu32, QSPI_CRC8_PROOF_CLOCK_HZ);
+
+    if (qspi_read_status(READ_STATUS_SEL_CRC8, &before, 2u, 0u) != ESP_OK ||
+        qspi_reg_write(REG_WRITE_ADDR, REG_WRITE_VALUE, 0u) != ESP_OK ||
+        qspi_read_status(READ_STATUS_SEL_CRC8, &after, 2u, 0u) != ESP_OK) {
+        ESP_LOGE(TAG, "CRC8_PROOF clean register write failed");
+        return false;
+    }
+    ESP_LOGI(TAG, "CRC8_PROOF clean_reg count_before=%u count_after=%u delta=%u",
+             (unsigned)(before & 0xFFFFu), (unsigned)(after & 0xFFFFu),
+             (unsigned)((uint16_t)((after - before) & 0xFFFFu)));
+    pass &= ((uint16_t)((after - before) & 0xFFFFu)) == 0u;
+
+    before = after;
+    if (qspi_sdram_write(0x001000u, sdram_payload, sizeof(sdram_payload), 0u) != ESP_OK ||
+        qspi_read_status(READ_STATUS_SEL_CRC8, &after, 2u, 0u) != ESP_OK) {
+        ESP_LOGE(TAG, "CRC8_PROOF clean SDRAM write failed");
+        return false;
+    }
+    ESP_LOGI(TAG, "CRC8_PROOF clean_sdram count_before=%u count_after=%u delta=%u",
+             (unsigned)(before & 0xFFFFu), (unsigned)(after & 0xFFFFu),
+             (unsigned)((uint16_t)((after - before) & 0xFFFFu)));
+    pass &= ((uint16_t)((after - before) & 0xFFFFu)) == 0u;
+
+    pass &= prove_crc8_retry();
+    ESP_LOGI(TAG, "CRC8_PROOF_DONE pass=%u", pass ? 1u : 0u);
+    return pass;
+}
+
 static bool run_indexed2_proof(void)
 {
     uint32_t magic = 0;
@@ -669,12 +826,12 @@ static bool run_indexed2_proof(void)
     bool readback_pass = false;
     bool ok = true;
 
-    if (qspi_reconfigure_device(QSPI_FUNCTIONAL_CLOCK_HZ, s_input_delay_ns) != ESP_OK) {
+    if (qspi_reconfigure_device(QSPI_INDEXED2_PROOF_CLOCK_HZ, s_input_delay_ns) != ESP_OK) {
         ESP_LOGE(TAG, "INDEXED2 functional clock configure failed");
         return false;
     }
     ESP_LOGI(TAG, "INDEXED2_PROOF begin source=320x240 display=640x480 functional_freq=%" PRIu32
-             " sdram_freq=%" PRIu32, QSPI_FUNCTIONAL_CLOCK_HZ, QSPI_SDRAM_CLOCK_HZ);
+             " sdram_freq=%" PRIu32, QSPI_INDEXED2_PROOF_CLOCK_HZ, QSPI_SDRAM_CLOCK_HZ);
     ESP_LOGI(TAG, "INDEXED2_READ_REG note=QSPITop has no REG_READ; sel=9 loopback follows each REG_WRITE");
     if (qspi_read_status(READ_STATUS_SEL_MAGIC, &magic, 2, 0u) != ESP_OK) {
         ESP_LOGE(TAG, "INDEXED2_MAGIC read failed");
@@ -687,7 +844,11 @@ static bool run_indexed2_proof(void)
     }
     ESP_LOGI(TAG, "INDEXED2_MAGIC value=0x%08" PRIX32 " actual_freq=%" PRIu32,
              magic, qspi_get_actual_freq_hz());
-    ok &= read_and_log_transport_health("INDEXED2_HEALTH_BEFORE", QSPI_FUNCTIONAL_CLOCK_HZ);
+    if (!prove_crc8_retry()) {
+        ESP_LOGE(TAG, "CRC8_PROOF FAIL");
+        return false;
+    }
+    ok &= read_and_log_transport_health("INDEXED2_HEALTH_BEFORE", QSPI_INDEXED2_PROOF_CLOCK_HZ);
     if (!ok) {
         return false;
     }
@@ -714,7 +875,7 @@ static bool run_indexed2_proof(void)
     }
 
     if (!indexed2_upload_image() ||
-        !read_and_log_transport_health("INDEXED2_HEALTH_AFTER_UPLOAD", QSPI_FUNCTIONAL_CLOCK_HZ) ||
+        !read_and_log_transport_health("INDEXED2_HEALTH_AFTER_UPLOAD", QSPI_INDEXED2_PROOF_CLOCK_HZ) ||
         qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_after_upload, 2, 0u) != ESP_OK) {
         return false;
     }
@@ -731,7 +892,7 @@ static bool run_indexed2_proof(void)
     }
 
     vTaskDelay(pdMS_TO_TICKS(100));
-    if (!read_and_log_transport_health("INDEXED2_HEALTH_AFTER_ENABLE", QSPI_FUNCTIONAL_CLOCK_HZ) ||
+    if (!read_and_log_transport_health("INDEXED2_HEALTH_AFTER_ENABLE", QSPI_INDEXED2_PROOF_CLOCK_HZ) ||
         qspi_read_status(READ_STATUS_SEL_TRANSPORT_HEALTH, &health_after_enable, 2, 0u) != ESP_OK) {
         return false;
     }
@@ -1761,7 +1922,10 @@ void app_main(void)
 
     bool wdt_pass = relax_task_wdt_for_bench();
     overall_pass = overall_pass && wdt_pass;
-    if (P4_QSPI_RUN_BULK_THROUGHPUT_ONLY) {
+    if (P4_QSPI_RUN_CRC8_ONLY) {
+        any_test_enabled = true;
+        overall_pass = run_crc8_proof();
+    } else if (P4_QSPI_RUN_BULK_THROUGHPUT_ONLY) {
         any_test_enabled = true;
         ESP_LOGI(TAG, "P4_QSPI_BULK_ONLY starting 80 MHz bulk throughput rerun");
         bool bulk_pass = run_write_throughput_80m(&write80);
@@ -1775,23 +1939,23 @@ void app_main(void)
         bool health_pass = read_and_log_transport_health("P4_QSPI_BULK_ONLY_HEALTH", QSPI_FUNCTIONAL_CLOCK_HZ);
         overall_pass = overall_pass && health_pass;
     }
-    if (P4_QSPI_RUN_BASIC_PROOF) {
+    if (!P4_QSPI_RUN_CRC8_ONLY && P4_QSPI_RUN_BASIC_PROOF) {
         any_test_enabled = true;
         bool pass = run_proof_ladder(QSPI_FUNCTIONAL_CLOCK_HZ);
         overall_pass = overall_pass && pass;
     }
-    if (P4_QSPI_RUN_INDEXED2_PROOF) {
+    if (!P4_QSPI_RUN_CRC8_ONLY && P4_QSPI_RUN_INDEXED2_PROOF) {
         any_test_enabled = true;
         ESP_LOGI(TAG, "P4_QSPI_INDEXED2 starting authorized 2bpp indexed proof");
         bool pass = run_indexed2_proof();
         overall_pass = overall_pass && pass;
     }
-    if (P4_QSPI_RUN_SHORT_SMOKE) {
+    if (!P4_QSPI_RUN_CRC8_ONLY && P4_QSPI_RUN_SHORT_SMOKE) {
         any_test_enabled = true;
         bool pass = run_short_transport_smoke();
         overall_pass = overall_pass && pass;
     }
-    if (P4_QSPI_RUN_DEFINITIVE_CAMPAIGN) {
+    if (!P4_QSPI_RUN_CRC8_ONLY && P4_QSPI_RUN_DEFINITIVE_CAMPAIGN) {
         any_test_enabled = true;
         bool pass = run_definitive_campaign();
         overall_pass = overall_pass && pass;

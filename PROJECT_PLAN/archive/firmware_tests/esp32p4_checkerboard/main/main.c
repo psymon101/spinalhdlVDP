@@ -37,6 +37,7 @@
 #include "esp_rom_sys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "../../libvdp/vdp_crc8.h"
 
 static const char *TAG = "p4_checkerboard";
 
@@ -66,6 +67,7 @@ enum {
     SEL_SDRAM = 0x08,
     SEL_LOOPBACK = 0x09,
     SEL_TRANSPORT_HEALTH = 0x0A,
+    SEL_CRC8_STATUS = 0x0B,
 };
 
 /* Mode0 register addresses */
@@ -101,7 +103,9 @@ enum {
 // SDRAM upload on the current ESP32-P4-to-Tang-Nano-20K wiring. 8 MHz is
 // intermittent (4/10 pass) due to signal integrity; 4 MHz is 3/3 pass.
 static const uint32_t QSPI_DEFAULT_CLOCK_HZ = 4u * 1000u * 1000u;
-static const uint32_t QSPI_FUNCTIONAL_CLOCK_HZ = 40u * 1000u * 1000u;
+/* Keep the visual proof's register traffic conservative; the required bulk
+ * bitmap/attribute uploads remain at the canonical 4 MHz ceiling above. */
+static const uint32_t QSPI_FUNCTIONAL_CLOCK_HZ = 2u * 1000u * 1000u;
 static const uint32_t QSPI_SDRAM_CLOCK_HZ = 4u * 1000u * 1000u;
 static const spi_clock_source_t QSPI_CLOCK_SOURCE = SPI_CLK_SRC_SPLL;
 
@@ -127,6 +131,11 @@ static uint8_t s_attr[IMAGE_BYTES];
 static uint32_t s_input_delay_ns = 0;
 static uint32_t s_configured_freq_hz = 0;
 static bool s_use_header_parity = true;
+static bool s_crc8_sdram_logged = false;
+
+#ifndef CHECKERBOARD_SKIP_CRC8_CORRUPTION
+#define CHECKERBOARD_SKIP_CRC8_CORRUPTION 0
+#endif
 
 /* --------------------------------------------------------------------------
  * Utilities
@@ -192,7 +201,9 @@ static esp_err_t qspi_add_device(uint32_t clock_hz, uint32_t input_delay_ns)
         .dummy_bits = 2,
         .input_delay_ns = (int)input_delay_ns,
         .cs_ena_pretrans = 2,
-        .cs_ena_posttrans = 2,
+        /* CRC8 capture is in clk_sys after the final CRC byte; retain a
+         * multi-cycle CS# hold before deassertion for the cross-domain latch. */
+        .cs_ena_posttrans = 8,
         .flags = SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_NO_DUMMY,
     };
 
@@ -233,8 +244,8 @@ static esp_err_t qspi_reconfigure_device(uint32_t clock_hz, uint32_t input_delay
     return qspi_add_device(clock_hz, input_delay_ns);
 }
 
-static esp_err_t qspi_tx(uint8_t cmd, uint64_t addr, const uint8_t *tx, size_t len,
-                         uint8_t dummy_bits)
+static esp_err_t qspi_tx_raw(uint8_t cmd, uint64_t addr, const uint8_t *tx, size_t len,
+                             uint8_t dummy_bits)
 {
     spi_transaction_ext_t t = {0};
     uint64_t max_addr = s_use_header_parity ? 0x7FFFFFu : 0xFFFFFFu;
@@ -287,6 +298,67 @@ static esp_err_t qspi_read_status(uint8_t sel, uint32_t *out_value)
     return ESP_OK;
 }
 
+static esp_err_t qspi_write_frame(uint8_t cmd, uint32_t addr, uint8_t *frame,
+                                  size_t frame_len, bool corrupt_first)
+{
+    uint32_t wire_addr = qspi_encode_addr(cmd, addr);
+    uint8_t crc;
+
+    ESP_RETURN_ON_FALSE(frame != NULL, ESP_ERR_INVALID_ARG, TAG, "null QSPI write frame");
+    ESP_RETURN_ON_FALSE(frame == s_tx_buf, ESP_ERR_INVALID_ARG, TAG,
+                        "QSPI write frame must use DMA TX buffer");
+    ESP_RETURN_ON_FALSE(frame_len >= 2u, ESP_ERR_INVALID_ARG, TAG,
+                        "QSPI write frame missing LEN");
+    ESP_RETURN_ON_FALSE(frame_len + 1u <= QSPI_MAX_TX_BYTES, ESP_ERR_INVALID_ARG, TAG,
+                        "QSPI write frame exceeds transaction limit");
+
+    crc = vdp_crc8_qspi_write_frame(cmd, wire_addr, frame, frame_len);
+    for (unsigned attempt = 0; attempt < 2u; ++attempt) {
+        uint32_t before = 0u;
+        uint32_t after = 0u;
+        esp_err_t err = qspi_read_status(SEL_CRC8_STATUS, &before);
+        if (err != ESP_OK) {
+            return err;
+        }
+
+        frame[frame_len] = crc ^ ((corrupt_first && attempt == 0u) ? 0x01u : 0u);
+        err = qspi_tx_raw(cmd, addr, frame, frame_len + 1u, 0u);
+        if (err != ESP_OK) {
+            return err;
+        }
+        /* QspiTransportCore captures crcBad in clk_sys after the CRC byte;
+         * leave CS# postamble time before polling the synchronized counter. */
+        esp_rom_delay_us(10u);
+        err = qspi_read_status(SEL_CRC8_STATUS, &after);
+        if (err != ESP_OK) {
+            return err;
+        }
+
+        uint16_t before_count = (uint16_t)(before & 0xFFFFu);
+        uint16_t after_count = (uint16_t)(after & 0xFFFFu);
+        if (before_count == after_count) {
+            if (cmd == CMD_SDRAM_WRITE && !s_crc8_sdram_logged) {
+                ESP_LOGI(TAG,
+                         "CRC8_SDRAM_WRITE PASS addr=0x%06" PRIX32
+                         " payload_bytes=%u count=%u",
+                         addr, (unsigned)(frame_len - 2u), (unsigned)after_count);
+                s_crc8_sdram_logged = true;
+            }
+            return ESP_OK;
+        }
+
+        ESP_LOGW(TAG,
+                 "CRC8 mismatch cmd=0x%02X addr=0x%06" PRIX32
+                 " count=%u->%u attempt=%u%s",
+                 cmd, addr, (unsigned)before_count, (unsigned)after_count,
+                 attempt + 1u, (attempt == 0u) ? " retrying" : " exhausted");
+        if (attempt != 0u) {
+            return ESP_FAIL;
+        }
+    }
+    return ESP_FAIL;
+}
+
 static esp_err_t qspi_reg_write(uint32_t reg_addr, uint16_t value)
 {
     const uint8_t payload[4] = {
@@ -297,7 +369,41 @@ static esp_err_t qspi_reg_write(uint32_t reg_addr, uint16_t value)
 
     ESP_RETURN_ON_FALSE(s_tx_buf != NULL, ESP_ERR_INVALID_STATE, TAG, "TX DMA buffer unavailable");
     memcpy(s_tx_buf, payload, sizeof(payload));
-    return qspi_tx(CMD_REG_WRITE, reg_addr, s_tx_buf, sizeof(payload), 0);
+    return qspi_write_frame(CMD_REG_WRITE, reg_addr, s_tx_buf, sizeof(payload), false);
+}
+
+static esp_err_t qspi_reg_write_repeated(uint32_t reg_addr, uint16_t value, size_t count)
+{
+    size_t total_len = 0u;
+
+    ESP_RETURN_ON_FALSE(s_tx_buf != NULL, ESP_ERR_INVALID_STATE, TAG,
+                        "TX DMA buffer unavailable");
+    ESP_RETURN_ON_FALSE(count != 0u && count <= UINT16_MAX, ESP_ERR_INVALID_ARG, TAG,
+                        "invalid repeated register count");
+    total_len = 2u + (count * 2u);
+    ESP_RETURN_ON_FALSE(total_len + 1u <= QSPI_MAX_TX_BYTES, ESP_ERR_INVALID_ARG, TAG,
+                        "repeated register write exceeds transaction limit");
+
+    s_tx_buf[0] = (uint8_t)(count & 0xFFu);
+    s_tx_buf[1] = (uint8_t)((count >> 8) & 0xFFu);
+    for (size_t i = 0; i < count; ++i) {
+        s_tx_buf[2u + (i * 2u)] = (uint8_t)(value & 0xFFu);
+        s_tx_buf[3u + (i * 2u)] = (uint8_t)((value >> 8) & 0xFFu);
+    }
+    return qspi_write_frame(CMD_REG_WRITE, reg_addr, s_tx_buf, total_len, false);
+}
+
+static esp_err_t qspi_reg_write_corrupt_once(uint32_t reg_addr, uint16_t value)
+{
+    const uint8_t payload[4] = {
+        0x01u, 0x00u,
+        (uint8_t)(value & 0xFFu),
+        (uint8_t)((value >> 8) & 0xFFu),
+    };
+
+    ESP_RETURN_ON_FALSE(s_tx_buf != NULL, ESP_ERR_INVALID_STATE, TAG, "TX DMA buffer unavailable");
+    memcpy(s_tx_buf, payload, sizeof(payload));
+    return qspi_write_frame(CMD_REG_WRITE, reg_addr, s_tx_buf, sizeof(payload), true);
 }
 
 static esp_err_t qspi_sdram_write(uint32_t sdram_addr, const uint8_t *payload, size_t len)
@@ -309,7 +415,7 @@ static esp_err_t qspi_sdram_write(uint32_t sdram_addr, const uint8_t *payload, s
     ESP_RETURN_ON_FALSE(s_tx_buf != NULL, ESP_ERR_INVALID_STATE, TAG, "TX DMA buffer unavailable");
     ESP_RETURN_ON_FALSE(len != 0u, ESP_ERR_INVALID_ARG, TAG, "zero-length SDRAM write");
     ESP_RETURN_ON_FALSE((len % 2u) == 0u, ESP_ERR_INVALID_ARG, TAG, "sdram write len must be even");
-    ESP_RETURN_ON_FALSE(len <= (QSPI_MAX_TX_BYTES - 2u), ESP_ERR_INVALID_ARG, TAG,
+    ESP_RETURN_ON_FALSE(len <= (QSPI_MAX_TX_BYTES - 3u), ESP_ERR_INVALID_ARG, TAG,
                         "sdram write payload exceeds P4 transaction limit");
 
     total_len = len + 2u;
@@ -319,7 +425,7 @@ static esp_err_t qspi_sdram_write(uint32_t sdram_addr, const uint8_t *payload, s
     s_tx_buf[0] = (uint8_t)(len_words & 0xFFu);
     s_tx_buf[1] = (uint8_t)((len_words >> 8) & 0xFFu);
     memcpy(s_tx_buf + 2u, payload, len);
-    return qspi_tx(CMD_SDRAM_WRITE, sdram_addr, s_tx_buf, total_len, 0);
+    return qspi_write_frame(CMD_SDRAM_WRITE, sdram_addr, s_tx_buf, total_len, false);
 }
 
 /* --------------------------------------------------------------------------
@@ -341,13 +447,11 @@ static bool write_linestate_l0(void)
 {
     /* Linestate format: {l0en[11], l1en[10], l0scrollX[9:0]}.
      * Enable L0, disable L1, zero scroll for every active display line. */
-    for (uint16_t line = 0; line < 480u; ++line) {
-        if (!reg_write(line, 0x0800u)) {
-            ESP_LOGE(TAG, "LINESTATE write failed line=%u", line);
-            return false;
-        }
+    if (qspi_reg_write_repeated(0u, 0x0800u, 480u) != ESP_OK) {
+        ESP_LOGE(TAG, "LINESTATE burst write failed");
+        return false;
     }
-    ESP_LOGI(TAG, "LINESTATE L0 enabled lines=480");
+    ESP_LOGI(TAG, "LINESTATE L0 enabled lines=480 burst=1");
     return true;
 }
 
@@ -472,6 +576,34 @@ static bool log_transport_health(const char *label)
     ESP_LOGI(TAG, "%s raw=0x%08" PRIX32 " overflow=%u malformed=%u",
              label, raw, overflow ? 1u : 0u, malformed ? 1u : 0u);
     return !overflow && !malformed;
+}
+
+static bool prove_crc8_retry(void)
+{
+    uint32_t before = 0u;
+    uint32_t after = 0u;
+
+    if (qspi_read_status(SEL_CRC8_STATUS, &before) != ESP_OK) {
+        ESP_LOGE(TAG, "CRC8_PROOF initial status read failed");
+        return false;
+    }
+    if (qspi_reg_write_corrupt_once(REG_LAYER_ENABLE, 0u) != ESP_OK) {
+        ESP_LOGE(TAG, "CRC8_PROOF corrupted register write/retry failed");
+        return false;
+    }
+    if (qspi_read_status(SEL_CRC8_STATUS, &after) != ESP_OK) {
+        ESP_LOGE(TAG, "CRC8_PROOF final status read failed");
+        return false;
+    }
+
+    uint16_t before_count = (uint16_t)(before & 0xFFFFu);
+    uint16_t after_count = (uint16_t)(after & 0xFFFFu);
+    uint16_t delta = (uint16_t)(after_count - before_count);
+    ESP_LOGI(TAG,
+             "CRC8_PROOF corrupted_crc detected count_before=%u count_after=%u"
+             " delta=%u retry=PASS",
+             (unsigned)before_count, (unsigned)after_count, (unsigned)delta);
+    return delta == 1u;
 }
 
 /* --------------------------------------------------------------------------
@@ -653,6 +785,15 @@ void app_main(void)
     }
     ESP_LOGI(TAG, "magic OK value=0x%08" PRIX32 " actual_freq=%" PRIu32,
              magic, qspi_get_actual_freq_hz());
+
+#if CHECKERBOARD_SKIP_CRC8_CORRUPTION
+    ESP_LOGI(TAG, "CRC8_PROOF clean-only mode; deliberate corruption deferred");
+#else
+    if (!prove_crc8_retry()) {
+        ESP_LOGE(TAG, "CRC8_PROOF FAIL");
+        return;
+    }
+#endif
 
     build_checkerboard();
     dump_upload_window();

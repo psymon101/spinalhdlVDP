@@ -20,9 +20,7 @@ Project identity: `spinalhdlVDP`.
 - `hw/gen/` generated HDL output
 - `fpga/tang20k/` Tang Nano 20K HDMI build files
 - `firmware/libvdp/` host driver library (C/C++): QSPI (active) / i80 (retired) / legacy SPI transports, Mode0 helpers, register map
-- `firmware/esp32p4_qspi_proof/` canonical ESP32-P4 QSPI proof-of-concept (current Tang Nano 20K deployment)
-- `firmware/esp32s3_i80_*/` historical ESP32-S3 i80 example sketches (retired from the canonical path)
-- `firmware/esp32s3_rgb565_fullframe/` historical RGB565 full-frame example (ESP32-S3, retired from the canonical path)
+- `PROJECT_PLAN/archive/firmware_tests/` historical example / proof-of-concept sketches (retired from the canonical path)
 - `kb/` local hardware and Gowin documentation
 - `scripts/assets/` host-side asset conversion helpers for PNG → VDP data
 - `scripts/gen_reg_docs.py` register-spec generator from `firmware/libvdp/mode0_regs.json`
@@ -34,7 +32,7 @@ The Scala package for this repository is `spinalhdlvdp`.
 
 - **Scala:** Java 11+, `sbt`
 - **FPGA:** Gowin IDE CLI `gw_sh`, `openFPGALoader`
-- **Firmware:** `idf.py` / ESP-IDF v6.0.2 (ESP32-P4 canonical), `arduino-cli` (ESP32-S3 historical), CMake & Pico SDK 2.2.0 (Pico 2 archived legacy)
+- **Firmware:** `idf.py` / ESP-IDF v6.0.2 (ESP32-P4 canonical); historical sketches are archived
 - **Assets:** Python 3.8+ (PNG → VDP)
 
 ## Host Interface

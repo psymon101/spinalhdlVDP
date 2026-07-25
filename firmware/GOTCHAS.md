@@ -320,3 +320,11 @@ adapter uses `SCLK=21`, `CS=20`, `IO0=32`, `IO1=33`, `IO2=22`, `IO3=23`.
 **Fix:** Keep `QSPI_SDRAM_CLOCK_HZ = 4u * 1000u * 1000u` for checkerboard and other 30,720-byte SDRAM plane uploads on this wiring. Register traffic may return to the 40 MHz functional clock after the upload. Revalidate on any physical wiring, pin, level-shifter, or board revision change.
 
 **Proof:** Checkerboard firmware commit `3d40636` fixed write dummy framing; the 4 MHz policy was directed in mail `#14261`. The 4 MHz canonical rerun must retain 10+ cold-start logs and clean HDMI capture before closeout.
+
+### GOTCHA-036: Guermok USB2 direct-capture chroma and streak artifacts
+
+**Fact:** The Guermok USB2 card can produce stable, repeatable YUV/MJPEG encoding artifacts on an otherwise correct static HDMI frame. In the QSPI-CRC8-185 proof, `/dev/video0` YUYV 720×480 frames 1–3 were byte-identical with SHA-256 `6ce9676fae857417b15bdc0f89aac8e2f336af530786c7b4c900b4babdb17b3d`, and MJPEG 1280×720 frames 1–3 were byte-identical with SHA-256 `499ed65f8385836dcdf5c991cfc6c19d4703a91133f1e742e525caaa2abc029c`, while CRC retry, SDRAM readback, line-state programming, and checkerboard proofs all passed. The earlier HAM6-removal capture artifact showed the same class of evidence—stepped/noisy bands in the direct capture despite a passing transport/display proof (recorded in `PROJECT_PLAN/STATUS.md`, prior capture SHA-256 `f5b36020597f970e21e41e4f1393aff66caaae99e9d9c0521eda642d2a5b8201`).
+
+**Implication:** A stable cyan block, chroma block, or repeated left-edge horizontal streak in this capture path is not by itself evidence of SDRAM corruption, fetch/bank cadence failure, or HDMI scanout failure. Treat serial readback, transport health, and repeat-frame hashes as the authoritative checks before changing firmware or RTL.
+
+**Fix:** If those checks pass, retain the firmware/bitstream and pair-verify with a monitor or alternate capture path. Do not retune QSPI clock, fetch cadence, or bank sequencing solely from this Guermok artifact.
