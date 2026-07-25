@@ -1620,7 +1620,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   // Export coupling signals to BitmapRowFetch at top level.
   io.bitmapSdramCol        := hCounter.resize(10)
-  io.bitmapSdramFetchLine  := fillLine.resize(10)
+  // Owner-directed override (Rule 9): Register fetchLine at line boundary to resolve
+  // CDC race condition (shimmer) by holding the value stable for the full line.
+  val bitmapFetchLineReg = RegNextWhen(fillLine.resize(10), hCounter === hTotal - 1) init 0
+  io.bitmapSdramFetchLine  := bitmapFetchLineReg
   // RGB565-FULLFRAME-132 B.2 (CoralReef #12355 cond.4): grant ONCE PER SOURCE ROW,
   // not once per output line. Each source row is displayed on two output lines
   // (line-doubling: fillLine = vCounter+1, lineReg = pendingLine>>1), so the bank
@@ -1629,9 +1632,18 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // filled bank lands for the next line's pixel 0) gated on odd output lines
   // (vCounter(0)) and only within the active region (vCounter < vActive). The old
   // once-per-line hActive grant double-counted rows and broke the cadence.
-  io.bitmapSdramFetchGrant := (hCounter === U(hTotal - 1, log2Up(hTotal) bits)) &&
-                              (vCounter(0) === True) &&
-                              (vCounter < U(vActive, log2Up(vTotal) bits))
+  // Owner-directed override (Rule 9): Stretch the grant pulse to 4 cycles (grantHold)
+  // to ensure a clean CDC edge detection in the SDRAM clock domain.
+  val bitmapGrantHold = Reg(UInt(3 bits)) init 0
+  val bitmapGrantTrigger = (hCounter === U(hTotal - 1, log2Up(hTotal) bits)) &&
+                           (vCounter(0) === True) &&
+                           (vCounter < U(vActive, log2Up(vTotal) bits))
+  when(bitmapGrantTrigger) {
+    bitmapGrantHold := 4
+  }.elsewhen(bitmapGrantHold =/= 0) {
+    bitmapGrantHold := bitmapGrantHold - 1
+  }
+  io.bitmapSdramFetchGrant := bitmapGrantHold =/= 0
   io.bitmapModeActive      := bitmapEnable
   // CP-1c: tell BitmapRowFetch to use the RGB565 directcolor fetch
   // schedule (2 bytes/pixel, 320 px/row) when bpp=0b10 is selected.
