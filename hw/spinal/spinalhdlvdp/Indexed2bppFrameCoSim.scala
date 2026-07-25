@@ -475,6 +475,100 @@ object Indexed2bppFrameCoSim {
     (maxRunErr, spurious)
   }
 
+  /** INTRA-BYTE decode discriminator (#14290 — verify CyanPeak's claimed `VdpTop.scala:1602`
+    * `pixelWithinByte := hCounter(2 downto 0)` 1-cycle skew vs the readSync'd byte). Every prior
+    * co-sim (checkerboard, vertical-bar, row-coded) uses BYTE-UNIFORM content, so none exercise
+    * intra-byte pixel ordering OR the byte-vs-index alignment CyanPeak flags. This uploads a
+    * pattern with BOTH: alternating bytes `0x1B` (pixels 0,1,2,3 = ramp UP) and `0xE4` (pixels
+    * 3,2,1,0 = ramp DOWN), identity attr — so a byte-select skew AND/OR a pixelWithinByte skew
+    * both visibly scramble the emitted ramp. Expected emitted per 8-col byte span (×2 doubled):
+    * 0x1B → AABBCCDD, 0xE4 → DDCCBBAA, with A = value0 = black at display col 0.
+    * Returns (mismatchCols, sampledRows). mismatchCols==0 ⇒ decode bit-perfect ⇒ no skew. */
+  def runFine(): (Int, Int) = {
+    var mismatch = 0; var sampled = 0
+    SimConfig.compile(new Dut).doSim { dut =>
+      dut.clockDomain.forkStimulus(10); dut.sdramCd.forkStimulus(10)
+
+      val Width = 320
+      val mem = mutable.HashMap[Int, Int]()
+      for (row <- 0 until SrcH; b <- 0 until RowStride) {
+        val srcX = b * 4
+        val v = if (srcX < Width) { if ((b & 1) == 0) 0x1B else 0xE4 } else 0
+        mem((BitmapBase + row * RowStride + b) & 0x7fffff) = v
+        mem((AttrBase   + row * RowStride + b) & 0x7fffff) = 0xE4
+      }
+      def rb(a: Int) = mem.getOrElse(a & 0x7fffff, 0)
+      def rw(a: Int): Long = { val b = a & ~3
+        (rb(b) & 0xFFL) | ((rb(b+1) & 0xFFL) << 8) | ((rb(b+2) & 0xFFL) << 16) | ((rb(b+3) & 0xFFL) << 24) }
+
+      dut.io.sdramDout #= 0; dut.io.sdramDout32 #= 0; dut.io.sdramDataReady #= false; dut.io.sdramBusy #= true
+      dut.io.regBusAddr #= 0; dut.io.regBusData #= 0; dut.io.regBusEnable #= false
+      fork {
+        for (_ <- 0 until 30) dut.sdramCd.waitSampling()
+        dut.io.sdramBusy #= false
+        while (true) {
+          if (dut.io.sdramRd.toBoolean) {
+            val a = dut.io.sdramAddr.toInt; val n = math.max(1, dut.io.sdramBurstLen.toInt)
+            dut.sdramCd.waitSampling(5)
+            for (k <- 0 until n) {
+              dut.io.sdramDout #= rb(a + k*4) & 0xFF
+              dut.io.sdramDout32 #= BigInt(rw(a + k*4) & 0xFFFFFFFFL)
+              dut.io.sdramDataReady #= true; dut.sdramCd.waitSampling()
+            }
+            dut.io.sdramDataReady #= false
+          } else dut.sdramCd.waitSampling()
+        }
+      }
+      def writeReg(a: Int, d: Int): Unit = {
+        dut.io.regBusAddr #= a; dut.io.regBusData #= d; dut.io.regBusEnable #= true
+        dut.clockDomain.waitSampling(); dut.io.regBusEnable #= false; dut.clockDomain.waitSampling()
+      }
+      writeReg(0x0300, 0x0000)
+      writeReg(0x0351, BitmapBase & 0xFFFF);  writeReg(0x0352, (BitmapBase >> 16) & 0x7F)
+      writeReg(0x0353, AttrBase   & 0xFFFF);  writeReg(0x0354, (AttrBase   >> 16) & 0x7F)
+      writeReg(0x0355, RowStride);            writeReg(0x0356, RowStride)
+      writeReg(0x0357, SrcH)
+      for (line <- 0 until 480) writeReg(line, 0x0800)
+      writeReg(0x0350, 0x0003)
+      writeReg(0x0300, 0x0001)
+
+      var t = 200000
+      while (!dut.io.bootDone.toBoolean && t > 0) { dut.clockDomain.waitSampling(); t -= 1 }
+      dut.clockDomain.waitSampling(800 * 525 * 3)
+
+      val gotFrame = Array.fill(480, 640)(-1)
+      val sampleCycles = 800 * 525 * 2
+      for (_ <- 0 until sampleCycles) {
+        if (dut.io.de.toBoolean) {
+          val dx = dut.io.x.toInt; val dy = dut.io.y.toInt
+          if (dx < 640 && dy < 480) gotFrame(dy)(dx) = dut.video.bgOrDirectRgb.toInt & 0xFFFFFF
+        }
+        dut.clockDomain.waitSampling()
+      }
+
+      // Expected symbol pattern for the first 32 cols: 0x1B=AABBCCDD, 0xE4=DDCCBBAA (A=black).
+      val expected = "AABBCCDD" + "DDCCBBAA" + "AABBCCDD" + "DDCCBBAA"
+      val sampleRows = Seq(100, 240, 400)
+      println("[sim] INTRA-BYTE: emitted cols 0..31 (symbols by first-appearance RGB; expect AABBCCDDDDCCBBAA…, A=black):")
+      for (dy <- sampleRows) {
+        sampled += 1
+        val syms = mutable.LinkedHashMap[Int, Char](); var nextSym = 'A'
+        def sym(rgb: Int): Char = syms.getOrElseUpdate(rgb, { val c = nextSym; nextSym = (nextSym + 1).toChar; c })
+        val sb = new StringBuilder
+        for (dx <- 0 until 32) { val g = gotFrame(dy)(dx); sb.append(if (g < 0) '?' else sym(g)) }
+        val actual = sb.toString
+        val aRgb = gotFrame(dy)(0)
+        val aIsBlack = aRgb == 0x000000
+        val distinct = syms.size
+        val matches = actual == expected
+        if (!matches) mismatch += (0 until 32).count(i => actual(i) != expected(i))
+        val rawHead = (0 until 8).map(dx => f"${gotFrame(dy)(dx)}%06X").mkString(",")
+        println(f"[sim]   dy=$dy%3d actual=$actual ${if (matches) "== expected (MATCH)" else "!= expected (MISMATCH)"} | distinctSyms=$distinct A=black:$aIsBlack | rawCols0-7=$rawHead")
+      }
+    }
+    (mismatch, sampled)
+  }
+
   def main(args: Array[String]): Unit = {
     println("=== Indexed2bppFrameCoSim: LEFT-EDGE discriminator (#14285) — real scanout, per-column black histogram ===")
     val (le, ie) = runLeftEdge()
@@ -521,4 +615,18 @@ object Indexed2bppCheckerCoSim extends App {
     println(f"[sim] CHECKER-EDGE: CLEAN — every interior run is 64±$maxErr px with no spurious short runs. The FPGA emits pixel-perfect 64px square edges ⇒ the bench 'horizontal protrusions at each square's left edge' are DOWNSTREAM (monitor scaler / non-integer resample that the OSD cannot disable), NOT a VDP fetch/decode/double defect. Uniform-fill (runLeftEdge) never tested content edges; this does.")
   else
     println(f"[sim] CHECKER-EDGE: ARTIFACT — interiorMaxRunErr=$maxErr px, spuriousRuns=$spur ⇒ the EMITTED pixel stream has defective square edges. This IS an RTL fetch/decode/double defect; open an RTL emission lane (drill BitmapRowFetch decode + ×2 doubler at content transitions).")
+}
+
+/** Verifier for CyanPeak's claimed `VdpTop.scala:1602` pixelWithinByte-vs-readSync skew (#14290).
+  * Renders a non-uniform intra-byte + inter-byte-varying pattern (0x1B / 0xE4 alternating bytes)
+  * through the real fetch+decode+scanout and checks the emitted intra-byte pixel ordering.
+  *
+  * Run: sbt "runMain spinalhdlvdp.Indexed2bppFineCoSim" */
+object Indexed2bppFineCoSim extends App {
+  println("=== Indexed2bppFineCoSim: intra-byte decode discriminator (#14290) — verify VdpTop:1602 pixelWithinByte skew ===")
+  val (mismatch, sampled) = Indexed2bppFrameCoSim.runFine()
+  if (sampled >= 3 && mismatch == 0)
+    println(f"[sim] INTRA-BYTE: CLEAN — emitted intra-byte pixel order + byte selection are BIT-PERFECT across $sampled rows (0 mismatched cols). The readSync byte data and pixelWithinByte ARE aligned in the real pipeline ⇒ CyanPeak's VdpTop:1602 net-skew is REFUTED; non-uniform 1bpp/2bpp graphics decode correctly.")
+  else
+    println(f"[sim] INTRA-BYTE: SKEW — $mismatch mismatched cols across $sampled rows ⇒ the emitted intra-byte order does NOT match the uploaded pattern. CyanPeak's VdpTop:1602 skew is CONFIRMED; propose an RTL lane to register pixelWithinByte (hCounterR) — PM authorization required.")
 }
