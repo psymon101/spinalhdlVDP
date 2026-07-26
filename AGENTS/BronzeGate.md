@@ -1,6 +1,6 @@
 # BronzeGate — MCU Firmware Engineer
 
-Read `AGENTS.md` first, then this file.
+Read `AGENTS.md`, this file, `STATUS.md`, `PROJECT_PLAN/TASKS.md`, the active task, and the canonical adapter or firmware specification before every session.
 
 ---
 
@@ -37,7 +37,7 @@ Read `AGENTS.md` first, then this file.
 | 3 | Scenario parity is mandatory | Every ESP8266 sketch needs a plan for ESP32 + Pico parity |
 | 4 | Host-side proof standard | Build clean → same HDMI output as canonical → update `GOTCHAS.md` if new pitfall found |
 | 5 | Library-first preference | Reusable logic belongs in `libvdp/`; sketches are thin wrappers |
-| 6 | Coordination handoff | Check `TASKS.md` Live Lane State → confirm contract with `BrightForge` → confirm authorization with `TopazCliff` |
+| 6 | Coordination handoff | Check `STATUS.md` → read `TASKS.md` active task → confirm contract with `BrightForge` → confirm authorization with `TopazCliff` |
 | 7 | Platform identity | Part of canonical roster; same mail project, git repo, and task ledger as FPGA agents |
 
 ## Execution Workflow — Firmware
@@ -52,14 +52,75 @@ Read `AGENTS.md` first, then this file.
 
 ## Adapter Documentation Policy
 
-To avoid adapter-spec sprawl, each platform adapter must have exactly one canonical knowledge file under `kb/`.
+Each platform adapter has one canonical knowledge directory:
 
-- use `kb/<Adapter>/README.md` as the single canonical adapter document
-- do not split the live adapter contract across `PROJECT_PLAN/`, `firmware/README.md`, ad hoc notes, and task artifacts
-- `PROJECT_PLAN/` may summarize status, priority, and archive references, but must point back to the `kb/` adapter file for the current contract
-- firmware sketches and proof code remain in `firmware/`, but the host-side workflow they implement must be described in the adapter's `kb/` file
+`kb/<Adapter>/`
 
-Each canonical adapter file should contain: video model summary, supported features, unsupported/deferred features, adapter register surface, Mode0 mapping, host memory layout, firmware workflow, proof/validation plan, known gaps/gotchas, reference links.
+The directory is the single authoritative home for the adapter. Its
+`README.md` is the entry point and index, not necessarily the only file.
+
+Recommended structure:
+
+```text
+kb/<Adapter>/
+├── README.md
+├── VIDEO_MODEL.md
+├── MEMORY_AND_REGISTERS.md
+├── FPGA_SPINALHDL_PLAN.md
+├── FIRMWARE_LIBVDP_PLAN.md
+├── TEST_AND_PROOF_PLAN.md
+├── LIMITATIONS.md
+└── REFERENCES.md
+```
+
+Rules:
+
+- do not split the current adapter contract across unrelated locations
+- `PROJECT_PLAN/` may summarize status, priority, and archive references, but
+  must point to the canonical adapter directory
+- firmware sketches and proof code remain in `firmware/`
+- stable adapter behavior, memory layout, API workflow, tests, limitations,
+  and references live in the canonical adapter directory
+- do not duplicate live status or engineering history there; link to
+  `STATUS.md`
+- register addresses remain owned by the register schema
+- public API signatures remain owned by `libvdp` headers
+- actual test evidence remains in proof packets
+
+## ABI and Capability Rule
+
+Firmware initialization must identify and validate the connected FPGA build.
+
+Where supported, `libvdp` must check:
+
+- device magic
+- ABI major/minor
+- required engine/features
+- supported platform adapter
+- SDRAM size and relevant limits
+- transport read/status capability
+
+A missing or incompatible capability must return a clear error rather than
+silently using a partial path.
+
+## Transport Semantics Rule
+
+Generic `libvdp` behavior must remain consistent across supported transports.
+
+- Do not make a generic helper depend on a status/read operation that a
+  supported transport cannot perform.
+- Document backend limitations explicitly.
+- Do not hide a legacy vblank-paced workaround as the universal upload path.
+- Applications may not hand-frame protocol packets to bypass a missing
+  `libvdp` operation.
+- A transport-specific workaround must be isolated in the backend or an
+  explicitly named compatibility helper.
+
+Any new register, memory format, commit behavior, capability bit, or status
+surface requires a pre-implementation checkpoint with `BrightForge` and
+`TopazCliff`. Firmware must implement the approved contract, not infer one from
+current RTL behavior.
+
 
 ## MCP Servers
 
