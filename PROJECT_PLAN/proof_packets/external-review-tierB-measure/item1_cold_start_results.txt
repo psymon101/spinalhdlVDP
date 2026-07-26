@@ -1,0 +1,33 @@
+item1 cold-start observation (openFPGALoader POR-reconfigure proxy), bitstream a5a047a2, N=10
+method: reconfigure -> settle 5s -> capture /dev/video0 frame -> mean YUV. Consistent frame = HDMI locked; outlier = flaky.
+=== cycle 1 ===
+reconfig_exit=0 done_markers=
+capture_exit=0  lavfi.signalstats.YAVG=16.1325 lavfi.signalstats.UAVG=128.029 lavfi.signalstats.VAVG=127.914   sha=12038428e646
+=== cycle 2 ===
+reconfig_exit=0 done_markers=
+capture_exit=0  lavfi.signalstats.YAVG=16.1325 lavfi.signalstats.UAVG=128.029 lavfi.signalstats.VAVG=127.914   sha=12038428e646
+=== cycle 3 ===
+reconfig_exit=0 done_markers=
+capture_exit=0  lavfi.signalstats.YAVG=16.1325 lavfi.signalstats.UAVG=128.029 lavfi.signalstats.VAVG=127.914   sha=12038428e646
+=== cycle 4 ===
+reconfig_exit=0 done_markers=
+capture_exit=0  lavfi.signalstats.YAVG=16.1325 lavfi.signalstats.UAVG=128.029 lavfi.signalstats.VAVG=127.914   sha=12038428e646
+=== cycle 5 ===
+reconfig_exit=0 done_markers=
+capture_exit=0  lavfi.signalstats.YAVG=16.1325 lavfi.signalstats.UAVG=128.029 lavfi.signalstats.VAVG=127.914   sha=12038428e646
+=== cycle 6 ===
+reconfig_exit=0 done_markers=
+capture_exit=0  lavfi.signalstats.YAVG=16.1325 lavfi.signalstats.UAVG=128.029 lavfi.signalstats.VAVG=127.914   sha=12038428e646
+=== cycle 7 ===
+reconfig_exit=0 done_markers=
+capture_exit=0  lavfi.signalstats.YAVG=16.1325 lavfi.signalstats.UAVG=128.029 lavfi.signalstats.VAVG=127.914   sha=12038428e646
+=== cycle 8 ===
+reconfig_exit=0 done_markers=
+capture_exit=0  lavfi.signalstats.YAVG=16.1325 lavfi.signalstats.UAVG=128.029 lavfi.signalstats.VAVG=127.914   sha=12038428e646
+=== cycle 9 ===
+reconfig_exit=0 done_markers=
+capture_exit=0  lavfi.signalstats.YAVG=16.1325 lavfi.signalstats.UAVG=128.029 lavfi.signalstats.VAVG=127.914   sha=12038428e646
+=== cycle 10 ===
+reconfig_exit=0 done_markers=
+capture_exit=0  lavfi.signalstats.YAVG=16.1325 lavfi.signalstats.UAVG=128.029 lavfi.signalstats.VAVG=127.914   sha=12038428e646
+=== DONE ALL 10 ===

@@ -1,0 +1,72 @@
+external-review-tierB-measure — measure-first hardening (external review #14317)
+================================================================================
+Owner:     BrightForge / CyanPeak
+Date:      2026-07-26
+Branch:    topazcliff/migration-phase11
+Result:    All three items resolved. NO RTL change required (measure-first: none of
+           the three potential issues reproduced, so no blind edits were applied).
+
+------------------------------------------------------------------------------
+ITEM 1 — HDMI reset sequencing (cold-start reliability)     RESULT: no flakiness
+------------------------------------------------------------------------------
+Concern (CyanPeak F4): pixelReset may not be gated on PLL/clkdiv lock, risking a
+cold-start HDMI bring-up race. Recommended fix IF flakiness observed:
+  pixelReset = !clkdiv.RESETN
+Decision rule (PM #14424, measure-first): apply the gating ONLY if cold-start
+flakiness is observed.
+
+Observation run (PM-authorized #14424):
+- Bitstream: fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs
+  sha256 a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c
+- Method: N=10 POR cold-starts via `openFPGALoader -b tangnano20k <fs>` (clean
+  config + PLL re-lock). Per cycle: reconfigure -> 5 s settle -> capture one
+  /dev/video0 frame -> mean YUV + sha. HDMI-lock inferred from frame-content
+  consistency (this UVC capture device does not support --query-dv-timings).
+- Baseline (pre-run, content present): checkerboard, YAVG=125.3, neutral chroma
+  (HDMI locked). Post-reconfigure frames drop to YAVG=16.13 (empty-SDRAM
+  backdrop) — this baseline->backdrop transition proves the capture is LIVE and
+  each reconfigure took effect.
+
+Result: 10/10 cycles reconfig_exit=0 AND capture_exit=0, and every cycle produced
+a BYTE-IDENTICAL valid HDMI-locked frame:
+  YAVG=16.1325  UAVG=128.029  VAVG=127.914  sha 12038428e646... (1 unique hash / 10)
+Zero no-sync / blank / garbled / outlier events.
+
+Verdict: OUTCOME A — cold-start bring-up reliable; NO RTL change (pixelReset
+gating NOT applied).
+
+Limitations (disclosed): (1) This is a JTAG POR-reconfigure proxy, NOT a true
+power-on cold-start — no operator power-cycles were available, so the power-ramp /
+reset-release timing that a genuine reset-sequencing race would exploit is not
+exercised. The result is a positive signal but does not fully clear the power-on
+case; a definitive close would want an operator-run N=10 power-on series.
+(2) HDMI-lock inferred from frame-content consistency, not DV-timings (device
+limitation). PM may accept this proxy close or schedule the stronger power-on run.
+
+------------------------------------------------------------------------------
+ITEM 2 — LineBuffer BSRAM inference                          RESULT: no change
+------------------------------------------------------------------------------
+CyanPeak audited project_syn_rsc.xml (mail check-in 2026-07-26): lineBuf and
+dcLineBuf are inferred to BSRAM blocks (2 for lineBuf, 3 for dcLineBuf); no
+1280-deep readSync mis-inference, no padding required. No RTL change.
+
+------------------------------------------------------------------------------
+ITEM 3 — RGB565 bitmapWritePipelineDelay                     RESULT: default OK
+------------------------------------------------------------------------------
+BrightForge validated via the existing DirectColorFrameCoSim (deterministic
+320x240 RGB565 X-ramp through real VdpTop+BitmapRowFetch), delay sweep 0..3:
+  delay=0 (production default): byte-exact at dh=0 (0.9956 canonical); PASS
+  delay=1/2/3: image shifts left (dh=-1/-2/-3), canonical -> 0.499/0/0
+=> default bitmapWritePipelineDelay=0 CONFIRMED correct; a nonzero delay would
+mis-align. No RTL change. (Note: c8b5c0c's delay=2 is on side branches only, never
+merged to production; would mis-align RGB565.)
+
+------------------------------------------------------------------------------
+ARTIFACTS
+------------------------------------------------------------------------------
+- item1_cold_start_results.txt (per-cycle tally)
+- captures/baseline_checkerboard_locked.png (YAVG=125, locked+content)
+- captures/coldstart_backdrop_representative.png (YAVG=16, locked, empty SDRAM; all 10 identical)
+- hashes.sha256
+- review.md
+Bitstream authority: a5a047a2... (HW-proven under 2bpp-hardware-reproof-4mhz #14415).
