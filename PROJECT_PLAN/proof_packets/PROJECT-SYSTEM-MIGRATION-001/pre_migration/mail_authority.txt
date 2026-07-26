@@ -1,0 +1,5 @@
+Latest authoritative mail before migration start:
+- TopazCliff kickoff: message ID 14352 (PROJECT-SYSTEM-MIGRATION-001 — controlled conversion)
+
+Supporting review document:
+- CoralReef external documentation system review: PROJECT_PLAN/external_docs_system_review.md (recommendation: selective merge, keep STATUS.md canonical)
