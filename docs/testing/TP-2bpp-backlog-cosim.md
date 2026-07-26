@@ -19,6 +19,8 @@ sbt "runMain spinalhdlvdp.Indexed2bppBacklogCoSim"
 - wrong-row events ≤ documented startup slack
 - `grantOverflow == 0`
 - `displayUnderflow == 0`
+- `rowTagMismatch == 0` (gate idle in nominal — the fetch always keeps up)
+- `malformed == 0`
 - max fetch span within source-row budget
 
 ## Forced-late mode expected results (before hardening)
