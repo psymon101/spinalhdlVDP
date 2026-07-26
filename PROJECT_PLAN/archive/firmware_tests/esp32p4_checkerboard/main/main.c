@@ -716,6 +716,10 @@ static bool bringup_display(void)
         return false;
     }
 
+    /* Capture transport health before the bulk SDRAM writes so the proof
+     * separates pre-existing framing state from upload-induced faults. */
+    proof_ok &= log_transport_health("HEALTH_BEFORE_UPLOAD");
+
     if (!upload_planes()) {
         return false;
     }
