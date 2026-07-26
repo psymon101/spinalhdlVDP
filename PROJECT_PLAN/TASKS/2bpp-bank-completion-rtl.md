@@ -31,7 +31,7 @@ Implement the pixel-domain bank-completion token path for the 2bpp bitmap layer,
 ## Acceptance criteria
 
 - [ ] RTL change committed on branch `brightforge/ham-decoder-171`.
-- [ ] `sbt "runMain vdp.bitmap.BitmapEngine2bppCosim"` passes 200 frames without backlog assertion failures.
+- [ ] `sbt "runMain spinalhdlvdp.Indexed2bppBacklogCoSim"` passes nominal and forced-late modes without display-bank violations after hardening (and fails before hardening in forced-late mode).
 - [ ] Diff against `5efe049` ≤ 200 lines or accompanied by a short ADR if larger.
 - [ ] Proof packet created under `PROJECT_PLAN/proof_packets/2bpp-bank-completion-rtl/` with:
   - `PASS.txt` containing commit hash, tool versions, and pass summary.
