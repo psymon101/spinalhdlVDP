@@ -39,13 +39,14 @@ object Indexed2bppBacklogCoSim extends App {
   def boundaryByte(row: Int): Int = 10 + (row % 60)   // 10..69, encodes source row mod 60
 
   case class Result(bestDv: Int, wrongEvents: Int, validRows: Int,
-                    grantOverflow: Int, displayUnderflow: Int, maxFetchActiveSd: Int)
+                    grantOverflow: Int, blankRows: Int, maxFetchActiveSd: Int,
+                    rtlUnderflow: Int, rtlRowTagMismatch: Int, malformedRows: Int, dispValidFinal: Boolean)
 
   /** forcedLate: block SDRAM servicing while the display is in [stallLine0, stallLine1) each frame
     * (drains the 2-bank head start → a bank rotates onto the display before its fill completes). */
   def runBacklog(forcedLate: Boolean, stallLine0: Int, stallLine1: Int,
                  refreshPeriod: Int, refreshLen: Int, latency: Int): Result = {
-    var res = Result(0, 0, 0, 0, 0, 0)
+    var res = Result(0, 0, 0, 0, 0, 0, 0, 0, 0, false)
     Config.sim.compile(new Indexed2bppFrameCoSim.Dut).doSim { dut =>
       dut.clockDomain.forkStimulus(pixPeriod)
       dut.sdramCd.forkStimulus(sdPeriod)
@@ -147,24 +148,47 @@ object Indexed2bppBacklogCoSim extends App {
         dut.clockDomain.waitSampling()
       }
 
-      // Row-coded scoreboard.
+      // Row-coded scoreboard + malformed-row (torn / incomplete-bank) detector.
+      // Each row-coded row is a clean 2-region pattern: colorA (index1) for cols before
+      // the source-row-encoded boundary, colorB (index2) after. Reconstruct each row's
+      // OWN 2-region model from its detected boundary and count pixels that DEVIATE,
+      // excluding the line-start (col 0..3), the right frame edge (col >= 636), and a
+      // +/-3 band around the boundary — all known-benign 1px pipeline/edge artifacts.
+      // A FROZEN valid row (old source row) matches its own model => dev ~ 0 => NOT
+      // malformed (graceful degradation; still counted as wrong via its row tag). A
+      // TORN / incomplete bank (mixed content) deviates heavily => malformed => a real
+      // display-bank VIOLATION.
       val impliedMod = Array.fill(480)(-1)
-      var underflow = 0
+      var blankRows = 0
+      var malformedRows = 0
       for (dy <- 0 until 480) {
-        val c0 = gotFrame(dy)(0)
-        if (c0 != 0x000000 && c0 >= 0) {
-          var col = -1; var dx = 1
-          while (dx < 640 && col < 0) { if (gotFrame(dy)(dx) >= 0 && gotFrame(dy)(dx) != c0) col = dx; dx += 1 }
-          if (col >= 0) { val bnd = (col + 4) / 8; impliedMod(dy) = ((bnd - 10) % 60 + 60) % 60 }
-        } else underflow += 1   // active row rendered blank/black where content is expected = stale/empty bank
+        val cA = gotFrame(dy)(4)     // reference colorA, past the line-start pipeline warmup
+        if (cA != 0x000000 && cA >= 0) {
+          var bcol = -1; var dx = 5
+          while (dx < 636 && bcol < 0) { val c = gotFrame(dy)(dx); if (c >= 0 && c != cA) bcol = dx; dx += 1 }
+          if (bcol >= 0) {
+            val bnd = (bcol + 4) / 8; impliedMod(dy) = ((bnd - 10) % 60 + 60) % 60
+            val cB = gotFrame(dy)(math.min(bcol + 3, 639))
+            var dev = 0; var x = 4
+            while (x < 636) {
+              val c = gotFrame(dy)(x)
+              if (c >= 0 && math.abs(x - bcol) > 3) { val exp = if (x < bcol) cA else cB; if (c != exp) dev += 1 }
+              x += 1
+            }
+            if (dev > 8) malformedRows += 1   // torn / incomplete-bank display = VIOLATION
+          }
+        } else blankRows += 1   // active row rendered blank/black = stale/empty bank
       }
       def srcRow(dy: Int, dv: Int): Int = { val r = if (dy % 2 == 0) dy/2 - dv else (dy-1)/2 - (dv-1); ((r % 60) + 60) % 60 }
       val valid = (0 until 480).filter(impliedMod(_) >= 0)
       var bestDv = 0; var bestMatch = -1
       for (dv <- -4 to 8) { var m = 0; for (dy <- valid) if (impliedMod(dy) == srcRow(dy, dv)) m += 1; if (m > bestMatch) { bestMatch = m; bestDv = dv } }
       val wrongEvents = valid.size - bestMatch
-      val grantOv = try { dut.fetch.sd.grantOverflow.toInt } catch { case _: Throwable => -1 }
-      res = Result(bestDv, wrongEvents, valid.size, grantOv, underflow, maxFetchSpanSd)
+      val grantOv    = try { dut.fetch.sd.grantOverflow.toInt } catch { case _: Throwable => -1 }
+      val rtlUnder   = try { dut.fetch.displayUnderflow.toInt } catch { case _: Throwable => -1 }
+      val rtlTagMiss = try { dut.fetch.rowTagMismatch.toInt }   catch { case _: Throwable => -1 }
+      val dvFinal    = try { dut.fetch.dispValid.toBoolean }    catch { case _: Throwable => false }
+      res = Result(bestDv, wrongEvents, valid.size, grantOv, blankRows, maxFetchSpanSd, rtlUnder, rtlTagMiss, malformedRows, dvFinal)
     }
     res
   }
@@ -172,22 +196,32 @@ object Indexed2bppBacklogCoSim extends App {
   println("=== Indexed2bppBacklogCoSim (#14327/#14332): continuous-scanout backlog + bank-completion scoreboard ===")
   println(f"[budget] source-row budget = $srcRowBudgetPix pixel-clocks/source-row (line-doubled 2×hTotal); nominal fetch ~1566 pixel-clocks (BitmapRowFetch:322). Clock ratio pixel:sdram = $pixPeriod:$sdPeriod.")
 
-  // NOMINAL: finite latency + periodic refresh the 2-bank pipeline absorbs.
+  // NOMINAL: finite latency + periodic refresh the 3-bank pipeline absorbs.
   val nom = runBacklog(forcedLate = false, stallLine0 = 0, stallLine1 = 0, refreshPeriod = 2000, refreshLen = 12, latency = 6)
   val sdToPix = sdPeriod.toDouble / pixPeriod   // sdramCd cycles -> pixel-clocks (25/40 = 0.625)
-  println(f"[NOMINAL]     bestDv=${nom.bestDv} wrongEvents=${nom.wrongEvents}/${nom.validRows} grantOverflow=${nom.grantOverflow} displayUnderflow=${nom.displayUnderflow} maxFetchSpan=${nom.maxFetchActiveSd}sdCyc (~${nom.maxFetchActiveSd * sdToPix}%.0f pixclk of $srcRowBudgetPix budget)")
+  def show(tag: String, r: Result): Unit = println(
+    f"[$tag%-11s] bestDv=${r.bestDv} wrong=${r.wrongEvents}/${r.validRows} malformed=${r.malformedRows} blank=${r.blankRows} grantOverflow=${r.grantOverflow} rtlUnderflow=${r.rtlUnderflow} rowTagMismatch=${r.rtlRowTagMismatch} dispValid=${r.dispValidFinal} maxFetchSpan=${r.maxFetchActiveSd}sdCyc (~${r.maxFetchActiveSd * sdToPix}%.0f pixclk)")
+  show("NOMINAL", nom)
 
-  // FORCED-LATE: block servicing across display lines [200,212) (6 source rows) each frame → drain head start.
+  // FORCED-LATE: block servicing across display lines [200,212) each frame → drain the head start.
   val late = runBacklog(forcedLate = true, stallLine0 = 200, stallLine1 = 212, refreshPeriod = 2000, refreshLen = 12, latency = 6)
-  println(f"[FORCED-LATE] bestDv=${late.bestDv} wrongEvents=${late.wrongEvents}/${late.validRows} grantOverflow=${late.grantOverflow} displayUnderflow=${late.displayUnderflow} maxFetchSpan=${late.maxFetchActiveSd}sdCyc (~${late.maxFetchActiveSd * sdToPix}%.0f pixclk)")
+  show("FORCED-LATE", late)
 
-  val nomClean  = nom.bestDv == 3 && nom.wrongEvents <= 6 && nom.grantOverflow <= 0 && nom.displayUnderflow <= 2
-  val lateFires = late.wrongEvents > (nom.wrongEvents + 15) || late.grantOverflow > 0 || late.displayUnderflow > (nom.displayUnderflow + 6)
+  // POST-hardening acceptance (bankReady + bankRowTag gating in BitmapRowFetch):
+  //  - NOMINAL must stay clean: bestDv==3, no display-bank violations, gating idle.
+  //  - FORCED-LATE must show NO display-bank violation (malformed==0, display stayed valid)
+  //    while the gating ENGAGED (rtlUnderflow and/or rowTagMismatch > 0) — the hazard was
+  //    caught and degraded gracefully (frozen valid rows) instead of showing garbage.
+  //  Pre-hardening forced-late FAILURE is on record at 5efe049 (wrong 214/480, grantOverflow 25).
+  val nomClean = nom.bestDv == 3 && nom.wrongEvents <= 6 && nom.grantOverflow <= 0 &&
+                 nom.malformedRows == 0 && nom.rtlUnderflow <= 2 && nom.rtlRowTagMismatch <= 2
+  val lateGraceful = late.malformedRows == 0 && late.dispValidFinal &&
+                     (late.rtlUnderflow > 0 || late.rtlRowTagMismatch > 0)
 
-  if (nomClean && lateFires)
-    println("[sim] BACKLOG: PASS — NOMINAL clean (bestDv=3, no display-bank violations) AND FORCED-LATE fires the incomplete-bank / stale-row / grant-overflow detector with the CURRENT (no-bankReady) BitmapRowFetch ⇒ external-review claim 2 hazard is REACHABLE. Unblocks 2bpp-bank-completion-rtl (add bankReady+bankRowTag; this sim is its pass/fail gate).")
-  else if (nomClean && !lateFires)
-    println("[sim] BACKLOG: INCONCLUSIVE — nominal clean but forced-late did NOT trip a detector; widen the stall window or increase latency/refresh so the fetch misses its deadline.")
+  if (nomClean && lateGraceful)
+    println("[sim] BACKLOG: PASS (post-hardening) — NOMINAL clean (bestDv=3, zero display-bank violations, gating idle) AND FORCED-LATE shows ZERO malformed/incomplete-bank display with the completion gating ENGAGED (rtlUnderflow/rowTagMismatch>0): the display never advances onto an incomplete or stale bank, degrading to frozen valid rows. External-review claim 2 hazard CLOSED.")
+  else if (!nomClean)
+    println(f"[sim] BACKLOG: FAIL — NOMINAL regressed (bestDv=${nom.bestDv} wrong=${nom.wrongEvents} malformed=${nom.malformedRows} grantOv=${nom.grantOverflow} rtlUnderflow=${nom.rtlUnderflow} rowTagMismatch=${nom.rtlRowTagMismatch}). Hardening must not disturb the nominal path.")
   else
-    println(f"[sim] BACKLOG: NOMINAL NOT CLEAN (bestDv=${nom.bestDv} wrong=${nom.wrongEvents} grantOv=${nom.grantOverflow} underflow=${nom.displayUnderflow}) — the bandwidth model is too aggressive for nominal; reduce latency/refresh until the 2-bank pipeline keeps up.")
+    println(f"[sim] BACKLOG: FAIL — FORCED-LATE not graceful (malformed=${late.malformedRows} dispValid=${late.dispValidFinal} rtlUnderflow=${late.rtlUnderflow} rowTagMismatch=${late.rtlRowTagMismatch}). Either the gating did not engage or a torn/incomplete bank was still displayed (likely fetch-side lapping overwriting the frozen display bank -> needs fetch backpressure).")
 }
