@@ -76,10 +76,12 @@ Do not register hybrid names, abbreviations, or aliases (for example,
 `AzureSparrow`, `RainyHill`, `WhitePond`, `StormyRidge`, `JadeGrove`,
 `IvoryOwl`, `WildFinch`, `SilentCrane`. These contact links are **blocked**;
 mail sent from any name other than the five canonical identities will not be
-treated as authoritative project communication. If you are one of the
-canonical team members, re-register under your correct identity; if you are
-a helper/sub-agent, coordinate through the lane owner instead of maintaining
-a separate project identity.
+treated as authoritative project communication. Blocked links may still appear
+in `list_contacts` with `status: blocked`; that is a backend display artifact
+and does not make them valid recipients. If you are one of the canonical team
+members, re-register under your correct identity; if you are a helper/sub-agent,
+coordinate through the lane owner instead of maintaining a separate project
+identity.
 
 **Use the `team-mailbox` skill for all mail operations.** MCP mail is the
 backend mail system; the `team-mailbox` skill is the interface you use to
