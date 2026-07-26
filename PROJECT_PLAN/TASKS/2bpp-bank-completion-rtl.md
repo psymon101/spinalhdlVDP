@@ -28,15 +28,15 @@ Implement the pixel-domain bank-completion token path for the 2bpp bitmap layer,
 
 ## Acceptance criteria
 
-- [ ] RTL change committed on branch `brightforge/ham-decoder-171`.
-- [ ] `sbt "runMain spinalhdlvdp.Indexed2bppBacklogCoSim"` passes nominal and forced-late modes without display-bank violations after hardening (and fails before hardening in forced-late mode).
-- [ ] Diff against `5efe049` ≤ 200 lines or accompanied by a short ADR if larger.
-- [ ] Proof packet created under `PROJECT_PLAN/proof_packets/2bpp-bank-completion-rtl/` with:
+- [x] RTL change committed on branch `brightforge/ham-decoder-171`.
+- [x] `sbt "runMain spinalhdlvdp.Indexed2bppBacklogCoSim"` passes nominal and forced-late modes without display-bank violations after hardening (and fails before hardening in forced-late mode).
+- [x] Diff against `5efe049` ≤ 200 lines or accompanied by a short ADR if larger.
+- [x] Proof packet created under `PROJECT_PLAN/proof_packets/2bpp-bank-completion-rtl/` with:
   - `PASS.txt` containing commit hash, tool versions, and pass summary.
   - `synthesis_summary.md` from a successful Gowin synthesis run (area/timing).
   - `cosim_log.sha256` and `cosim_log.txt` (curated, not raw multi-MB dump).
   - `diff.patch` from the baseline commit.
-- [ ] Runbook feedback filed: if `COSIM_VALIDATION.md` is missing a step, open a correction PR or mail CoralReef.
+- [x] Runbook feedback filed: CoralReef review conditions addressed in commit `865468c`; no runbook correction required.
 
 ## Blockers / dependencies
 
@@ -46,3 +46,12 @@ Implement the pixel-domain bank-completion token path for the 2bpp bitmap layer,
 
 - BrightForge: run this as you normally would, but route status updates through `STATUS.md` and closeout via MCP mail to TopazCliff + CyanPeak.
 - TopazCliff will use this lane's proof packet to validate Phase 10 of the migration.
+
+## Closeout
+
+- **Closed by:** TopazCliff
+- **Date:** 2026-07-26
+- **Verdict:** DONE — sim+PnR proof accepted; hardware bench flash is a separate PM-sequenced gate.
+- **Reviews:** CyanPeak architecture/interface review PASS (#14375); CoralReef proof-packet/runbook review PASS with conditions, all cleared in `865468c` (#14376 / #14393).
+- **Proof:** RTL `033cc47`; proof packet `32c18e2`; `Indexed2bppBacklogCoSim` PASS; Gowin PnR TNS=0, no new BSRAM.
+
