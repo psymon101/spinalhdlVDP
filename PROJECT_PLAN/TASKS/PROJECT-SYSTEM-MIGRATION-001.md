@@ -58,13 +58,12 @@ Track through:
 
 ## Current state
 
-`AUDIT` — Phases 0–10 complete. Pilot lane `2bpp-bank-completion-rtl` closed with a complete proof packet, CyanPeak architecture/interface review PASS (#14375), and CoralReef proof-packet/runbook review PASS (#14376). Hardware reproof lane `2bpp-hardware-reproof-4mhz` closed with exact-approved-artifact flash and separated serial/readback/health/YUYV proof (#14415). TopazCliff is now auditing both proof packets and the migration system against the exit criteria before issuing the cutover decision.
+`CUTOVER` — Phases 0–12 complete. Cutover decision approved and recorded in `PROJECT_PLAN/DECISIONS/ADR-007-MIGRATION-SYSTEM-CUTOVER.md`. Superseded files listed in `PROJECT_PLAN/SUPERSEDED.md`.
 
 ## Next action
 
-1. TopazCliff audits the pilot + reproof proof packets and the migration system.
-2. Record the cutover decision in `PROJECT_PLAN/DECISIONS/` and update `STATUS.md`.
-3. If approved, mark superseded files and enter the observation phase.
+1. Run observation phase: monitor that new lanes close with proof packets and ADRs as required.
+2. Close migration once observation criteria are met.
 
 ## Completed phases summary
 
