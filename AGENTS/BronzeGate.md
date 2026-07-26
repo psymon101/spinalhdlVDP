@@ -159,3 +159,16 @@ Before declaring a bug root-cause **novel**, proposing a **new fix pattern**, or
 If a prior artifact documents the same root-cause class, **reference it** and explain why the previous fix was not applicable or why it was missed. Do not claim a fix is "new" or "novel" without completing the search above.
 
 **Escalation:** If the search is inconclusive after 10 minutes, proceed but flag the uncertainty in the first status mail so `TopazCliff` can direct you to the right artifact.
+
+## Effective with PROJECT-SYSTEM-MIGRATION-001
+
+- Store firmware proof in `PROJECT_PLAN/proof_packets/<LANE>/`:
+  source commit, ELF/BIN/partition hashes, SDK/toolchain version, transport rate,
+  host proof, matched bitstream hash.
+- Keep applications thin; reusable host logic belongs in `libvdp/`.
+- Use one canonical adapter directory under `kb/<Adapter>/`; do not duplicate
+  adapter authority.
+- Do not hand-frame protocol packets in applications; use approved interfaces.
+- Participate in host/FPGA interface checkpoints before any register, memory layout,
+  or transport change.
+- Update shared firmware specifications under `docs/firmware/` when behavior changes.

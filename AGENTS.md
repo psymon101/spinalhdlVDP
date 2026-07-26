@@ -242,6 +242,51 @@ Every behavioral engineering change must include, in the same authorized lane:
 A task is not complete merely because the code compiles or a reference image
 appears correct.
 
+## Proof Packet and Evidence Requirements
+
+Every lane that produces a build, simulation, synthesis, or hardware result
+must store evidence in a proof packet under:
+
+```text
+PROJECT_PLAN/proof_packets/<LANE-or-TASK>/
+```
+
+A proof packet contains:
+
+- `manifest.yaml` — lane, commits, mail IDs, reviews, decision;
+- `source/` — source commit and diff summary;
+- `simulation/` — SpinalSim / firmware test logs and commands;
+- `generated_rtl/` — generated Verilog hash and regeneration command;
+- `synthesis/` — Gowin resource/timing reports;
+- `firmware/` — ELF/BIN/partition hashes and build commands;
+- `hardware/` — board/wiring revision, procedure, and results;
+- `captures/` — images, traces, or logs;
+- `hashes.sha256` — all artifact hashes;
+- `review.md` — review verdicts and open deviations.
+
+A hardware result is invalid without:
+
+- source commit;
+- generated RTL hash;
+- bitstream hash;
+- firmware hash;
+- asset hash;
+- board and wiring revision;
+- tool versions;
+- exact procedure.
+
+Expected results belong in test plans. Actual results belong in proof packets.
+
+## Architecture Decisions and Runbooks
+
+Permanent architecture decisions for registers, protocols, opcodes, APIs,
+pinouts, build flags, or role boundaries require an ADR under
+`PROJECT_PLAN/DECISIONS/`.
+
+Exact operational commands belong in runbooks under `docs/runbooks/`. A
+runbook is not complete until the owner has executed every command from a
+clean state and recorded expected outputs and pass/fail criteria.
+
 ## Context Compression
 
 When resuming or handing off, compress state to:
@@ -288,6 +333,11 @@ source, and evidence drift.
 | 12 | Live Status Authority | `STATUS.md` owns durable live state; authoritative mail changes must be synchronized into it during the same engineering cycle |
 | 13 | Generated RTL Integrity | FPGA behavior changes originate in SpinalHDL; permanent generated-Verilog-only edits are prohibited |
 | 14 | Complete Change Packet | Behavioral changes include implementation, tests, documentation, expected results, and proof requirements in the same lane |
+| 15 | Proof Packet | Hardware and synthesis results require a complete proof packet with artifact hashes, procedure, and reviews |
+| 16 | Architecture Decisions | Permanent contract changes require an ADR under `PROJECT_PLAN/DECISIONS/` |
+| 17 | Validated Runbooks | Operational commands must be validated from a clean state and stored under `docs/runbooks/` |
+| 18 | Canonical Adapter Directory | Each platform adapter has one canonical directory under `kb/<Adapter>/`; do not duplicate adapter authority |
+| 19 | Interface Checkpoint | Host-visible changes require independent BrightForge + BronzeGate approval before implementation |
 
 **Legacy SPI contract:** 2 MHz SCK, 10 µs CS hold, 20 µs OSR drain.
 

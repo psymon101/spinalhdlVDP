@@ -110,3 +110,14 @@ The summary must include:
 - **Dialogue capture:** the substance of relevant chat dialogue and MCP mail exchange that shaped the outcome
 
 Do not paste raw logs. Summarize substance. Use strong tags for searchability.
+
+## Effective with PROJECT-SYSTEM-MIGRATION-001
+
+- Audit every proof packet under `PROJECT_PLAN/proof_packets/<LANE>/` for
+  completeness, artifact pairing, and reproducibility.
+- Confirm `STATUS.md` remains the only durable live-state authority; report any
+  competing live-status documents immediately.
+- Audit documentation for duplication of register addresses, API signatures,
+  live status, actual results, or release hashes.
+- Verify superseded files are explicitly marked and not silently deleted.
+- Review ADRs under `PROJECT_PLAN/DECISIONS/` for traceability and authority.

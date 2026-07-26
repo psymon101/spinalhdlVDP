@@ -146,3 +146,14 @@ The summary must include:
 Do not paste raw logs. Summarize substance. Use strong tags for searchability.
 
 **PM lane/project closeout:** At the end of every lane or project, write a comprehensive lane/project summary to `memory` covering the same categories at aggregate level, including cross-lane dependencies, scope changes, and final state.
+
+## Effective with PROJECT-SYSTEM-MIGRATION-001
+
+- Own proof-packet structure and ensure every closing lane has one under
+  `PROJECT_PLAN/proof_packets/<LANE>/`.
+- Own architecture-decision records under `PROJECT_PLAN/DECISIONS/`.
+- Convene and record host/FPGA interface checkpoints before implementation of
+  host-visible changes.
+- Keep `STATUS.md` the only durable live-state authority; do not let the
+  external documentation system or any new file replace it.
+- Mark superseded files explicitly; do not silently delete history.

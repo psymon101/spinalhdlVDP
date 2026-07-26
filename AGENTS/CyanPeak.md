@@ -133,3 +133,14 @@ The summary must include:
 - **Dialogue capture:** the substance of relevant chat dialogue and MCP mail exchange that shaped the outcome
 
 Do not paste raw logs. Summarize substance. Use strong tags for searchability.
+
+## Effective with PROJECT-SYSTEM-MIGRATION-001
+
+- Review architecture decisions under `PROJECT_PLAN/DECISIONS/` for primary-source
+  support and accuracy classification (exact / visually equivalent / approximated /
+  deferred / unsupported).
+- Validate shared specifications under `docs/fpga/` and `docs/firmware/` against
+  primary sources.
+- Do not implement corrections; report PASS / PASS WITH CONDITIONS / FAIL with
+  exact references.
+- Record exact manual/source locations for every finding.

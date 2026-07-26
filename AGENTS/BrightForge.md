@@ -150,3 +150,13 @@ Before declaring a bug root-cause **novel**, proposing a **new fix pattern**, or
 If a prior artifact documents the same root-cause class, **reference it** and explain why the previous fix was not applicable or why it was missed. Do not claim a fix is "new" or "novel" without completing the search above.
 
 **Escalation:** If the search is inconclusive after 10 minutes, proceed but flag the uncertainty in the first status mail so `TopazCliff` can direct you to the right artifact.
+
+## Effective with PROJECT-SYSTEM-MIGRATION-001
+
+- Store FPGA proof in `PROJECT_PLAN/proof_packets/<LANE>/`:
+  source commit, generated RTL hash, SpinalSim command/results, Gowin timing/resources,
+  bitstream hash, matched firmware hash, board/wiring revision, hardware procedure.
+- Generated Verilog under `hw/gen/` is a build artifact; never permanently patch it.
+- Update shared FPGA specifications under `docs/fpga/` when behavior changes.
+- Participate in host/FPGA interface checkpoints before any register, memory layout,
+  or transport change.
