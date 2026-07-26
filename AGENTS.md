@@ -74,11 +74,12 @@ Do not register hybrid names, abbreviations, or aliases (for example,
 
 **Invalid names observed in this project:** `BrightReef`, `FoggyWolf`,
 `AzureSparrow`, `RainyHill`, `WhitePond`, `StormyRidge`, `JadeGrove`,
-`IvoryOwl`, `WildFinch`, `SilentCrane`. Mail sent from any name other than
-the five canonical identities will not be treated as authoritative project
-communication. If you are one of the canonical team members, re-register
-under your correct identity; if you are a helper/sub-agent, coordinate
-through the lane owner instead of maintaining a separate project identity.
+`IvoryOwl`, `WildFinch`, `SilentCrane`. These contact links are **blocked**;
+mail sent from any name other than the five canonical identities will not be
+treated as authoritative project communication. If you are one of the
+canonical team members, re-register under your correct identity; if you are
+a helper/sub-agent, coordinate through the lane owner instead of maintaining
+a separate project identity.
 
 **Use the `team-mailbox` skill for all mail operations.** MCP mail is the
 backend mail system; the `team-mailbox` skill is the interface you use to
