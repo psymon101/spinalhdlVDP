@@ -66,6 +66,12 @@ Register with the same canonical name used in other project mailboxes.
 All in-repo agents must use this single repo-root mail project for lane
 packets, replies, acknowledgements, and coordination.
 
+**Allowed registration names:** the only valid agent names for this repo are
+the canonical identities listed above:
+`BrightForge`, `BronzeGate`, `TopazCliff`, `CyanPeak`, `CoralReef`.
+Do not register hybrid names, abbreviations, or aliases (for example,
+`BrightReef` is not a valid identity).
+
 **Use the `team-mailbox` skill for all mail operations.** MCP mail is the
 backend mail system; the `team-mailbox` skill is the interface you use to
 talk to other agents.
