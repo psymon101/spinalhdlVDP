@@ -1,0 +1,74 @@
+lane: 2bpp-bank-completion-rtl
+migration: PROJECT-SYSTEM-MIGRATION-001 (Phase 10 pilot)
+owner: BrightForge
+reviewers:
+  architecture_interface: CyanPeak
+  runbook_proof_packet: CoralReef
+status: DONE (sim + PnR); hardware bench flash is a separate gate
+date: 2026-07-26
+
+goal: >
+  Close external-review claim 2 (display-bank advance-without-completion) by adding
+  pixel-domain per-bank completion tokens (bankReady + bankRowTag), wrap-aware
+  consecutive-row-tag gating of dispBank rotation, and diagnostics counters, without
+  disturbing the nominal 2bpp path (bestDv==3).
+
+commits:
+  source: 033cc4715c573ef01d4c440bdd8df1cbe4bd0e09   # RTL + co-sim
+  baseline_harness: 5efe049                          # Indexed2bppBacklogCoSim; pre-hardening failure on record
+  proof_packet: (this commit)
+
+files_changed:
+  - hw/spinal/spinalhdlvdp/BitmapRowFetch.scala      # +77 lines: completion + gating + counters + FIFO payload
+  - hw/spinal/spinalhdlvdp/Indexed2bppBacklogCoSim.scala  # post-hardening acceptance + malformed detector
+
+mail:
+  assignment: 14356          # TopazCliff: pilot lane opened
+  acceptance_criteria: 14332 # TopazCliff: co-sim closeout criteria
+  ack_and_start: 14366       # BrightForge: accepted + interpretation note (line-granularity vs task prose)
+  closeout: (this closeout to TopazCliff + CyanPeak)
+
+artifacts:
+  generated_rtl:
+    path: hw/gen/top_tang20k.v
+    sha256: d741da2e1311fa5be9ecf846f7b60b563c4ddccd5c2f6be7187a1041a534ecb3
+    regen_cmd: sbt "runMain spinalhdlvdp.TopTang20kHdmiVerilog"
+    note: build artifact (gitignored); regenerated from source commit 033cc47
+  bitstream:
+    path: fpga/tang20k/impl/pnr/project.fs
+    sha256: a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c
+    flashed: false
+  cosim_log:
+    path: cosim_log.txt
+    sha256: 4b716609dadb924e84b4d36757dddf8d0259efb9810e7e7ebdfd3a71f883128e
+
+simulation:
+  command: sbt "runMain spinalhdlvdp.Indexed2bppBacklogCoSim"
+  nominal:     { bestDv: 3, wrong: "1/480",  malformed: 0, grantOverflow: 0,  rtlUnderflow: 0, rowTagMismatch: 0 }
+  forced_late: { bestDv: 2, wrong: "17/480", malformed: 0, grantOverflow: 25, rtlUnderflow: 0, rowTagMismatch: 39 }
+  verdict: PASS (nominal clean + gate idle; forced-late zero malformed with gate engaged)
+
+synthesis:
+  tool: Gowin V1.9.12.01
+  device: GW2AR-LV18QN88C8/I7
+  tns: 0
+  setup_violated_endpoints: 0
+  hold_violated_endpoints: 0
+  clk_pixel_fmax_mhz: 30.870   # constraint 25.200
+  clk_sdram_fmax_mhz: 66.962   # constraint 40.501
+  logic_pct: 55
+  cls_pct: 74
+  bsram: "42/46"
+  register_pct: 36
+
+decision: >
+  Sim + PnR proof complete; hazard closed gracefully with no nominal regression and
+  no new BSRAM. Awaiting CyanPeak architecture/interface review and CoralReef
+  proof-packet/runbook review. Hardware flash/bench is a separate PM-sequenced gate
+  (the display effect is only observable under a starvation condition, not on the
+  nominal checkerboard/indexed content).
+
+known_deviations:
+  - Task file BACKGROUND prose ("64-pixel bank", "bvalid/arvalid") does not match the
+    real line-granularity 3-bank fetch; implemented to docs/fpga/BITMAP_ENGINE.md per
+    authority order. Flagged in #14366 for reconciliation.

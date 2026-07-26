@@ -1,0 +1,60 @@
+2bpp-bank-completion-rtl — PASS
+================================
+Lane:        2bpp-bank-completion-rtl (PROJECT-SYSTEM-MIGRATION-001 Phase 10 pilot)
+Owner:       BrightForge
+Assignment:  #14356 (TopazCliff); acceptance criteria #14332
+Date:        2026-07-26
+
+RESULT: PASS (sim + PnR). External-review claim 2 (display-bank
+advance-without-completion) is closed gracefully. Hardware bench flash/proof
+is a separate gate (not part of this lane; no production-visible change flashed).
+
+SOURCE
+------
+Branch:            brightforge/ham-decoder-171
+Source commit:     033cc4715c573ef01d4c440bdd8df1cbe4bd0e09
+Baseline (harness): 5efe049 (Indexed2bppBacklogCoSim; pre-hardening failure on record)
+Generated RTL:     hw/gen/top_tang20k.v
+  sha256           d741da2e1311fa5be9ecf846f7b60b563c4ddccd5c2f6be7187a1041a534ecb3
+  (regenerated via: sbt "runMain spinalhdlvdp.TopTang20kHdmiVerilog"; was a50e17ef)
+  46 references to bankReady/bankRowTag/rowTagMismatch/displayUnderflow/everReady.
+
+TOOL VERSIONS
+-------------
+SpinalHDL   v1.12.3
+Gowin       V1.9.12.01 (linux)
+sbt         1.10.2 / Java 17.0.19
+Device      GW2AR-LV18QN88C8/I7 (Tang Nano 20K, GW2AR-18)
+
+SIMULATION (Indexed2bppBacklogCoSim, production VdpTop.bitmapSdramFetchLine + 3-bank rotation)
+--------------------------------------------------------------------------------------------
+Command: sbt "runMain spinalhdlvdp.Indexed2bppBacklogCoSim"
+  NOMINAL     bestDv=3 wrong=1/480   malformed=0 grantOverflow=0  rtlUnderflow=0 rowTagMismatch=0  dispValid=true  maxFetchSpan=351 sdCyc (~219 pixclk of 1600 budget)
+  FORCED-LATE bestDv=2 wrong=17/480  malformed=0 grantOverflow=25 rtlUnderflow=0 rowTagMismatch=39 dispValid=true  maxFetchSpan=16332 sdCyc
+  [sim] BACKLOG: PASS (post-hardening)
+Interpretation:
+  - NOMINAL identical to the pre-hardening clean baseline (bestDv=3, gate idle) => hardening transparent to the working path.
+  - FORCED-LATE: ZERO malformed/incomplete-bank display; the completion + wrap-aware row-tag gate ENGAGED (rowTagMismatch=39),
+    degrading to frozen valid rows instead of showing incomplete/stale banks.
+  - Fail-before (pre-hardening 5efe049): FORCED-LATE wrong=214/480, grantOverflow=25 (hazard reachable). Pass-after: this run.
+cosim_log.txt sha256: 4b716609dadb924e84b4d36757dddf8d0259efb9810e7e7ebdfd3a71f883128e
+
+SYNTHESIS / TIMING (Gowin, place_option 2 / route_option 2, timing-driven)
+--------------------------------------------------------------------------
+Setup violated endpoints: 0
+Hold  violated endpoints: 0   => TNS = 0
+clk_pixel : Fmax 30.870 MHz vs 25.200 MHz constraint  (+22% margin)
+clk_sdram : Fmax 66.962 MHz vs 40.501 MHz constraint  (+65% margin)
+clk_x5    : Fmax 676.416 MHz vs 126.000 MHz constraint
+Resources : Logic 55% (11355/20736), Register 36% (5612/15915), CLS 74% (7671/10368),
+            BSRAM 42/46 (no new BSRAM vs baseline), DSP 11/24
+Bitstream : fpga/tang20k/impl/pnr/project.fs
+  sha256    a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c
+
+ACCEPTANCE (task file #14356 / criteria #14332)
+-----------------------------------------------
+[x] RTL change committed on brightforge/ham-decoder-171 (033cc47)
+[x] Indexed2bppBacklogCoSim passes nominal + forced-late after hardening; fails before (5efe049)
+[x] Diff vs 5efe049 <= 200 lines (RTL +77, total 161 changed) -> no ADR required
+[x] Proof packet: PASS.txt, synthesis_summary.md, cosim_log.txt + .sha256, diff.patch, manifest.yaml, hashes.sha256
+[x] Production path preserved: bestDv==3, TNS=0, BSRAM unchanged

@@ -1,0 +1,10 @@
+# 2bpp-bank-completion-rtl artifact hashes (sha256)
+# packet files:
+fca7a2dd9a246abb66a7b3131809edb42d59293ac6e55501f161aab8b7ef4a39  PASS.txt
+2d5bf19979bf1b662b58b5fcf54141d9f9d0125fa167050e7872f0522cbbbb76  synthesis_summary.md
+5a3f75cc92e199f93a4e2df3c7b756a25dbbc5c0b2e0dbbc40e8d7c9b25c6077  manifest.yaml
+4b716609dadb924e84b4d36757dddf8d0259efb9810e7e7ebdfd3a71f883128e  cosim_log.txt
+1987b491a43cf2471004da5cdb11dd6f8fb5d307c4cae70c51ead153d8818ea7  diff.patch
+# external artifacts:
+d741da2e1311fa5be9ecf846f7b60b563c4ddccd5c2f6be7187a1041a534ecb3  /home/itadmin/github/spinalhdlVDP/hw/gen/top_tang20k.v
+a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c  /home/itadmin/github/spinalhdlVDP/fpga/tang20k/impl/pnr/project.fs
