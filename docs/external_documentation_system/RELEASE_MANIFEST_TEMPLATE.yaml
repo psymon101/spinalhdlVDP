@@ -1,0 +1,89 @@
+schema_version: 1
+project: spinalhdlVDP
+release:
+  version: "<LOCKED>"
+  date: "<LOCKED>"
+  reproducibility_level: "functional|artifact"
+source:
+  repository: "<LOCKED>"
+  commit: "<LOCKED>"
+  submodules: []
+  source_archive_sha256: "<LOCKED>"
+hardware:
+  fpga_board:
+    manufacturer: "Sipeed"
+    model: "Tang Nano 20K"
+    revision: "<LOCKED>"
+    fpga_device: "<LOCKED>"
+    package: "<LOCKED>"
+  host:
+    manufacturer: "<LOCKED>"
+    model: "<LOCKED>"
+    revision: "<LOCKED>"
+  wiring_revision: "<LOCKED>"
+  bom_revision: "<LOCKED>"
+toolchain:
+  os: "<LOCKED>"
+  architecture: "<LOCKED>"
+  jdk: "<LOCKED>"
+  scala: "<LOCKED>"
+  sbt: "<LOCKED>"
+  spinalhdl: "<LOCKED>"
+  spinalsim: "<LOCKED>"
+  simulator: "<LOCKED>"
+  gowin_eda: "<LOCKED>"
+  python: "<LOCKED>"
+  cmake: "<LOCKED>"
+  host_sdk: "<LOCKED>"
+build:
+  environment_definition: "<LOCKED>"
+  commands:
+    bootstrap: "<LOCKED>"
+    test_spinal: "<LOCKED>"
+    generate_verilog: "<LOCKED>"
+    build_firmware: "<LOCKED>"
+    synthesize: "<LOCKED>"
+    package_release: "<LOCKED>"
+fpga:
+  top_generator: "<LOCKED>"
+  constraint_file: "<LOCKED>"
+  clocks: {}
+  generated_verilog_sha256: "<LOCKED>"
+  bitstream_sha256: "<LOCKED>"
+  timing_report_sha256: "<LOCKED>"
+  resource_report_sha256: "<LOCKED>"
+firmware:
+  authoritative_target: "<LOCKED>"
+  transport: "<LOCKED>"
+  transport_frequency_hz: "<LOCKED>"
+  binary_sha256: "<LOCKED>"
+abi:
+  major: "<LOCKED>"
+  minor: "<LOCKED>"
+  register_schema_sha256: "<LOCKED>"
+  capability_bitmap: "<LOCKED>"
+tests:
+  simulation_report_sha256: "<LOCKED>"
+  hardware_proof_packet: "<LOCKED>"
+  clean_room_report: "<LOCKED>"
+  golden_assets: []
+platforms:
+  generic_mode0: "<status>"
+  zx_spectrum: "<status>"
+  tms9918a: "<status>"
+  sms_game_gear: "<status>"
+  nes: "<status>"
+  c64: "<status>"
+  atari_st_ste: "<status>"
+  amiga_ocs_ecs: "<status>"
+  genesis: "<status>"
+  snes_modes_0_3_lite: "<status>"
+  atari_2600_tia: "<status>"
+signoff:
+  architecture: "<LOCKED>"
+  rtl: "<LOCKED>"
+  firmware: "<LOCKED>"
+  hardware: "<LOCKED>"
+  documentation: "<LOCKED>"
+  clean_room: "<LOCKED>"
+  release_manager: "<LOCKED>"
