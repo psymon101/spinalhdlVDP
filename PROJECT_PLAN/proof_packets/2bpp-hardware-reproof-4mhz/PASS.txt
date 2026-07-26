@@ -1,0 +1,55 @@
+2bpp-hardware-reproof-4mhz — PASS
+=====================================
+Lane:        2bpp-hardware-reproof-4mhz
+Owner:       BronzeGate
+Assignment:  PM-approved exact-artifact reflash after source commit f735334 (#14414)
+Date:        2026-07-26
+
+RESULT: PASS
+  Exact approved 4 MHz firmware artifacts were flashed to the ESP32-P4 and
+  exercised against the preserved bank-completion bitstream `a5a047a2…`.
+  Separated serial/readback/health evidence and direct `/dev/video0` YUYV
+  capture all meet the lane acceptance criteria.
+
+SOURCE / ARTIFACT AUTHORITY
+---------------------------
+Source commit:     f7353347428224994aad78390221c206513cd9f8
+Branch:            topazcliff/migration-phase11
+Bitstream SHA-256: a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c
+  (preserved at fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs)
+ELF SHA-256:       be6bbc001c9215c95e36ba7dee2c22b4d360ce77188cd959988a5195c8a89326
+BIN SHA-256:       00ec15b353465b8d92b8ff7ff33b0cb2630926b5ed9dbb37e6e560c593313b65
+Partition SHA-256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
+
+FLASH METHOD
+------------
+`idf.py flash --no-build` is not supported by ESP-IDF v6.0.2 (exit 2, no flash).
+PM-approved fallback: `esptool.py write_flash` with exact approved binaries at
+0x2000 (bootloader), 0x8000 (partition table), 0x10000 (application).
+esptool exit 0; all three writes reported "Hash of data verified".
+Post-flash on-disk hashes matched the approved hashes above.
+
+SERIAL EVIDENCE (serial_proof_exact_approved.log)
+-------------------------------------------------
+actual_freq=4000000
+HEALTH_BEFORE_UPLOAD raw=0x00000000 overflow=0 malformed=0
+HEALTH_AFTER_UPLOAD  raw=0x00000000 overflow=0 malformed=0
+HEALTH_AFTER_ENABLE  raw=0x00000000 overflow=0 malformed=0
+READBACK basic samples PASS
+ROW200_READBACK samples PASS
+CHECKERBOARD_TEST PASS
+
+CAPTURE EVIDENCE
+----------------
+Direct /dev/video0 YUYV 720x480 three-frame capture:
+  raw YUYV: a2094a30934f9dc6f0a81eac913fd03cd802d9b07ff15e2c597f8f0baffe5b19
+  PNG frame 1: d35ecc33c0fba5383660ceb09459312d0a4621f9236d78808b457ec803a5a3b5
+  PNG frame 2: d35ecc33c0fba5383660ceb09459312d0a4621f9236d78808b457ec803a5a3b5
+  PNG frame 3: d35ecc33c0fba5383660ceb09459312d0a4621f9236d78808b457ec803a5a3b5
+Visual inspection: clean static checkerboard with cyan canary lower-right.
+
+QUARANTINED PRIOR RUN
+---------------------
+serial_proof_instrumented_flash_mismatch.log and yuyv_frame_*.png record the
+ad-hoc build that passed health/readback but was not the PM-approved artifact.
+Those files are retained for audit only and are NOT the lane authority.

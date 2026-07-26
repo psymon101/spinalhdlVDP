@@ -58,13 +58,13 @@ Track through:
 
 ## Current state
 
-`PILOT_EXECUTION` — Phases 0–9 complete. Pilot lane `2bpp-bank-completion-rtl` opened with task file, canonical spec (`docs/fpga/BITMAP_ENGINE.md`), test plan (`docs/testing/TP-2bpp-backlog-cosim.md`), runbook (`docs/runbooks/COSIM_VALIDATION.md`), and proof-packet directory. Awaiting BrightForge execution and closeout.
+`AUDIT` — Phases 0–10 complete. Pilot lane `2bpp-bank-completion-rtl` closed with a complete proof packet, CyanPeak architecture/interface review PASS (#14375), and CoralReef proof-packet/runbook review PASS (#14376). Hardware reproof lane `2bpp-hardware-reproof-4mhz` closed with exact-approved-artifact flash and separated serial/readback/health/YUYV proof (#14415). TopazCliff is now auditing both proof packets and the migration system against the exit criteria before issuing the cutover decision.
 
 ## Next action
 
-1. BrightForge executes the pilot lane and produces a proof packet.
-2. TopazCliff audits the proof packet against the new system requirements.
-3. Issue cutover decision once the pilot passes.
+1. TopazCliff audits the pilot + reproof proof packets and the migration system.
+2. Record the cutover decision in `PROJECT_PLAN/DECISIONS/` and update `STATUS.md`.
+3. If approved, mark superseded files and enter the observation phase.
 
 ## Completed phases summary
 
