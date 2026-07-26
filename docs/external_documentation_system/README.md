@@ -1,7 +1,12 @@
-# spinalhdlVDP Documentation System
+> **Reference snapshot — not canonical live state.** This documentation system
+> was delivered by an external reviewer on 2026-07-25. Per CoralReef's review
+> (`PROJECT_PLAN/external_docs_system_review.md`), it is kept as a reference
+> snapshot. Live project state remains in repository-root `STATUS.md`.
 
-This directory is the modular, repository-ready documentation system for
-spinalhdlVDP.
+# spinalhdlVDP Documentation System (Reference Snapshot)
+
+This directory is a modular documentation system delivered by an external
+reviewer. It is **not** the canonical live authority for the project.
 
 The product is a host-independent FPGA video coprocessor implemented in
 SpinalHDL on the Tang Nano 20K. A host MCU, CPU, SBC, or custom machine uses

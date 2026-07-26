@@ -46,6 +46,16 @@ The long-term strategic roadmap is in [`VOODOO_ADOPTION_PLAN.md`](VOODOO_ADOPTIO
 
 Authoritative execution status: [`STATUS.md`](STATUS.md).
 
+## Documentation, Decisions, and Proof Structure
+
+- Stable technical docs live under `docs/`. See `docs/DOCUMENTATION_GUIDE.md`.
+- Architecture decisions live under `PROJECT_PLAN/DECISIONS/`.
+- Proof packets for every result-bearing lane live under
+  `PROJECT_PLAN/proof_packets/<LANE>/`.
+- Task details live under `PROJECT_PLAN/TASKS/<TASK>.md`.
+- The external documentation system under `docs/external_documentation_system/`
+  is a **reference snapshot**, not canonical live state.
+
 ## Working Principles
 
 - Do not start a task unless every item in its `depends_on` list is `DONE`.
