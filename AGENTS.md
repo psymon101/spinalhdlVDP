@@ -107,7 +107,7 @@ talk to other agents.
 Use this order for live execution state:
 
 1. latest authoritative mail packet for the active lane
-2. repository-root `STATUS.md`
+2. `PROJECT_PLAN/STATUS.md`
 3. `PROJECT_PLAN/TASKS.md` and the active task file
 4. current repo state / commit under discussion
 
@@ -121,7 +121,7 @@ specification and its SpinalHDL or `libvdp` implementation.
 
 ## Documentation and Engineering Record Authority
 
-`STATUS.md` is the sole durable authority for:
+`PROJECT_PLAN/STATUS.md` is the sole durable authority for:
 
 - current project state
 - active engineering lanes

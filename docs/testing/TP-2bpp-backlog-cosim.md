@@ -1,4 +1,4 @@
-> Live project state is maintained in repository-root `STATUS.md`. This document does not own active-lane status, blockers, or engineering history.
+> Live project state is maintained in `PROJECT_PLAN/STATUS.md`. This document does not own active-lane status, blockers, or engineering history.
 
 # TP-2bpp-backlog-cosim — Continuous Scanout Bank-Completion Gate
 
@@ -29,7 +29,9 @@ sbt "runMain spinalhdlvdp.Indexed2bppBacklogCoSim"
 ## Forced-late mode expected results (after hardening)
 
 - `displayUnderflow == 0`
-- `rowTagMismatch == 0`
+- `malformed == 0`
+- No torn or stale display banks (gate holds on a non-consecutive tag rather than presenting a partial row).
+- `rowTagMismatch` may be non-zero because it counts intentional gate-hold events when the next consecutive row is not yet complete; this is expected, not a failure.
 - Wrong-row events within startup slack only.
 
 ## Pass/fail rule

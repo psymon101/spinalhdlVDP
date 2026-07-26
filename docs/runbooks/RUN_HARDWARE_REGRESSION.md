@@ -1,4 +1,4 @@
-> Live project state is maintained in repository-root `STATUS.md`. This document does not own active-lane status, blockers, or engineering history.
+> Live project state is maintained in `PROJECT_PLAN/STATUS.md`. This document does not own active-lane status, blockers, or engineering history.
 
 # Runbook: Run Hardware Regression
 

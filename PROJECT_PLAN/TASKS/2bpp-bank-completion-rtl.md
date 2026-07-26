@@ -12,9 +12,7 @@ Implement the pixel-domain bank-completion token path for the 2bpp bitmap layer,
 ## Background
 
 - Commit `5efe049` established the cosim harness and proved the failing 2bpp behavior on the pre-fix RTL.
-- The fix converts the 2bpp line buffer fetch from "start-of-line global fetch" to "per-bank pixel-domain completion":
-  - Each 64-pixel bank completes its own pixel pipeline before pixel 0 of the next bank is output.
-  - This removes the early-line spike on `bvalid` / `arvalid` and lets the 4 MHz host bulk-upload keep up.
+- The fix hardens the line-granularity 3-bank bitmap fetch in `BitmapRowFetch`/`VdpTop` so that the display side rotates to a new bank only after that bank's bitmap and attribute writes have landed and its row tag matches the expected display row. See `docs/fpga/BITMAP_ENGINE.md` §Open hardening for the exact contract.
 - This is the first engineering lane executed under the post-migration system, so it must also validate:
   - `docs/fpga/BITMAP_ENGINE.md` as the canonical RTL specification source.
   - `docs/testing/TP-2bpp-backlog-cosim.md` as the mandatory test plan.
