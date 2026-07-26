@@ -58,11 +58,26 @@ Track through:
 
 ## Current state
 
-`AUTHORIZED` — migration packet read, pre-migration baseline committed as `958a01d`.
+`PILOT_EXECUTION` — Phases 0–9 complete. Pilot lane `2bpp-bank-completion-rtl` opened with task file, canonical spec (`docs/fpga/BITMAP_ENGINE.md`), test plan (`docs/testing/TP-2bpp-backlog-cosim.md`), runbook (`docs/runbooks/COSIM_VALIDATION.md`), and proof-packet directory. Awaiting BrightForge execution and closeout.
 
 ## Next action
 
-Phase 1 — preserve pre-migration state: record branch, commit, working tree, artifact hashes, and rollback instructions under `PROJECT_PLAN/proof_packets/PROJECT-SYSTEM-MIGRATION-001/pre_migration/`.
+1. BrightForge executes the pilot lane and produces a proof packet.
+2. TopazCliff audits the proof packet against the new system requirements.
+3. Issue cutover decision once the pilot passes.
+
+## Completed phases summary
+
+- Phase 0: Lane opened (`PROJECT-SYSTEM-MIGRATION-001.md`).
+- Phase 1: Pre-migration snapshot recorded under `PROJECT_PLAN/proof_packets/PROJECT-SYSTEM-MIGRATION-001/pre_migration/`.
+- Phase 2: Inventory created (`PROJECT_PLAN/PROJECT_SYSTEM_MIGRATION_INVENTORY.md`).
+- Phase 3: Authority reconciled: `STATUS.md` remains live; external docs kept as reference snapshot.
+- Phase 4: Agent rules updated (`AGENTS.md` + `AGENTS/*.md`).
+- Phase 5: Modular doc structure created under `docs/`.
+- Phase 6: Canonical adapter template created (`kb/TEMPLATE_ADAPTER/`).
+- Phase 7: Shared specs created (`docs/fpga/BITMAP_ENGINE.md`, `docs/firmware/HOST_TRANSPORT_ABI.md`).
+- Phase 8: Runbook skeletons created under `docs/runbooks/`.
+- Phase 9: Test-plan template/sample and proof-packet structure created.
 
 ## Exit criteria
 
