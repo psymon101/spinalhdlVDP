@@ -26,8 +26,9 @@
   byte-identical. `VdpTopSim` `(0,50)` yellow→black failure confirmed pre-existing
   (identical at baseline `eb08b3d`, broken since `e1848b2`), not a scaler regression.
 - **P3 IN PROGRESS**: >1× golden-vector co-sim (2×/3× repeat + centering).
-  BrightForge will stop and report if this requires fetch-side changes beyond
-  coordinate wiring.
+  PM decision (#14439): Option A — prove procedural/testpattern >1× first; then
+  stop and report before any bitmap/indexed fetch-side change. BrightForge will
+  stop and report if this requires fetch-side changes beyond coordinate wiring.
 - **P4 PENDING**: Gowin PnR (TNS=0 + BSRAM delta).
 - **P5 PENDING**: CyanPeak code-to-spec review + proof packet.
 
