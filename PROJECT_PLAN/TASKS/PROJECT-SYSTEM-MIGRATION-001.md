@@ -58,12 +58,20 @@ Track through:
 
 ## Current state
 
-`CUTOVER` — Phases 0–12 complete. Cutover decision approved and recorded in `PROJECT_PLAN/DECISIONS/ADR-007-MIGRATION-SYSTEM-CUTOVER.md`. Superseded files listed in `PROJECT_PLAN/SUPERSEDED.md`.
+`CLOSED` — Phases 0–14 complete. Observation satisfied; migration to the modular documentation/specification/proof system is complete.
 
 ## Next action
 
-1. Run observation phase: monitor that new lanes close with proof packets and ADRs as required.
-2. Close migration once observation criteria are met.
+- Migration lane is closed. Return to normal engineering lanes per `PROJECT_PLAN/STATUS.md`.
+- Open lanes/backlog: `external-review-scaler-rewrite`, `external-review-tile-pipeline` (both OPEN, low priority, productize-only).
+
+## Closeout summary
+
+- Observation confirmed that lanes close with complete proof packets and required ADRs/reviews.
+- Pilot `2bpp-bank-completion-rtl` closed with proof packet `32c18e2`, CyanPeak arch/interface review (#14375), and CoralReef proof-packet/runbook review (#14376).
+- Observation lane `external-review-tierB-measure` closed with proof packet `5128ff4` and CyanPeak concurrence (#14427).
+- Closeout proof packet: `PROJECT_PLAN/proof_packets/PROJECT-SYSTEM-MIGRATION-001/`.
+- Closeout memory: stored via MCP memory.
 
 ## Completed phases summary
 
