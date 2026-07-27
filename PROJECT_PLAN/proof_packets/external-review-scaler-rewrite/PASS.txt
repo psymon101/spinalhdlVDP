@@ -1,0 +1,9 @@
+external-review-scaler-rewrite — TBD
+=====================================
+Lane:        external-review-scaler-rewrite
+Owner:       BrightForge
+Date:        TBD
+
+RESULT: TBD
+
+This proof packet will be finalized when the lane closes.
