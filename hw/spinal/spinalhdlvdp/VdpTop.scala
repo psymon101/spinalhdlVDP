@@ -303,6 +303,15 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     fillLine := U(0, 10 bits)
   }
 
+  // external-review-scaler-rewrite P1: logical render coordinates. The renderer
+  // (layer/testpattern fetchers + bitmap column) consumes these instead of the raw
+  // physical hCounter / fillLine so it advances at the LOGICAL rate under >1x scaling
+  // (source-coordinate scaler). Forward-declared here (used below at the layers) and
+  // assigned from ScaleCoordGen near its instantiation. At 1x they mux to the exact
+  // hCounter / fillLine path -> byte-identical.
+  val logicalX = UInt(10 bits)
+  val logicalY = UInt(10 bits)
+
   // Linestate: double-buffered per-scanline control store.
   // Prepare side is writable; commit side is read by render pipeline.
   // Commit at line boundary: at the start of each line, the prepare entry for
@@ -1189,15 +1198,15 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   // Layer 0 (lower priority background).
   val layer0 = BasicPatternSource()
-  layer0.io.x := hCounter.resize(10)
-  layer0.io.y := fillLine
+  layer0.io.x := logicalX
+  layer0.io.y := logicalY
   layer0.io.scrollX := io.layer0ScrollX + linestate.io.layer0ScrollX + scrollTable0Offset
   layer0.io.scrollY := io.layer0ScrollY + vScrollTable0Offset
 
   // Test pattern source: combinational standard patterns for task validation.
   val testPattern = TestPatternSource()
-  testPattern.io.x := hCounter.resize(10)
-  testPattern.io.y := fillLine
+  testPattern.io.x := logicalX
+  testPattern.io.y := logicalY
   testPattern.io.patternSelect := io.layer0TestPatternSelect
 
   // === Task 3 — Planar Fetch Hardening (Checkpoint C, audit PASS #9313) ===
@@ -1518,8 +1527,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   // Layer 1 (higher priority background).
   val layer1 = BasicPatternSource()
-  layer1.io.x := hCounter.resize(10)
-  layer1.io.y := fillLine
+  layer1.io.x := logicalX
+  layer1.io.y := logicalY
   layer1.io.scrollX := io.layer1ScrollX + scrollTable1Offset
   layer1.io.scrollY := io.layer1ScrollY + vScrollTable1Offset
 
@@ -1539,13 +1548,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val (layer2PixelRaw, layer3PixelRaw) = if (enableL2L3) {
     val layer2 = BasicPatternSource()
     layer2.io.x := hCounter.resize(10)
-    layer2.io.y := fillLine
+    layer2.io.y := logicalY
     layer2.io.scrollX := io.layer2ScrollX
     layer2.io.scrollY := io.layer2ScrollY
 
     val layer3 = BasicPatternSource()
     layer3.io.x := hCounter.resize(10)
-    layer3.io.y := fillLine
+    layer3.io.y := logicalY
     layer3.io.scrollX := io.layer3ScrollX
     layer3.io.scrollY := io.layer3ScrollY
 
@@ -1560,7 +1569,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // sources. The texture is a 128×128 ROM-initialised Mem with async read.
   val affineStepper = AffineStepper()
   affineStepper.io.x := hCounter.resize(10)
-  affineStepper.io.y := fillLine
+  affineStepper.io.y := logicalY
   affineStepper.io.matrixA := affineAReg
   affineStepper.io.matrixB := affineBReg
   affineStepper.io.matrixC := affineCReg
@@ -1619,7 +1628,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   bitmapFetch.io.directPixel     := bmAttrSel ## bmByteSel
 
   // Export coupling signals to BitmapRowFetch at top level.
-  io.bitmapSdramCol        := hCounter.resize(10)
+  io.bitmapSdramCol        := logicalX
   // Owner-directed override (Rule 9): Register fetchLine at line boundary to resolve
   // CDC race condition (shimmer) by holding the value stable for the full line.
   val bitmapFetchLineReg = RegNextWhen(fillLine.resize(10), hCounter === hTotal - 1) init 0
@@ -2728,11 +2737,37 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   scaler.io.vsyncRising  := vsyncEdge
   scaler.io.hActive      := U(hActive, 11 bits)
   scaler.io.vActive      := U(vActive, 11 bits)
-  scaler.io.scaleXReg    := scaleCtrlReg(2 downto 0).asUInt
-  scaler.io.scaleYReg    := scaleCtrlReg(6 downto 4).asUInt
-  scaler.io.autoCenter   := scaleCtrlReg(7)
+  // external-review-scaler-rewrite P1 (Option B): the source-coordinate ScaleCoordGen
+  // below now performs all scaling via logicalX/logicalY, so force the sink
+  // PixelRepeatScaler to permanent BYPASS. It then acts as a transparent +1-cycle RGB
+  // passthrough, keeping the existing display-pipeline latency compensation (VdpTop ~2790)
+  // valid without a rebalance. (P1b retires the sink scaler + rebalances the pipeline for
+  // the BSRAM saving.)
+  scaler.io.scaleXReg    := U(1, 3 bits)
+  scaler.io.scaleYReg    := U(1, 3 bits)
+  scaler.io.autoCenter   := False
   scaler.io.logicWidth   := logicWidthReg
   scaler.io.logicHeight  := logicHeightReg
+
+  // Source-coordinate scaler: physical -> logical coordinate generation before the
+  // renderer. Vertical uses fillLine (the renderer's line convention) so 1x is
+  // sourceY == fillLine (identity). scaleActive selects the coord path only for >1x /
+  // auto-center; 1x muxes to raw hCounter/fillLine -> byte-identical.
+  val coordGen = ScaleCoordGen()
+  coordGen.io.hCounter    := hCounter.resize(10)
+  coordGen.io.vCounter    := fillLine
+  coordGen.io.hActive     := U(hActive, 11 bits)
+  coordGen.io.vActive     := U(vActive, 11 bits)
+  coordGen.io.scaleXReg   := scaleCtrlReg(2 downto 0).asUInt
+  coordGen.io.scaleYReg   := scaleCtrlReg(6 downto 4).asUInt
+  coordGen.io.autoCenter  := scaleCtrlReg(7)
+  coordGen.io.logicWidth  := logicWidthReg
+  coordGen.io.logicHeight := logicHeightReg
+  val scaleActive = (coordGen.io.scaleXEffOut =/= U(1, 3 bits)) ||
+                    (coordGen.io.scaleYEffOut =/= U(1, 3 bits)) ||
+                    coordGen.io.autoCenterActive
+  logicalX := Mux(scaleActive, coordGen.io.sourceX, hCounter.resize(10))
+  logicalY := Mux(scaleActive, coordGen.io.sourceY, fillLine)
 
   // Auto-center override of the host BORDER_X/Y0/1. Host BORDER_CTRL[12:8]
   // still picks the bezel palette slot. SCALE_CTRL[7] arms the override.
@@ -2744,10 +2779,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // multiply-by-scale math in firmware. Inner border uses the same palette
   // index as the outer border (BORDER_CTRL[12:8]).
   val acActive    = scaleCtrlReg(7)
-  val ibScaleX    = scaler.io.scaleXEffOut
-  val ibScaleY    = scaler.io.scaleYEffOut
-  val ibOffX      = scaler.io.acBorderX0
-  val ibOffY      = scaler.io.acBorderY0
+  val ibScaleX    = coordGen.io.scaleXEffOut
+  val ibScaleY    = coordGen.io.scaleYEffOut
+  val ibOffX      = coordGen.io.borderX0
+  val ibOffY      = coordGen.io.borderY0
 
   // Defensive clamp: inner border thickness cannot exceed the logical canvas
   // on its own axis, and L+R (or T+B) cannot exceed the dimension. This
@@ -2762,16 +2797,16 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   val effBorderX0 = Mux(innerBorderEnable,
                         (ibOffX + (ibL * ibScaleX).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderX0, borderX0Reg)).simPublic()
+                        Mux(acActive, coordGen.io.borderX0, borderX0Reg)).simPublic()
   val effBorderX1 = Mux(innerBorderEnable,
                         (ibOffX + ((logicWidthReg  - ibRSafe) * ibScaleX).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderX1, borderX1Reg)).simPublic()
+                        Mux(acActive, coordGen.io.borderX1, borderX1Reg)).simPublic()
   val effBorderY0 = Mux(innerBorderEnable,
                         (ibOffY + (ibT * ibScaleY).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderY0, borderY0Reg)).simPublic()
+                        Mux(acActive, coordGen.io.borderY0, borderY0Reg)).simPublic()
   val effBorderY1 = Mux(innerBorderEnable,
                         (ibOffY + ((logicHeightReg - ibBSafe) * ibScaleY).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderY1, borderY1Reg)).simPublic()
+                        Mux(acActive, coordGen.io.borderY1, borderY1Reg)).simPublic()
   val effBorderEnable = borderEnable || acActive || innerBorderEnable
   val insideBorder = (hCounter >= effBorderX0.resize(log2Up(hTotal))) &&
                      (hCounter <  effBorderX1.resize(log2Up(hTotal))) &&
