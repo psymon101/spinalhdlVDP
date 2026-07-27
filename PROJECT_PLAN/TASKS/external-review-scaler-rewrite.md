@@ -19,9 +19,12 @@
   - `Indexed2bppFrameCoSim`: ROW-CODED `bestDv=3` (479/480), LEFT-EDGE CLEAN,
     shear 0px.
   - `DirectColorFrameCoSim`: delay=0 byte-exact `dh=0` (0.9956).
-- **P1b DONE** (`f805ef2`): sink `PixelRepeatScaler` retired and display pipeline
-  rebalanced (+2 → +1 cycle). 1× regression re-confirmed byte-identical with
-  same canonical metrics.
+- **P1b DONE** (`5514d1d`, correcting `f805ef2`): sink `PixelRepeatScaler` retired
+  via a plain `RegNext`, pipeline kept at +2 cycles. Broad 1× regression PASS —
+  both `bgOrDirect` co-sims (`Indexed2bppFine`, `Indexed2bppFrame`, `DirectColor`)
+  and `io.red` co-sims (`VdpInnerBorderCoSim`, `BitmapDirectColorSim`) are
+  byte-identical. `VdpTopSim` `(0,50)` yellow→black failure confirmed pre-existing
+  (identical at baseline `eb08b3d`, broken since `e1848b2`), not a scaler regression.
 - **P3 IN PROGRESS**: >1× golden-vector co-sim (2×/3× repeat + centering).
   BrightForge will stop and report if this requires fetch-side changes beyond
   coordinate wiring.
