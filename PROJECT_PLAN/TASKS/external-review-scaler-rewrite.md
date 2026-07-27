@@ -39,16 +39,17 @@
   a host-visible semantics decision (built-in 320×2 doubling vs generic scaler).
   Moved to a new lane to be opened after this one closes; do NOT modify the
   bitmap fetch path in this lane.
-- **P4 FAIL → fix in progress**: Gowin PnR (effort 2, GW2AR-LV18QN88C8/I7). BSRAM
-  saving CONFIRMED **42→40** (−2, sink line buffer freed; 0 scaler refs in netlist).
-  But clk_pixel TIMING FAILS: Fmax **14.67 MHz** vs 25.2 constraint, TNS **−435.8 ns**
-  (48 endpoints), 82 logic levels; worst path −28.5 ns From `logicHeightReg` →
-  ScaleCoordGen fitScale + **combinational divide** + clamp → `logicalY` → lineBuf
-  (68.1 ns > 39.68 ns budget). Root cause = the P0 "combinational divide, zero-added-
-  latency" choice is too deep for the pixel clock. FIX = counter/accumulator-based
-  ScaleCoordGen internals (registered srcX + combinational +1 = zero-latency, short
-  path, IO unchanged); re-run full 1× regression + >1× proof + re-PnR. Reported #14442.
-- **P5 PENDING**: CyanPeak code-to-spec review + proof packet.
+- **P4 DONE** (`7f8dde6`): Gowin PnR (effort 2, GW2AR-LV18QN88C8/I7, Verilog `b246aed7`).
+  **clk_pixel TNS=0, Fmax 30.705 MHz (+21.8% margin)**; all clocks TNS=0. BSRAM **42→40**
+  (−2, sink line buffer freed). DSP 46→50% (+2 reciprocal mults). P4 caught a real timing
+  FAIL sim cannot: the P0 combinational divide + fitScale was an 82-level path (clk_pixel
+  14.67 MHz, TNS −435.8 ns). FIX in 3 iterations: reciprocal-multiply
+  `floor(x/s)=(x*ceil(2^18/s))>>18` (`38ee153`, →23.88 MHz) then register sourceX/Y/valid
+  (`7f8dde6`, →30.705 MHz TNS=0). +1 latency in SCALED modes only (1× byte-identical via
+  the VdpTop mux; >1× proof is phase-independent). Re-validated on `7f8dde6`: ScaleCoordGenSim
+  8/8, ScaleUpFrameCoSim >1× PASS, full 1× regression byte-identical. Proof:
+  `proof_packets/external-review-scaler-rewrite/synthesis/P4_pnr_PASS.md`.
+- **P5 NEXT**: CyanPeak code-to-spec review + finalize proof packet (PASS.txt/hashes/review).
 
 ## Objective
 
