@@ -6,6 +6,15 @@
 **Opened:** 2026-07-27  
 **Branch:** `topazcliff/scaler-rewrite`  
 
+## Checkpoints
+
+- **P0 DONE** (`eb08b3d`): `ScaleCoordGen` combinational coordinate generator +
+  `ScaleCoordGenSim` unit co-sim PASS 8/8 cases. Verified 1× identity, 2×/3×
+  horizontal source-coord repeat, vertical repeat, auto-center borders, silent
+  clamp, and `sourceValid`.
+- **P1 IN PROGRESS**: `VdpTop` integration — feed `sourceX`/`sourceY` to renderer
+  while preserving 1× byte-identical behavior.
+
 ## Objective
 
 Replace the current sink-side `PixelRepeatScaler` with a source-coordinate scaler
