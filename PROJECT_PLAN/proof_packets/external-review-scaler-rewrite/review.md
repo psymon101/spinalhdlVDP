@@ -19,8 +19,12 @@
 ## Open items for P5 (CyanPeak)
 
 1. ScaleCoordGen reciprocal-multiply exactness argument (floor(x/s) via ⌈2¹⁸/s⌉, s∈2..6).
-2. The +1-cycle registered-coordinate latency in scaled modes (1× unaffected via mux;
-   confirm no sync/DE misalignment concern beyond the phase-independent proof).
+   Exactness proof is in `ScaleCoordGen.scala` comments + `synthesis/P4_pnr_PASS.md`.
+2. ~~The +1-cycle registered-coordinate latency in scaled modes~~ — **RESOLVED (`c93ad7a`)**:
+   ScaleUpFrameCoSim now asserts SEPARABILITY — V-transition rows are column-independent
+   (incl physical cols 0,1,2) and H-transition cols row-independent (incl rows 0,1,2) at
+   2×/3×, zero mismatches ⇒ no per-edge artifact; the latency is a clean uniform effect and
+   1× is unaffected (mux bypass).
 3. Confirm P3b (bitmap/indexed fetch-side) is correctly out of scope for this lane.
 
 ## Status

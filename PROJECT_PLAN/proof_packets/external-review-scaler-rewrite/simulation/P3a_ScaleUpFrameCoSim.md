@@ -39,9 +39,21 @@ STRIPES 1x: bgOrDirectRgb Hrun=1,1,1,... expect=1 viol=0/3780 distinct=2 => OK  
 STRIPES 2x: bgOrDirectRgb Hrun=2,2,2,... expect=2 viol=0/1878 distinct=2 => OK   (io.red viol=0/1878)
 STRIPES 3x: bgOrDirectRgb Hrun=3,3,3,... expect=3 viol=0/1158 distinct=2 => OK   (io.red viol=0/1158)
 CHECKER 2x2: Hspacing=32 viol=0/84  | Vspacing=32 viol=0/54 => OK
+CHECKER 2x2 SEPARABILITY: V-transitions column-independent across cols 0,1,2,8,100,200,300 (no mismatch); H-transitions row-independent across rows 0,1,2,8,100,200,300 (no mismatch) => OK
 CHECKER 3x3: Hspacing=48 viol=0/42  | Vspacing=48 viol=0/24 => OK
+CHECKER 3x3 SEPARABILITY: V-transitions column-independent across cols 0,1,2,3,12,100,200,300 (no mismatch); H-transitions row-independent across rows 0,1,2,3,12,100,200,300 (no mismatch) => OK
 ScaleUpFrameCoSim: PASS
 ```
+
+## Separability / edge check (P4 registered-coordinate verification)
+
+After P4 registered the source-coordinate outputs (`7f8dde6`, +1-cycle latency in scaled
+modes), this co-sim also asserts SEPARABILITY: every column's set of vertical-transition ROWS
+is identical (sourceY depends only on the row) and every row's set of horizontal-transition
+COLUMNS is identical (sourceX only on the column), INCLUDING the first physical columns/rows
+(0,1,2). Zero mismatches at 2× and 3× ⇒ the registered `sourceY` carries no stale value into
+any displayed column, so the +1-cycle scaled-mode latency is a clean uniform effect with NO
+per-edge (left/top) artifact.
 
 Full log: `simulation/P3a_ScaleUpFrameCoSim.log`.
 
