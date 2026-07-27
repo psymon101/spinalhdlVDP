@@ -76,43 +76,76 @@ case class ScaleCoordGen() extends Component {
   }
   val scaleXEff = fitScale(rawScaleX, io.logicWidth,  io.hActive)
   val scaleYEff = fitScale(rawScaleY, io.logicHeight, io.vActive)
-  io.scaleXEffOut := scaleXEff
-  io.scaleYEffOut := scaleYEff
-
-  // --- Auto-center bezel (carried from PixelRepeatScaler) ---
+  // --- Auto-center bezel (combinational, config-derived) ---
   val visibleW = (io.logicWidth  * scaleXEff.resize(4)).resize(11)
   val visibleH = (io.logicHeight * scaleYEff.resize(4)).resize(11)
   val offX = Mux(io.autoCenter, ((io.hActive - visibleW) >> 1).resize(10), U(0, 10 bits))
   val offY = Mux(io.autoCenter, ((io.vActive - visibleH) >> 1).resize(10), U(0, 10 bits))
-  io.borderX0 := offX
-  io.borderX1 := (offX + visibleW.resize(10)).resize(10)
-  io.borderY0 := offY
-  io.borderY1 := (offY + visibleH.resize(10)).resize(10)
-  io.autoCenterActive := io.autoCenter
+  val borderX1c = (offX + visibleW.resize(10)).resize(10)
+  val borderY1c = (offY + visibleH.resize(10)).resize(10)
 
-  // --- Combinational physical->logical coordinate mapping ---
-  // sourceX = clamp((hCounter - offX) / scaleXEff, 0, logicWidth-1); sourceY likewise.
-  // COMBINATIONAL (no added register) so at 1x (scaleXEff=1, offX=0) sourceX==hCounter
-  // and sourceY==vCounter exactly — the VdpTop integration muxes to this identity path
-  // for byte-identical 1x. A registered counter added +1 cycle of latency that would
-  // shear the 1x output; the divide keeps zero added latency. scaleXEff/scaleYEff are
-  // >=1 (fitScale floor) so there is no divide-by-zero. At 25.2 MHz pixel clock a
-  // 10-bit/3-bit divider closes timing with wide margin.
-  val pastBezelX = io.hCounter >= offX
-  val pastBezelY = io.vCounter >= offY
-  val relX = Mux(pastBezelX, (io.hCounter - offX).resize(10), U(0, 10 bits))
-  val relY = Mux(pastBezelY, (io.vCounter - offY).resize(10), U(0, 10 bits))
-  val divX = (relX / scaleXEff).resize(10)
-  val divY = (relY / scaleYEff).resize(10)
-  io.sourceX := Mux(divX >= io.logicWidth.resize(10),
-                    (io.logicWidth.resize(10) - U(1, 10 bits)).resize(10),
-                    divX)
-  io.sourceY := Mux(divY >= io.logicHeight.resize(10),
-                    (io.logicHeight.resize(10) - U(1, 10 bits)).resize(10),
-                    divY)
+  // Reciprocal-multiply table (P4 timing-closure fix, replaces the per-pixel divide).
+  // floor(x / s) == (x * ceil(2^18 / s)) >> 18 EXACTLY for x <= 1023 and s in 2..6: the
+  // rounding error x*frac/2^18 < 1023/2^18 ~= 0.004, while the fractional parts of x/s are
+  // multiples of 1/s >= 1/6 ~= 0.167, so floor is never perturbed. s==1 is identity
+  // (bypassed). A 10x18 multiply is a short DSP path; the prior LUT divide was ~82 levels
+  // and broke clk_pixel timing (14.7 MHz vs 25.2, TNS -435 ns).
+  def recipOf(s: UInt): UInt = {
+    val r = UInt(18 bits); r := U(131072, 18 bits)  // s=2 default
+    switch(s) {
+      is(U(2, 3 bits)) { r := U(131072, 18 bits) }
+      is(U(3, 3 bits)) { r := U(87382,  18 bits) }
+      is(U(4, 3 bits)) { r := U(65536,  18 bits) }
+      is(U(5, 3 bits)) { r := U(52429,  18 bits) }
+      is(U(6, 3 bits)) { r := U(43691,  18 bits) }
+      default          { r := U(131072, 18 bits) }
+    }
+    r
+  }
+
+  // ===== Stage 1: register config-derived terms (change only on host config writes) =====
+  // Registering these keeps the per-pixel path short — the fitScale compare chain and the
+  // reciprocal select are OFF the critical path. A 1-cycle settle on config change is
+  // harmless (config is written during setup, not mid-active-frame; sims use safe-boundary
+  // waits). scaleXEff/scaleYEff are >=1 (fitScale floor).
+  val scaleXEffR = RegNext(scaleXEff)          init U(1, 3 bits)
+  val scaleYEffR = RegNext(scaleYEff)          init U(1, 3 bits)
+  val offXR      = RegNext(offX)               init U(0, 10 bits)
+  val offYR      = RegNext(offY)               init U(0, 10 bits)
+  val recipXR    = RegNext(recipOf(scaleXEff)) init U(131072, 18 bits)
+  val recipYR    = RegNext(recipOf(scaleYEff)) init U(131072, 18 bits)
+  val logicWR    = RegNext(io.logicWidth.resize(10))  init U(640, 10 bits)
+  val logicHR    = RegNext(io.logicHeight.resize(10)) init U(480, 10 bits)
+  val borderX0R  = RegNext(offX)               init U(0, 10 bits)
+  val borderX1R  = RegNext(borderX1c)          init U(640, 10 bits)
+  val borderY0R  = RegNext(offY)               init U(0, 10 bits)
+  val borderY1R  = RegNext(borderY1c)          init U(480, 10 bits)
+  val autoCenterR = RegNext(io.autoCenter)     init False
+
+  io.scaleXEffOut := scaleXEffR
+  io.scaleYEffOut := scaleYEffR
+  io.borderX0 := borderX0R
+  io.borderX1 := borderX1R
+  io.borderY0 := borderY0R
+  io.borderY1 := borderY1R
+  io.autoCenterActive := autoCenterR
+
+  // ===== Stage 2: per-pixel physical->logical mapping (COMBINATIONAL, zero added latency) =====
+  // sourceX = clamp( floor((hCounter - offX) / scaleXEff), 0, logicWidth-1 ) via reciprocal-mult.
+  // COMBINATIONAL so at 1x (scaleXEff=1, offX=0) sourceX==hCounter exactly — the VdpTop
+  // integration muxes to this identity path for byte-identical 1x. Uses the registered config
+  // terms so only the short mult+clamp is on the per-pixel timing path.
+  val pastBezelX = io.hCounter >= offXR
+  val pastBezelY = io.vCounter >= offYR
+  val relX = Mux(pastBezelX, (io.hCounter - offXR).resize(10), U(0, 10 bits))
+  val relY = Mux(pastBezelY, (io.vCounter - offYR).resize(10), U(0, 10 bits))
+  val divX = Mux(scaleXEffR === U(1, 3 bits), relX, ((relX * recipXR) >> 18).resize(10))
+  val divY = Mux(scaleYEffR === U(1, 3 bits), relY, ((relY * recipYR) >> 18).resize(10))
+  io.sourceX := Mux(divX >= logicWR, (logicWR - U(1, 10 bits)).resize(10), divX)
+  io.sourceY := Mux(divY >= logicHR, (logicHR - U(1, 10 bits)).resize(10), divY)
 
   // Valid = inside the centered scaled active rectangle [offX, offX+visibleW) x [offY, offY+visibleH).
-  val validX = pastBezelX && (io.hCounter < io.borderX1)
-  val validY = pastBezelY && (io.vCounter < io.borderY1)
+  val validX = pastBezelX && (io.hCounter < borderX1R)
+  val validY = pastBezelY && (io.vCounter < borderY1R)
   io.sourceValid := validX && validY
 }
