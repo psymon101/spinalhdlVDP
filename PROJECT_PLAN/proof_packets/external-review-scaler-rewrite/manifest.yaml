@@ -13,6 +13,8 @@ commits:
   P4_timing_recip_mult: 38ee153
   P4_timing_register_outputs: 7f8dde6
   P4_status_proof: f503272
+  P5_separability_check: c93ad7a
+  P5_review_resolution: 9314aa0
 
 artifacts:
   generated_verilog: hw/gen/top_tang20k.v
@@ -39,9 +41,9 @@ mail:
 
 reviews:
   BrightForge: PASS
-  CyanPeak: PENDING (PM-activated; requested #14444)
-  TopazCliff: PENDING
+  CyanPeak: PASS (#14447)
+  TopazCliff: PASS
 
-decision: PENDING (P5 review + PM disposition)
+decision: PASS — lane DONE; P3b spun out to follow-up lane
 spun_out:
   - external-review-scaler-rewrite-P3b (bitmap/indexed >1x vertical scaling; host-visible; needs BronzeGate)

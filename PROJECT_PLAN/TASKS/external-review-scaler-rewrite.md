@@ -2,8 +2,9 @@
 
 **Owner:** BrightForge  
 **PM:** TopazCliff  
-**Status:** RUNNING  
+**Status:** DONE  
 **Opened:** 2026-07-27  
+**Closed:** 2026-07-27  
 **Branch:** `topazcliff/scaler-rewrite`  
 
 ## Checkpoints
@@ -49,9 +50,9 @@
   the VdpTop mux; >1× proof is phase-independent). Re-validated on `7f8dde6`: ScaleCoordGenSim
   8/8, ScaleUpFrameCoSim >1× PASS, full 1× regression byte-identical. Proof:
   `proof_packets/external-review-scaler-rewrite/synthesis/P4_pnr_PASS.md`.
-- **P5 IN PROGRESS**: CyanPeak code-to-spec review + finalize proof packet.
-  BrightForge prepped `PASS.txt`, `review.md`, `manifest.yaml`, and refreshed
-  `hashes.sha256` (commit `a18d036`). PM activated CyanPeak review.
+- **P5 DONE** (`9314aa0`): CyanPeak code-to-spec review PASS (#14447) + PM
+  disposition accepted. Proof packet finalized (`PASS.txt`, `review.md`,
+  `manifest.yaml`, `hashes.sha256`).
 
 ## Objective
 

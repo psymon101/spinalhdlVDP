@@ -1,41 +1,68 @@
-external-review-scaler-rewrite — BrightForge implementation PASS (P5 review pending)
-====================================================================================
+external-review-scaler-rewrite — PASS
+========================================
 Lane:        external-review-scaler-rewrite
 Owner:       BrightForge
 PM:          TopazCliff
 Branch:      topazcliff/scaler-rewrite
 Date:        2026-07-27
 
-OBJECTIVE
-Replace the sink-side PixelRepeatScaler (scale AFTER the compositor -> skips source
-pixels for scale>1: P0 P0 P2 P2) with a source-coordinate scaler (ScaleCoordGen) that
-generates logical (sourceX, sourceY) BEFORE rendering -> correct P0 P0 P1 P1. External
-static review Priority 4/5.
+RESULT: PASS
 
-RESULT: BrightForge engineering PASS. Awaiting P5 CyanPeak code-to-spec review + PM disposition.
+Replaced the sink-side PixelRepeatScaler (scale AFTER the compositor →
+P0 P0 P2 P2 source-pixel skip bug) with a source-coordinate ScaleCoordGen
+(logicalX/logicalY BEFORE rendering → correct P0 P0 P1 P1 repetition).
+Governing spec: external static review Priority 4/5.
 
-CHECKPOINTS
-  P0  eb08b3d  ScaleCoordGen + ScaleCoordGenSim unit co-sim (8/8).
-  P1a 49040ae  ScaleCoordGen wired into VdpTop, sink scaler forced bypass; 1x byte-identical.
-  P1b 5514d1d  sink PixelRepeatScaler RETIRED (640-deep line buffer gone); 1x byte-identical.
-  P3a 15d5b8e  >1x integration proof ScaleUpFrameCoSim PASS (procedural/tile path).
-  P3b #14440    bitmap/indexed >1x SPUN OUT to a new lane (PM #14441; host-visible semantics).
-  P4  7f8dde6  Gowin PnR clean: clk_pixel TNS=0, Fmax 30.705 MHz (+21.8%); BSRAM 42->40.
+Engineering checkpoints
+-----------------------
+P0  eb08b3d  ScaleCoordGen + ScaleCoordGenSim unit co-sim (8/8).
+P1a 49040ae  ScaleCoordGen wired into VdpTop, sink scaler forced bypass; 1× byte-identical.
+P1b 5514d1d  sink PixelRepeatScaler RETIRED (640-deep BSRAM line buffer gone); 1× byte-identical.
+P3a 15d5b8e  >1× integration proof ScaleUpFrameCoSim PASS (procedural/tile path).
+P3b #14440   bitmap/indexed >1× vertical scaling SPUN OUT to a new lane (PM #14441).
+P4  7f8dde6  Gowin PnR clean: clk_pixel TNS=0, Fmax 30.705 MHz (+21.8%); BSRAM 42→40.
+P5  9314aa0  CyanPeak code-to-spec review PASS + PM disposition accepted.
 
-KEY EVIDENCE
-  - 1x byte-identical (both signal groups): Indexed2bppFine/Frame + DirectColorFrame
-    (bgOrDirectRgb) and VdpInnerBorder + BitmapDirectColor (io.red).
-  - >1x correctness: ScaleUpFrameCoSim — vertical stripes run-length == scaleX (1/2/3,
-    skip-sensitive) and checkerboard H/V transition spacing == 16*scale (2x/3x), 0 viol,
-    phase-independent (proof signal dut.bgOrDirectRgb keyed io.x/io.de).
-  - PnR: clk_pixel TNS=0 Fmax 30.705 MHz; clk_x5/clk_sdram/qspi_sck all TNS=0.
-    BSRAM 40 (31 SDPB + 9 SDPX9B), DSP 50%. Device GW2AR-LV18QN88C8/I7, Gowin V1.9.12.01.
+Post-proof refinement
+---------------------
+c93ad7a — ScaleUpFrameCoSim separability/edge check added: V-transition rows
+are column-independent (including physical cols 0,1,2) and H-transition cols
+are row-independent (including rows 0,1,2) at 2×/3×, zero mismatches. This
+resolves the +1-cycle scaled-mode latency concern: the latency is a clean
+uniform effect with no per-edge artifacts; 1× remains byte-identical via the
+VdpTop mux bypass.
 
-TIMING-CLOSURE NOTE
-  P4/PnR caught a real timing FAIL that all sims missed: the P0 combinational divide +
-  fitScale was an 82-level path (clk_pixel 14.67 MHz, TNS -435.8 ns). Fixed in-lane with a
-  reciprocal-multiply (floor(x/s)=(x*ceil(2^18/s))>>18) + registered source-coord outputs;
-  +1-cycle latency in SCALED modes only (1x byte-identical via the VdpTop mux).
+Key evidence
+------------
+- 1× byte-identical across both signal groups:
+  * bgOrDirectRgb: Indexed2bppFineCoSim, Indexed2bppFrameCoSim, DirectColorFrameCoSim
+  * io.red:        VdpInnerBorderCoSim, BitmapDirectColorSim
+- >1× correctness: ScaleUpFrameCoSim — vertical stripes run-length == scaleX
+  (skip-sensitive) and checkerboard H/V transition spacing == 16·scale (2×/3×),
+  0 violations, phase-independent.
+- PnR: clk_pixel TNS=0, Fmax 30.705 MHz; clk_x5/clk_sdram/qspi_sck all TNS=0.
+  BSRAM 40 (31 SDPB + 9 SDPX9B), DSP 50%. Device GW2AR-LV18QN88C8/I7,
+  Gowin V1.9.12.01.
 
-ARTIFACT HASHES: hashes.sha256   |   PROOF DETAIL: simulation/, synthesis/
-SCOPE: sim + PnR only (no hardware flash this lane). HW-proven a5a047a2 .fs preserved.
+Timing-closure note
+-------------------
+P4/PnR caught a real timing FAIL that all sims missed: the P0 combinational
+divide + fitScale was an 82-level path (clk_pixel 14.67 MHz, TNS −435.8 ns).
+Fixed in-lane with a reciprocal-multiply
+(floor(x/s) = (x·⌈2¹⁸/s⌉) >> 18) + registered source-coord outputs;
++1-cycle latency in SCALED modes only.
+
+Artifact hashes
+---------------
+PROJECT_PLAN/proof_packets/external-review-scaler-rewrite/hashes.sha256
+
+Scope
+-----
+Sim + PnR only (no hardware flash this lane). The HW-proven authority bitstream
+`a5a047a2_bankcompletion.fs` was preserved and not overwritten.
+
+Reviews
+-------
+- BrightForge: implementation / sim / PnR — PASS
+- CyanPeak:     code-to-spec review       — PASS (#14447)
+- TopazCliff:   PM disposition             — PASS

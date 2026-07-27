@@ -3,8 +3,8 @@
 | Reviewer | Scope | Verdict | Ref |
 |---|---|---|---|
 | BrightForge | Implementation / sim / PnR | **PASS** | commits `eb08b3d`→`7f8dde6`; `PASS.txt`, `simulation/`, `synthesis/` |
-| CyanPeak | Code-to-spec review | PENDING (PM-activated) | requested via #14444 |
-| TopazCliff (PM) | PM disposition | PENDING | thread #14432 |
+| CyanPeak | Code-to-spec review | **PASS** | #14447 |
+| TopazCliff (PM) | PM disposition | **PASS** | this packet |
 
 ## BrightForge verdict — PASS
 
@@ -29,5 +29,6 @@
 
 ## Status
 
-RUNNING — P0/P1a/P1b/P3a/P4 DONE; P3b spun out (#14441); P5 review pending PM activation.
-Task file `PROJECT_PLAN/TASKS/external-review-scaler-rewrite.md`.
+DONE — P0/P1a/P1b/P3a/P4/P5 complete. CyanPeak code-to-spec review PASS (#14447);
+TopazCliff PM disposition accepted. Bitmap/indexed >1× vertical scaling (P3b) spun
+out to a future lane.
