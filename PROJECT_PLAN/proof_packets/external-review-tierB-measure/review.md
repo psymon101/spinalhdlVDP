@@ -9,7 +9,7 @@ proof packets carry a review record.
 |---|---|---|---|
 | CyanPeak | Spec: F4 reset sequencing, F6 BSRAM inference | Item 2 audited (BSRAM OK, no padding); F4 recommendation provided | mail check-in 2026-07-26 |
 | BrightForge | Item 1 cold-start observation; Item 3 RGB565 delay validation | Item 1 Outcome A (no flakiness, no change); Item 3 default 0 confirmed | this packet |
-| TopazCliff (PM) | Authorization + disposition | Authorized observation (#14424); disposition PENDING | #14424 |
+| TopazCliff (PM) | Authorization + disposition | Authorized observation (#14424); **accepted proxy close, lane DONE** (#14427 concurrence) | #14424, #14427 |
 
 ## Open deviations / notes
 
@@ -21,5 +21,5 @@ proof packets carry a review record.
 
 ## Status
 
-Awaiting CyanPeak concurrence (co-owner) and TopazCliff PM disposition to move the
-lane to DONE.
+DONE — CyanPeak concurred (#14427) and TopazCliff accepted the proxy close on
+2026-07-27. No RTL change. |
