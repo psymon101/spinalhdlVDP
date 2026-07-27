@@ -173,6 +173,23 @@ object ScaleUpFrameCoSim extends App {
     println(f"[sim] CHECKER ${scaleX}x${scaleY} (logic ${logicW}x$logicH -> ${visW}x$visH): PROOF bgOrDirectRgb " +
             f"Hspacing=${bg.sampleH.mkString(",")} expect=${16*scaleX} viol=${bg.hRunViol}/${bg.hRunChecked} | " +
             f"Vspacing=${bg.sampleV.mkString(",")} expect=${16*scaleY} viol=${bg.vRunViol}/${bg.vRunChecked} => ${if (ok) "OK" else "FAIL"}")
+
+    // SEPARABILITY / EDGE check (P4 registered-coordinate verification): the scaling must be
+    // separable — every column's set of V-transition ROWS must be IDENTICAL (sourceY depends only
+    // on the row) and every row's set of H-transition COLUMNS identical (sourceX only on the column).
+    // A per-edge artifact (e.g. a stale registered sourceY at each line's first column) would break
+    // this at the left/top edge. Include the FIRST physical columns/rows explicitly.
+    val vCols = Seq(0, 1, 2, scaleX, 4 * scaleX, 100, 200, 300).distinct.filter(c => c >= 0 && c < visW)
+    val vRef = colTransitions(fbBg, vCols.last, scaleY, visH - scaleY).toList
+    val vBad = vCols.filter(c => colTransitions(fbBg, c, scaleY, visH - scaleY).toList != vRef)
+    val hRows = Seq(0, 1, 2, scaleY, 4 * scaleY, 100, 200, 300).distinct.filter(r => r >= 0 && r < visH)
+    val hRef = rowTransitions(fbBg, hRows.last, scaleX, visW - scaleX).toList
+    val hBad = hRows.filter(r => rowTransitions(fbBg, r, scaleX, visW - scaleX).toList != hRef)
+    val sepOk = vBad.isEmpty && hBad.isEmpty
+    allOk &&= sepOk
+    println(f"[sim] CHECKER ${scaleX}x${scaleY} SEPARABILITY: V-transitions column-independent across cols ${vCols.mkString(",")} " +
+            f"(mismatch cols=${vBad.mkString(",")}); H-transitions row-independent across rows ${hRows.mkString(",")} " +
+            f"(mismatch rows=${hBad.mkString(",")}) => ${if (sepOk) "OK — no per-edge artifact" else "FAIL"}")
   }
 
   println("=== ScaleUpFrameCoSim (external-review-scaler-rewrite P3a): >1x source-coordinate integration proof ===")
