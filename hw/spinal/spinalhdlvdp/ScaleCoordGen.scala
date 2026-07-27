@@ -90,47 +90,26 @@ case class ScaleCoordGen() extends Component {
   io.borderY1 := (offY + visibleH.resize(10)).resize(10)
   io.autoCenterActive := io.autoCenter
 
-  // --- Horizontal source-coordinate counter ---
-  // Reset at the start of each physical line (hCounter==0). Once past the left bezel,
-  // advance a sub-counter 0..scaleXEff-1; step srcX on wrap; hold at logicWidth (right bezel).
-  val lineStart  = io.hCounter === U(0, 10 bits)
+  // --- Combinational physical->logical coordinate mapping ---
+  // sourceX = clamp((hCounter - offX) / scaleXEff, 0, logicWidth-1); sourceY likewise.
+  // COMBINATIONAL (no added register) so at 1x (scaleXEff=1, offX=0) sourceX==hCounter
+  // and sourceY==vCounter exactly — the VdpTop integration muxes to this identity path
+  // for byte-identical 1x. A registered counter added +1 cycle of latency that would
+  // shear the 1x output; the divide keeps zero added latency. scaleXEff/scaleYEff are
+  // >=1 (fitScale floor) so there is no divide-by-zero. At 25.2 MHz pixel clock a
+  // 10-bit/3-bit divider closes timing with wide margin.
   val pastBezelX = io.hCounter >= offX
-  val xSub = Reg(UInt(3 bits))  init 0
-  val srcX = Reg(UInt(10 bits)) init 0
-  when(lineStart) {
-    xSub := 0
-    srcX := 0
-  } elsewhen(pastBezelX && (srcX < io.logicWidth.resize(10))) {
-    when(xSub === (scaleXEff - U(1, 3 bits)).resize(3)) {
-      xSub := 0
-      srcX := srcX + 1
-    } otherwise {
-      xSub := xSub + 1
-    }
-  }
-  io.sourceX := Mux(srcX >= io.logicWidth.resize(10),
-                    (io.logicWidth.resize(10) - U(1, 10 bits)).resize(10),
-                    srcX)
-
-  // --- Vertical source-coordinate counter (advances once per physical line) ---
-  val frameStart = lineStart && (io.vCounter === U(0, 10 bits))
   val pastBezelY = io.vCounter >= offY
-  val ySub = Reg(UInt(3 bits))  init 0
-  val srcY = Reg(UInt(10 bits)) init 0
-  when(frameStart) {
-    ySub := 0
-    srcY := 0
-  } elsewhen(lineStart && pastBezelY && (srcY < io.logicHeight.resize(10))) {
-    when(ySub === (scaleYEff - U(1, 3 bits)).resize(3)) {
-      ySub := 0
-      srcY := srcY + 1
-    } otherwise {
-      ySub := ySub + 1
-    }
-  }
-  io.sourceY := Mux(srcY >= io.logicHeight.resize(10),
+  val relX = Mux(pastBezelX, (io.hCounter - offX).resize(10), U(0, 10 bits))
+  val relY = Mux(pastBezelY, (io.vCounter - offY).resize(10), U(0, 10 bits))
+  val divX = (relX / scaleXEff).resize(10)
+  val divY = (relY / scaleYEff).resize(10)
+  io.sourceX := Mux(divX >= io.logicWidth.resize(10),
+                    (io.logicWidth.resize(10) - U(1, 10 bits)).resize(10),
+                    divX)
+  io.sourceY := Mux(divY >= io.logicHeight.resize(10),
                     (io.logicHeight.resize(10) - U(1, 10 bits)).resize(10),
-                    srcY)
+                    divY)
 
   // Valid = inside the centered scaled active rectangle [offX, offX+visibleW) x [offY, offY+visibleH).
   val validX = pastBezelX && (io.hCounter < io.borderX1)
