@@ -25,10 +25,23 @@
   and `io.red` co-sims (`VdpInnerBorderCoSim`, `BitmapDirectColorSim`) are
   byte-identical. `VdpTopSim` `(0,50)` yellow→black failure confirmed pre-existing
   (identical at baseline `eb08b3d`, broken since `e1848b2`), not a scaler regression.
-- **P3 IN PROGRESS**: >1× golden-vector co-sim (2×/3× repeat + centering).
-  PM decision (#14439): Option A — prove procedural/testpattern >1× first; then
-  stop and report before any bitmap/indexed fetch-side change. BrightForge will
-  stop and report if this requires fetch-side changes beyond coordinate wiring.
+- **P3a DONE** (`15d5b8e`): >1× integration proof `ScaleUpFrameCoSim` — PASS. Drives
+  full `VdpTop` at 1×/2×/3× with procedural patterns fed by `logicalX`/`logicalY`.
+  Vertical stripes (pattern 7) prove per-pixel HORIZONTAL repetition (run-length ==
+  scaleX, viol 0 — skip-sensitive); checkerboard proves both-axes tile scaling
+  (H/V spacing == 16·scale, viol 0). Phase-independent (run-lengths/spacings, not
+  absolute column); proof signal `dut.bgOrDirectRgb` keyed by io.x/io.de. The
+  1-column io.x/bgOrDirectRgb/io.red probe-phase offset is PRE-EXISTING (present at
+  the 1× control) and positional-only — not a scaler bug. Proof note:
+  `proof_packets/external-review-scaler-rewrite/simulation/P3a_ScaleUpFrameCoSim.md`.
+- **P3b PENDING PM DECISION (Landmine 2)**: bitmap/indexed vertical scaling needs
+  fetch-side changes beyond coordinate wiring. Three fetch signals still key off
+  physical scan position: `pixelWithinByte := RegNext(hCounter(2:0))` (VdpTop:1619),
+  `bitmapFetchLineReg := fillLine` (VdpTop:1634), and the `/2`-hardcoded grant cadence
+  `vCounter(0)` (VdpTop:1647). All identity at 1× (byte-identical regression passed).
+  SEMANTICS question flagged to PM: how `SCALE_CTRL scaleY` composes with the bitmap
+  path's built-in 320-source-×2 vertical doubling. Reported #14439-reply; awaiting PM
+  decision to absorb into this lane vs spin out before any fetch-side change.
 - **P4 PENDING**: Gowin PnR (TNS=0 + BSRAM delta).
 - **P5 PENDING**: CyanPeak code-to-spec review + proof packet.
 
