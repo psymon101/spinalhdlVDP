@@ -141,11 +141,21 @@ case class ScaleCoordGen() extends Component {
   val relY = Mux(pastBezelY, (io.vCounter - offYR).resize(10), U(0, 10 bits))
   val divX = Mux(scaleXEffR === U(1, 3 bits), relX, ((relX * recipXR) >> 18).resize(10))
   val divY = Mux(scaleYEffR === U(1, 3 bits), relY, ((relY * recipYR) >> 18).resize(10))
-  io.sourceX := Mux(divX >= logicWR, (logicWR - U(1, 10 bits)).resize(10), divX)
-  io.sourceY := Mux(divY >= logicHR, (logicHR - U(1, 10 bits)).resize(10), divY)
+  val sourceXc = Mux(divX >= logicWR, (logicWR - U(1, 10 bits)).resize(10), divX)
+  val sourceYc = Mux(divY >= logicHR, (logicHR - U(1, 10 bits)).resize(10), divY)
 
   // Valid = inside the centered scaled active rectangle [offX, offX+visibleW) x [offY, offY+visibleH).
   val validX = pastBezelX && (io.hCounter < borderX1R)
   val validY = pastBezelY && (io.vCounter < borderY1R)
-  io.sourceValid := validX && validY
+
+  // Register the coordinate outputs (P4 timing-closure): isolates the reciprocal multiply
+  // between registers so the mult and the downstream renderer each fit the pixel clock
+  // (combinational Y mult -> lineBuf was -2.2 ns). +1 cycle of latency in SCALED modes only;
+  // at 1x the VdpTop integration muxes to hCounter/fillLine (sourceX/Y unused) so 1x stays
+  // byte-identical, and the >1x proof is phase-independent (run-lengths), so a uniform +1
+  // shift is immaterial. Within an active line vCounter is stable, so sourceY carries no
+  // intra-line shift. The unit co-sim reads one cycle after each poke, so vectors are exact.
+  io.sourceX := RegNext(sourceXc) init U(0, 10 bits)
+  io.sourceY := RegNext(sourceYc) init U(0, 10 bits)
+  io.sourceValid := RegNext(validX && validY) init False
 }

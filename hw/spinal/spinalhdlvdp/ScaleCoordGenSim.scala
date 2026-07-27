@@ -35,12 +35,14 @@ object ScaleCoordGenSim extends App {
       dut.io.vActive #= 480
     }
     // Sweep one physical line's hCounter 0..nCols-1 at a fixed vCounter; return sourceX per column.
+    // sourceX/sourceY are REGISTERED outputs (P4 timing-closure) — +1 cycle from the inputs — so
+    // hold each poked value across 2 samplings before reading so the register reflects it.
     def sweepX(vc: Int, nCols: Int): Seq[Int] = {
       val out = ArrayBuffer[Int]()
       for (hc <- 0 until nCols) {
         dut.io.vCounter #= vc
         dut.io.hCounter #= hc
-        dut.clockDomain.waitSampling()
+        dut.clockDomain.waitSampling(2)
         out += dut.io.sourceX.toInt
       }
       out.toSeq
@@ -49,10 +51,10 @@ object ScaleCoordGenSim extends App {
     // return sourceY sampled mid-line.
     def sweepY(nLines: Int): Seq[Int] = {
       val out = ArrayBuffer[Int]()
-      dut.io.hCounter #= 1   // fixed active column; sourceY is combinational from vCounter
+      dut.io.hCounter #= 1   // fixed active column; sourceY tracks vCounter (registered output)
       for (ln <- 0 until nLines) {
         dut.io.vCounter #= ln
-        dut.clockDomain.waitSampling()
+        dut.clockDomain.waitSampling(2)
         out += dut.io.sourceY.toInt
       }
       out.toSeq
