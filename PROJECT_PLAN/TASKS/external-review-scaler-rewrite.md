@@ -19,11 +19,14 @@
   - `Indexed2bppFrameCoSim`: ROW-CODED `bestDv=3` (479/480), LEFT-EDGE CLEAN,
     shear 0px.
   - `DirectColorFrameCoSim`: delay=0 byte-exact `dh=0` (0.9956).
-- **P1b IN PROGRESS**: retire sink `PixelRepeatScaler` + rebalance display
-  pipeline to realize BSRAM saving; re-run 1× regression.
-- **P3 PENDING**: >1× golden-vector co-sim (2×/3× repeat + centering).
+- **P1b DONE** (`f805ef2`): sink `PixelRepeatScaler` retired and display pipeline
+  rebalanced (+2 → +1 cycle). 1× regression re-confirmed byte-identical with
+  same canonical metrics.
+- **P3 IN PROGRESS**: >1× golden-vector co-sim (2×/3× repeat + centering).
   BrightForge will stop and report if this requires fetch-side changes beyond
   coordinate wiring.
+- **P4 PENDING**: Gowin PnR (TNS=0 + BSRAM delta).
+- **P5 PENDING**: CyanPeak code-to-spec review + proof packet.
 
 ## Objective
 
