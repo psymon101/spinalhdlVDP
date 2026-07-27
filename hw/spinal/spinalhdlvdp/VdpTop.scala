@@ -2811,27 +2811,39 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // pixel.
   val displayRgb = Mux(borderActiveR, borderRgbR, mathRgb)
 
-  // P1b: sink scaler retired — displayRgb goes straight to the output (no scaler +1).
-  // The compensating RR RegNext stage below is removed to rebalance the pipeline to +1.
-  val displayRgbScaled = displayRgb
+  // external-review-scaler-rewrite P1b (corrected): the sink PixelRepeatScaler is retired,
+  // but its +1 OUTPUT latency is preserved by a plain RegNext here (no 640-deep BSRAM line
+  // buffer, no repeat logic — that is the BSRAM saving). Keeping the +1 (and the RR stage
+  // below) leaves the whole display pipeline at +2, so ALL alignments stay byte-identical:
+  // both the bgOrDirectRgb-reading sims (io.x/io.y at +2) AND the io.red-reading sims
+  // (VdpInnerBorderCoSim etc. that pair io.x/io.y with the io.red output). An earlier
+  // attempt removed the +1 and the RR stage together, which misaligned io.x (+2) vs io.red
+  // (+1) for the io.red-reading sims — reverted.
+  val displayRgbScaled = RegNext(displayRgb) init B(0, 24 bits)
 
   // Display-side second-stage RegNext (+2 total) to align with the
   // scaler's +1 output latency. Matches the dc1fba8-pre-disconnect
   // depth, minus the third stage that was overcounted there (the
   // third stage was matched to a post-palette compensation that the
   // dcSide RegNexts now absorb upstream of maskedRgbR).
-  // P1b: RR (scaler-compensation) stage removed. The output uses the R stage directly so
-  // display depth is +1, matching displayRgb (no scaler +1). io.x/io.y drop one RegNext
-  // below to stay aligned. At 1× this is byte-identical (verified by the regression).
-  io.hsync := hsyncR
-  io.vsync := vsyncR
-  io.de    := deR
+  // Second-stage RegNext (+2 total) — KEPT (P1b corrected): matches the RegNext that now
+  // replaces the retired scaler's +1 output latency, so io.hsync/vsync/de + RGB output
+  // stay aligned with io.x/io.y and bgOrDirectRgb exactly as before the scaler retirement.
+  val hsyncRR         = RegNext(hsyncR)          init True
+  val vsyncRR         = RegNext(vsyncR)          init True
+  val deRR            = RegNext(deR)             init False
+  val primedRR        = RegNext(primedR)         init False
+  val rasterPendingRR = RegNext(rasterPendingR)  init False
+
+  io.hsync := hsyncRR
+  io.vsync := vsyncRR
+  io.de    := deRR
   io.red   := B(0, 8 bits)
   io.green := B(0, 8 bits)
   io.blue  := B(0, 8 bits)
-  when(deR && primedR) {
+  when(deRR && primedRR) {
     val redRaw = displayRgbScaled(23 downto 16)
-    io.red   := Mux(rasterPendingR, ~redRaw, redRaw)
+    io.red   := Mux(rasterPendingRR, ~redRaw, redRaw)
     io.green := displayRgbScaled(15 downto 8)
     io.blue  := displayRgbScaled(7 downto 0)
   }
