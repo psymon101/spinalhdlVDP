@@ -27,6 +27,7 @@ fpga/tang20k/*.tmp
 fpga/tang20k/*.log
 
 # ESP-IDF / firmware build artefacts that live outside the standard `build/` dir
+**/build/
 **/build_*
 !scripts/regression/build_*.sh
 
