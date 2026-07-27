@@ -34,15 +34,12 @@
   1-column io.x/bgOrDirectRgb/io.red probe-phase offset is PRE-EXISTING (present at
   the 1× control) and positional-only — not a scaler bug. Proof note:
   `proof_packets/external-review-scaler-rewrite/simulation/P3a_ScaleUpFrameCoSim.md`.
-- **P3b PENDING PM DECISION (Landmine 2)**: bitmap/indexed vertical scaling needs
-  fetch-side changes beyond coordinate wiring. Three fetch signals still key off
-  physical scan position: `pixelWithinByte := RegNext(hCounter(2:0))` (VdpTop:1619),
-  `bitmapFetchLineReg := fillLine` (VdpTop:1634), and the `/2`-hardcoded grant cadence
-  `vCounter(0)` (VdpTop:1647). All identity at 1× (byte-identical regression passed).
-  SEMANTICS question flagged to PM: how `SCALE_CTRL scaleY` composes with the bitmap
-  path's built-in 320-source-×2 vertical doubling. Reported #14439-reply; awaiting PM
-  decision to absorb into this lane vs spin out before any fetch-side change.
-- **P4 PENDING**: Gowin PnR (TNS=0 + BSRAM delta).
+- **P3b SPUN OUT** (#14440): bitmap/indexed >1× vertical scaling requires
+  fetch-side changes (`pixelWithinByte`, `bitmapFetchLineReg`, grant cadence) and
+  a host-visible semantics decision (built-in 320×2 doubling vs generic scaler).
+  Moved to a new lane to be opened after this one closes; do NOT modify the
+  bitmap fetch path in this lane.
+- **P4 IN PROGRESS**: Gowin PnR (TNS=0 + BSRAM delta).
 - **P5 PENDING**: CyanPeak code-to-spec review + proof packet.
 
 ## Objective
