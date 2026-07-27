@@ -12,8 +12,18 @@
   `ScaleCoordGenSim` unit co-sim PASS 8/8 cases. Verified 1× identity, 2×/3×
   horizontal source-coord repeat, vertical repeat, auto-center borders, silent
   clamp, and `sourceValid`.
-- **P1 IN PROGRESS**: `VdpTop` integration — feed `sourceX`/`sourceY` to renderer
-  while preserving 1× byte-identical behavior.
+- **P1a DONE** (`49040ae`): `ScaleCoordGen` wired into `VdpTop`; sink
+  `PixelRepeatScaler` forced to bypass (no pipeline rebalance); all coordinate
+  consumers rewired. 1× regression byte-identical:
+  - `Indexed2bppFineCoSim`: intra-byte MATCH 3/3 rows, 0 mismatched cols.
+  - `Indexed2bppFrameCoSim`: ROW-CODED `bestDv=3` (479/480), LEFT-EDGE CLEAN,
+    shear 0px.
+  - `DirectColorFrameCoSim`: delay=0 byte-exact `dh=0` (0.9956).
+- **P1b IN PROGRESS**: retire sink `PixelRepeatScaler` + rebalance display
+  pipeline to realize BSRAM saving; re-run 1× regression.
+- **P3 PENDING**: >1× golden-vector co-sim (2×/3× repeat + centering).
+  BrightForge will stop and report if this requires fetch-side changes beyond
+  coordinate wiring.
 
 ## Objective
 
