@@ -1,0 +1,5 @@
+# external-review-scaler-rewrite — artifact hashes (P4 build 7f8dde6)
+b246aed77237c9af8c42d60c80da40686c1daec6dfa9354dd4f0d5cbc2b26e46  hw/gen/top_tang20k.v
+ca0b7a8324b3ce589e27813d0749a91a042a8766a4aafb690cd443c3e28a08aa  fpga/tang20k/impl/pnr/project.fs
+0520d2e9e94c167fc6b3ba3adacfd4fc652c0ea9dc2afbac72482adb3f363ec8  hw/spinal/spinalhdlvdp/ScaleCoordGen.scala
+2571ab7f73506bb3bb0c7f5512dd775d809caed00083aa9253f7b96d182e25c4  hw/spinal/spinalhdlvdp/ScaleUpFrameCoSim.scala
