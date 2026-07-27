@@ -2716,38 +2716,11 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val borderEnable = borderCtrlReg(0)
   val borderIdx    = borderCtrlReg(12 downto 8).asUInt
   val innerBorderEnable = borderCtrlReg(1)
-  // PixelRepeatScaler instantiation (lane #10590-reland, PM #10701).
-  // Re-landed on top of the palette readSync fix (main @ 661907d) which
-  // removed the Gowin placement-sensitivity that caused the original
-  // intermittent black-HDMI. lineBuf write OOB-guard added per
-  // BronzeGate #10697. POR scaleCtrlReg=0 yields 1x bypass (scaleX=1,
-  // scaleY=1, autoCenter=0). Counters reset on the first cycle of
-  // hsync/vsync (when hCounter/vCounter enter their respective sync
-  // regions); we detect those edges combinationally here.
-  val hsyncActive    = hCounter >= hSyncStart && hCounter < hSyncEnd
-  val vsyncActive    = vCounter >= vSyncStart && vCounter < vSyncEnd
-  val hsyncActivePrv = RegNext(hsyncActive) init False
-  val vsyncActivePrv = RegNext(vsyncActive) init False
-  val hsyncEdge      = hsyncActive && !hsyncActivePrv
-  val vsyncEdge      = vsyncActive && !vsyncActivePrv
-  val scaler = PixelRepeatScaler()
-  scaler.io.hCounter     := hCounter.resize(10)
-  scaler.io.vCounter     := vCounter.resize(10)
-  scaler.io.hsyncRising  := hsyncEdge
-  scaler.io.vsyncRising  := vsyncEdge
-  scaler.io.hActive      := U(hActive, 11 bits)
-  scaler.io.vActive      := U(vActive, 11 bits)
-  // external-review-scaler-rewrite P1 (Option B): the source-coordinate ScaleCoordGen
-  // below now performs all scaling via logicalX/logicalY, so force the sink
-  // PixelRepeatScaler to permanent BYPASS. It then acts as a transparent +1-cycle RGB
-  // passthrough, keeping the existing display-pipeline latency compensation (VdpTop ~2790)
-  // valid without a rebalance. (P1b retires the sink scaler + rebalances the pipeline for
-  // the BSRAM saving.)
-  scaler.io.scaleXReg    := U(1, 3 bits)
-  scaler.io.scaleYReg    := U(1, 3 bits)
-  scaler.io.autoCenter   := False
-  scaler.io.logicWidth   := logicWidthReg
-  scaler.io.logicHeight  := logicHeightReg
+  // external-review-scaler-rewrite P1b: the sink PixelRepeatScaler is RETIRED (replaced
+  // by the source-coordinate ScaleCoordGen below). Its 640-deep BSRAM line buffer +
+  // repeat logic are gone; the display pipeline is rebalanced from +2 back to +1 (the
+  // compensating RR RegNext stage is removed at the output). PixelRepeatScaler.scala
+  // remains only for its standalone unit sim (ScaleRepeatSim).
 
   // Source-coordinate scaler: physical -> logical coordinate generation before the
   // renderer. Vertical uses fillLine (the renderer's line convention) so 1x is
@@ -2838,35 +2811,35 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // pixel.
   val displayRgb = Mux(borderActiveR, borderRgbR, mathRgb)
 
-  // Wire displayRgb into the scaler. Scaler is +1 latency uniformly
-  // across bypass (1x) and scaled paths — outRgb is registered.
-  scaler.io.inRgb      := displayRgb
-  val displayRgbScaled = scaler.io.outRgb
+  // P1b: sink scaler retired — displayRgb goes straight to the output (no scaler +1).
+  // The compensating RR RegNext stage below is removed to rebalance the pipeline to +1.
+  val displayRgbScaled = displayRgb
 
   // Display-side second-stage RegNext (+2 total) to align with the
   // scaler's +1 output latency. Matches the dc1fba8-pre-disconnect
   // depth, minus the third stage that was overcounted there (the
   // third stage was matched to a post-palette compensation that the
   // dcSide RegNexts now absorb upstream of maskedRgbR).
-  val hsyncRR         = RegNext(hsyncR)          init True
-  val vsyncRR         = RegNext(vsyncR)          init True
-  val deRR            = RegNext(deR)             init False
-  val primedRR        = RegNext(primedR)         init False
-  val rasterPendingRR = RegNext(rasterPendingR)  init False
-
-  io.hsync := hsyncRR
-  io.vsync := vsyncRR
-  io.de    := deRR
+  // P1b: RR (scaler-compensation) stage removed. The output uses the R stage directly so
+  // display depth is +1, matching displayRgb (no scaler +1). io.x/io.y drop one RegNext
+  // below to stay aligned. At 1× this is byte-identical (verified by the regression).
+  io.hsync := hsyncR
+  io.vsync := vsyncR
+  io.de    := deR
   io.red   := B(0, 8 bits)
   io.green := B(0, 8 bits)
   io.blue  := B(0, 8 bits)
-  when(deRR && primedRR) {
+  when(deR && primedR) {
     val redRaw = displayRgbScaled(23 downto 16)
-    io.red   := Mux(rasterPendingRR, ~redRaw, redRaw)
+    io.red   := Mux(rasterPendingR, ~redRaw, redRaw)
     io.green := displayRgbScaled(15 downto 8)
     io.blue  := displayRgbScaled(7 downto 0)
   }
-  // io.x/y track the same +2 cycle pipeline as the RGB output.
+  // io.x/y are the compositor-domain scan position that sims pair with bgOrDirectRgb
+  // (both at +2 from hCounter). The P1b sink-scaler removal does NOT change bgOrDirectRgb's
+  // latency (it is upstream of the scaler), so io.x/io.y stay at +2 — reducing them shears
+  // the 1x sim frame by 1px. The real HDMI output (io.red/hsync/de) is the separate path
+  // rebalanced to +1 by removing the scaler + its RR compensation stage.
   val hCounterR = RegNext(hCounter.resize(10)) init 0
   val vCounterR = RegNext(vCounter.resize(10)) init 0
   io.x := RegNext(hCounterR) init 0
