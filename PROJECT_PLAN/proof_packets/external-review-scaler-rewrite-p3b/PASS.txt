@@ -1,0 +1,39 @@
+external-review-scaler-rewrite-p3b — BITMAP/INDEXED FETCH-SIDE SCALING (BrightForge)
+====================================================================================
+Date: 2026-07-28
+Branch: topazcliff/scaler-rewrite | Owner: BrightForge | PM: TopazCliff
+Interface partner: BronzeGate | Reviewer: CyanPeak
+Scope: sim + PnR only (no HW flash unless PM opens a gate)
+
+VERDICT: PASS (pending CyanPeak code-to-spec review) — bitmap/indexed content now
+scales on the fetch side under SCALE_CTRL, Option B (Compose) semantics, with the
+production 1x path byte-identical to a5a047a2.
+
+INTERFACE CHECKPOINT (Rule 19): Option B (Compose) — SCALE_CTRL applies to logical
+coords before bitmap fetch; the built-in 2x source-to-display stays, so effective
+bitmap display scale = 2 * SCALE_CTRL. Approved by BrightForge + BronzeGate + PM +
+CyanPeak (#14466-#14471); documented in docs/firmware/HOST_TRANSPORT_ABI.md and
+firmware/GOTCHAS.md GOTCHA-039 (commit e126477). No new register/ABI.
+
+RTL (VdpTop.scala, ~5 logic lines): pixelWithinByte <- logicalX(2:0);
+bitmapFetchLineReg <- logicalY (keeps built-in >>1 => 2*scaleY); grant gate
+vCounter(0) -> logicalY>>1 step-boundary detector. All reduce to the pre-P3b code at
+1x (logicalX==hCounter, logicalY==fillLine, srcRow-step==vCounter(0)) => zero-risk 1x
+byte-identity by construction.
+
+SIM:
+- 1x byte-identity guardrail PASS: Indexed2bppFineCoSim intra-byte BIT-PERFECT;
+  Indexed2bppFrameCoSim ROW-CODED bestDv=3 (479/480) + shear 0px; DirectColorFrameCoSim
+  byte-exact.
+- >1x proof PASS (new Indexed2bppScaleCoSim): fill 1x/2x/3x composed run-lengths
+  uniform 32/64/96 (== 2*scale*16), no skip/dup; content uniform with auto-center
+  armed. Auto-center bezel geometry (20x20/20x15) HW-proven in scaler-hw-proof.
+
+PnR (Gowin V1.9.12.01, GW2AR-LV18QN88C8/I7): TNS=0 all clocks; clk_pixel Fmax
+29.148 MHz (+15.7%); BSRAM 40/46 (no new); DSP 12 (no new); Logic 56%; +5 registers.
+Bitstream 8772d0c1 (project_8772d0c1_p3b.fs; not flashed).
+
+ARTIFACTS: source/RTL_CHANGES.md, simulation/SIM_PASS.md + Indexed2bppScaleCoSim.log,
+synthesis/PnR_PASS.md + project.rpt.txt, manifest.yaml, hashes.sha256.
+
+REVIEW: CyanPeak code-to-spec review requested. PM closeout pending review.

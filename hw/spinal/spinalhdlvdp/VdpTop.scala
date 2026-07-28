@@ -1608,15 +1608,18 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val bmAttrSel = io.bitmapSdramAttrByte
   bitmapFetch.io.bitmapByte      := bmByteSel
   bitmapFetch.io.attrByte        := bmAttrSel
-  // PIXELWITHINBYTE-ALIGN (#14293, owner-authorized 2026-07-25): the bitmap/attr
-  // bytes arrive from BitmapRowFetch's readSync line buffer one cycle after their
-  // column is requested (io.bitmapSdramCol := hCounter, line below), so the
-  // intra-byte pixel index must carry the same 1-cycle latency to stay aligned
-  // with the byte it indexes. Sourcing pixelWithinByte from the live hCounter left
-  // it 1 display column ahead of the byte, rotating the intra-byte pixel order for
-  // NON-uniform 1bpp/2bpp graphics (byte-uniform content e.g. the checkerboard was
-  // immune, which is why this stayed latent). Register it to match the byte.
-  bitmapFetch.io.pixelWithinByte := RegNext(hCounter(2 downto 0)) init 0
+  // PIXELWITHINBYTE-ALIGN (#14293, owner-authorized 2026-07-25) + P3b (#14469): the
+  // bitmap/attr bytes arrive from BitmapRowFetch's readSync line buffer one cycle
+  // after their column is requested (io.bitmapSdramCol := logicalX, line below), so
+  // the intra-byte pixel index must carry the same 1-cycle latency to stay aligned
+  // with the byte it indexes. P3b sources it from logicalX (the scaled source column)
+  // instead of raw hCounter so the intra-byte pixel-repetition tracks the horizontal
+  // scale factor. At 1x logicalX == hCounter, so RegNext(logicalX(2:0)) ==
+  // RegNext(hCounter(2:0)) and the production 1x path stays byte-identical to
+  // a5a047a2. (Sourcing pixelWithinByte from a live/unscaled index left it 1 display
+  // column ahead of the byte and rotated the intra-byte pixel order for NON-uniform
+  // 1bpp/2bpp graphics; byte-uniform content e.g. the checkerboard was immune.)
+  bitmapFetch.io.pixelWithinByte := RegNext(logicalX(2 downto 0)) init 0
   bitmapFetch.io.bpp             := bitmapBpp
   // RGB565 directcolor (bpp=10): the 16-bit directcolor pixel is the two
   // fetched bytes packed {hi=attr, lo=bitmap}. CP-1b reuses the existing
@@ -1631,21 +1634,32 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   io.bitmapSdramCol        := logicalX
   // Owner-directed override (Rule 9): Register fetchLine at line boundary to resolve
   // CDC race condition (shimmer) by holding the value stable for the full line.
-  val bitmapFetchLineReg = RegNextWhen(fillLine.resize(10), hCounter === hTotal - 1) init 0
+  // P3b (#14469): source the fetch line from logicalY (the scaled source line) instead
+  // of the physical fillLine, keeping BitmapRowFetch's built-in >>1 line-doubling
+  // (lineReg := pendingLine>>1) so the effective vertical scale is 2*scaleY (Option B
+  // compose). At 1x logicalY == fillLine -> byte-identical to a5a047a2.
+  val bitmapFetchLineReg = RegNextWhen(logicalY.resize(10), hCounter === hTotal - 1) init 0
   io.bitmapSdramFetchLine  := bitmapFetchLineReg
   // RGB565-FULLFRAME-132 B.2 (CoralReef #12355 cond.4): grant ONCE PER SOURCE ROW,
-  // not once per output line. Each source row is displayed on two output lines
-  // (line-doubling: fillLine = vCounter+1, lineReg = pendingLine>>1), so the bank
-  // rotation + fill-ahead geometry is only correct when the grant advances every
-  // SECOND output line. Fire at hCounter==hTotal-1 (end of line, so the freshly
-  // filled bank lands for the next line's pixel 0) gated on odd output lines
-  // (vCounter(0)) and only within the active region (vCounter < vActive). The old
-  // once-per-line hActive grant double-counted rows and broke the cadence.
+  // not once per output line. Each source row is displayed on 2*scaleY output lines
+  // (BitmapRowFetch's >>1 line-doubling composed with the P3b vertical scale), so the
+  // bank rotation + fill-ahead geometry is only correct when the grant advances every
+  // time the fetcher's target source row changes.
+  // P3b (#14469): replace the fixed once-per-2-lines vCounter(0) gate with a
+  // logicalY>>1 step-boundary detector. bitmapSrcRow = logicalY>>1 is exactly the
+  // source row the fetcher targets (pendingLine>>1 inside BitmapRowFetch); fire when it
+  // advances. At 1x logicalY == fillLine == vCounter+1, so bitmapSrcRow increments on
+  // odd output lines -> bitmapSrcRow =/= bitmapSrcRowPrev is bit-identical to the old
+  // vCounter(0) cadence -> 1x byte-identical (preserves the 2bpp-bank-completion-rtl
+  // bank-ready/row-tag contracts). Fire at hCounter==hTotal-1 (end of line, so the
+  // freshly filled bank lands for the next line's pixel 0) within the active region.
   // Owner-directed override (Rule 9): Stretch the grant pulse to 4 cycles (grantHold)
   // to ensure a clean CDC edge detection in the SDRAM clock domain.
+  val bitmapSrcRow     = (logicalY.resize(10) >> 1)
+  val bitmapSrcRowPrev = RegNextWhen(bitmapSrcRow, hCounter === U(hTotal - 1, log2Up(hTotal) bits)) init 0
   val bitmapGrantHold = Reg(UInt(3 bits)) init 0
   val bitmapGrantTrigger = (hCounter === U(hTotal - 1, log2Up(hTotal) bits)) &&
-                           (vCounter(0) === True) &&
+                           (bitmapSrcRow =/= bitmapSrcRowPrev) &&
                            (vCounter < U(vActive, log2Up(vTotal) bits))
   when(bitmapGrantTrigger) {
     bitmapGrantHold := 4

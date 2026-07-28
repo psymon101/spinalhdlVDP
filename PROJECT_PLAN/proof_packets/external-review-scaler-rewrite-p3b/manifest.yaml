@@ -1,0 +1,44 @@
+lane: external-review-scaler-rewrite-p3b
+owner: BrightForge
+pm: TopazCliff
+interface_checkpoint_partner: BronzeGate
+reviewer: CyanPeak
+branch: topazcliff/scaler-rewrite
+parent_lanes: [external-review-scaler-rewrite, scaler-rewrite-hw-proof]
+scope: bitmap/indexed fetch-side >1x scaling (Option B compose); sim + PnR only
+
+semantics:
+  decision: Option B (Compose) — SCALE_CTRL applies to logical coords before bitmap fetch;
+    bitmap's built-in 2x source-to-display stays => effective display scale = 2 * SCALE_CTRL
+  default_1x: byte-identical to a5a047a2 (by construction)
+  contract_doc: docs/firmware/HOST_TRANSPORT_ABI.md + firmware/GOTCHAS.md GOTCHA-039 (commit e126477)
+  checkpoint_mail: [14466, 14467, 14468, 14469, 14470, 14471]  # proposal->concur->relay->PM confirm->CyanPeak sign-off
+
+rtl:
+  file: hw/spinal/spinalhdlvdp/VdpTop.scala
+  edits:
+    - pixelWithinByte <- logicalX(2:0)         # VdpTop:1619
+    - bitmapFetchLineReg <- logicalY           # VdpTop:1634 (keeps built-in >>1 => 2*scaleY)
+    - grant gate vCounter(0) -> logicalY>>1 step-boundary detector  # bitmapSrcRow/bitmapSrcRowPrev
+  one_x_identity: by construction (logicalX==hCounter, logicalY==fillLine, srcRow-step==vCounter(0) at 1x)
+  diff: ~5 logic lines (+comments); < 200 lines, no ADR
+  generated_verilog: hw/gen/top_tang20k.v
+  verilog_sha256: 8bac5ca2f427d5eb93d5436705279709c13994a5461561662d8c7dd9a9f3a60d
+
+sim:
+  new_cosim: hw/spinal/spinalhdlvdp/Indexed2bppScaleCoSim.scala
+  one_x_guardrail: PASS  # Indexed2bppFineCoSim bit-perfect; Indexed2bppFrameCoSim ROW-CODED bestDv=3/shear 0px; DirectColorFrameCoSim byte-exact
+  gt1x_proof: PASS       # fill 1x/2x/3x composed run-lengths uniform 32/64/96 (no skip/dup); content uniform under auto-center
+  note: auto-center bezel geometry (20x20/20x15) HW-proven in scaler-hw-proof
+
+pnr:
+  tool: Gowin V1.9.12.01
+  device: GW2AR-LV18QN88C8/I7
+  bitstream: fpga/tang20k/impl/pnr/project_8772d0c1_p3b.fs
+  bitstream_sha256: 8772d0c198ca486b6d7fba975da71fc1f87f48578b8dd30f07bf522e811c37ae
+  timing: TNS=0 all clocks (clk_pixel/clk_x5/I_clk/clk_sdram/qspi_sck, setup+hold)
+  fmax_clk_pixel: 29.148 MHz (constraint 25.2, +15.7%)
+  resources: Logic 56% / Register 36% (+5) / CLS 75% / BSRAM 40/46 (no new) / DSP 12 (no new)
+  flashed: false  # sim+PnR lane; HW gate is separate/PM-sequenced
+
+status: RTL + sim + PnR complete; CyanPeak code-to-spec review pending; then PM closeout
