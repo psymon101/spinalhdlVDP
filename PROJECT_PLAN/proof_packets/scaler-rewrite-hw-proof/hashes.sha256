@@ -10,7 +10,8 @@
 12038428e646bfc556aea90c5163b21376f6df8b374455efac5b8875ef8311d2  captures/smoke_01.png
 12038428e646bfc556aea90c5163b21376f6df8b374455efac5b8875ef8311d2  captures/smoke_02.png
 12038428e646bfc556aea90c5163b21376f6df8b374455efac5b8875ef8311d2  captures/smoke_03.png
-a81f1d9b4586ddf883f1c006b95ac576153b5a5fe70eba7976234793f097f6e8  captures/smoke_raw.yuyv
+# reference-only (kept in scratchpad, not committed to keep packet lean; PNGs above are the visual proof):
+# a81f1d9b4586ddf883f1c006b95ac576153b5a5fe70eba7976234793f097f6e8  captures/smoke_raw.yuyv
 # --- preserved reference bitstreams (gitignored) ---
 a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c  fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs  (HW baseline, preserved)
 ca0b7a8324b3ce589e27813d0749a91a042a8766a4aafb690cd443c3e28a08aa  fpga/tang20k/impl/pnr/project_ca0b7a83_scaler_p4.fs  (prior P4 scaler build)
