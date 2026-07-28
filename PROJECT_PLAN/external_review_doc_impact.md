@@ -17,7 +17,7 @@ This file tracks which findings from the external static review require document
 | F2 | Bootstrap `lastStepIdx` range bug | **Confirmed, fixed `10756d1`** | `VDP_PROGRAMMING_GUIDE.md` §8 note; `firmware/GOTCHAS.md` GOTCHA-037 | **Done** |
 | F3 | L1 fetch wired to L0 pixel address | **Confirmed, fixed `10756d1`** | `VDP_PROGRAMMING_GUIDE.md` §2 note on Layer 1 scheduling surface; `firmware/GOTCHAS.md` GOTCHA-037 | **Done** |
 | F4 | HDMI reset sequencing weakness | Confirmed ordering issue; measured cold-start reliability | None (10/10 POR locks successful; no clock gating applied) | **Done** (proof packet `5128ff4`) |
-| F5 | Scaler architecture incorrect for >1× | Dormant; production runs 1× | Major spec/impl doc update only if scaler rewrite is productized | Open (Tier C) |
+| F5 | Scaler architecture incorrect for >1× | Dormant; production runs 1× | Documented as dormant/experimental in `VDP_PROGRAMMING_GUIDE.md` §scaling; production remains 1x scale | **Done** (PM decision dormant) |
 | F6 | `LineBuffer` 1280-deep BSRAM inference | Audited netlist XML report; verified correct BSRAM mapping | None (no padding/decorations required; verified mapped to BSRAM) | **Done** (proof packet `5128ff4`) |
 | F7 | `BasicPatternSource` dependent async reads | Off production path; low priority | Document tile-memory pipeline latency if pipelined | Open (Tier C) |
 | F8 | Sync/DE/metadata latency table | Valid hygiene | Added pipeline-latency table to `VDP_PROGRAMMING_GUIDE.md` §8 and 2-cycle digital alignment assertion to `VdpInnerBorderCoSim.scala` | **Done** (commit `c009701`) |

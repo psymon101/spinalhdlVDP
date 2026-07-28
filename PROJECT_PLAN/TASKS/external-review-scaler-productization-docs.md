@@ -4,7 +4,7 @@
 CyanPeak
 
 ## Status
-BLOCKED
+DONE
 
 ## Background
 
@@ -18,7 +18,7 @@ Decide whether scaled modes are productized for the VDP host ABI. If **yes**, up
 
 ## Acceptance criteria
 
-- [ ] Obtain PM decision: productized or dormant.
+- [x] Obtain PM decision: productized or dormant. (PM decided: **dormant** per mail #14482)
 - [ ] If **productized**:
   - [ ] Update `docs/firmware/HOST_TRANSPORT_ABI.md` with the formal scaled-mode contract:
     - effective bitmap/indexed scale = 2·`SCALE_CTRL`;
@@ -29,14 +29,14 @@ Decide whether scaled modes are productized for the VDP host ABI. If **yes**, up
   - [ ] Update `firmware/GOTCHAS.md` with any new host gotchas (e.g., `SCALE_CTRL` persistence across MCU resets).
   - [ ] Add or update a co-sim / test-plan entry tying the documented contract to the implementation.
   - [ ] CyanPeak spec review and CoralReef doc review.
-- [ ] If **dormant**:
-  - [ ] Document in `VDP_PROGRAMMING_GUIDE.md` that scaled modes are implemented but not supported for general use.
-  - [ ] Mark `PROJECT_PLAN/external_review_doc_impact.md` F5 as Done with rationale.
-- [ ] PM closeout with proof packet or doc-update commit hashes.
+- [x] If **dormant**:
+  - [x] Document in `VDP_PROGRAMMING_GUIDE.md` that scaled modes are implemented but not supported for general use.
+  - [x] Mark `PROJECT_PLAN/external_review_doc_impact.md` F5 as Done with rationale.
+- [x] PM closeout with proof packet or doc-update commit hashes.
 
 ## Blockers
 
-PM decision required before writing docs.
+None.
 
 ## Artifacts / References
 

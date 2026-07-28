@@ -496,6 +496,11 @@ vdp_mode0_set_backdrop_index(10);
 ```
 
 ### Scaling and Logical Resolution
+
+> [!IMPORTANT]
+> **Status: DORMANT / Experimental**
+> While the integer pixel-repetition scaler is implemented in RTL and proven in simulation/PnR, scaled modes (specifically >1x scaling for bitmap/indexed modes) are **not supported for general host use** at this time. There is no production bitstream or hardware validation sign-off for scaled bitmap/indexed modes. The production path remains 1x scale using SDRAM Layer 0 (`layer0UseSdram=True`).
+
 **Behavior**: The VDP includes an integer pixel-repetition scaler that can repeat logical pixels (1x to 6x) to fill the 640x480 physical panel. This allows for lower logical resolutions (like 320x240 or 256x192) while maintaining a high-quality HDMI signal.
 
 **Implementation Note**: Use the `SCALE_CTRL` register (`0x0349`) to set the X and Y repeat factors. Setting `autoCenter` (bit 7) automatically centers the logical canvas on the screen using the `LOGIC_WIDTH` and `LOGIC_HEIGHT` registers.
