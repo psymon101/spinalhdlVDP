@@ -27,3 +27,7 @@ db092455abfc060dccb29f01e46c050bfb18f7195b542f253c439a9d913726db  firmware/mode_
 f5e0e7b0531b2d55af49bbe7367d101d02f785691ac01f4d60ce19e89a025311  firmware/phase_c_3x_serial.log
 fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17  firmware/partition_table.bin
 3929b906d7e420d7ee9465037cd172dec4f8cb865c92667dd449e9be462ffc55  firmware/bootloader.bin
+# --- Phase B/C mode captures (2026-07-28, settled clean frames) ---
+00cf030fe7523a6b30af91b8f640aeee0d4528da3cc82b5486cb9995eb49083f  captures/phaseB_1x/mode0_1x.png
+422d774c264d975d4f43e0b01bf54d1646350a62f0a4add6d4f3449bd9abc5de  captures/phaseC_2x/mode2_2x_scaled.png
+13b609cd77c9dfb1b5c96d084071b00c842a688865b7e6378e2c936174d5c790  captures/phaseC_3x/mode3_3x_scaled.png

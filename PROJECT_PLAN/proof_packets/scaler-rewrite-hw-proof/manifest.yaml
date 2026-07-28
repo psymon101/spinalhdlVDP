@@ -46,16 +46,23 @@ hardware:
   board: Tang Nano 20K (GW2A(R)-18C)
   baseline_bitstream: a5a047a2 (project_a5a047a2_bankcompletion.fs, preserved)
   phaseA_smoke: PASS  # flash exit 0, HDMI locked, 3 byte-identical frames (12038428), black backdrop + cyan canary
-  phaseB_1x: FIRMWARE PASS (explicit persistent-scaler reset) / VIDEO CAPTURE PENDING
-  phaseC_gt1x: FIRMWARE PASS (2x/3x; mode-3 explicit ctrl=0xB3) / VIDEO CAPTURE PENDING
+  phaseB_1x: PASS     # VIDEO: mode0 zero bezel; 96.69% match to a5a047a2 baseline, YAVG 127.3 — no 1x regression. captures/phaseB_1x/mode0_1x.png 00cf030f
+  phaseC_2x: PASS     # VIDEO: bezel 20x20 src, visible 600x440 (exact). captures/phaseC_2x/mode2_2x_scaled.png 422d774c
+  phaseC_3x: PASS     # VIDEO: bezel 20x15 src, visible 600x450 (exact), checker cell uniformity std=0. captures/phaseC_3x/mode3_3x_scaled.png 13b609cd
+  capture_method: /dev/video0 YUYV 720x480; discard frame 0 (UVC sync glitch); verify settled-frame identity; H scale 640->720=1.125x
+  mode0_false_start_note: first mode-0 run still showed persisted 2x SCALE_CTRL (FPGA reg survives P4 reset); BrightForge caught it; fixed by explicit SCALE_CTRL=0 (2f5be56)
 
 mail:
   assignment: 14450
   ack_plan: 14451
   phaseA_boundary: 14452
   smoke_pass_handoff: 14453
-  mode0_persistence_correction: 14458
-  mode0_reset_proof: 14459
-  mode3_authorization_and_proof: 14461
+  firmware_proof: 14455
+  capture_coord: 14456
+  mode0_persistence_finding: 14458
+  mode0_reset_proof: [14459, 14460]
+  mode0_verified_go_mode3: 14461
+  mode3_live: 14462
+  capture_complete_review_request: 14463
 
-status: RUNNING — Phase A + BronzeGate firmware proof complete; BrightForge video capture and bezel classification remain
+status: PASS — all three modes (1x/2x/3x) verified on HW; CyanPeak procedure/classification review requested (#14463); PM closeout pending review

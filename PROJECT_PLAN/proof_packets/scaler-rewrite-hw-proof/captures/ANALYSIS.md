@@ -59,8 +59,27 @@ re-ran. Corrected mode-0 capture:
   path is byte-equivalent to the HW-proven baseline.
 - Artifact: `captures/phaseB_1x/mode0_1x.png` sha `00cf030f…`.
 
-## Phase C — mode 3 (3×) — PENDING coordinated capture (BronzeGate mode-3 run)
-Only one SCALE_CTRL mode is live at a time; capturing modes 0 and 3 needs
-BronzeGate to drive those modes (compile-time mode select → reflash+run) with
-serial `SCALER_PROOF mode=N pass=1` confirmation at capture time. Mode 3 writes
-`ctrl=0xB3` explicitly, so it is not affected by the persistence issue above.
+## Phase C — mode 3 (3×) — CAPTURED + VERIFIED (2026-07-28)
+BronzeGate mode-3 run (firmware `76f67ad`, `SCALER_PROOF mode=3 pass=1`,
+`ctrl=0xB3`, logic 200×150). Settled clean frame:
+- WHITE bezel L=22 R=23 T=15 B=15 capture px → source **L≈20 R≈20 T=15 B=15**
+  = exact mode-3 prediction (T/B=15 distinguishes it from mode 2's 20).
+- Visible active 675×450 capture → source **600×450** = exact (3×200 × 3×150).
+- Checker cell run-lengths perfectly uniform: every H run 216cap, every V run
+  64cap, **std=0.0** both axes ⇒ clean uniform 3× scaling, zero skipped/
+  duplicated columns (HW analog of sim `ScaleUpFrameCoSim` run-length check).
+- Artifact: `captures/phaseC_3x/mode3_3x_scaled.png` sha `13b609cd…`.
+
+## SUMMARY — all three modes verified on HW (bitstream 38002d5c, no reflash)
+| Mode | SCALE_CTRL | logic | bezel src (meas=pred) | visible src (meas=pred) | verdict |
+|---|---|---|---|---|---|
+| 0 (1×) | 0x00 | 640×480 | 0/0/0/0 | 640×480 | ✅ + 96.69% match to a5a047a2 baseline |
+| 2 (2×) | 0xA2 | 300×220 | 20/20/20/20 | 600×440 | ✅ exact |
+| 3 (3×) | 0xB3 | 200×150 | 20/20/15/15 | 600×450 | ✅ exact + uniformity std=0 |
+
+The bezel + visible-extent progression (offset = (active − scale·logic)/2, applied
+exactly per mode) proves the source-coordinate scaler's auto-center + scale math on
+real silicon. 1× is byte-equivalent to the HW-proven baseline (no regression);
+>1× is correct and uniform. Capture artifacts: `phaseB_1x/mode0_1x.png`
+`00cf030f…`, `phaseC_2x/mode2_2x_scaled.png` `422d774c…`,
+`phaseC_3x/mode3_3x_scaled.png` `13b609cd…`.
