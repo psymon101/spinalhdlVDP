@@ -33,8 +33,22 @@ the uniform 2× SCALE_CTRL. That composition is the P3b semantics question (spun
 out); it is not a scaler defect — the bezel + visible-extent match is the scaler
 proof.
 
-## Phase B — mode 0 (1×) — PENDING coordinated capture (BronzeGate mode-0 run)
+## Phase B — mode 0 (1×) — FALSE-START caught; awaiting explicit SCALE_CTRL=0 rerun
+★FINDING (2026-07-28, #14457/#14458): BronzeGate's first mode-0 run
+(`SCALER_PROOF mode=0 pass=1`, ELF `d71f1271…`) did NOT put the display at 1×.
+The captured frame was byte-identical (sha `422d774c…`) to the mode-2 capture,
+bezel still 20×20, baseline structural match only 50%.
+Root cause: the mode-0 app "leaves SCALE_CTRL untouched", but **SCALE_CTRL
+(0x0349) is an FPGA register that persists across P4 resets** — the bitstream
+`38002d5c` was never reconfigured, so SCALE_CTRL was still `0xA2` (2×) from the
+prior 2× run. Mode-0 upload/readback PASS is valid (transport proof) but does not
+reset the display scale. Fix requested: mode-0 path must explicitly write
+`LOGIC_WIDTH=640, LOGIC_HEIGHT=480, SCALE_CTRL=0x00` (GOTCHA-12 order). Reusable
+lesson: a true 1× capture requires SCALE_CTRL explicitly 0, OR an FPGA
+reconfigure (which also clears SDRAM). Awaiting BronzeGate's explicit-reset rerun.
+
 ## Phase C — mode 3 (3×) — PENDING coordinated capture (BronzeGate mode-3 run)
 Only one SCALE_CTRL mode is live at a time; capturing modes 0 and 3 needs
 BronzeGate to drive those modes (compile-time mode select → reflash+run) with
-serial `SCALER_PROOF mode=N pass=1` confirmation at capture time.
+serial `SCALER_PROOF mode=N pass=1` confirmation at capture time. Mode 3 writes
+`ctrl=0xB3` explicitly, so it is not affected by the persistence issue above.
