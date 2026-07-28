@@ -4,7 +4,7 @@
 BrightForge
 
 ## Status
-OPEN
+DONE — 2026-07-27
 
 ## Background
 
@@ -23,13 +23,13 @@ Locate, review, and characterize the actual HDMI transmitter implementation used
 
 ## Acceptance criteria
 
-- [ ] Identify the actual HDMI TX source or IP used by the build (file path, Gowin IP report, etc.).
-- [ ] Review TMDS encoder, serializer, clock/reset crossing, and OSER10/output-buffer configuration.
-- [ ] Compare against observed HDMI behavior (cold-start locking, capture stability, existing 10/10 POR evidence).
-- [ ] Produce a concise review report under `kb/reviews/hdmi_tx_blackbox_review_YYYY-MM-DD.md` with verdict: **OK / needs fix / needs measurement**.
-- [ ] If a fix or measurement is needed, propose a follow-up lane and gates.
-- [ ] If no risk, update `PROJECT_PLAN/external_review_doc_impact.md` to record the limitation as reviewed/closed.
-- [ ] PM closeout with proof packet or review artifact.
+- [x] Identify the actual HDMI TX source or IP used by the build (file path, Gowin IP report, etc.).
+- [x] Review TMDS encoder, serializer, clock/reset crossing, and OSER10/output-buffer configuration.
+- [x] Compare against observed HDMI behavior (cold-start locking, capture stability, existing 10/10 POR evidence).
+- [x] Produce a concise review report under `kb/reviews/hdmi_tx_blackbox_review_2026-07-28.md` with verdict: **OK**.
+- [x] No fix or measurement needed — no follow-up lane.
+- [x] Updated `PROJECT_PLAN/external_review_doc_impact.md` to record the limitation as reviewed/closed.
+- [x] PM closeout — see mail thread / `STATUS.md`.
 
 ## Blockers
 None.
