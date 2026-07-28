@@ -14,3 +14,12 @@ a81f1d9b4586ddf883f1c006b95ac576153b5a5fe70eba7976234793f097f6e8  captures/smoke
 # --- preserved reference bitstreams (gitignored) ---
 a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c  fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs  (HW baseline, preserved)
 ca0b7a8324b3ce589e27813d0749a91a042a8766a4aafb690cd443c3e28a08aa  fpga/tang20k/impl/pnr/project_ca0b7a83_scaler_p4.fs  (prior P4 scaler build)
+# --- BronzeGate ESP32-P4 firmware artifacts (ESP-IDF v6.0.2, P4 rev v1.3) ---
+8ae11860f1849d57a91794c8e36e895fc2fac8cdc19cbf41261744809ec96747  firmware/mode_1x/esp32p4_scaler_proof.elf
+c28f48a1324c34a639c3bc116f0276be86240337c4700ba040e427b8a658b336  firmware/mode_1x/esp32p4_scaler_proof.bin
+3598bd575c7ec5561da3164231905a3b5514073b0b1c9be9ce3a5cfac87f2040  firmware/mode_2x/esp32p4_scaler_proof.elf
+4f89402c25a5897bea44c1d200cdadc7c70359eb97ef69576d0d0be6983689bd  firmware/mode_2x/esp32p4_scaler_proof.bin
+669b5139e1b318eaff964ac1a51f81a473fb54ba1c54b73df2b5d5609ed3dc04  firmware/mode_3x/esp32p4_scaler_proof.elf
+5c264990e01c6bbad6149a269f8c0bfd18cfa5bf3aa1fc1f921c648473d5d7d5  firmware/mode_3x/esp32p4_scaler_proof.bin
+fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17  firmware/partition_table.bin
+3929b906d7e420d7ee9465037cd172dec4f8cb865c92667dd449e9be462ffc55  firmware/bootloader.bin

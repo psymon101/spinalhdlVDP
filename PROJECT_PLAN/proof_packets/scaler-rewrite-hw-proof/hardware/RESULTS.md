@@ -26,8 +26,31 @@ backdrop + canary on real silicon. Basic hardware bring-up de-risked. No FPGA
 reflash needed for Phase B/C — content upload + SCALE_CTRL writes go over QSPI to
 this running bitstream.
 
-## Phase B — 1× regression vs a5a047a2 — PENDING (BronzeGate content upload)
-## Phase C — >1× bezel test (2×/3×) — PENDING (BronzeGate scaled-mode app)
+## Phase B — 1× regression vs a5a047a2 — FIRMWARE PASS (2026-07-27)
+
+BronzeGate flashed the ESP32-P4 proof app against the active scaler bitstream
+`38002d5c…`, uploaded the deterministic 320×240 2bpp checkerboard and attr
+plane at 4 MHz QSPI, then switched to 2 MHz for control/readback. The serial
+proof shows `magic=0x51560002`, untouched default `SCALE_CTRL`, health
+`raw=0x00000000 overflow=0 malformed=0`, six bitmap readback PASS samples, and
+`SCALER_PROOF mode=0 pass=1`. Serial artifact:
+`firmware/phase_b_1x_serial.log`.
+
+Video capture and comparison to the `a5a047a2` baseline remain BrightForge's
+step.
+
+## Phase C — >1× bezel test (2×/3×) — FIRMWARE PASS (2026-07-27)
+
+The same app used the approved `libvdp` API in the required size-then-scale
+order. The 2× run used logic 300×220, predicted bezel 20×20, and `ctrl=0xA2`;
+the 3× run used logic 200×150, predicted bezel 20×15, and `ctrl=0xB3`. Both
+runs report clean health, six readback PASS samples, line-state PASS, and
+`SCALER_PROOF pass=1`. Serial artifacts:
+`firmware/phase_c_2x_serial.log`, `firmware/phase_c_3x_serial.log`.
+
+The first 3× attempt saw one transient attribute upload TX error; a clean reset
+and rerun passed, with no sticky health error. Video capture, bezel measurement,
+and classification remain BrightForge's step.
 
 Board currently active: scaler `38002d5c`, SDRAM empty. HW authority `a5a047a2`
 preserved to `project_a5a047a2_bankcompletion.fs` (reflashable to restore baseline).

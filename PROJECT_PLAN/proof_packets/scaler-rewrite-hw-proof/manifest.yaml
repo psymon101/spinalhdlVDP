@@ -9,6 +9,7 @@ scope: hardware validation (build + flash + 1x/>1x capture) of source-coordinate
 source:
   rtl_commit: 7f8dde6            # scaler RTL settled (P4 timing fix)
   head_at_build: 5f82f94        # branch tip (STATUS/gitignore only, no RTL)
+  firmware_commit: a3e8ebd       # BronzeGate ESP32-P4 proof app/backend
   generated_verilog: hw/gen/top_tang20k.v
   verilog_sha256: 662dcfad52c017cec92b16c881ca361f26b791e4c4310f47645cd1e108212704
   verilog_note: logic-identical to P4 b246aed7; only // Git hash header comment differs
@@ -23,12 +24,26 @@ build:
   fmax_clk_pixel: 30.705 MHz (constraint 25.2, +21.8%)
   resources: Logic 56% / Register 36% / CLS 75% / BSRAM 40/46 / DSP 50%
 
+firmware:
+  target: ESP32-P4-Function-EV-Board (chip revision v1.3)
+  tool: ESP-IDF v6.0.2; riscv32-esp-elf; 360 MHz; QSPI 4 MHz bulk / 2 MHz control
+  revision_config: sdkconfig.defaults permits P4 revisions v1.0-v1.99
+  mode_1x_elf_sha256: 8ae11860f1849d57a91794c8e36e895fc2fac8cdc19cbf41261744809ec96747
+  mode_1x_bin_sha256: c28f48a1324c34a639c3bc116f0276be86240337c4700ba040e427b8a658b336
+  mode_2x_elf_sha256: 3598bd575c7ec5561da3164231905a3b5514073b0b1c9be9ce3a5cfac87f2040
+  mode_2x_bin_sha256: 4f89402c25a5897bea44c1d200cdadc7c70359eb97ef69576d0d0be6983689bd
+  mode_3x_elf_sha256: 669b5139e1b318eaff964ac1a51f81a473fb54ba1c54b73df2b5d5609ed3dc04
+  mode_3x_bin_sha256: 5c264990e01c6bbad6149a269f8c0bfd18cfa5bf3aa1fc1f921c648473d5d7d5
+  transport_health: all captured runs raw=0x00000000; overflow=0; malformed=0
+  content_readback: six deterministic bitmap samples PASS in each mode
+  serial_logs: firmware/phase_b_1x_serial.log; firmware/phase_c_2x_serial.log; firmware/phase_c_3x_serial.log
+
 hardware:
   board: Tang Nano 20K (GW2A(R)-18C)
   baseline_bitstream: a5a047a2 (project_a5a047a2_bankcompletion.fs, preserved)
   phaseA_smoke: PASS  # flash exit 0, HDMI locked, 3 byte-identical frames (12038428), black backdrop + cyan canary
-  phaseB_1x: PENDING  # BronzeGate checkerboard content re-upload
-  phaseC_gt1x: PENDING # BronzeGate bezel-test scaled-mode app (SCALE_CTRL 0x0349)
+  phaseB_1x: FIRMWARE PASS / VIDEO CAPTURE PENDING
+  phaseC_gt1x: FIRMWARE PASS (2x/3x) / VIDEO CAPTURE PENDING
 
 mail:
   assignment: 14450
@@ -36,4 +51,4 @@ mail:
   phaseA_boundary: 14452
   smoke_pass_handoff: 14453
 
-status: RUNNING — Phase A DONE; Phase B/C blocked on BronzeGate P4 firmware handoff
+status: RUNNING — Phase A + BronzeGate firmware proof complete; BrightForge video capture and bezel classification remain
