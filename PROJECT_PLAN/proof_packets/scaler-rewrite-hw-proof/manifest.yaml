@@ -1,0 +1,39 @@
+lane: scaler-rewrite-hw-proof
+owner: BrightForge
+pm: TopazCliff
+branch: topazcliff/scaler-rewrite
+source_lane: external-review-scaler-rewrite
+governing: AGENTS.md 100% hardware-proof rule; task PROJECT_PLAN/TASKS/scaler-rewrite-hw-proof.md
+scope: hardware validation (build + flash + 1x/>1x capture) of source-coordinate scaler
+
+source:
+  rtl_commit: 7f8dde6            # scaler RTL settled (P4 timing fix)
+  head_at_build: 5f82f94        # branch tip (STATUS/gitignore only, no RTL)
+  generated_verilog: hw/gen/top_tang20k.v
+  verilog_sha256: 662dcfad52c017cec92b16c881ca361f26b791e4c4310f47645cd1e108212704
+  verilog_note: logic-identical to P4 b246aed7; only // Git hash header comment differs
+
+build:
+  tool: Gowin V1.9.12.01
+  device: GW2AR-LV18QN88C8/I7
+  options: place=2 route=2 timing_driven correct_hold_violation
+  bitstream: fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs
+  bitstream_sha256: 38002d5c2bd1ca00c9460fc0349874a5e0f65afad120ab19c26b2144d41b9c09
+  timing: TNS=0 all clocks (clk_pixel/clk_x5/I_clk/clk_sdram/qspi_sck, setup+hold)
+  fmax_clk_pixel: 30.705 MHz (constraint 25.2, +21.8%)
+  resources: Logic 56% / Register 36% / CLS 75% / BSRAM 40/46 / DSP 50%
+
+hardware:
+  board: Tang Nano 20K (GW2A(R)-18C)
+  baseline_bitstream: a5a047a2 (project_a5a047a2_bankcompletion.fs, preserved)
+  phaseA_smoke: PASS  # flash exit 0, HDMI locked, 3 byte-identical frames (12038428), black backdrop + cyan canary
+  phaseB_1x: PENDING  # BronzeGate checkerboard content re-upload
+  phaseC_gt1x: PENDING # BronzeGate bezel-test scaled-mode app (SCALE_CTRL 0x0349)
+
+mail:
+  assignment: 14450
+  ack_plan: 14451
+  phaseA_boundary: 14452
+  smoke_pass_handoff: 14453
+
+status: RUNNING — Phase A DONE; Phase B/C blocked on BronzeGate P4 firmware handoff

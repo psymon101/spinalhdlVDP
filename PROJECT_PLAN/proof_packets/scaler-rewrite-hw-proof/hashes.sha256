@@ -1,0 +1,16 @@
+# scaler-rewrite-hw-proof artifact hashes (repo-relative paths + proof-packet captures)
+# --- generated RTL (gitignored build artifact; logic == P4 b246aed7, git-hash comment differs) ---
+662dcfad52c017cec92b16c881ca361f26b791e4c4310f47645cd1e108212704  hw/gen/top_tang20k.v
+# --- fresh scaler bitstream (gitignored; preserved to named path) ---
+38002d5c2bd1ca00c9460fc0349874a5e0f65afad120ab19c26b2144d41b9c09  fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs
+# --- PnR reports ---
+95ca47e94b6c515a416623abe38d0e15edd8842b7003e80ec798044007bdeaa8  synthesis/project.rpt.txt
+339b1313a355d075a9abbca5e365933f05e215523aefd52161bb4fd10c89e2ad  synthesis/project_tr_content.html  (full timing report; not committed — TNS table extracted into PnR_PASS.md)
+# --- hardware smoke captures (2026-07-27) ---
+12038428e646bfc556aea90c5163b21376f6df8b374455efac5b8875ef8311d2  captures/smoke_01.png
+12038428e646bfc556aea90c5163b21376f6df8b374455efac5b8875ef8311d2  captures/smoke_02.png
+12038428e646bfc556aea90c5163b21376f6df8b374455efac5b8875ef8311d2  captures/smoke_03.png
+a81f1d9b4586ddf883f1c006b95ac576153b5a5fe70eba7976234793f097f6e8  captures/smoke_raw.yuyv
+# --- preserved reference bitstreams (gitignored) ---
+a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c  fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs  (HW baseline, preserved)
+ca0b7a8324b3ce589e27813d0749a91a042a8766a4aafb690cd443c3e28a08aa  fpga/tang20k/impl/pnr/project_ca0b7a83_scaler_p4.fs  (prior P4 scaler build)
