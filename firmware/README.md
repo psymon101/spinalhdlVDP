@@ -17,7 +17,8 @@ have been moved to [`PROJECT_PLAN/archive/firmware_tests/`](../PROJECT_PLAN/arch
 ## Tree
 
 - `libvdp/` — reusable host driver library.
-  - `vdp_host.{h,c}` — active QSPI transport for ESP32-P4 (canonical)
+  - `vdp_host.{h,c}` — portable host API and legacy/platform backends
+  - `vdp_host_p4.c` — ESP32-P4 QSPI backend for the canonical host
   - `vdp_crc8.h` — CRC-8-CCITT helper for the QSPI-CRC8-185 write-frame contract
   - `vdp_legacySpi.h` — explicit legacy SPI transport entry point for archived sketches
   - `vdp_status.{h,c}` — status polling + vblank wait helpers
@@ -27,6 +28,8 @@ have been moved to [`PROJECT_PLAN/archive/firmware_tests/`](../PROJECT_PLAN/arch
   - `vdp_platform.h` — platform-specific pin maps
   - canonical API reference: [`kb/libvdp/README.md`](../kb/libvdp/README.md)
 - `tools/` — small helper scripts
+- `esp32p4_scaler_proof/` — ESP-IDF checkerboard and scaler proof app; build
+  with `SCALER_PROOF_MODE=0`, `2`, or `3` for the 1×, 2×, and 3× lanes.
 
 Historical per-scenario sketches are preserved in
 [`PROJECT_PLAN/archive/firmware_tests/`](../PROJECT_PLAN/archive/firmware_tests/).
