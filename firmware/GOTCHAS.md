@@ -364,3 +364,18 @@ dimensions and `SCALE_CTRL` every time; do not rely on FPGA POR defaults.
 **Proof:** Mode-0 capture after correction commit `2f5be56` showed zero bezel,
 full-frame 64×64 checker squares, and 1× baseline regression PASS (BrightForge
 mail `#14461`).
+
+### GOTCHA-039: P3b bitmap scaling composes with the built-in 2× path
+
+**Checkpoint recommendation:** For bitmap/indexed content authored at 320×240,
+`SCALE_CTRL` composes with the existing 2× source-to-display mapping. Thus
+`scaleX=scaleY=1` retains the current 640×480 behavior, while `scaleY=2`
+requests 4× effective vertical scaling before the active-display clamp. This
+is the BronzeGate concurrence with BrightForge Option B in interface
+checkpoint #14467; PM/CyanPeak review remains required before RTL changes.
+
+**Host workflow:** Treat `LOGIC_WIDTH`/`LOGIC_HEIGHT` as the logical crop/source
+dimensions and write them before `SCALE_CTRL`. A full 320×240 bitmap at 2× is
+too large for the 640×480 active area; crop the logical source first when the
+zoomed result must fit. The existing `vdp_mode0_set_scale_mode()` helper is
+sufficient; no new host command or public helper is needed.

@@ -33,6 +33,30 @@ Host-facing transport protocol for configuring the Tang Nano 20K VDP.
 Reusable host logic belongs in `firmware/libvdp/`. Applications remain thin
 wrappers.
 
+## Bitmap/indexed `SCALE_CTRL` semantics (P3b interface checkpoint)
+
+BronzeGate concurs with BrightForge's **Option B — Compose**, pending PM and
+CyanPeak review. The existing bitmap/indexed path's fixed 2× source-to-display
+mapping remains part of the contract; `SCALE_CTRL` applies to the logical
+coordinates before bitmap fetch. Therefore a bitmap's effective display scale
+per axis is `2 × SCALE_CTRL` (subject to the active-display clamp), and the
+default `scaleX=1`, `scaleY=1` remains byte-identical to the HW-proven
+`a5a047a2` path.
+
+Consequences for host code:
+
+- A full 320×240 bitmap at `scaleX=scaleY=2` requests a 4× effective image and
+  is larger than the 640×480 active area; use `LOGIC_WIDTH`/`LOGIC_HEIGHT` to
+  crop the logical source before scaling when a zoomed image should fit.
+- Write logical dimensions before `SCALE_CTRL`, using the existing
+  `vdp_mode0_set_scale_mode()` helper or the equivalent two helpers.
+- No new register, command, or libvdp helper is required. Existing scale
+  fields retain their encoding; this section defines their bitmap/indexed
+  fetch-side meaning for P3b.
+- This semantic decision does not authorize RTL changes by itself. BrightForge
+  must complete the checkpoint review, co-sim, and PnR gates before the fetch
+  path changes.
+
 ## References
 
 - `firmware/libvdp/`
