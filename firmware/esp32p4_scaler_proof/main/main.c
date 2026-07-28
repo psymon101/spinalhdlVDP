@@ -1,7 +1,7 @@
 /*
  * ESP32-P4 scaler hardware-proof host.
  *
- * SCALER_PROOF_MODE=0: 1x checkerboard regression (SCALE_CTRL untouched)
+ * SCALER_PROOF_MODE=0: 1x checkerboard regression (explicit 640x480 / 1x reset)
  * SCALER_PROOF_MODE=2: 2x centered checkerboard, logic 300x220
  * SCALER_PROOF_MODE=3: 3x centered checkerboard, logic 200x150
  */
@@ -179,7 +179,10 @@ static bool configure_display(void)
     ESP_LOGI(TAG, "scale=3x logic=200x150 expected_bezel=20x15 ctrl=0x%02X",
              vdp_mode0_scale_ctrl(3u, 3u, true));
 #else
-    ESP_LOGI(TAG, "scale=1x default SCALE_CTRL untouched");
+    /* SCALE_CTRL persists across MCU resets while the FPGA remains loaded. */
+    vdp_mode0_set_logic_size(640u, 480u);
+    vdp_mode0_set_scale_ctrl(0u);
+    ESP_LOGI(TAG, "scale=1x explicit logic=640x480 ctrl=0x00");
 #endif
     return vdp_last_error() == VDP_HOST_ERR_NONE;
 }
