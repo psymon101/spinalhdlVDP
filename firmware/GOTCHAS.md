@@ -341,3 +341,26 @@ adapter uses `SCLK=21`, `CS=20`, `IO0=32`, `IO1=33`, `IO2=22`, `IO3=23`.
 **Implication:** Neither issue affects the current production path. Production uses `useHostInit=true` (the host writes linestate explicitly) and generates `enableL1Fetch=false` (Layer 1 SDRAM fetch is disabled). They would only become visible in standalone diagnostic builds or in future scenarios that enable Layer 1 fetch.
 
 **Fix status:** Fixed in RTL commit `10756d1`. `VDP_PROGRAMMING_GUIDE.md` notes the Layer 1 scheduling surface and the internal bootstrap linestate behavior.
+
+### GOTCHA-038: FPGA scaler registers persist across MCU reset
+
+**Fact:** Resetting or reflashing the ESP32-P4 does not reset registers in an
+already-loaded Tang Nano 20K FPGA bitstream. During the scaler hardware proof,
+the mode-0 firmware reported a clean upload/readback pass but the display
+remained in the previous mode-2 state (`SCALE_CTRL=0xA2`) until the host
+explicitly wrote the mode-0 defaults.
+
+**Implication:** A serial `SCALER_PROOF mode=0 pass=1` proves transport and
+content, but it does not prove a 1× display if `SCALE_CTRL` was left untouched
+after a prior scaled run. This applies to any proof or application that
+restarts the MCU while the FPGA remains configured.
+
+**Fix:** In the canonical GOTCHA-12 order, write the intended logic dimensions
+first and then the scale control. For a 1× proof, explicitly use
+`vdp_mode0_set_logic_size(640, 480)` followed by
+`vdp_mode0_set_scale_ctrl(0)`. For scaled modes, write the corresponding
+dimensions and `SCALE_CTRL` every time; do not rely on FPGA POR defaults.
+
+**Proof:** Mode-0 capture after correction commit `2f5be56` showed zero bezel,
+full-frame 64×64 checker squares, and 1× baseline regression PASS (BrightForge
+mail `#14461`).
