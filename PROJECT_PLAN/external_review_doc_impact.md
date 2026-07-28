@@ -23,6 +23,7 @@ This file tracks which findings from the external static review require document
 | F8 | Sync/DE/metadata latency table | Valid hygiene | Added pipeline-latency table to `VDP_PROGRAMMING_GUIDE.md` §8 and 2-cycle digital alignment assertion to `VdpInnerBorderCoSim.scala` | **Done** (commit `c009701`) |
 | F9 | RGB565 `bitmapWritePipelineDelay` | Validated production default 0 is byte-exact via X-ramp co-sim | None (nonzero delay misaligns; production default 0 confirmed correct) | **Done** (proof packet `5128ff4`) |
 | — | `ScrollWrap` comment mismatch | **Confirmed cosmetic, fixed `10756d1`** | None (code comment only) | **Done** |
+| HDMI-TX | `Tang20kHdmiTx` black-box internals never reviewed | Reviewed: faithful MIT TMDS/DVI encoder (hdl-util/hdmi `tmds_channel.sv`) + Gowin `OSER10` serializers + phase-aligned ÷5 clocks (one rPLL) + PLL-lock-gated reset; **verdict OK** | None (no defect; wrapper sufficient; F4 reset-order already dispositioned; 10/10 POR corroborates) | **Done** (review `kb/reviews/hdmi_tx_blackbox_review_2026-07-28.md`) |
 
 ## Completed doc updates (Tier A)
 
