@@ -9,7 +9,7 @@ scope: hardware validation (build + flash + 1x/>1x capture) of source-coordinate
 source:
   rtl_commit: 7f8dde6            # scaler RTL settled (P4 timing fix)
   head_at_build: 5f82f94        # branch tip (STATUS/gitignore only, no RTL)
-  firmware_commit: 2f5be56       # BronzeGate explicit persistent-scaler reset
+  firmware_commit: 76f67ad       # BronzeGate mode-3 proof build; reset correction is 2f5be56
   generated_verilog: hw/gen/top_tang20k.v
   verilog_sha256: 662dcfad52c017cec92b16c881ca361f26b791e4c4310f47645cd1e108212704
   verilog_note: logic-identical to P4 b246aed7; only // Git hash header comment differs
@@ -32,8 +32,9 @@ firmware:
   mode_1x_bin_sha256: c28f48a1324c34a639c3bc116f0276be86240337c4700ba040e427b8a658b336
   mode_2x_elf_sha256: 3598bd575c7ec5561da3164231905a3b5514073b0b1c9be9ce3a5cfac87f2040
   mode_2x_bin_sha256: 4f89402c25a5897bea44c1d200cdadc7c70359eb97ef69576d0d0be6983689bd
-  mode_3x_elf_sha256: 669b5139e1b318eaff964ac1a51f81a473fb54ba1c54b73df2b5d5609ed3dc04
-  mode_3x_bin_sha256: 5c264990e01c6bbad6149a269f8c0bfd18cfa5bf3aa1fc1f921c648473d5d7d5
+  mode_3x_elf_sha256: c5a6efdecc307e1f41e5cea946aca21e10982f3d2deed154bf41d556b1cc26bf
+  mode_3x_bin_sha256: d24efa870084f9b47d8127109afc5c1586e254d3034dbc59c9bee151ea0b7ed3
+  mode_3x_note: logic 200x150, SCALE_CTRL=0xB3, explicit 3x centered proof build from commit 76f67ad
   mode_1x_reset_elf_sha256: a6dbc34448146c1419b4a2443cff142b07ef76f606e600ba1a3d85628427aff1
   mode_1x_reset_bin_sha256: db092455abfc060dccb29f01e46c050bfb18f7195b542f253c439a9d913726db
   mode_1x_reset_note: explicit LOGIC_WIDTH=640, LOGIC_HEIGHT=480, SCALE_CTRL=0 because FPGA register state persists across MCU reset; correction commit 2f5be56
@@ -46,7 +47,7 @@ hardware:
   baseline_bitstream: a5a047a2 (project_a5a047a2_bankcompletion.fs, preserved)
   phaseA_smoke: PASS  # flash exit 0, HDMI locked, 3 byte-identical frames (12038428), black backdrop + cyan canary
   phaseB_1x: FIRMWARE PASS (explicit persistent-scaler reset) / VIDEO CAPTURE PENDING
-  phaseC_gt1x: FIRMWARE PASS (2x/3x) / VIDEO CAPTURE PENDING
+  phaseC_gt1x: FIRMWARE PASS (2x/3x; mode-3 explicit ctrl=0xB3) / VIDEO CAPTURE PENDING
 
 mail:
   assignment: 14450
@@ -55,5 +56,6 @@ mail:
   smoke_pass_handoff: 14453
   mode0_persistence_correction: 14458
   mode0_reset_proof: 14459
+  mode3_authorization_and_proof: 14461
 
 status: RUNNING — Phase A + BronzeGate firmware proof complete; BrightForge video capture and bezel classification remain
