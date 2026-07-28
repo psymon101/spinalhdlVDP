@@ -45,7 +45,19 @@ prior 2× run. Mode-0 upload/readback PASS is valid (transport proof) but does n
 reset the display scale. Fix requested: mode-0 path must explicitly write
 `LOGIC_WIDTH=640, LOGIC_HEIGHT=480, SCALE_CTRL=0x00` (GOTCHA-12 order). Reusable
 lesson: a true 1× capture requires SCALE_CTRL explicitly 0, OR an FPGA
-reconfigure (which also clears SDRAM). Awaiting BronzeGate's explicit-reset rerun.
+reconfigure (which also clears SDRAM).
+
+RESOLVED (2026-07-28, #14459/#14460, firmware `2f5be56`): BronzeGate added the
+explicit `vdp_mode0_set_logic_size(640,480); vdp_mode0_set_scale_ctrl(0)` and
+re-ran. Corrected mode-0 capture:
+- **WHITE bezel = 0/0/0/0** — true 1×, auto-center border gone.
+- Full-frame checkerboard, 64×64 display-px squares (32×32 source ×2 H doubling
+  and ×2 line doubling), settled frames byte-identical.
+- **1× regression vs `a5a047a2` baseline: PASS** — binarized structural match
+  **96.69%**, identical mean luma (YAVG 127.3 both); residual ~3% = capture-session
+  sub-pixel/edge jitter (two separate capture sessions), not content. Scaler 1×
+  path is byte-equivalent to the HW-proven baseline.
+- Artifact: `captures/phaseB_1x/mode0_1x.png` sha `00cf030f…`.
 
 ## Phase C — mode 3 (3×) — PENDING coordinated capture (BronzeGate mode-3 run)
 Only one SCALE_CTRL mode is live at a time; capturing modes 0 and 3 needs
