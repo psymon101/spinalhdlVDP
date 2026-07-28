@@ -1,0 +1,19 @@
+ESP32-P4 scaler proof mode-0 persistence correction
+source commit: 2f5be56 (explicit mode-0 register reset)
+chip revision: v1.3
+ELF file SHA256: a6dbc34448146c1419b4a2443cff142b07ef76f606e600ba1a3d85628427aff1
+scaler proof mode=0 magic=0x51560002
+scale=1x explicit logic=640x480 ctrl=0x00
+HEALTH_BEFORE_UPLOAD raw=0x00000000 overflow=0 malformed=0
+bitmap uploaded bytes=30720 clock=4000000
+attr uploaded bytes=30720 clock=4000000
+HEALTH_AFTER_UPLOAD raw=0x00000000 overflow=0 malformed=0
+READBACK PASS addr=0x100000 value=0x00000000
+READBACK PASS addr=0x100008 value=0x55555555
+READBACK PASS addr=0x100010 value=0x00000000
+READBACK PASS addr=0x101000 value=0x55555555
+READBACK PASS addr=0x106400 value=0x00000000
+READBACK PASS addr=0x106480 value=0x00000000
+LINESTATE PASS lines=480 chunks=2
+HEALTH_AFTER_ENABLE raw=0x00000000 overflow=0 malformed=0
+SCALER_PROOF mode=0 pass=1
