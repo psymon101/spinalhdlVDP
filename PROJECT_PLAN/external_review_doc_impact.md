@@ -16,12 +16,12 @@ This file tracks which findings from the external static review require document
 | F1 | `useHostInit=true` boots blank | Intentional production behavior; standalone `false` is diagnostic only | Document standalone diagnostic build as a bring-up procedure, not a default change | Pending PM / BrightForge |
 | F2 | Bootstrap `lastStepIdx` range bug | **Confirmed, fixed `10756d1`** | `VDP_PROGRAMMING_GUIDE.md` §8 note; `firmware/GOTCHAS.md` GOTCHA-037 | **Done** |
 | F3 | L1 fetch wired to L0 pixel address | **Confirmed, fixed `10756d1`** | `VDP_PROGRAMMING_GUIDE.md` §2 note on Layer 1 scheduling surface; `firmware/GOTCHAS.md` GOTCHA-037 | **Done** |
-| F4 | HDMI reset sequencing weakness | Confirmed ordering issue; measure first | Add reset-sequence requirements to hardware bring-up notes if `clockReady` gating is applied | Open (Tier B) |
+| F4 | HDMI reset sequencing weakness | Confirmed ordering issue; measured cold-start reliability | None (10/10 POR locks successful; no clock gating applied) | **Done** (proof packet `5128ff4`) |
 | F5 | Scaler architecture incorrect for >1× | Dormant; production runs 1× | Major spec/impl doc update only if scaler rewrite is productized | Open (Tier C) |
-| F6 | `LineBuffer` 1280-deep BSRAM inference | Confirm netlist inference first | Document BSRAM inference policy if padding to 2048 + `ram_style=block` is applied | Open (Tier B) |
+| F6 | `LineBuffer` 1280-deep BSRAM inference | Audited netlist XML report; verified correct BSRAM mapping | None (no padding/decorations required; verified mapped to BSRAM) | **Done** (proof packet `5128ff4`) |
 | F7 | `BasicPatternSource` dependent async reads | Off production path; low priority | Document tile-memory pipeline latency if pipelined | Open (Tier C) |
 | F8 | Sync/DE/metadata latency table | Valid hygiene | Add explicit pipeline-latency table to `VDP_PROGRAMMING_GUIDE.md` §pipeline timing | Open (Tier B/C) |
-| F9 | RGB565 `bitmapWritePipelineDelay` | Validate with co-sim first | Document the parameter value and validation procedure once measured | Open (Tier B) |
+| F9 | RGB565 `bitmapWritePipelineDelay` | Validated production default 0 is byte-exact via X-ramp co-sim | None (nonzero delay misaligns; production default 0 confirmed correct) | **Done** (proof packet `5128ff4`) |
 | — | `ScrollWrap` comment mismatch | **Confirmed cosmetic, fixed `10756d1`** | None (code comment only) | **Done** |
 
 ## Completed doc updates (Tier A)
@@ -41,7 +41,7 @@ This file tracks which findings from the external static review require document
 
 ## Pending doc updates
 
-- Tier B measurement results (F4, F6, F9).
 - Tier C scaler-rewrite docs (F5) if the feature is productized.
 - Optional standalone diagnostic build procedure (F1) if adopted.
 - Optional pipeline-latency table (F8).
+

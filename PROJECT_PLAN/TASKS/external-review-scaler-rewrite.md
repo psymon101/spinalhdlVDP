@@ -119,17 +119,17 @@ Final RGB
 
 ## Acceptance criteria
 
-- [ ] New coordinate-generator module compiles and elaborates.
-- [ ] `sbt compile` and `TopTang20kHdmiVerilog` PASS on the target branch.
-- [ ] 1× regression: existing co-sims (`Indexed2bppFineCoSim`, `Indexed2bppFrameCoSim`,
+- [x] New coordinate-generator module compiles and elaborates.
+- [x] `sbt compile` and `TopTang20kHdmiVerilog` PASS on the target branch.
+- [x] 1× regression: existing co-sims (`Indexed2bppFineCoSim`, `Indexed2bppFrameCoSim`,
   `DirectColorFrameCoSim` at 1×) produce byte-identical or visually equivalent
   output compared to `topazcliff/migration-phase11` HEAD.
-- [ ] >1× proof: a deterministic co-sim demonstrates correct 2×/3× repetition and
+- [x] >1× proof: a deterministic co-sim demonstrates correct 2×/3× repetition and
   centering (golden-vector comparison).
-- [ ] Gowin PnR clean: **TNS=0**, no new BSRAM inferred unless architecturally
+- [x] Gowin PnR clean: **TNS=0**, no new BSRAM inferred unless architecturally
   required and reviewed.
-- [ ] Independent CyanPeak code-to-spec review PASS (mailbox-visible).
-- [ ] Proof packet complete under `PROJECT_PLAN/proof_packets/external-review-scaler-rewrite/`.
+- [x] Independent CyanPeak code-to-spec review PASS (mailbox-visible).
+- [x] Proof packet complete under `PROJECT_PLAN/proof_packets/external-review-scaler-rewrite/`.
 
 ## Proof packet contents
 

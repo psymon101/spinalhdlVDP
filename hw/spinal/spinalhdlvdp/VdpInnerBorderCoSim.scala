@@ -3,6 +3,8 @@ package spinalhdlvdp
 import spinal.core._
 import spinal.core.sim._
 import java.io.{File, FileOutputStream, PrintWriter, BufferedOutputStream}
+import scala.collection.mutable
+
 
 /** VdpInnerBorderCoSim — full-frame digital co-sim of BronzeGate's inner-border
   * test #3 (TopazCliff lane #11939; CoralReef/BronzeGate #11934 edge-fringe
@@ -131,9 +133,27 @@ object VdpInnerBorderCoSim extends App {
     val fb = Array.fill(vActive * hActive)(UNSET)
     var deCycles = 0
     var i = 0
+    val bgHistory = mutable.Queue[Int]()
     // +hTotal slack so the +2 pipeline boundary cannot drop the last line.
     while (i < framePix + hTotal) {
       dut.clockDomain.waitSampling()
+      val bgVal = dut.bgOrDirectRgb.toInt & 0xFFFFFF
+      bgHistory.enqueue(bgVal)
+      if (bgHistory.size > 2) {
+        val delayedBg = bgHistory.dequeue()
+        if (dut.io.de.toBoolean) {
+          val x = dut.io.x.toInt
+          val y = dut.io.y.toInt
+          // Inside the active content area (accounting for the 2-cycle pin latency, so x-2 >= 20
+          // and x-2 < 620, i.e., x >= 22 && x < 620), the output pin color (stage +4) must
+          // match the compositor background bgOrDirectRgb (stage +2) delayed by 2 cycles.
+          if (x >= 22 && x < 620 && y >= 12 && y < 468) {
+            val r = dut.io.red.toInt; val g = dut.io.green.toInt; val b = dut.io.blue.toInt
+            val pinColor = pack(r, g, b)
+            assert(pinColor == delayedBg, s"Pipeline alignment assertion failed: pinColor 0x${pinColor.toHexString} vs bg 0x${delayedBg.toHexString} at (x=$x, y=$y)")
+          }
+        }
+      }
       if (dut.io.de.toBoolean) {
         val x = dut.io.x.toInt
         val y = dut.io.y.toInt

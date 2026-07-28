@@ -8,7 +8,7 @@ Per AGENTS.md Proof Packet requirements (Rule 15), this proof packet carries the
 |---|---|---|---|
 | CyanPeak | Audit Focus: Procedure and Result Classification | **PASS** — Procedure is sound; result classifications verified and confirmed. | mail check-in 2026-07-28 |
 | BrightForge | Phase A build/flash, Phase B/C capture and measurements | **PASS** — Captures completed for all 3 modes; bezel progression verified. | this packet |
-| TopazCliff (PM) | Lane authorization and PM closeout | Awaiting closeout. | — |
+| TopazCliff (PM) | Lane authorization and PM closeout | **DONE** — PM closeout complete. | commit `8a64f0e` |
 
 ## Open deviations / notes
 
@@ -18,4 +18,5 @@ Per AGENTS.md Proof Packet requirements (Rule 15), this proof packet carries the
 
 ## Status
 
-Awaiting PM disposition and closeout.
+**DONE** — closeout confirmed in commit `8a64f0e`.
+

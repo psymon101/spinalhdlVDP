@@ -2,11 +2,15 @@
 
 **Owner:** BrightForge  
 **PM:** TopazCliff  
-**Status:** OPEN  
+**Status:** DONE  
 **Opened:** 2026-07-27  
+**Closed:** 2026-07-28  
+**Closeout Commit:** `60b01ab`  
+**Proof Packet:** `PROJECT_PLAN/proof_packets/scaler-rewrite-hw-proof/`  
 **Source lane:** `external-review-scaler-rewrite`  
 **Source branch:** `topazcliff/scaler-rewrite`  
 **Source commit:** `9314aa0`  
+  
 
 ---
 

@@ -3,8 +3,12 @@
 **Owner:** BrightForge  
 **PM:** TopazCliff  
 **Interface checkpoint partner:** BronzeGate  
-**Status:** OPEN  
+**Status:** DONE  
 **Opened:** 2026-07-28  
+**Closed:** 2026-07-28  
+**Closeout Commit:** `8a64f0e`  
+**RTL Commit:** `196765b`  
+**Proof Packet:** `PROJECT_PLAN/proof_packets/external-review-scaler-rewrite-p3b/`  
 **Parent lane:** `external-review-scaler-rewrite` / `scaler-rewrite-hw-proof`  
 **Source branch:** `topazcliff/scaler-rewrite`  
 

@@ -1547,13 +1547,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // 2-layer behavior when the gate is off.
   val (layer2PixelRaw, layer3PixelRaw) = if (enableL2L3) {
     val layer2 = BasicPatternSource()
-    layer2.io.x := hCounter.resize(10)
+    layer2.io.x := logicalX
     layer2.io.y := logicalY
     layer2.io.scrollX := io.layer2ScrollX
     layer2.io.scrollY := io.layer2ScrollY
-
     val layer3 = BasicPatternSource()
-    layer3.io.x := hCounter.resize(10)
+    layer3.io.x := logicalX
     layer3.io.y := logicalY
     layer3.io.scrollX := io.layer3ScrollX
     layer3.io.scrollY := io.layer3ScrollY

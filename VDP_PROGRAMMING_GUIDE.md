@@ -564,7 +564,22 @@ void vdp_soft_reset(void) {
 > [!NOTE]
 > **Internal bootstrap linestate upload (standalone / diagnostic builds only).** When `TopTang20kHdmi` is built with `useHostInit=false`, an internal bootstrap FSM writes a default linestate table before the first frame. Commit `10756d1` corrected the `lastStepIdx` range from `colorMathIdx` to `linestateBase + LinestateCount - 1`; the old value made the linestate loop empty, so the standalone bootstrap wrote zero linestate entries and produced a black screen. The production QSPI/ESP32-P4 path uses `useHostInit=true` and relies on the host to write linestate explicitly, so this bug was latent.
 
+### Pipeline Latency and Signal Alignment
+
+To ensure that logical boundaries, active layers, borders, and overlays align precisely at the physical HDMI scanout pins, all VDP internal status flags, coordinate buses, and memory buses are latency-aligned. 
+
+The pipeline latency relative to the physical scan counters (`hCounter` / `vCounter`) and display enable (`colorEn`) at each stage is summarized below:
+
+| Signal / Stage | Pipeline Latency (Pixel Clocks) | Description / Alignment Mechanics |
+|---|---|---|
+| **Physical Scan Counters (`hCounter`, `vCounter`)** | 0 | Raw timing generator coordinate counters. |
+| **Output Sync & Active Display (`io.hsync`, `io.vsync`, `io.de`)** | 2 | Display-side registered sync signals (`hsyncRR`, `vsyncRR`, `deRR`). |
+| **Logical Coordinates (`io.x`, `io.y`)** | 2 | Delayed to align with the active display window. Sourced from `hCounterR` / `vCounterR` registered pipeline stages. |
+| **Internal Compositor Input (`bgOrDirectRgb`)** | 2 | Compositor color input. Co-timed with `io.x` / `io.y` at stage +2. |
+| **Composited Color output (`io.red`/`green`/`blue`)** | 4 | Final output pins driven by `displayRgbScaled`. Registers (`displayRgbScaled`, `maskedRgbR`, etc.) add a 2-cycle latency relative to the compositor inputs (`bgOrDirectRgb`), so the physical outputs carry the color of the pixel at `io.x - 2`. |
+
 ---
+
 
 ## 9. Verification Guidelines
 # Part II: Internal Register Reference

@@ -8,7 +8,7 @@ Per AGENTS.md Proof Packet requirements (Rule 15), this proof packet carries the
 |---|---|---|---|
 | CyanPeak | Code-to-Spec Review of Option B RTL | **PASS** — RTL matches the Option B (Compose) contract exactly; 1× path is bit-identical by construction. | mail check-in 2026-07-28 |
 | BrightForge | RTL design, co-sim sweep, and Gowin PnR | **PASS** — RTL implemented; co-sim verified run-length uniformity; PnR timing met with TNS=0 and no new BSRAM. | this packet |
-| TopazCliff (PM) | Lane authorization and PM closeout | Awaiting closeout. | — |
+| TopazCliff (PM) | Lane authorization and PM closeout | **DONE** — PM closeout complete. | commit `8a64f0e` |
 
 ## Open deviations / notes
 
@@ -17,4 +17,5 @@ Per AGENTS.md Proof Packet requirements (Rule 15), this proof packet carries the
 
 ## Status
 
-Awaiting PM disposition and closeout.
+**DONE** — closeout confirmed in commit `8a64f0e`.
+
