@@ -20,7 +20,7 @@ This file tracks which findings from the external static review require document
 | F5 | Scaler architecture incorrect for >1× | Dormant; production runs 1× | Major spec/impl doc update only if scaler rewrite is productized | Open (Tier C) |
 | F6 | `LineBuffer` 1280-deep BSRAM inference | Audited netlist XML report; verified correct BSRAM mapping | None (no padding/decorations required; verified mapped to BSRAM) | **Done** (proof packet `5128ff4`) |
 | F7 | `BasicPatternSource` dependent async reads | Off production path; low priority | Document tile-memory pipeline latency if pipelined | Open (Tier C) |
-| F8 | Sync/DE/metadata latency table | Valid hygiene | Add explicit pipeline-latency table to `VDP_PROGRAMMING_GUIDE.md` §pipeline timing | Open (Tier B/C) |
+| F8 | Sync/DE/metadata latency table | Valid hygiene | Added pipeline-latency table to `VDP_PROGRAMMING_GUIDE.md` §8 and 2-cycle digital alignment assertion to `VdpInnerBorderCoSim.scala` | **Done** (commit `c009701`) |
 | F9 | RGB565 `bitmapWritePipelineDelay` | Validated production default 0 is byte-exact via X-ramp co-sim | None (nonzero delay misaligns; production default 0 confirmed correct) | **Done** (proof packet `5128ff4`) |
 | — | `ScrollWrap` comment mismatch | **Confirmed cosmetic, fixed `10756d1`** | None (code comment only) | **Done** |
 
@@ -43,5 +43,4 @@ This file tracks which findings from the external static review require document
 
 - Tier C scaler-rewrite docs (F5) if the feature is productized.
 - Optional standalone diagnostic build procedure (F1) if adopted.
-- Optional pipeline-latency table (F8).
 
