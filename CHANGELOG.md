@@ -1,5 +1,15 @@
 # spinalhdlVDP Changelog
 
+## 2026-07-29 — Release v0.2.0: scaler-rewrite merged to main; all external-review items closed
+
+- Merged `topazcliff/scaler-rewrite` into `main` at `a442707`.
+- Source-coordinate scaler + P3b bitmap/indexed fetch-side scaling now on `main`.
+- Production 1× path remains byte-identical to the HW-proven `a5a047a2` baseline.
+- Scaled modes (>1×) implemented and sim-proven, documented as dormant/experimental.
+- All external-review doc-impact items closed: F1–F9 **Done**, F7 **Accepted Risk**, HDMI-TX **Done**.
+- Post-merge sanity: `sbt compile` PASS, `Indexed2bppFineCoSim` PASS.
+- Tag: `v0.2.0` on commit `e9ee2b8`.
+
 ## 2026-07-28 — External Review Closeouts: Scaler Docs, Latency Table, HDMI-TX Black Box (DONE)
 
 - **Scaler productization docs (F5)** — PM disposition: scaled bitmap/indexed modes are **dormant/experimental**. `VDP_PROGRAMMING_GUIDE.md` §scaling now states that >1x scaled modes are implemented in RTL but not supported for general host use; production remains 1x scale via SDRAM Layer 0.
