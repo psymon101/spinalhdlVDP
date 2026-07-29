@@ -14,14 +14,18 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
                           logicWidthInit:  Int = 640,
                           logicHeightInit: Int = 480,
                           borderCtrlInit:  Int = 0,
-                          hostI80:         Boolean = false) extends Component {
-  private val useHostInit: Boolean = true
+                          hostI80:         Boolean = false,
+                          diagnosticMode:  Boolean = false) extends Component {
+  // standalone-diagnostic-build: diagnosticMode=true runs the on-chip bootstrap
+  // (no host, no QSPI, no SDRAM) and displays a clean 1x full-screen L0 test
+  // pattern. Production keeps useHostInit=true (bootstrap bypassed entirely).
+  private val useHostInit: Boolean = !diagnosticMode
 
   // Lane P21: when hostI80, an Intel-8080 parallel host front-end (I80HostInterface)
   // is added as regBus master(2) (the otherwise-quiescent animator slot) and the i80
   // pads are brought out. The QSPI front-end stays present so the STA build is a
   // conservative both-fronts test; deployment uses tang20k_i80.cst (QSPI displaced).
-  setDefinitionName(if (hostI80) "top_tang20k_i80" else "top_tang20k")
+  setDefinitionName(if (diagnosticMode) "top_tang20k_diagnostic" else if (hostI80) "top_tang20k_i80" else "top_tang20k")
   noIoPrefix()
 
   val I_clk = in Bool()
@@ -324,7 +328,9 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val winY1Addr     = U(0x0333, 15 bits)
     val winY1Data     = B(360, 16 bits)
     val colorMathAddr = U(0x0334, 15 bits)
-    val colorMathData = B(0x4000, 16 bits)
+    // diagnosticMode: op=00 (no shadow window) so the 1x test pattern is unshaded
+    // full-screen; production keeps the §12 shadow window (op=01, RGB>>1 in center).
+    val colorMathData = if (diagnosticMode) B(0x0000, 16 bits) else B(0x4000, 16 bits)
 
     val affineCtrlAddrReg = U(0x0346, 15 bits)
     val affineCtrlDataReg = B(0x0001, 16 bits)
@@ -341,7 +347,11 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     //   value (both layers enabled per LinestateStore.defaultInit).
     val linestateK    = (bootIdx - linestateBase).resize(7)
     val linestateAddr = (linestateK.resize(15) << 3).resize(15)   // line = k * 8
-    val linestateData = Mux(linestateK(0), B(0x0800, 16 bits), B(0x0400, 16 bits))
+    // Production standalone/§12 proof: alternating L0/L1 8-line bands. diagnosticMode:
+    // force L0-enabled on every written line (0x0800) so the L0 test pattern fills the
+    // whole screen (no L1 bands).
+    val linestateData = if (diagnosticMode) B(0x0800, 16 bits)
+                        else Mux(linestateK(0), B(0x0800, 16 bits), B(0x0400, 16 bits))
 
     val bootAddr = Mux(inCopperPhase,  copperAddr,
                     Mux(isTileModeStep, tileModeAddr,
@@ -694,12 +704,15 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     video.io.layer0SdramPixel    := fetch.io.pixelIndex
     video.io.layer0SdramBank     := fetch.io.pixelPaletteBank
     video.io.layer0SdramPriority := fetch.io.pixelPriority
-    video.io.layer0UseSdram      := True
+    // standalone-diagnostic-build: in diagnosticMode L0 renders the on-chip test
+    // pattern (no SDRAM); production keeps the SDRAM-backed L0 path unchanged.
+    video.io.layer0UseSdram      := (if (diagnosticMode) False else True)
 
     // Test pattern override: default disabled so normal SDRAM-backed rendering
     // continues. Set enable=True and select a pattern (1..7) for validation.
-    video.io.layer0TestPatternEnable := False
-    video.io.layer0TestPatternSelect := U(0, 3 bits)
+    // diagnosticMode -> enable, select 6 (grid) for a geometry-obvious 1x pattern.
+    video.io.layer0TestPatternEnable := (if (diagnosticMode) True else False)
+    video.io.layer0TestPatternSelect := U(if (diagnosticMode) 6 else 0, 3 bits)
 
     // Task 56 Checkpoint B (#9678 / #9693): second SdramTileAttributeFetch
     // engine for Layer 1. Uses the L1 base address constants from
@@ -1257,6 +1270,13 @@ object TopTang20kHdmiVerilog extends App {
   // gated off so the synthesis/PnR resource delta can be measured against
   // Step 1 baseline (commit 6737bc0, 20943 logic).
   Config.spinal.generateVerilog(TopTang20kHdmi(enableL1Fetch = false))
+}
+
+object TopTang20kHdmiDiagnosticVerilog extends App {
+  // standalone-diagnostic-build lane: no-host / no-QSPI / no-SDRAM native 640x480
+  // build that boots the on-chip bootstrap and displays a clean 1x full-screen L0
+  // grid test pattern. Module name = top_tang20k_diagnostic -> hw/gen/top_tang20k_diagnostic.v.
+  Config.spinal.generateVerilog(TopTang20kHdmi(enableL1Fetch = false, diagnosticMode = true))
 }
 
 object TopTang20kI80Verilog extends App {
