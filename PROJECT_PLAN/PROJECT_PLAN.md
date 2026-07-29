@@ -1,6 +1,6 @@
 # PROJECT_PLAN.md
 
-**Updated:** 2026-07-25
+**Updated:** 2026-07-29
 **Purpose:** Entry point for the `PROJECT_PLAN/` documentation set.
 
 ## Reading Order
@@ -11,7 +11,7 @@
 4. `PLATFORM_ADAPTERS.md`
 5. `ASSESSMENT.md`
 6. `TASK_TEMPLATE.md`
-7. `VOODOO_ADOPTION_PLAN.md`
+7. [VOODOO_ADOPTION_PLAN.md](VOODOO_ADOPTION_PLAN.md)
 8. `CONVENTIONS.md`
 9. `PLATFORM.md`
 10. `REPO_STRUCTURE.md`
@@ -40,7 +40,7 @@ Recent closed lanes (see `STATUS.md` for full proof):
 - **HAM6 removal + 2bpp indexed replacement** — 4 MHz canonical bulk-upload path proven; HAM6 shelved from critical path.
 - **repo-cleanup** — archived test firmware, capture media, sdkconfig artifacts, and stale `TASKS.md` to `PROJECT_PLAN/archive/`.
 
-The long-term strategic roadmap is in [`VOODOO_ADOPTION_PLAN.md`](VOODOO_ADOPTION_PLAN.md).
+The long-term strategic roadmap is in [VOODOO_ADOPTION_PLAN.md](VOODOO_ADOPTION_PLAN.md).
 
 **Host interface:** the canonical Tang Nano 20K host path is **QSPI/ESP32-P4** (`QspiSlave`/`QspiDecoder`/`QspiSdramBridge`). The i80/ESP32-S3 path and the legacy SPI path are retired as primary development targets; historical sketches are archived in `PROJECT_PLAN/archive/firmware_tests/`.
 

@@ -13,13 +13,13 @@ This file tracks which findings from the external static review require document
 
 | ID | Finding | Verdict | Doc action | Status |
 |---|---|---|---|---|
-| F1 | `useHostInit=true` boots blank | Intentional production behavior; standalone `false` is diagnostic only | Document standalone diagnostic build as a bring-up procedure, not a default change | Pending PM / BrightForge |
+| F1 | `useHostInit=true` boots blank | Intentional production behavior; standalone `false` is diagnostic only | Documented standalone diagnostic build procedure in [DIAGNOSTICS.md](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DIAGNOSTICS.md) | **Done** |
 | F2 | Bootstrap `lastStepIdx` range bug | **Confirmed, fixed `10756d1`** | `VDP_PROGRAMMING_GUIDE.md` §8 note; `firmware/GOTCHAS.md` GOTCHA-037 | **Done** |
 | F3 | L1 fetch wired to L0 pixel address | **Confirmed, fixed `10756d1`** | `VDP_PROGRAMMING_GUIDE.md` §2 note on Layer 1 scheduling surface; `firmware/GOTCHAS.md` GOTCHA-037 | **Done** |
 | F4 | HDMI reset sequencing weakness | Confirmed ordering issue; measured cold-start reliability | None (10/10 POR locks successful; no clock gating applied) | **Done** (proof packet `5128ff4`) |
 | F5 | Scaler architecture incorrect for >1× | Dormant; production runs 1× | Documented as dormant/experimental in `VDP_PROGRAMMING_GUIDE.md` §scaling; production remains 1x scale | **Done** (PM decision dormant) |
 | F6 | `LineBuffer` 1280-deep BSRAM inference | Audited netlist XML report; verified correct BSRAM mapping | None (no padding/decorations required; verified mapped to BSRAM) | **Done** (proof packet `5128ff4`) |
-| F7 | `BasicPatternSource` dependent async reads | Off production path; low priority | Document tile-memory pipeline latency if pipelined | Open (Tier C) |
+| F7 | `BasicPatternSource` dependent async reads | Off production path; low priority | Documented as approved/deferred risk in [ADR-008](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DECISIONS/ADR-008-BASICPATTERNSOURCE-ASYNC-READS.md) | **Accepted Risk** |
 | F8 | Sync/DE/metadata latency table | Valid hygiene | Added pipeline-latency table to `VDP_PROGRAMMING_GUIDE.md` §8 and 2-cycle digital alignment assertion to `VdpInnerBorderCoSim.scala` | **Done** (commit `c009701`) |
 | F9 | RGB565 `bitmapWritePipelineDelay` | Validated production default 0 is byte-exact via X-ramp co-sim | None (nonzero delay misaligns; production default 0 confirmed correct) | **Done** (proof packet `5128ff4`) |
 | — | `ScrollWrap` comment mismatch | **Confirmed cosmetic, fixed `10756d1`** | None (code comment only) | **Done** |

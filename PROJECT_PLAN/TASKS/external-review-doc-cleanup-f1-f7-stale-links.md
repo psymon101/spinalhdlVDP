@@ -4,7 +4,7 @@
 CyanPeak
 
 ## Status
-ASSIGNED — pending CyanPeak acceptance
+DONE
 
 ## Background
 
@@ -40,11 +40,11 @@ The `scaler-rewrite` branch has been merged into `main` (`a442707`). Two externa
 
 ## Acceptance criteria
 
-- [ ] F1 standalone diagnostic procedure documented and `external_review_doc_impact.md` updated.
-- [ ] F7 `BasicPatternSource` pipeline latency documented and `external_review_doc_impact.md` updated.
-- [ ] Stale `VOODOO_ADOPTION_PLAN.md` link resolved (file created or reference removed).
-- [ ] `PROJECT_PLAN/STATUS.md` row for this lane moved to **DONE**.
-- [ ] Closeout mail sent to TopazCliff with proof (diff + files changed).
+- [x] F1 standalone diagnostic procedure documented and `external_review_doc_impact.md` updated.
+- [x] F7 `BasicPatternSource` pipeline latency documented and `external_review_doc_impact.md` updated.
+- [x] Stale `VOODOO_ADOPTION_PLAN.md` link resolved (file created or reference removed).
+- [x] `PROJECT_PLAN/STATUS.md` row for this lane moved to **DONE**.
+- [x] Closeout mail sent to TopazCliff with proof (diff + files changed).
 
 ## Blockers
 None.
