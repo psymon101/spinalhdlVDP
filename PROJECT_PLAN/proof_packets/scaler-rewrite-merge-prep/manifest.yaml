@@ -1,0 +1,78 @@
+lane: scaler-rewrite-merge-prep
+owner: TopazCliff / BrightForge
+status: RUNNING -> DONE (merge-prep regression complete; merge decision pending PM)
+date: 2026-07-28
+
+goal: >
+  Prepare the topazcliff/scaler-rewrite branch for merge to main by running the
+  standard compile/elaborate/co-sim/PnR regression bar and collecting a proof packet.
+  This is a go/no-go lane, not the merge itself.
+
+commits:
+  source: f91f58a   # branch HEAD before proof-packet commit
+  baseline_main: f09159f
+  proof_packet: (this commit)
+
+files_changed:
+  - (this lane is validation-only; no RTL changed since scaler-rewrite-p3b / external-review closeouts)
+
+mail:
+  assignment: (opened in this session)
+  regression_start: (this closeout)
+
+artifacts:
+  generated_rtl:
+    path: hw/gen/top_tang20k.v
+    sha256: 7ad5cee1b64a357a01b2dcc0d8eb0f8b7ec10e4d5f46682806052dd2588d6c60
+    regen_cmd: sbt "runMain spinalhdlvdp.TopTang20kHdmiVerilog"
+    note: build artifact (gitignored); regenerated from source commit f91f58a
+  bitstream:
+    path: fpga/tang20k/impl/pnr/project.fs
+    sha256: 8b2413288dc2c47c8ebed6a1af8b88ada6566a99a16ac1da4c0948b80f429ed6
+    flashed: false
+  cosim_log:
+    path: simulation/regression.log
+    sha256: 5fd2adecbd93147616572e71713e836dccab8124f1b334906d18e49af800b310
+  pnr_log:
+    path: synthesis/pnr.log
+    sha256: 6ce8084d9de2ea97b4fe5fd4d9a59054174ae5e2688782919726497ca67b7559
+
+simulation:
+  commands:
+    - sbt "runMain spinalhdlvdp.Indexed2bppFineCoSim"
+    - sbt "runMain spinalhdlvdp.Indexed2bppCheckerCoSim"
+    - sbt "runMain spinalhdlvdp.Indexed2bppFrameCoSim"
+    - sbt "runMain spinalhdlvdp.DirectColorFrameCoSim"
+  results:
+    Indexed2bppFineCoSim:    PASS (intra-byte decode MATCH, pixelWithinByte aligned)
+    Indexed2bppCheckerCoSim: PASS (CHECKER-EDGE CLEAN, 64 px square edges)
+    Indexed2bppFrameCoSim:   PASS (LEFT-EDGE CLEAN; ROW-CODED bestDv=3, 1/480 startup wrong-row; shear span=0 px)
+    DirectColorFrameCoSim:   PASS (bitmapWritePipelineDelay=0 aligned at dh=0, 0.9956 byte-exact)
+
+synthesis:
+  tool: Gowin V1.9.12.01
+  device: GW2AR-LV18QN88C8/I7
+  tns: 0
+  setup_violated_endpoints: 0
+  hold_violated_endpoints: 0
+  clk_pixel_fmax_mhz: 29.148   # constraint 25.200
+  clk_x5_fmax_mhz: 640.163     # constraint 126.000
+  clk_sdram_fmax_mhz: 56.031   # constraint 40.501
+  qspi_sck_fmax_mhz: 157.485   # constraint 40.000
+  logic_pct: 56
+  register_pct: 36
+  cls_pct: 75
+  bsram: "40/46"
+  dsp: "12/24"
+  rpll: "2/2 (100%)"
+
+decision: >
+  Regression PASS. The scaler-rewrite branch is compile-clean, elaboration-clean,
+  co-sim green on the production 2bpp/RGB565 paths, and PnR-clean with TNS=0.
+  No new timing violations vs prior scaler-rewrite-p3b proof (clk_pixel Fmax 29.148 MHz,
+  BSRAM 40/46, DSP 12/24). Merge to main is recommended once the PM accepts the
+  residual external-review F1/F7 items and the stale PROJECT_PLAN.md link are handled.
+
+known_deviations:
+  - Scaled (>1x) bitmap/indexed modes are implemented and sim-proven but documented
+    as dormant/experimental; production path remains 1x SDRAM Layer 0.

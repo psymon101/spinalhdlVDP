@@ -1,5 +1,47 @@
 # spinalhdlVDP Changelog
 
+## 2026-07-28 — External Review Closeouts: Scaler Docs, Latency Table, HDMI-TX Black Box (DONE)
+
+- **Scaler productization docs (F5)** — PM disposition: scaled bitmap/indexed modes are **dormant/experimental**. `VDP_PROGRAMMING_GUIDE.md` §scaling now states that >1x scaled modes are implemented in RTL but not supported for general host use; production remains 1x scale via SDRAM Layer 0.
+- **Pipeline latency / sync documentation (F8)** — Added latency-alignment table to `VDP_PROGRAMMING_GUIDE.md` §8 describing logical coordinates, composited color, display enable, and overlay timing. Added 2-cycle digital alignment assertion to `VdpInnerBorderCoSim.scala`.
+- **HDMI TX black-box review (HDMI-TX)** — BrightForge completed read-only assessment of the actual HDMI transmitter implementation. Verdict **OK**: the implementation is open-source SV (`fpga/tang20k/tang20k_hdmi_tx.sv` + `third_party/hdl_util_hdmi/tmds_channel.sv`) with phase-aligned ÷5 clocks, PLL-lock-gated reset, and standard OSER10 serialization. No RTL change, no follow-up lane. Review report: `kb/reviews/hdmi_tx_blackbox_review_2026-07-28.md`.
+- **Doc-impact tracker:** `PROJECT_PLAN/external_review_doc_impact.md` updated; F5 and HDMI-TX rows marked **Done**.
+- **Status:** `PROJECT_PLAN/STATUS.md` rows closed; task files updated to `DONE`.
+
+## 2026-07-25 — External Static Review Tier A Fixes (DONE)
+
+- **External static review of Tang Nano 20K VDP RTL** produced ten findings; the team assessed each against the canonical QSPI/ESP32-P4 host-driven production path.
+- **Tier A — confirmed low-risk fixes (commit `10756d1`):**
+  - `TopTang20kHdmi` bootstrap `lastStepIdx` range corrected so the standalone (`useHostInit=false`) diagnostic path writes the default linestate table instead of skipping it.
+  - Layer 1 fetch pixel address wired to `layer1FetchPixelAddr` (was `layer0FetchPixelAddr`).
+  - `ScrollWrap.scala` comment corrected (`foldRight` → `foldLeft`).
+- **Impact:** Both F2 and F3 are latent in production (`useHostInit=true`, `enableL1Fetch=false`) but are real wiring/logic bugs for standalone/L1 paths.
+- **Proof:** `sbt compile` + `TopTang20kHdmiVerilog` elaborate PASS; 2bpp regression all green (`Indexed2bppFineCoSim` MATCH, `Indexed2bppCheckerCoSim` CLEAN, `Indexed2bppFrameCoSim` LEFT-EDGE CLEAN / ROW-CODED 479/480 / shear 0px); Gowin PnR TNS=0, worst setup slack +4.596 ns.
+- **Doc updates:** CoralReef added `GOTCHA-037`, `VDP_PROGRAMMING_GUIDE.md` notes on Layer 1 scheduling surface and internal bootstrap linestate, and `PROJECT_PLAN/external_review_doc_impact.md` tracking file.
+- **Tier B/C items** (HDMI reset sequencing, `LineBuffer` BSRAM inference, RGB565 direct-color delay, scaler architecture, `BasicPatternSource` pipelining) remain open for measurement / backlog per PM disposition.
+
+## 2026-07-20 — HAM6 Shelved + 2bpp Indexed Replacement Mode (DONE)
+
+- **HAM6 Removal / Display Lane Reframe (#14224)** — Owner-directed scope change.
+  - **HAM6 render mode is shelved** from the active critical path; `bpp=0b11` is reserved for future work.
+  - **Replacement reference mode:** basic **2bpp indexed-color bitmap** (`bpp=0b01`) uploaded via the proven word-drain QSPI transport.
+  - BrightForge removes `HamDecoder.scala` and HAM6-specific paths from `VdpTop`; BronzeGate ports `firmware/esp32p4_qspi_proof/` to the 2bpp indexed pattern.
+  - **Hardware proof achieved (#14232):** visible indexed bars rendered after adding the missing per-line **LINESTATE L0-enable** step (`0x0000..0x01DF = 0x0800`). Root cause was a documentation/spec gap, not an RTL bug.
+  - **RTL notes:** 2bpp indexed row stride is hardwired to 128 bytes; attribute plane must be uploaded with identity value `0xE4`.
+  - CoralReef updates `VDP_PROGRAMMING_GUIDE.md` §12, `README.md`, and `CHANGELOG.md` to reflect the shelved status and document the corrected 2bpp indexed sequence.
+
+## 2026-07-19 — QSPI Front-End Restoration & DOC-AUDIT-184 Phase 3 (DONE)
+
+- **QSPI Front-End Restoration (QSPI-SI-CEILING-183)** — RTL compile fix landed.
+  - Restored mis-archived `QspiSlave.scala` + `QspiSlaveSim.scala` to `hw/spinal/spinalhdlvdp/` (commit `7893811`).
+  - `sbt compile` clean; `TopTang20kHdmi` elaboration PASS; 4 targeted QSPI sims PASS.
+  - Fresh bitstream built/flashed/verified: `fpga/tang20k/impl/pnr/project.fs` SHA-256 `6c94e4efe3c208c390c1dde4a9403ce87354b79b39e72aa362f6c538b08dee6f`.
+  - The repo-wide `Qspi`→`LegacySpi` rename was never committed and is **de-scoped** from this lane.
+- **DOC-AUDIT-184 Phase 3 — Qspi* Naming Reconciliation** — DONE
+  - Reconciled top-level docs (`README.md`, `PROJECT_PLAN.md`, `CHANGELOG.md`, `VDP_PROGRAMMING_GUIDE.md` §1/§11, `GLOSSARY.md`) to the actual on-disk RTL naming: `QspiSlave`, `QspiDecoder`, `QspiSdramBridge`.
+  - Canonical Tang Nano 20K host path updated to **QSPI/ESP32-P4**; i80/ESP32-S3 retired to historical reference.
+  - Final report signed off by CoralReef and CyanPeak in commit `e21a3fc`; STATUS.md updated to DONE in commit `99fdbe4`.
+
 ## 2026-06-16 — Soft Reset & Spec Sync (DONE)
 
 - **VDP Soft Reset (VDP-SOFT-RESET-135)** — DONE (#12665)

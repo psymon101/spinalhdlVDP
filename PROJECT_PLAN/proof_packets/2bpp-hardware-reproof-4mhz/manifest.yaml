@@ -1,0 +1,50 @@
+lane: 2bpp-hardware-reproof-4mhz
+owner: BronzeGate
+status: PASS
+date: 2026-07-26
+branch: topazcliff/migration-phase11
+source_commit: f7353347428224994aad78390221c206513cd9f8
+bitstream:
+  path: fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs
+  sha256: a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c
+firmware:
+  elf:
+    path: PROJECT_PLAN/archive/firmware_tests/esp32p4_checkerboard/build/esp32p4_checkerboard.elf
+    sha256: be6bbc001c9215c95e36ba7dee2c22b4d360ce77188cd959988a5195c8a89326
+  bin:
+    path: PROJECT_PLAN/archive/firmware_tests/esp32p4_checkerboard/build/esp32p4_checkerboard.bin
+    sha256: 00ec15b353465b8d92b8ff7ff33b0cb2630926b5ed9dbb37e6e560c593313b65
+  partition:
+    path: PROJECT_PLAN/archive/firmware_tests/esp32p4_checkerboard/build/partition_table/partition-table.bin
+    sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
+flash_method: esptool.py write_flash (PM-approved fallback; idf.py --no-build unsupported)
+serial_proof:
+  file: serial_proof_exact_approved.log
+  sha256: 870fde17d2bc323e886431031e312080e555dcff7a6f114a49a24a397a6c7204
+  key_results:
+    actual_freq: 4000000
+    health_before_upload: raw=0x00000000 overflow=0 malformed=0
+    health_after_upload: raw=0x00000000 overflow=0 malformed=0
+    health_after_enable: raw=0x00000000 overflow=0 malformed=0
+    basic_readback: PASS
+    row200_readback: PASS
+    checkerboard_test: PASS
+capture:
+  yuyv_raw:
+    file: yuyv_exact_approved_720x480_3frames.yuyv
+    sha256: a2094a30934f9dc6f0a81eac913fd03cd802d9b07ff15e2c597f8f0baffe5b19
+    format: YUYV 720x480
+  png_frames:
+    - file: yuyv_exact_approved_frame_01.png
+      sha256: d35ecc33c0fba5383660ceb09459312d0a4621f9236d78808b457ec803a5a3b5
+    - file: yuyv_exact_approved_frame_02.png
+      sha256: d35ecc33c0fba5383660ceb09459312d0a4621f9236d78808b457ec803a5a3b5
+    - file: yuyv_exact_approved_frame_03.png
+      sha256: d35ecc33c0fba5383660ceb09459312d0a4621f9236d78808b457ec803a5a3b5
+quarantined:
+  note: prior ad-hoc flashed build (not PM-approved) retained for audit only
+  files:
+    - serial_proof_instrumented_flash_mismatch.log
+    - yuyv_frame_01.png
+    - yuyv_frame_02.png
+    - yuyv_frame_03.png

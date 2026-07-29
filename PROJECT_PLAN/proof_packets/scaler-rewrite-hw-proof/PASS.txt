@@ -1,0 +1,46 @@
+scaler-rewrite-hw-proof — HARDWARE VALIDATION PASS (BrightForge)
+================================================================
+Date: 2026-07-28
+Lane: scaler-rewrite-hw-proof (hardware follow-up to external-review-scaler-rewrite)
+Branch: topazcliff/scaler-rewrite
+Owner: BrightForge | PM: TopazCliff | Firmware: BronzeGate
+
+VERDICT: PASS — the source-coordinate scaler (ScaleCoordGen, retiring the sink
+PixelRepeatScaler) is validated on real Tang Nano 20K hardware. 1× is byte-
+equivalent to the HW-proven baseline (no regression); 2×/3× produce correct,
+uniform, auto-centered scaling with exact predicted bezels.
+
+PHASE A — FPGA build/flash (BrightForge, autonomous)
+- RTL 7f8dde6; Verilog top_tang20k.v 662dcfad (logic == P4 b246aed7; only // Git
+  hash header comment differs).
+- Fresh Gowin V1.9.12.01 bitstream 38002d5c (GW2AR-LV18QN88C8/I7, place=2 route=2).
+  TNS=0 all clocks (clk_pixel/clk_x5/I_clk/clk_sdram/qspi_sck, setup+hold);
+  clk_pixel Fmax 30.705 MHz (+21.8%); BSRAM 40/46; DSP 50%.
+- Flash SRAM-load exit 0; HDMI-lock smoke PASS (3 byte-identical frames, black
+  backdrop + canary).
+
+PHASE B/C — content + scaled modes (BronzeGate firmware a3e8ebd + 2f5be56 + 76f67ad;
+BrightForge capture/measurement). No FPGA reflash between modes.
+  Mode 0 (1×, SCALE_CTRL 0x00): zero bezel; 96.69% binarized structural match to
+    a5a047a2 baseline, identical YAVG 127.3 -> no 1× regression.
+    [Note: first mode-0 run was rejected by BrightForge — display still showed the
+     persisted 2× SCALE_CTRL (FPGA register survives P4 reset); fixed by explicit
+     LOGIC_WIDTH/HEIGHT + SCALE_CTRL=0 write (2f5be56).]
+  Mode 2 (2×, 0xA2, logic 300×220): bezel 20×20, visible 600×440 — exact.
+  Mode 3 (3×, 0xB3, logic 200×150): bezel 20×15, visible 600×450 — exact;
+    checker cell uniformity std=0.0 both axes (no skipped/duplicated columns).
+
+All firmware runs: health raw=0/overflow=0/malformed=0, six readbacks PASS,
+LINESTATE PASS, SCALER_PROOF pass=1.
+
+CAPTURE METHOD: /dev/video0 YUYV 720×480; discard frame 0 (UVC sync glitch),
+verify settled-frame identity, then measure. H capture scale 640→720 = 1.125×.
+
+ARTIFACTS: synthesis/PnR_PASS.md, generated_rtl/REGEN_provenance.md,
+hardware/PROCEDURE.md + RESULTS.md, captures/ANALYSIS.md +
+{phaseB_1x,phaseC_2x,phaseC_3x}/, hashes.sha256, manifest.yaml.
+Bitstream preserved: fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs.
+HW authority a5a047a2 preserved (project_a5a047a2_bankcompletion.fs).
+
+REVIEW: CyanPeak procedure/classification review requested (#14463). PM closeout
+pending review.

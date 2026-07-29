@@ -67,7 +67,32 @@ object I80HostInterfaceSim extends App {
     assert(blkBytes.toSeq == Seq(0xDE, 0xAD, 0xBE, 0xEF), s"block payload wrong: $blkBytes")
     assert(!overflow, "unexpected block overflow")
 
+    // --- DC/WR race regression (HAM-DECODER-171 / CyanPeak #12977) ---
+    // Reproduce the real failure: the host flips DC high to start the data phase on the
+    // SAME edge it deasserts WR for the addr-hi byte, so the 2-FF-synchronized `dcS` is
+    // already high by the time `wrRise` reaches the FSM. Pre-fix, `sAddrHi`'s `&& !dcS`
+    // guard then evaluated false and the FSM stalled (the write was lost → black frame).
+    // Post-fix, internal transitions advance on `csActive && wrRise` alone, so the write
+    // still lands. Asserts the register write commits despite the racy DC edge.
+    captured.clear()
+    def wrByteDcFlipAtEdge(b: Int, dcAfter: Boolean): Unit = {
+      dut.io.dIn #= b
+      dut.io.wr #= false; dut.clockDomain.waitSampling(4)   // WR asserted (DC stable for this byte)
+      dut.io.wr #= true;  dut.io.dc #= dcAfter              // WR rises AND DC flips on the same edge
+      dut.clockDomain.waitSampling(2)
+    }
+    dut.io.cs #= false; dut.io.dc #= false
+    wrByte(false, 0x00)                            // opcode reg-write (DC=0, stable)
+    wrByte(false, 0x47)                            // addr lo (DC=0)
+    wrByteDcFlipAtEdge(0x03, dcAfter = true)       // addr hi (DC=0 during byte) → DC→1 at the WR edge (RACE)
+    wrByte(true, 0x34); wrByte(true, 0x12)         // data lo/hi (DC=1)
+    dut.clockDomain.waitSampling(8)
+    dut.io.cs #= true; dut.clockDomain.waitSampling(5)
+    println(s"[sim] racy reg writes: ${captured.map { case (a, d) => f"0x$a%04X=0x$d%04X" }.mkString(", ")}")
+    assert(captured.size == 1 && captured.head == (0x347, 0x1234),
+           s"DC/WR race regression: addr-hi DC-flip-at-edge lost the write: $captured")
+
     println("I80HostInterfaceSim: PASS — reg write 0x0347=0x1234; reg read 0xBEEF; " +
-            "block 0x012345 <- DE AD BE EF (no overflow)")
+            "block 0x012345 <- DE AD BE EF (no overflow); DC/WR-race reg write 0x0347=0x1234")
   }
 }

@@ -1,0 +1,217 @@
+/*
+ * ESP32-P4 scaler hardware-proof host.
+ *
+ * SCALER_PROOF_MODE=0: 1x checkerboard regression (explicit 640x480 / 1x reset)
+ * SCALER_PROOF_MODE=2: 2x centered checkerboard, logic 300x220
+ * SCALER_PROOF_MODE=3: 3x centered checkerboard, logic 200x150
+ */
+#include <inttypes.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <string.h>
+
+#include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#include "vdp_host.h"
+#include "vdp_mode0.h"
+
+#ifndef SCALER_PROOF_MODE
+#define SCALER_PROOF_MODE 0
+#endif
+
+enum {
+    WIDTH = 320,
+    HEIGHT = 240,
+    ROW_STRIDE = 128,
+    IMAGE_BYTES = HEIGHT * ROW_STRIDE,
+    IMAGE_WORDS = IMAGE_BYTES / 2,
+    CHECKER_SQUARE = 32,
+    MAX_CHUNK_WORDS = 253,
+    SEL_MAGIC = 0x00,
+    SEL_SDRAM = 0x08,
+    SEL_TRANSPORT_HEALTH = 0x0A,
+    BITMAP_BASE = 0x100000,
+    ATTR_BASE = 0x110000,
+    REG_SDRAM_READ_ADDR_LO = 0x0326,
+    REG_SDRAM_READ_ADDR_HI = 0x0327,
+};
+
+static const char *TAG = "p4_scaler_proof";
+static uint16_t s_bitmap[IMAGE_WORDS];
+static uint16_t s_attr[IMAGE_WORDS];
+
+static void build_checkerboard(void)
+{
+    uint8_t *bitmap = (uint8_t *)s_bitmap;
+    uint8_t *attr = (uint8_t *)s_attr;
+    memset(bitmap, 0, IMAGE_BYTES);
+    memset(attr, 0xE4, IMAGE_BYTES);
+    for (unsigned y = 0; y < HEIGHT; ++y) {
+        for (unsigned x = 0; x < WIDTH; ++x) {
+            const uint8_t color = (uint8_t)(((x / CHECKER_SQUARE) ^
+                                             (y / CHECKER_SQUARE)) & 1u);
+            const unsigned byte_index = y * ROW_STRIDE + (x / 4u);
+            const unsigned shift = 6u - ((x & 3u) * 2u);
+            bitmap[byte_index] |= (uint8_t)(color << shift);
+        }
+    }
+}
+
+static bool health(const char *label)
+{
+    const uint32_t raw = vdp_read_status(SEL_TRANSPORT_HEALTH);
+    const bool overflow = (raw & 0x1u) != 0u;
+    const bool malformed = (raw & 0x2u) != 0u;
+    ESP_LOGI(TAG, "%s raw=0x%08" PRIX32 " overflow=%u malformed=%u",
+             label, raw, overflow ? 1u : 0u, malformed ? 1u : 0u);
+    return vdp_last_error() == VDP_HOST_ERR_NONE && !overflow && !malformed;
+}
+
+static bool write_linestate(void)
+{
+    uint16_t words[480];
+    for (unsigned i = 0; i < 480u; ++i) words[i] = 0x0800u;
+    for (unsigned offset = 0; offset < 480u; offset += MAX_CHUNK_WORDS) {
+        const uint16_t count = (uint16_t)(((480u - offset) < MAX_CHUNK_WORDS) ?
+                                          (480u - offset) : MAX_CHUNK_WORDS);
+        vdp_reg_write_burst(0u + offset, words + offset, count);
+        if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
+    }
+    ESP_LOGI(TAG, "LINESTATE PASS lines=480 chunks=2");
+    return true;
+}
+
+static bool load_palette(void)
+{
+    vdp_mode0_palette_write_rgb888(0u, 0u, 0u, 0u);
+    vdp_mode0_palette_write_rgb888(1u, 255u, 255u, 255u);
+    vdp_mode0_palette_write_rgb888(2u, 255u, 0u, 0u);
+    vdp_mode0_palette_write_rgb888(3u, 0u, 0u, 255u);
+    return vdp_last_error() == VDP_HOST_ERR_NONE;
+}
+
+static bool upload_plane(uint32_t base, const uint16_t *words, const char *name)
+{
+    vdp_host_set_speed_hz(4000000u);
+    for (unsigned offset = 0; offset < IMAGE_WORDS; offset += MAX_CHUNK_WORDS) {
+        const uint16_t count = (uint16_t)(((IMAGE_WORDS - offset) < MAX_CHUNK_WORDS) ?
+                                          (IMAGE_WORDS - offset) : MAX_CHUNK_WORDS);
+        vdp_sdram_write(base + (offset * 2u), words + offset, count);
+        if (vdp_last_error() != VDP_HOST_ERR_NONE) {
+            ESP_LOGE(TAG, "%s upload failed offset=%u err=%d", name, offset,
+                     vdp_last_error());
+            return false;
+        }
+    }
+    ESP_LOGI(TAG, "%s uploaded bytes=%u clock=4000000", name, IMAGE_BYTES);
+    return true;
+}
+
+static bool readback_word(uint32_t addr, uint32_t *value)
+{
+    vdp_host_set_speed_hz(2000000u);
+    vdp_reg_write(REG_SDRAM_READ_ADDR_LO, (uint16_t)addr);
+    vdp_reg_write(REG_SDRAM_READ_ADDR_HI, (uint16_t)(addr >> 16));
+    if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
+    *value = vdp_read_status(SEL_SDRAM);
+    return vdp_last_error() == VDP_HOST_ERR_NONE;
+}
+
+static bool verify_sample(uint32_t addr)
+{
+    const uint8_t *bitmap = (const uint8_t *)s_bitmap;
+    const uint32_t expected = (uint32_t)bitmap[addr - BITMAP_BASE] |
+                              ((uint32_t)bitmap[addr - BITMAP_BASE + 1u] << 8) |
+                              ((uint32_t)bitmap[addr - BITMAP_BASE + 2u] << 16) |
+                              ((uint32_t)bitmap[addr - BITMAP_BASE + 3u] << 24);
+    uint32_t actual = 0;
+    if (!readback_word(addr, &actual) || actual != expected) {
+        ESP_LOGE(TAG, "READBACK FAIL addr=0x%06" PRIX32
+                 " expected=0x%08" PRIX32 " got=0x%08" PRIX32,
+                 addr, expected, actual);
+        return false;
+    }
+    ESP_LOGI(TAG, "READBACK PASS addr=0x%06" PRIX32 " value=0x%08" PRIX32,
+             addr, actual);
+    return true;
+}
+
+static bool verify_readback(void)
+{
+    static const uint32_t offsets[] = { 0u, 8u, 16u, 32u * ROW_STRIDE,
+                                        200u * ROW_STRIDE, 201u * ROW_STRIDE };
+    bool pass = true;
+    for (unsigned i = 0; i < sizeof(offsets) / sizeof(offsets[0]); ++i) {
+        pass &= verify_sample(BITMAP_BASE + offsets[i]);
+    }
+    return pass;
+}
+
+static bool configure_display(void)
+{
+    const vdp_mode0_bitmap_cfg_t bitmap = {
+        .ctrl = 0x0002u,
+        .bitmap_base = BITMAP_BASE,
+        .attr_base = ATTR_BASE,
+        .bitmap_stride = ROW_STRIDE,
+        .attr_stride = ROW_STRIDE,
+        .height = HEIGHT,
+    };
+    const vdp_mode0_rect_t full_frame = { 0u, 640u, 0u, 480u };
+
+    vdp_mode0_set_layer_enable(0u);
+    vdp_mode0_set_mode_select(0u);
+    vdp_mode0_set_bitmap_cfg(&bitmap);
+    vdp_mode0_set_border_window(&full_frame, 0x0101u);
+    vdp_mode0_set_backdrop_index(0u);
+    if (!load_palette() || vdp_last_error() != VDP_HOST_ERR_NONE) return false;
+
+#if SCALER_PROOF_MODE == 2
+    vdp_mode0_set_logic_size(300u, 220u);
+    vdp_mode0_set_scale_ctrl(vdp_mode0_scale_ctrl(2u, 2u, true));
+    ESP_LOGI(TAG, "scale=2x logic=300x220 expected_bezel=20x20 ctrl=0x%02X",
+             vdp_mode0_scale_ctrl(2u, 2u, true));
+#elif SCALER_PROOF_MODE == 3
+    vdp_mode0_set_logic_size(200u, 150u);
+    vdp_mode0_set_scale_ctrl(vdp_mode0_scale_ctrl(3u, 3u, true));
+    ESP_LOGI(TAG, "scale=3x logic=200x150 expected_bezel=20x15 ctrl=0x%02X",
+             vdp_mode0_scale_ctrl(3u, 3u, true));
+#else
+    /* SCALE_CTRL persists across MCU resets while the FPGA remains loaded. */
+    vdp_mode0_set_logic_size(640u, 480u);
+    vdp_mode0_set_scale_ctrl(0u);
+    ESP_LOGI(TAG, "scale=1x explicit logic=640x480 ctrl=0x00");
+#endif
+    return vdp_last_error() == VDP_HOST_ERR_NONE;
+}
+
+void app_main(void)
+{
+    bool pass = true;
+    vdp_host_init();
+    if (vdp_last_error() != VDP_HOST_ERR_NONE) {
+        ESP_LOGE(TAG, "host init failed err=%d", vdp_last_error());
+        return;
+    }
+    ESP_LOGI(TAG, "scaler proof mode=%d magic=0x%08" PRIX32,
+             SCALER_PROOF_MODE, vdp_read_status(SEL_MAGIC));
+
+    build_checkerboard();
+    pass &= configure_display();
+    pass &= health("HEALTH_BEFORE_UPLOAD");
+    pass &= upload_plane(BITMAP_BASE, s_bitmap, "bitmap");
+    pass &= upload_plane(ATTR_BASE, s_attr, "attr");
+    vdp_host_set_speed_hz(2000000u);
+    pass &= health("HEALTH_AFTER_UPLOAD");
+    pass &= verify_readback();
+    pass &= write_linestate();
+
+    vdp_mode0_set_bitmap_ctrl(0x0003u);
+    vdp_mode0_set_layer_enable(0x0001u);
+    pass &= health("HEALTH_AFTER_ENABLE");
+    ESP_LOGI(TAG, "SCALER_PROOF mode=%d pass=%u", SCALER_PROOF_MODE, pass ? 1u : 0u);
+
+    for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+}

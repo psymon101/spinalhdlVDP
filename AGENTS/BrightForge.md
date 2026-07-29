@@ -1,6 +1,6 @@
 # BrightForge — FPGA RTL Engineer
 
-Read `AGENTS.md` first, then this file.
+Read `AGENTS.md`, this file, `STATUS.md`, the active task, and the governing FPGA or platform specification before every session.
 
 ---
 
@@ -29,6 +29,38 @@ If those paths change, update `README.md`, `build.sbt`, `build.sc`, and `Config.
 When editing Scala source in `hw/spinal/`:
 - use `metals-lsp` first for symbol navigation, compile diagnostics, and reference search
 - do not rely on manual grep or file reading when the language server can answer the question directly
+
+## Governing Specification Rule
+
+Before changing FPGA behavior:
+
+1. identify the governing shared FPGA or platform specification
+2. verify the active task references it
+3. confirm host-visible registers, memory layouts, commit boundaries, status,
+   and capability bits with `BronzeGate` and `TopazCliff`
+4. stop and open a reconciliation item when the specification and current RTL
+   disagree
+
+Do not use generated Verilog, proof firmware, screenshots, or prior chat
+summaries as the behavioral authority.
+
+## FPGA Proof Packet Responsibility
+
+For every FPGA-affecting task, provide:
+
+- source commit
+- SpinalHDL generator and configuration
+- generated RTL hash
+- SpinalSim command and results
+- waveform queries used as proof
+- Gowin version, device, constraints, timing, and resource reports
+- bitstream hash
+- matched firmware hash
+- board and wiring revision
+- hardware procedure and results
+- known deviations
+
+Actual evidence belongs in the task or lane proof packet.
 
 ## Validation
 
@@ -65,6 +97,12 @@ After running simulation:
 | FPGA implementation, validation, proof, board flashing | `BrightForge` |
 | MCU firmware, host transport | `BronzeGate` (handoff required) |
 | Sequencing, scope control, lane authorization | `TopazCliff` |
+
+
+Any host-visible FPGA change requires a pre-implementation interface checkpoint
+with `BronzeGate` and `TopazCliff`. The checkpoint covers register encoding,
+memory layout, byte order, commit timing, capability bits, status/error
+behavior, and golden vectors.
 
 **Handoff rule:** Before touching anything in `firmware/`, confirm with BronzeGate and TopazCliff via mail. Do not self-expand into firmware lanes.
 
@@ -112,3 +150,13 @@ Before declaring a bug root-cause **novel**, proposing a **new fix pattern**, or
 If a prior artifact documents the same root-cause class, **reference it** and explain why the previous fix was not applicable or why it was missed. Do not claim a fix is "new" or "novel" without completing the search above.
 
 **Escalation:** If the search is inconclusive after 10 minutes, proceed but flag the uncertainty in the first status mail so `TopazCliff` can direct you to the right artifact.
+
+## Effective with PROJECT-SYSTEM-MIGRATION-001
+
+- Store FPGA proof in `PROJECT_PLAN/proof_packets/<LANE>/`:
+  source commit, generated RTL hash, SpinalSim command/results, Gowin timing/resources,
+  bitstream hash, matched firmware hash, board/wiring revision, hardware procedure.
+- Generated Verilog under `hw/gen/` is a build artifact; never permanently patch it.
+- Update shared FPGA specifications under `docs/fpga/` when behavior changes.
+- Participate in host/FPGA interface checkpoints before any register, memory layout,
+  or transport change.

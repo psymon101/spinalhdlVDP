@@ -1,0 +1,68 @@
+lane: scaler-rewrite-hw-proof
+owner: BrightForge
+pm: TopazCliff
+branch: topazcliff/scaler-rewrite
+source_lane: external-review-scaler-rewrite
+governing: AGENTS.md 100% hardware-proof rule; task PROJECT_PLAN/TASKS/scaler-rewrite-hw-proof.md
+scope: hardware validation (build + flash + 1x/>1x capture) of source-coordinate scaler
+
+source:
+  rtl_commit: 7f8dde6            # scaler RTL settled (P4 timing fix)
+  head_at_build: 5f82f94        # branch tip (STATUS/gitignore only, no RTL)
+  firmware_commit: 76f67ad       # BronzeGate mode-3 proof build; reset correction is 2f5be56
+  generated_verilog: hw/gen/top_tang20k.v
+  verilog_sha256: 662dcfad52c017cec92b16c881ca361f26b791e4c4310f47645cd1e108212704
+  verilog_note: logic-identical to P4 b246aed7; only // Git hash header comment differs
+
+build:
+  tool: Gowin V1.9.12.01
+  device: GW2AR-LV18QN88C8/I7
+  options: place=2 route=2 timing_driven correct_hold_violation
+  bitstream: fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs
+  bitstream_sha256: 38002d5c2bd1ca00c9460fc0349874a5e0f65afad120ab19c26b2144d41b9c09
+  timing: TNS=0 all clocks (clk_pixel/clk_x5/I_clk/clk_sdram/qspi_sck, setup+hold)
+  fmax_clk_pixel: 30.705 MHz (constraint 25.2, +21.8%)
+  resources: Logic 56% / Register 36% / CLS 75% / BSRAM 40/46 / DSP 50%
+
+firmware:
+  target: ESP32-P4-Function-EV-Board (chip revision v1.3)
+  tool: ESP-IDF v6.0.2; riscv32-esp-elf; 360 MHz; QSPI 4 MHz bulk / 2 MHz control
+  revision_config: sdkconfig.defaults permits P4 revisions v1.0-v1.99
+  mode_1x_elf_sha256: 8ae11860f1849d57a91794c8e36e895fc2fac8cdc19cbf41261744809ec96747
+  mode_1x_bin_sha256: c28f48a1324c34a639c3bc116f0276be86240337c4700ba040e427b8a658b336
+  mode_2x_elf_sha256: 3598bd575c7ec5561da3164231905a3b5514073b0b1c9be9ce3a5cfac87f2040
+  mode_2x_bin_sha256: 4f89402c25a5897bea44c1d200cdadc7c70359eb97ef69576d0d0be6983689bd
+  mode_3x_elf_sha256: c5a6efdecc307e1f41e5cea946aca21e10982f3d2deed154bf41d556b1cc26bf
+  mode_3x_bin_sha256: d24efa870084f9b47d8127109afc5c1586e254d3034dbc59c9bee151ea0b7ed3
+  mode_3x_note: logic 200x150, SCALE_CTRL=0xB3, explicit 3x centered proof build from commit 76f67ad
+  mode_1x_reset_elf_sha256: a6dbc34448146c1419b4a2443cff142b07ef76f606e600ba1a3d85628427aff1
+  mode_1x_reset_bin_sha256: db092455abfc060dccb29f01e46c050bfb18f7195b542f253c439a9d913726db
+  mode_1x_reset_note: explicit LOGIC_WIDTH=640, LOGIC_HEIGHT=480, SCALE_CTRL=0 because FPGA register state persists across MCU reset; correction commit 2f5be56
+  transport_health: all captured runs raw=0x00000000; overflow=0; malformed=0
+  content_readback: six deterministic bitmap samples PASS in each mode
+  serial_logs: firmware/phase_b_1x_serial.log; firmware/phase_b_1x_reset_serial.log; firmware/phase_c_2x_serial.log; firmware/phase_c_3x_serial.log
+
+hardware:
+  board: Tang Nano 20K (GW2A(R)-18C)
+  baseline_bitstream: a5a047a2 (project_a5a047a2_bankcompletion.fs, preserved)
+  phaseA_smoke: PASS  # flash exit 0, HDMI locked, 3 byte-identical frames (12038428), black backdrop + cyan canary
+  phaseB_1x: PASS     # VIDEO: mode0 zero bezel; 96.69% match to a5a047a2 baseline, YAVG 127.3 — no 1x regression. captures/phaseB_1x/mode0_1x.png 00cf030f
+  phaseC_2x: PASS     # VIDEO: bezel 20x20 src, visible 600x440 (exact). captures/phaseC_2x/mode2_2x_scaled.png 422d774c
+  phaseC_3x: PASS     # VIDEO: bezel 20x15 src, visible 600x450 (exact), checker cell uniformity std=0. captures/phaseC_3x/mode3_3x_scaled.png 13b609cd
+  capture_method: /dev/video0 YUYV 720x480; discard frame 0 (UVC sync glitch); verify settled-frame identity; H scale 640->720=1.125x
+  mode0_false_start_note: first mode-0 run still showed persisted 2x SCALE_CTRL (FPGA reg survives P4 reset); BrightForge caught it; fixed by explicit SCALE_CTRL=0 (2f5be56)
+
+mail:
+  assignment: 14450
+  ack_plan: 14451
+  phaseA_boundary: 14452
+  smoke_pass_handoff: 14453
+  firmware_proof: 14455
+  capture_coord: 14456
+  mode0_persistence_finding: 14458
+  mode0_reset_proof: [14459, 14460]
+  mode0_verified_go_mode3: 14461
+  mode3_live: 14462
+  capture_complete_review_request: 14463
+
+status: PASS — all three modes (1x/2x/3x) verified on HW; CyanPeak procedure/classification review requested (#14463); PM closeout pending review

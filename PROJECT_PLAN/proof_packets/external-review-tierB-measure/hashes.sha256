@@ -1,0 +1,8 @@
+# external-review-tierB-measure proof-packet hashes (sha256)
+b618b6f0d9d822d2136c9740fdc589dd57a8a4572042d12951ded7f23ff287e6  PASS.txt
+137770891f780ab4f3640bf4dc57a49a3249358fe2cd737764db9e107eb93bbc  review.md
+74a1d59ec27a8a379d7fa76f3bbca171bddfaf0f7969718af68bdd6127f44b6c  item1_cold_start_results.txt
+d35ecc33c0fba5383660ceb09459312d0a4621f9236d78808b457ec803a5a3b5  captures/baseline_checkerboard_locked.png
+12038428e646bfc556aea90c5163b21376f6df8b374455efac5b8875ef8311d2  captures/coldstart_backdrop_representative.png
+# bitstream authority (HW-proven under 2bpp-hardware-reproof-4mhz):
+a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c  /home/itadmin/github/spinalhdlVDP/fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs

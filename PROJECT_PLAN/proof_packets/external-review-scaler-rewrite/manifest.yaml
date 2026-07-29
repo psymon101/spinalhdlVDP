@@ -1,0 +1,49 @@
+lane: external-review-scaler-rewrite
+owner: BrightForge
+pm: TopazCliff
+branch: topazcliff/scaler-rewrite
+governing_spec: kb/reviews/external_static_review_2026-07-25.md (Priority 4/5)
+scope: sim + PnR only (no hardware flash)
+
+commits:
+  P0_scale_coord_gen: eb08b3d
+  P1a_integration: 49040ae
+  P1b_retire_sink_scaler: 5514d1d
+  P3a_gt1x_proof: 15d5b8e
+  P4_timing_recip_mult: 38ee153
+  P4_timing_register_outputs: 7f8dde6
+  P4_status_proof: f503272
+  P5_separability_check: c93ad7a
+  P5_review_resolution: 9314aa0
+
+artifacts:
+  generated_verilog: hw/gen/top_tang20k.v
+  bitstream: fpga/tang20k/impl/pnr/project.fs   # NOT flashed; sim+PnR lane
+  preserved_authority_fs: fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs
+  device: GW2AR-LV18QN88C8/I7
+  tool: Gowin V1.9.12.01 (place=2 route=2 timing_driven)
+
+results:
+  regression_1x: byte-identical (Indexed2bppFine/Frame, DirectColorFrame, VdpInnerBorder, BitmapDirectColor)
+  proof_gt1x: ScaleUpFrameCoSim PASS (stripes run-length 1/2/3; checker spacing 32/48; 0 viol)
+  timing: clk_pixel TNS=0, Fmax 30.705 MHz (+21.8%); all clocks TNS=0
+  resource: BSRAM 42->40 (-2); DSP 50%; CLS 75%
+
+mail:
+  assignment: 14432
+  plan_approved: 14434
+  p1a_ack: 14436
+  option_A: 14439
+  p3a_report: 14440
+  p3b_spinout: 14441
+  p4_fail_report: 14442
+  p4_pass_report: 14444
+
+reviews:
+  BrightForge: PASS
+  CyanPeak: PASS (#14447)
+  TopazCliff: PASS
+
+decision: PASS — lane DONE; P3b spun out to follow-up lane
+spun_out:
+  - external-review-scaler-rewrite-P3b (bitmap/indexed >1x vertical scaling; host-visible; needs BronzeGate)

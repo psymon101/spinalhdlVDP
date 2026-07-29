@@ -113,6 +113,16 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
 
     always { when(!csActive) { goto(sOpcode) } }    // CS deassert ends/aborts txn
 
+    // HAM-DECODER-171 CP-D blocker fix (CyanPeak #12977 / PM #12979): i80 DC/WR race.
+    // The host pulls DC high to start the data phase within ~40 ns of the addr-hi WR#
+    // edge — shorter than the clk_pixel period — so by the time `wrRise` propagates
+    // through the 2-FF `dcS` synchronizer, `dcS` has already flipped. The old guards
+    // (`wrRise && !dcS` on cmd/addr beats, `wrRise && dcS` on data beats) then compare a
+    // stale edge against current `dcS` and the FSM stalls (register writes + block
+    // uploads drop → black frame). Fix: the byte POSITION is already tracked by the FSM
+    // state, so once a transaction has started internal transitions advance on
+    // `csActive && wrRise` ALONE. `dcS` is kept only at `sOpcode` to gate command-start
+    // (DC is stably low at transaction start, before the first WR# edge — no race there).
     sOpcode.whenIsActive {
       when(csActive && wrRise && !dcS) {
         switch(dInS(7 downto 0)) {
@@ -124,28 +134,28 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
       }
     }
     sAddrLo.whenIsActive {
-      when(csActive && wrRise && !dcS) { addrReg(7 downto 0) := dInS(7 downto 0).asUInt; goto(sAddrHi) }
+      when(csActive && wrRise) { addrReg(7 downto 0) := dInS(7 downto 0).asUInt; goto(sAddrHi) }
     }
     sAddrHi.whenIsActive {
-      when(csActive && wrRise && !dcS) {
+      when(csActive && wrRise) {
         addrReg(14 downto 8) := dInS(6 downto 0).asUInt
         when(isRead) { readReqR := True; goto(sOpcode) } // read: addr latched; RD strobes return data
           .otherwise { goto(sDataLo) }
       }
     }
     sDataLo.whenIsActive {
-      when(csActive && wrRise && dcS) { dataReg(7 downto 0) := dInS(7 downto 0); goto(sDataHi) }
+      when(csActive && wrRise) { dataReg(7 downto 0) := dInS(7 downto 0); goto(sDataHi) }
     }
     sDataHi.whenIsActive {
-      when(csActive && wrRise && dcS) { dataReg(15 downto 8) := dInS(7 downto 0); regWrR := True; goto(sOpcode) }
+      when(csActive && wrRise) { dataReg(15 downto 8) := dInS(7 downto 0); regWrR := True; goto(sOpcode) }
     }
-    // ---- block-write address (3B) + length (2B), all on DC=0 beats ----
-    sBlkA0.whenIsActive { when(csActive && wrRise && !dcS) { blkAddr( 7 downto  0) := dInS(7 downto 0).asUInt; goto(sBlkA1) } }
-    sBlkA1.whenIsActive { when(csActive && wrRise && !dcS) { blkAddr(15 downto  8) := dInS(7 downto 0).asUInt; goto(sBlkA2) } }
-    sBlkA2.whenIsActive { when(csActive && wrRise && !dcS) { blkAddr(22 downto 16) := dInS(6 downto 0).asUInt; goto(sBlkL0) } }
-    sBlkL0.whenIsActive { when(csActive && wrRise && !dcS) { blkLen ( 7 downto  0) := dInS(7 downto 0).asUInt; goto(sBlkL1) } }
+    // ---- block-write address (3B) + length (2B); byte position tracked by FSM state ----
+    sBlkA0.whenIsActive { when(csActive && wrRise) { blkAddr( 7 downto  0) := dInS(7 downto 0).asUInt; goto(sBlkA1) } }
+    sBlkA1.whenIsActive { when(csActive && wrRise) { blkAddr(15 downto  8) := dInS(7 downto 0).asUInt; goto(sBlkA2) } }
+    sBlkA2.whenIsActive { when(csActive && wrRise) { blkAddr(22 downto 16) := dInS(6 downto 0).asUInt; goto(sBlkL0) } }
+    sBlkL0.whenIsActive { when(csActive && wrRise) { blkLen ( 7 downto  0) := dInS(7 downto 0).asUInt; goto(sBlkL1) } }
     sBlkL1.whenIsActive {
-      when(csActive && wrRise && !dcS) {
+      when(csActive && wrRise) {
         val fullLen = (dInS(7 downto 0).asUInt ## blkLen(7 downto 0)).asUInt
         blkLen     := fullLen
         blkLenFull := fullLen
@@ -153,9 +163,9 @@ case class I80HostInterface(dataWidth: Int = 8) extends Component {
         when(fullLen === 0) { goto(sOpcode) }.otherwise { goto(sBlkDat) }   // zero-length -> no payload
       }
     }
-    // ---- payload: each DC=1 WR beat pushes one byte into io.blockWr ----
+    // ---- payload: each WR beat pushes one byte into io.blockWr ----
     sBlkDat.whenIsActive {
-      when(csActive && wrRise && dcS) {
+      when(csActive && wrRise) {
         blkWrValidR := True
         blkWrDataR  := dInS(7 downto 0)
         blkLen      := blkLen - 1

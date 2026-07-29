@@ -1,0 +1,17 @@
+=== remote ===
+=== branch ===
+brightforge/ham-decoder-171
+=== commit ===
+958a01d61012a4043c78f330262db759d909eb73
+=== status ===
+ M PROJECT_PLAN/STATUS.md
+?? PROJECT_PLAN/TASKS/
+=== diff stat ===
+ PROJECT_PLAN/STATUS.md | 1 +
+ 1 file changed, 1 insertion(+)
+=== log (last 5) ===
+958a01d Pre-migration baseline: external docs review, status updates, agent registration rule
+5efe049 sim(2bpp): add Indexed2bppBacklogCoSim — continuous-scanout bank-completion gate
+8dc37c9 process(AGENTS): apply external reviewer's per-agent rule updates
+ce596f2 process(AGENTS): adopt external reviewer's recommended AGENTS.md
+7f8bdaa docs: stage external reviewer's documentation system and open review lane

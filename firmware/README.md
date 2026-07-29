@@ -1,62 +1,38 @@
 # spinalhdlVDP Host Firmware
 
-Host-control firmware for the Tang Nano 20K VDP. The canonical Tang Nano
-20K host path is **i80/ESP32-S3**. The legacy QSPI path (Pico 2, ESP32,
-ESP8266) remains present in the tree but is deprecated as the primary
-development target.
+This directory contains the canonical host driver library for the Tang Nano
+20K VDP. Platform-specific example sketches and proof-of-concept projects
+have been moved to [`PROJECT_PLAN/archive/firmware_tests/`](../PROJECT_PLAN/archive/firmware_tests/).
 
 ## Supported Platforms
 
 | Platform | MCU | Toolchain | Target Board | Status |
 |----------|-----|-----------|--------------|--------|
-| **ESP32-S3** | ESP32-S3 | ESP-IDF / Arduino CLI | ESP32-S3-DevKitC-1 | **Canonical / authoritative** |
-| Pico 2 | RP2350 | Pico SDK 2.2.0 | Raspberry Pi Pico 2 | Legacy QSPI |
-| ESP32 | ESP32 | Arduino CLI | ESP32 Dev1 | Legacy QSPI |
-| ESP8266 | ESP8266 | Arduino CLI | NodeMCU 1.0 (ESP-12E) | Legacy QSPI |
+| **ESP32-P4** | ESP32-P4 | ESP-IDF v6.0.2 | ESP32-P4-Function-EV-Board | **Canonical / authoritative** |
+| ESP32-S3 | ESP32-S3 | ESP-IDF / Arduino CLI | ESP32-S3-DevKitC-1 | historical, archived sketches |
+| Pico 2 | RP2350 | Pico SDK 2.2.0 | Raspberry Pi Pico 2 | legacy SPI, archived sketches |
+| ESP32 | ESP32 | Arduino CLI | ESP32 Dev1 | legacy SPI, archived sketches |
+| ESP8266 | ESP8266 | Arduino CLI | NodeMCU 1.0 (ESP-12E) | archived reference sketches |
 
 ## Tree
 
-- `libvdp/` — reusable host driver library (Task 39/55).
-  - `vdp_host.{h,c}` — Active i80 transport for ESP32-S3 (canonical)
-  - `vdp_qspi.h` — Deprecated QSPI compatibility shim (legacy only)
+- `libvdp/` — reusable host driver library.
+  - `vdp_host.{h,c}` — portable host API and legacy/platform backends
+  - `vdp_host_p4.c` — ESP32-P4 QSPI backend for the canonical host
+  - `vdp_crc8.h` — CRC-8-CCITT helper for the QSPI-CRC8-185 write-frame contract
+  - `vdp_legacySpi.h` — explicit legacy SPI transport entry point for archived sketches
   - `vdp_status.{h,c}` — status polling + vblank wait helpers
   - `vdp_upload.{h,c}` — vblank-paced asset upload
   - `vdp_mode0.{h,c}` — generic Mode0 register helpers (non-adapter-specific)
   - `vdp_copper.{h,c}` — Copper opcode encoding + program upload helpers
   - `vdp_platform.h` — platform-specific pin maps
   - canonical API reference: [`kb/libvdp/README.md`](../kb/libvdp/README.md)
-- `esp32_*/`, `esp8266_*/` — per-scenario Arduino sketches (thin wrappers)
-- `esp8266_barebones_scroll/`, `esp32_barebones_scroll/` — barebones stage-4 scroll proofs (inline bit-bang, 40-bit protocol)
-- `esp8266_barebones_sprite/`, `esp32_barebones_sprite/` — barebones Checkpoint C sprite-over-background proofs
-- `esp8266_mode2_rich_top_exercise/` — rich-top register-surface exercise via `libvdp`
-- `test_qspi_smoke/` — Pico-native smoke test exercising the full libvdp surface.
-- `test_mode0_bad_apple/` — Pico demo uploading a monochrome Bad Apple frame.
-- `esp8266_asset_upload/` — ESP8266 template showing generated asset headers + `vdp_upload_asset()`
-- `esp_scaler_runtime_bezel/` — ESP32/ESP8266 runtime scaler exercise (Priority 1 proof)
+- `tools/` — small helper scripts
+- `esp32p4_scaler_proof/` — ESP-IDF checkerboard and scaler proof app; build
+  with `SCALER_PROOF_MODE=0`, `2`, or `3` for the 1×, 2×, and 3× lanes.
 
-## Build
-
-### ESP32-S3 (Arduino CLI) — canonical
-```sh
-arduino-cli compile --fqbn esp32:esp32:esp32s3 --library libvdp <sketch_dir>
-```
-
-### ESP32 / ESP8266 (Arduino CLI) — legacy QSPI
-```sh
-# ESP32
-arduino-cli compile --fqbn esp32:esp32:esp32 --library libvdp <sketch_dir>
-
-# ESP8266
-arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 --library libvdp <sketch_dir>
-```
-
-### Pico 2 (CMake) — legacy QSPI
-```sh
-export PICO_SDK_PATH=/home/itadmin/.pico-sdk/sdk/2.2.0
-mkdir -p build && cd build
-cmake .. -DPICO_PLATFORM=rp2350-arm-s -DPICO_BOARD=pico2
-make -j$(nproc)
-```
+Historical per-scenario sketches are preserved in
+[`PROJECT_PLAN/archive/firmware_tests/`](../PROJECT_PLAN/archive/firmware_tests/).
 
 ## Asset Conversion
 
@@ -73,13 +49,13 @@ To embed payload in a header, use `scripts/assets/bin_to_c_array.py` on the `.bi
 
 Read [`firmware/GOTCHAS.md`](GOTCHAS.md) §Host Platform Fidelity before capturing proof.
 
-1. **Authoritative Host:** ESP32-S3 (i80). Pico 2 / ESP32 / ESP8266 QSPI proofs are legacy and functional only.
-2. **I80_ERROR:** Only trust visual output if `vdp_last_error() == 0` and the upload bridge sticky bits are clear. Legacy QSPI builds use `QSPI_ERROR` / `sel=4` semantics instead.
+1. **Authoritative Host:** ESP32-P4 (QSPI). Archived sketches are not active proof for current lanes.
+2. **QSPI health:** Only trust visual output if transport health is clear and the upload bridge sticky bits are clean.
 3. **Freshness:** Record bitstream and firmware commits in every proof packet.
 
 ## Pitfalls
 
-See `firmware/GOTCHAS.md` for the proven firmware pitfalls (i80
-timing/ground-bounce, SpinalHDL literal-cache bug, upload-status
-handling, authoritative-host distinction). Read it before hand-rolling
-a custom i80 transaction.
+See `firmware/GOTCHAS.md` for the proven firmware pitfalls (QSPI timing,
+SpinalHDL literal-cache bug, upload-status handling, authoritative-host
+distinction, and capture-path artifacts). Read it before hand-rolling a custom
+QSPI transaction.

@@ -8,7 +8,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
                   scaleCtrlInit:   Int = 0,
                   logicWidthInit:  Int = 640,
                   logicHeightInit: Int = 480,
-                  borderCtrlInit:  Int = 0) extends Component {
+                  borderCtrlInit:  Int = 0,
+                  // Shared bitmap write-pipeline alignment. writeAddr = hCounter - delay
+                  // shifts the RGB565 directcolor image LEFT by `delay` columns: delay=0 lands
+                  // the image at dh=0 (aligned) byte-exact; delay>0 shifts it left (dh=-delay).
+                  // (HAM6 shelved 2026-07-20 #14224; this knob now serves the directcolor path.)
+                  bitmapWritePipelineDelay: Int = 0) extends Component {
   // BronzeGate #9366 Path A: PlanarLineFetch's row-fetch FSM is migrated
   // into the SDRAM clock domain. When `sdramCd` is null (sim-default),
   // use the current pixel ClockDomain so single-clock sims keep working;
@@ -297,6 +302,15 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   } otherwise {
     fillLine := U(0, 10 bits)
   }
+
+  // external-review-scaler-rewrite P1: logical render coordinates. The renderer
+  // (layer/testpattern fetchers + bitmap column) consumes these instead of the raw
+  // physical hCounter / fillLine so it advances at the LOGICAL rate under >1x scaling
+  // (source-coordinate scaler). Forward-declared here (used below at the layers) and
+  // assigned from ScaleCoordGen near its instantiation. At 1x they mux to the exact
+  // hCounter / fillLine path -> byte-identical.
+  val logicalX = UInt(10 bits)
+  val logicalY = UInt(10 bits)
 
   // Linestate: double-buffered per-scanline control store.
   // Prepare side is writable; commit side is read by render pipeline.
@@ -1184,15 +1198,15 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   // Layer 0 (lower priority background).
   val layer0 = BasicPatternSource()
-  layer0.io.x := hCounter.resize(10)
-  layer0.io.y := fillLine
+  layer0.io.x := logicalX
+  layer0.io.y := logicalY
   layer0.io.scrollX := io.layer0ScrollX + linestate.io.layer0ScrollX + scrollTable0Offset
   layer0.io.scrollY := io.layer0ScrollY + vScrollTable0Offset
 
   // Test pattern source: combinational standard patterns for task validation.
   val testPattern = TestPatternSource()
-  testPattern.io.x := hCounter.resize(10)
-  testPattern.io.y := fillLine
+  testPattern.io.x := logicalX
+  testPattern.io.y := logicalY
   testPattern.io.patternSelect := io.layer0TestPatternSelect
 
   // === Task 3 — Planar Fetch Hardening (Checkpoint C, audit PASS #9313) ===
@@ -1513,8 +1527,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   // Layer 1 (higher priority background).
   val layer1 = BasicPatternSource()
-  layer1.io.x := hCounter.resize(10)
-  layer1.io.y := fillLine
+  layer1.io.x := logicalX
+  layer1.io.y := logicalY
   layer1.io.scrollX := io.layer1ScrollX + scrollTable1Offset
   layer1.io.scrollY := io.layer1ScrollY + vScrollTable1Offset
 
@@ -1533,14 +1547,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // 2-layer behavior when the gate is off.
   val (layer2PixelRaw, layer3PixelRaw) = if (enableL2L3) {
     val layer2 = BasicPatternSource()
-    layer2.io.x := hCounter.resize(10)
-    layer2.io.y := fillLine
+    layer2.io.x := logicalX
+    layer2.io.y := logicalY
     layer2.io.scrollX := io.layer2ScrollX
     layer2.io.scrollY := io.layer2ScrollY
-
     val layer3 = BasicPatternSource()
-    layer3.io.x := hCounter.resize(10)
-    layer3.io.y := fillLine
+    layer3.io.x := logicalX
+    layer3.io.y := logicalY
     layer3.io.scrollX := io.layer3ScrollX
     layer3.io.scrollY := io.layer3ScrollY
 
@@ -1555,7 +1568,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // sources. The texture is a 128×128 ROM-initialised Mem with async read.
   val affineStepper = AffineStepper()
   affineStepper.io.x := hCounter.resize(10)
-  affineStepper.io.y := fillLine
+  affineStepper.io.y := logicalY
   affineStepper.io.matrixA := affineAReg
   affineStepper.io.matrixB := affineBReg
   affineStepper.io.matrixC := affineCReg
@@ -1594,15 +1607,18 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val bmAttrSel = io.bitmapSdramAttrByte
   bitmapFetch.io.bitmapByte      := bmByteSel
   bitmapFetch.io.attrByte        := bmAttrSel
-  // PIXELWITHINBYTE-ALIGN (#14293, owner-authorized 2026-07-25): the bitmap/attr
-  // bytes arrive from BitmapRowFetch's readSync line buffer one cycle after their
-  // column is requested (io.bitmapSdramCol := hCounter, line below), so the
-  // intra-byte pixel index must carry the same 1-cycle latency to stay aligned
-  // with the byte it indexes. Sourcing pixelWithinByte from the live hCounter left
-  // it 1 display column ahead of the byte, rotating the intra-byte pixel order for
-  // NON-uniform 1bpp/2bpp graphics (byte-uniform content e.g. the checkerboard was
-  // immune, which is why this stayed latent). Register it to match the byte.
-  bitmapFetch.io.pixelWithinByte := RegNext(hCounter(2 downto 0)) init 0
+  // PIXELWITHINBYTE-ALIGN (#14293, owner-authorized 2026-07-25) + P3b (#14469): the
+  // bitmap/attr bytes arrive from BitmapRowFetch's readSync line buffer one cycle
+  // after their column is requested (io.bitmapSdramCol := logicalX, line below), so
+  // the intra-byte pixel index must carry the same 1-cycle latency to stay aligned
+  // with the byte it indexes. P3b sources it from logicalX (the scaled source column)
+  // instead of raw hCounter so the intra-byte pixel-repetition tracks the horizontal
+  // scale factor. At 1x logicalX == hCounter, so RegNext(logicalX(2:0)) ==
+  // RegNext(hCounter(2:0)) and the production 1x path stays byte-identical to
+  // a5a047a2. (Sourcing pixelWithinByte from a live/unscaled index left it 1 display
+  // column ahead of the byte and rotated the intra-byte pixel order for NON-uniform
+  // 1bpp/2bpp graphics; byte-uniform content e.g. the checkerboard was immune.)
+  bitmapFetch.io.pixelWithinByte := RegNext(logicalX(2 downto 0)) init 0
   bitmapFetch.io.bpp             := bitmapBpp
   // RGB565 directcolor (bpp=10): the 16-bit directcolor pixel is the two
   // fetched bytes packed {hi=attr, lo=bitmap}. CP-1b reuses the existing
@@ -1614,22 +1630,46 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   bitmapFetch.io.directPixel     := bmAttrSel ## bmByteSel
 
   // Export coupling signals to BitmapRowFetch at top level.
-  io.bitmapSdramCol        := hCounter.resize(10)
-  io.bitmapSdramFetchLine  := fillLine.resize(10)
+  io.bitmapSdramCol        := logicalX
+  // Owner-directed override (Rule 9): Register fetchLine at line boundary to resolve
+  // CDC race condition (shimmer) by holding the value stable for the full line.
+  // P3b (#14469): source the fetch line from logicalY (the scaled source line) instead
+  // of the physical fillLine, keeping BitmapRowFetch's built-in >>1 line-doubling
+  // (lineReg := pendingLine>>1) so the effective vertical scale is 2*scaleY (Option B
+  // compose). At 1x logicalY == fillLine -> byte-identical to a5a047a2.
+  val bitmapFetchLineReg = RegNextWhen(logicalY.resize(10), hCounter === hTotal - 1) init 0
+  io.bitmapSdramFetchLine  := bitmapFetchLineReg
   // RGB565-FULLFRAME-132 B.2 (CoralReef #12355 cond.4): grant ONCE PER SOURCE ROW,
-  // not once per output line. Each source row is displayed on two output lines
-  // (line-doubling: fillLine = vCounter+1, lineReg = pendingLine>>1), so the bank
-  // rotation + fill-ahead geometry is only correct when the grant advances every
-  // SECOND output line. Fire at hCounter==hTotal-1 (end of line, so the freshly
-  // filled bank lands for the next line's pixel 0) gated on odd output lines
-  // (vCounter(0)) and only within the active region (vCounter < vActive). The old
-  // once-per-line hActive grant double-counted rows and broke the cadence.
-  io.bitmapSdramFetchGrant := (hCounter === U(hTotal - 1, log2Up(hTotal) bits)) &&
-                              (vCounter(0) === True) &&
-                              (vCounter < U(vActive, log2Up(vTotal) bits))
+  // not once per output line. Each source row is displayed on 2*scaleY output lines
+  // (BitmapRowFetch's >>1 line-doubling composed with the P3b vertical scale), so the
+  // bank rotation + fill-ahead geometry is only correct when the grant advances every
+  // time the fetcher's target source row changes.
+  // P3b (#14469): replace the fixed once-per-2-lines vCounter(0) gate with a
+  // logicalY>>1 step-boundary detector. bitmapSrcRow = logicalY>>1 is exactly the
+  // source row the fetcher targets (pendingLine>>1 inside BitmapRowFetch); fire when it
+  // advances. At 1x logicalY == fillLine == vCounter+1, so bitmapSrcRow increments on
+  // odd output lines -> bitmapSrcRow =/= bitmapSrcRowPrev is bit-identical to the old
+  // vCounter(0) cadence -> 1x byte-identical (preserves the 2bpp-bank-completion-rtl
+  // bank-ready/row-tag contracts). Fire at hCounter==hTotal-1 (end of line, so the
+  // freshly filled bank lands for the next line's pixel 0) within the active region.
+  // Owner-directed override (Rule 9): Stretch the grant pulse to 4 cycles (grantHold)
+  // to ensure a clean CDC edge detection in the SDRAM clock domain.
+  val bitmapSrcRow     = (logicalY.resize(10) >> 1)
+  val bitmapSrcRowPrev = RegNextWhen(bitmapSrcRow, hCounter === U(hTotal - 1, log2Up(hTotal) bits)) init 0
+  val bitmapGrantHold = Reg(UInt(3 bits)) init 0
+  val bitmapGrantTrigger = (hCounter === U(hTotal - 1, log2Up(hTotal) bits)) &&
+                           (bitmapSrcRow =/= bitmapSrcRowPrev) &&
+                           (vCounter < U(vActive, log2Up(vTotal) bits))
+  when(bitmapGrantTrigger) {
+    bitmapGrantHold := 4
+  }.elsewhen(bitmapGrantHold =/= 0) {
+    bitmapGrantHold := bitmapGrantHold - 1
+  }
+  io.bitmapSdramFetchGrant := bitmapGrantHold =/= 0
   io.bitmapModeActive      := bitmapEnable
   // CP-1c: tell BitmapRowFetch to use the RGB565 directcolor fetch
   // schedule (2 bytes/pixel, 320 px/row) when bpp=0b10 is selected.
+  // (HAM6 shelved #14224 — bpp=0b11 is now reserved and no longer selects directcolor.)
   io.bitmapDirectColor     := bitmapEnable && (bitmapBpp === U(2, 2 bits))
   // BITMAP-PLUMB-129: assemble the 23-bit bases (HI##LO) and drive the
   // geometry outputs to BitmapRowFetch via the top level.
@@ -2026,11 +2066,30 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // drained directcolor pixel lands in the same cycle as `paletteRgb`.
   // The fill-side value is the 565→888-expanded pixel from BitmapFetch,
   // gated by bitmapEnable so non-bitmap scenes never see directcolor.
+  // (HAM6 shelved 2026-07-20 #14224: HamDecoder + hamBase/hamMode/hamCode removed and
+  // bpp=0b11 reserved. The directcolor carrier below is now RGB565-only.)
+
+  // RGB565 directcolor (CP-1b) parallel line buffer carrying the 24-bit RGB plus its
+  // active flag {active, rgb[23:0]}, drained co-timed with `paletteRgb` and
+  // bypass-muxed at output.
   val dcFillActive = (bitmapEnable && bitmapFetch.io.directColorActive).simPublic()
+  val dcFillRgb    = bitmapFetch.io.directRgb
   val dcLineBuf = LineBuffer(pixelWidth = 25, lineWidth = hActive)
-  dcLineBuf.io.writeEnable := hCounter < hActive
-  dcLineBuf.io.writeAddr   := hCounter.resize(log2Up(hActive))
-  dcLineBuf.io.writeData   := dcFillActive ## bitmapFetch.io.directRgb
+  // HAM-DECODER-171 CP-D (TopazCliff #12987 / CyanPeak #12986): shared bitmap write-
+  // pipeline alignment. The fetch→select→decode path delivers `dcFillRgb` for source
+  // column k some cycles AFTER hCounter==k (BitmapRowFetch readSync +1, registered
+  // hCounter, etc.), so the dcLineBuf write address lagged its data → +N-column display
+  // shift for RGB565 directcolor (bpp=0b10), which uses this
+  // carrier. Delay the write addr/enable by `bitmapWritePipelineDelay` columns so that
+  // the value computed for source k lands at dcLineBuf[k]. Compile-time param:
+  //   0 = legacy (pre-fix, write addr == hCounter) — exact prior behavior.
+  //   3 = measured-aligned (measured on the directcolor path).
+  // Bounds stay Scala-Int constants (hActive/hTotal are Ints) so hCounter is compared
+  // against literals — no width extension. writeEnable gates the underflow window when
+  // hCounter < delay, so the wrapped writeAddr there is never committed.
+  dcLineBuf.io.writeEnable := (hCounter >= bitmapWritePipelineDelay) && (hCounter < hActive + bitmapWritePipelineDelay)
+  dcLineBuf.io.writeAddr   := (hCounter - bitmapWritePipelineDelay).resize(log2Up(hActive))
+  dcLineBuf.io.writeData   := dcFillActive ## dcFillRgb
   dcLineBuf.io.swap        := hCounter === hTotal - 1
 
   // drainAddr was forward-declared above (for SpriteRasterizer). Assign here.
@@ -2124,6 +2183,8 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     }
     paletteWritePtr := paletteWritePtr + 1
   }
+
+  // (HAM6 shelved #14224: hamBase palette-mirror + soft-reset clear removed.)
 
   val palette = Mem(Bits(24 bits), initialContent = TileAttributeAssets.paletteInit)
   // Lane #10686: force BSRAM inference (no LUT-RAM / distributed SSRAM).
@@ -2406,12 +2467,13 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     statusClearMask := effData
   }
 
-  // Sticky update: set on any event this cycle, then clear bits the host
-  // requested. If an event AND a clear both target the same bit in the
-  // same cycle, the event wins (new state takes precedence over stale
-  // clear). QSPI_ERROR uses the level directly so it re-asserts until the
-  // source condition clears.
-  statusStickyReg := (statusStickyReg | evBus) & (~statusClearMask)
+  // Sticky update: clear the host-requested bits FIRST, then set on any event
+  // this cycle. If an event AND a clear both target the same bit in the same
+  // cycle, the event WINS (new state takes precedence over the stale clear) —
+  // matching the documented contract. (Bug 5, external review #13008: the prior
+  // `(sticky | ev) & ~clear` form let clear win, dropping a same-cycle event.)
+  // QSPI_ERROR uses the level directly so it re-asserts until the source clears.
+  statusStickyReg := (statusStickyReg & (~statusClearMask)) | evBus
 
   // Safe-boundary commit of enable mask at hCounter===0.
   when(hCounter === U(0, log2Up(hTotal) bits)) {
@@ -2471,7 +2533,9 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     collClearMask := effData(SpriteCollWidth - 1 downto 0)
   }
 
-  spriteCollMaskReg := (spriteCollMaskReg | collSetMask) & (~collClearMask)
+  // Bug 5 (external review #13008): clear FIRST then set, so a same-cycle
+  // set wins (event takes precedence) — matches the documented contract above.
+  spriteCollMaskReg := (spriteCollMaskReg & (~collClearMask)) | collSetMask
   io.spriteCollMask := spriteCollMaskReg
 
   // ===== VDP-SOFT-RESET-135 #4: core register reset (Stage 3 of the sequence) =====
@@ -2614,8 +2678,11 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // (readSync semantics). Delay every other input to this mux by 1 cycle
   // so all four inputs represent the same drain cycle. Pre-#10686 these
   // were combinationally co-timed with the old readAsync paletteRgb.
-  val dcActiveDrainedR  = RegNext(dcActiveDrained)  init False
-  val dcRgbDrainedR     = RegNext(dcRgbDrained)     init B(0, 24 bits)
+  // simPublic: these registered (2-cycle) outputs are co-timed with io.x/io.y and the
+  // bypass mux below — co-sims MUST sample these, NOT the 1-cycle dcActiveDrained/
+  // dcRgbDrained (which lead io.x by 1 col → false -1 column shift). CyanPeak #13009.
+  val dcActiveDrainedR  = RegNext(dcActiveDrained)  init False        ; dcActiveDrainedR.simPublic()
+  val dcRgbDrainedR     = RegNext(dcRgbDrained)     init B(0, 24 bits) ; dcRgbDrainedR.simPublic()
   val drainSpriteWinsR  = RegNext(drainSpriteWins)  init False
   val layerMaskActiveR  = RegNext(layerMaskActive)  init False
   val bgOrDirectRgb   = Mux(dcActiveDrainedR && !drainSpriteWinsR, dcRgbDrainedR, paletteRgb).simPublic()
@@ -2662,32 +2729,31 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   val borderEnable = borderCtrlReg(0)
   val borderIdx    = borderCtrlReg(12 downto 8).asUInt
   val innerBorderEnable = borderCtrlReg(1)
-  // PixelRepeatScaler instantiation (lane #10590-reland, PM #10701).
-  // Re-landed on top of the palette readSync fix (main @ 661907d) which
-  // removed the Gowin placement-sensitivity that caused the original
-  // intermittent black-HDMI. lineBuf write OOB-guard added per
-  // BronzeGate #10697. POR scaleCtrlReg=0 yields 1x bypass (scaleX=1,
-  // scaleY=1, autoCenter=0). Counters reset on the first cycle of
-  // hsync/vsync (when hCounter/vCounter enter their respective sync
-  // regions); we detect those edges combinationally here.
-  val hsyncActive    = hCounter >= hSyncStart && hCounter < hSyncEnd
-  val vsyncActive    = vCounter >= vSyncStart && vCounter < vSyncEnd
-  val hsyncActivePrv = RegNext(hsyncActive) init False
-  val vsyncActivePrv = RegNext(vsyncActive) init False
-  val hsyncEdge      = hsyncActive && !hsyncActivePrv
-  val vsyncEdge      = vsyncActive && !vsyncActivePrv
-  val scaler = PixelRepeatScaler()
-  scaler.io.hCounter     := hCounter.resize(10)
-  scaler.io.vCounter     := vCounter.resize(10)
-  scaler.io.hsyncRising  := hsyncEdge
-  scaler.io.vsyncRising  := vsyncEdge
-  scaler.io.hActive      := U(hActive, 11 bits)
-  scaler.io.vActive      := U(vActive, 11 bits)
-  scaler.io.scaleXReg    := scaleCtrlReg(2 downto 0).asUInt
-  scaler.io.scaleYReg    := scaleCtrlReg(6 downto 4).asUInt
-  scaler.io.autoCenter   := scaleCtrlReg(7)
-  scaler.io.logicWidth   := logicWidthReg
-  scaler.io.logicHeight  := logicHeightReg
+  // external-review-scaler-rewrite P1b: the sink PixelRepeatScaler is RETIRED (replaced
+  // by the source-coordinate ScaleCoordGen below). Its 640-deep BSRAM line buffer +
+  // repeat logic are gone; the display pipeline is rebalanced from +2 back to +1 (the
+  // compensating RR RegNext stage is removed at the output). PixelRepeatScaler.scala
+  // remains only for its standalone unit sim (ScaleRepeatSim).
+
+  // Source-coordinate scaler: physical -> logical coordinate generation before the
+  // renderer. Vertical uses fillLine (the renderer's line convention) so 1x is
+  // sourceY == fillLine (identity). scaleActive selects the coord path only for >1x /
+  // auto-center; 1x muxes to raw hCounter/fillLine -> byte-identical.
+  val coordGen = ScaleCoordGen()
+  coordGen.io.hCounter    := hCounter.resize(10)
+  coordGen.io.vCounter    := fillLine
+  coordGen.io.hActive     := U(hActive, 11 bits)
+  coordGen.io.vActive     := U(vActive, 11 bits)
+  coordGen.io.scaleXReg   := scaleCtrlReg(2 downto 0).asUInt
+  coordGen.io.scaleYReg   := scaleCtrlReg(6 downto 4).asUInt
+  coordGen.io.autoCenter  := scaleCtrlReg(7)
+  coordGen.io.logicWidth  := logicWidthReg
+  coordGen.io.logicHeight := logicHeightReg
+  val scaleActive = (coordGen.io.scaleXEffOut =/= U(1, 3 bits)) ||
+                    (coordGen.io.scaleYEffOut =/= U(1, 3 bits)) ||
+                    coordGen.io.autoCenterActive
+  logicalX := Mux(scaleActive, coordGen.io.sourceX, hCounter.resize(10))
+  logicalY := Mux(scaleActive, coordGen.io.sourceY, fillLine)
 
   // Auto-center override of the host BORDER_X/Y0/1. Host BORDER_CTRL[12:8]
   // still picks the bezel palette slot. SCALE_CTRL[7] arms the override.
@@ -2699,10 +2765,10 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // multiply-by-scale math in firmware. Inner border uses the same palette
   // index as the outer border (BORDER_CTRL[12:8]).
   val acActive    = scaleCtrlReg(7)
-  val ibScaleX    = scaler.io.scaleXEffOut
-  val ibScaleY    = scaler.io.scaleYEffOut
-  val ibOffX      = scaler.io.acBorderX0
-  val ibOffY      = scaler.io.acBorderY0
+  val ibScaleX    = coordGen.io.scaleXEffOut
+  val ibScaleY    = coordGen.io.scaleYEffOut
+  val ibOffX      = coordGen.io.borderX0
+  val ibOffY      = coordGen.io.borderY0
 
   // Defensive clamp: inner border thickness cannot exceed the logical canvas
   // on its own axis, and L+R (or T+B) cannot exceed the dimension. This
@@ -2717,16 +2783,16 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
 
   val effBorderX0 = Mux(innerBorderEnable,
                         (ibOffX + (ibL * ibScaleX).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderX0, borderX0Reg)).simPublic()
+                        Mux(acActive, coordGen.io.borderX0, borderX0Reg)).simPublic()
   val effBorderX1 = Mux(innerBorderEnable,
                         (ibOffX + ((logicWidthReg  - ibRSafe) * ibScaleX).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderX1, borderX1Reg)).simPublic()
+                        Mux(acActive, coordGen.io.borderX1, borderX1Reg)).simPublic()
   val effBorderY0 = Mux(innerBorderEnable,
                         (ibOffY + (ibT * ibScaleY).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderY0, borderY0Reg)).simPublic()
+                        Mux(acActive, coordGen.io.borderY0, borderY0Reg)).simPublic()
   val effBorderY1 = Mux(innerBorderEnable,
                         (ibOffY + ((logicHeightReg - ibBSafe) * ibScaleY).resize(10)).resize(10),
-                        Mux(acActive, scaler.io.acBorderY1, borderY1Reg)).simPublic()
+                        Mux(acActive, coordGen.io.borderY1, borderY1Reg)).simPublic()
   val effBorderEnable = borderEnable || acActive || innerBorderEnable
   val insideBorder = (hCounter >= effBorderX0.resize(log2Up(hTotal))) &&
                      (hCounter <  effBorderX1.resize(log2Up(hTotal))) &&
@@ -2758,16 +2824,24 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // pixel.
   val displayRgb = Mux(borderActiveR, borderRgbR, mathRgb)
 
-  // Wire displayRgb into the scaler. Scaler is +1 latency uniformly
-  // across bypass (1x) and scaled paths — outRgb is registered.
-  scaler.io.inRgb      := displayRgb
-  val displayRgbScaled = scaler.io.outRgb
+  // external-review-scaler-rewrite P1b (corrected): the sink PixelRepeatScaler is retired,
+  // but its +1 OUTPUT latency is preserved by a plain RegNext here (no 640-deep BSRAM line
+  // buffer, no repeat logic — that is the BSRAM saving). Keeping the +1 (and the RR stage
+  // below) leaves the whole display pipeline at +2, so ALL alignments stay byte-identical:
+  // both the bgOrDirectRgb-reading sims (io.x/io.y at +2) AND the io.red-reading sims
+  // (VdpInnerBorderCoSim etc. that pair io.x/io.y with the io.red output). An earlier
+  // attempt removed the +1 and the RR stage together, which misaligned io.x (+2) vs io.red
+  // (+1) for the io.red-reading sims — reverted.
+  val displayRgbScaled = RegNext(displayRgb) init B(0, 24 bits)
 
   // Display-side second-stage RegNext (+2 total) to align with the
   // scaler's +1 output latency. Matches the dc1fba8-pre-disconnect
   // depth, minus the third stage that was overcounted there (the
   // third stage was matched to a post-palette compensation that the
   // dcSide RegNexts now absorb upstream of maskedRgbR).
+  // Second-stage RegNext (+2 total) — KEPT (P1b corrected): matches the RegNext that now
+  // replaces the retired scaler's +1 output latency, so io.hsync/vsync/de + RGB output
+  // stay aligned with io.x/io.y and bgOrDirectRgb exactly as before the scaler retirement.
   val hsyncRR         = RegNext(hsyncR)          init True
   val vsyncRR         = RegNext(vsyncR)          init True
   val deRR            = RegNext(deR)             init False
@@ -2786,7 +2860,11 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     io.green := displayRgbScaled(15 downto 8)
     io.blue  := displayRgbScaled(7 downto 0)
   }
-  // io.x/y track the same +2 cycle pipeline as the RGB output.
+  // io.x/y are the compositor-domain scan position that sims pair with bgOrDirectRgb
+  // (both at +2 from hCounter). The P1b sink-scaler removal does NOT change bgOrDirectRgb's
+  // latency (it is upstream of the scaler), so io.x/io.y stay at +2 — reducing them shears
+  // the 1x sim frame by 1px. The real HDMI output (io.red/hsync/de) is the separate path
+  // rebalanced to +1 by removing the scaler + its RR compensation stage.
   val hCounterR = RegNext(hCounter.resize(10)) init 0
   val vCounterR = RegNext(vCounter.resize(10)) init 0
   io.x := RegNext(hCounterR) init 0

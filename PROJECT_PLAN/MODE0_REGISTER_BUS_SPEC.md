@@ -80,43 +80,6 @@ Note: Reads are capped at 3 MHz by the FPGA response FSM; writes support higher 
 
 ---
 
-## 2.5 Generic 22-pin Host Interface (device-agnostic i80)
-
-The canonical Tang Nano 20K host connection is a **22-pin Intel 8080-style parallel bus**. Any host MCU or retro CPU with 22 free GPIOs and 3.3 V CMOS/TTL levels can drive the VDP. Hosts that run at other voltages require external level shifters.
-
-| Pin | Signal | Direction (relative to host) | Purpose |
-|---|---|---|---|
-| 1–8 | `D0`–`D7` | Bidir | Data bus low byte |
-| 9–16 | `D8`–`D15` | Bidir | Data bus high byte (used in 16-bit mode) |
-| 17 | `CS#` | In to VDP | Active-low chip select |
-| 18 | `WR#` | In to VDP | Active-low write strobe |
-| 19 | `RD#` | In to VDP | Active-low read strobe |
-| 20 | `DC#` | In to VDP | 0 = command/address byte, 1 = data byte |
-| 21 | `WAIT#` | Out from VDP | Active-low flow control; VDP stalls the host bus when the upload FIFO/bridge is not ready |
-| 22 | `IRQ#` | Out from VDP | Active-low interrupt; asserts when any enabled bit in `STATUS_STICKY` (`0x0320`) is set |
-
-### Supported bus widths
-
-- **16-bit mode:** host uses `D0`–`D15`. One WR beat transfers a full 16-bit register word or one 16-bit payload word.
-- **8-bit mode:** host uses `D0`–`D7`; `D8`–`D15` are left unconnected or tied low. Register and block transactions require the existing byte-pair sequence (`addr_lo`, `addr_hi`, `data_lo`, `data_hi`).
-
-Bus width is selected by host protocol behavior or a configuration strap; the VDP accepts both. `WAIT#` and `IRQ#` are active in both modes.
-
-### Retro CPU mapping example (Z80)
-
-| Z80 signal | VDP i80 pin |
-|---|---|
-| `D0`–`D7` | `D0`–`D7` |
-| `IORQ#` + address decode | `CS#` |
-| `WR#` | `WR#` |
-| `RD#` | `RD#` |
-| Address line `A0` | `DC#` |
-| `WAIT#` | `WAIT#` |
-
-This mapping makes the VDP appear as two Z80 I/O ports: one for command/address and one for data.
-
----
-
 ## 3. Address Map (current + reserved)
 
 All addresses below are 15-bit; high bit is always 0 within current use.
@@ -205,6 +168,8 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 > **BITMAP_BASE Overlap / Alignment Note**: The hardware power-on defaults for `BITMAP_BASE` (`0x3000`) and `ATTR_BASE` (`0x4000`) were chosen for legacy 1/2bpp compatibility. When rendering in direct-color RGB565 mode with the default 512-byte stride, these bases overlap after just 8 rows. To display a full-screen RGB565 image, the host **must** reconfigure `0x0351..0x0354` to non-overlapping bases (e.g., `0x100000` and `0x200000`).
 >
 > In RGB565 direct-color mode the hardware additionally masks the low 5 bits of `BITMAP_BASE`, `ATTR_BASE`, `BITMAP_STRIDE`, and `ATTR_STRIDE` to zero, so all four values **must be 32-byte aligned**. Writes to bits `[4:0]` of those registers are ignored in direct-color mode. The power-on defaults and the recommended `0x100000`/`0x200000` bases are already 32-byte aligned; only custom values need alignment checking.
+>
+> In HAM6 mode (`BPP = 0b11`) the attribute plane is **not used**. Only `BITMAP_BASE` and `BITMAP_STRIDE` are fetched; `ATTR_BASE` and `ATTR_STRIDE` are don't-care. The HAM source is one byte per pixel, so a 320-pixel row uses a stride of 320 bytes.
 
 ### 3.1.1 STATUS_STICKY bit layout (`0x0320`, write-1-to-clear)
 
@@ -839,19 +804,11 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Bits | Field | Description |
 |---|---|---|
 | `[0]` | ENABLE | Enables SDRAM bitmap fetch. |
-| `[2:1]` | BPP | Bitmap format selector: `0b00`=1bpp, `0b01`=2bpp (indexed), `0b10`=RGB565 direct-color, `0b11`=HAM6 (Amiga Hold-And-Modify; HAM-DECODER-171). |
+| `[2:1]` | BPP | Bitmap bits-per-pixel mode selector. `0b10` = RGB565 direct color, `0b11` = HAM6. Other values select indexed bitmap modes. |
 | `[6:3]` | CELL_WIDTH_LOG2 | Log2 cell width for indexed bitmap addressing. |
 
-> **HAM6 mode (`BPP=0b11`, HAM-DECODER-171):** Amiga Hold-And-Modify. One byte per
-> source pixel (320 source px/row, shown ×2 = 640 columns); the low 6 bits are the
-> HAM code, bits `[7:6]` unused. Code `[5:4]`=control, `[3:0]`=data:
-> `00`=SET (data indexes `palette[0..15]`, truncated to 4:4:4), `01`=modify-Blue,
-> `10`=modify-Red, `11`=modify-Green (data = the new 4-bit channel value). The
-> 12-bit 4:4:4 colour accumulator holds along the scanline and resets to
-> `palette[0]` at the start of each line. Output is the direct-color RGB path
-> (24-bit, 4→8 bit-replication), so it shares the RGB565 direct-color fetch
-> schedule, base/stride alignment, and bypass mux. The host must load
-> `palette[0..15]` before enabling HAM (the SET base colours mirror those entries).
+> [!NOTE]
+> **HAM6 mode (`BPP = 0b11`):** The source image is a single byte plane pointed to by `BITMAP_BASE` (one byte per source pixel). `ATTR_BASE` is not fetched and is don't-care for HAM6. The first pixel of each scanline is decoded as a SET operation seeded from `palette[0]`. Subsequent pixels use the HAM6 code held in `palette[0..15]` as base colors. The 4-bit palette channels are nibble-replicated to 8-bit RGB in the output.
 
 ### BITMAP_BASE_LO (`0x0351`)
 
@@ -862,7 +819,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x3000` |
 | Category | vblank-sensitive |
-| Description | Low 16 bits of the SDRAM bitmap byte-plane base address. In RGB565 direct-color mode (`BPP=0b10`) and HAM6 mode (`BPP=0b11`) the effective base is forced 32-byte aligned by the hardware; writes to bits [4:0] are ignored in those modes. |
+| Description | Low 16 bits of the SDRAM bitmap byte-plane base address. In RGB565 direct-color mode (`BPP = 0b10`) the effective base is forced 32-byte aligned by the hardware; writes to bits [4:0] are ignored in that mode. In HAM6 mode (`BPP = 0b11`) this base points to the single byte-per-pixel HAM code plane. |
 
 ### BITMAP_BASE_HI (`0x0352`)
 
@@ -873,7 +830,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x0000` |
 | Category | vblank-sensitive |
-| Description | High 7 bits of the SDRAM bitmap byte-plane base address. Combined with BITMAP_BASE_LO to form a 23-bit byte address; the low 5 bits are masked to zero in RGB565 direct-color and HAM6 burst modes. |
+| Description | High 7 bits of the SDRAM bitmap byte-plane base address. Combined with BITMAP_BASE_LO to form a 23-bit byte address; the low 5 bits are masked to zero in RGB565 direct-color burst mode. In HAM6 mode this is the high part of the HAM code-plane base. |
 
 | Bits | Field | Description |
 |---|---|---|
@@ -888,7 +845,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x4000` |
 | Category | vblank-sensitive |
-| Description | Low 16 bits of the SDRAM attribute or high-byte plane base address. In RGB565 direct-color and HAM6 modes the effective base is forced 32-byte aligned by the hardware; writes to bits [4:0] are ignored in those modes. |
+| Description | Low 16 bits of the SDRAM attribute or high-byte plane base address. In RGB565 direct-color mode the effective base is forced 32-byte aligned by the hardware; writes to bits [4:0] are ignored in that mode. In HAM6 mode this register is don't-care; the attribute plane is not fetched. |
 
 ### ATTR_BASE_HI (`0x0354`)
 
@@ -899,7 +856,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x0000` |
 | Category | vblank-sensitive |
-| Description | High 7 bits of the SDRAM attribute or high-byte plane base address. Combined with ATTR_BASE_LO to form a 23-bit byte address; the low 5 bits are masked to zero in RGB565 direct-color and HAM6 burst modes. |
+| Description | High 7 bits of the SDRAM attribute or high-byte plane base address. Combined with ATTR_BASE_LO to form a 23-bit byte address; the low 5 bits are masked to zero in RGB565 direct-color burst mode. In HAM6 mode this register is don't-care. |
 
 | Bits | Field | Description |
 |---|---|---|
@@ -914,7 +871,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x0200` |
 | Category | vblank-sensitive |
-| Description | Direct-color bitmap byte-plane row stride in bytes. In RGB565 direct-color and HAM6 modes the hardware masks bits [4:0] to zero, so the stride must be a multiple of 32 bytes. The default 0x0200 (512) is 32-byte aligned. |
+| Description | Bitmap byte-plane row stride in bytes. In RGB565 direct-color mode the hardware masks bits [4:0] to zero, so the stride must be a multiple of 32 bytes. The default 0x0200 (512) is 32-byte aligned. In HAM6 mode the stride is the number of bytes per source row (typically 320) and the low 5 bits are also masked. |
 
 ### ATTR_STRIDE (`0x0356`)
 
@@ -925,7 +882,7 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | RW |
 | Reset | `0x0200` |
 | Category | vblank-sensitive |
-| Description | Direct-color attribute or high-byte plane row stride in bytes. In RGB565 direct-color and HAM6 modes the hardware masks bits [4:0] to zero, so the stride must be a multiple of 32 bytes. The default 0x0200 (512) is 32-byte aligned. |
+| Description | Attribute or high-byte plane row stride in bytes. In RGB565 direct-color mode the hardware masks bits [4:0] to zero, so the stride must be a multiple of 32 bytes. The default 0x0200 (512) is 32-byte aligned. In HAM6 mode this register is don't-care. |
 
 ### BITMAP_HEIGHT (`0x0357`)
 

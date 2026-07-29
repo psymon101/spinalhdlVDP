@@ -43,3 +43,16 @@ set_output_delay -clock clk_sdram -min -1.0 [get_ports {IO_sdram_dq[*]}]
 # Reads (SDRAM launches, FPGA captures): read-DQ.
 set_input_delay  -clock clk_sdram -max  5.4 [get_ports {IO_sdram_dq[*]}]
 set_input_delay  -clock clk_sdram -min  2.5 [get_ports {IO_sdram_dq[*]}]
+
+# QSPI-SI-CEILING-183 word-drain transport (#14206): I_qspi_sck is routed to a Gowin
+# global clock inside QspiTransportCore (sclkGlobalCd) and used as a REAL clock domain
+# for nibble->byte assembly, crossing to clk_sys via BufferCC/crossClockDomain. Constrain
+# it so STA actually covers the SCLK-domain paths. The prior option-a build left SCLK
+# UNCONSTRAINED, so its TNS=0 EXCLUDED these paths and is not an acceptable sign-off.
+# Period 25 ns = 40 MHz (ESP32-P4 register/status ceiling per firmware audit #14145).
+# If firmware drives register reads above 40 MHz, this must be tightened.
+create_clock -name qspi_sck -period 25.0 -waveform {0 12.5} [get_ports {I_qspi_sck}] -add
+# SCLK is a truly external, asynchronous clock from the P4 host; every crossing into the
+# system/pixel/SDRAM domains goes through BufferCC/crossClockDomain CDC, so the tool must
+# NOT try to close inter-domain timing against it (mirrors the clk_sdram async rule above).
+set_clock_groups -asynchronous -group [get_clocks {qspi_sck}] -group [get_clocks {clk_pixel clk_x5 clk_sdram I_clk}]

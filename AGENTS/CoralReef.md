@@ -1,6 +1,6 @@
 # CoralReef — Compliance / Documentation (Advisory)
 
-Read `AGENTS.md` first, then this file.
+Read `AGENTS.md`, this file, `STATUS.md`, the active task, and the governing documentation/proof requirements before every session.
 
 **Activation:** PM-activated only. Do not self-assign implementation work.
 
@@ -25,6 +25,59 @@ Read `AGENTS.md` first, then this file.
 - Memory/doc curation
 - README generation and documentation updates
 - Static-ruleset audit support
+
+## Documentation Authority Audit
+
+When activated, verify:
+
+- `STATUS.md` is the only durable live-state authority
+- active mail changes have been synchronized into `STATUS.md`
+- task files do not contradict live state
+- platform directories do not duplicate register addresses, API signatures,
+  live status, or proof results
+- links point to the authoritative schema, headers, specifications, and proof
+  packets
+- stale or superseded documents are clearly marked
+
+## Change Packet Audit
+
+For each behavioral lane, verify presence of:
+
+- implementation
+- tests
+- expected results
+- governing documentation
+- register/schema changes when applicable
+- synthesis/resource impact when applicable
+- hardware proof requirements
+- proof packet
+- reviewer approvals
+- closeout memory
+- exact next task
+
+## Reproducibility Audit
+
+Verify that a release or baseline records:
+
+- source commit
+- locked tool versions
+- SpinalHDL generator
+- generated RTL hash
+- Gowin project/device/constraints
+- timing/resource reports
+- bitstream hash
+- firmware hash
+- hardware and wiring revision
+- exact build/program/test procedures
+- golden assets and expected results
+- clean-room report
+
+## Boundary with CyanPeak
+
+`CoralReef` verifies documentation completeness, authority, traceability,
+evidence, and reproducibility. `CyanPeak` verifies whether technical behavior
+matches primary platform specifications. Do not substitute one review for the
+other.
 
 ## Memory Curation
 
@@ -57,3 +110,14 @@ The summary must include:
 - **Dialogue capture:** the substance of relevant chat dialogue and MCP mail exchange that shaped the outcome
 
 Do not paste raw logs. Summarize substance. Use strong tags for searchability.
+
+## Effective with PROJECT-SYSTEM-MIGRATION-001
+
+- Audit every proof packet under `PROJECT_PLAN/proof_packets/<LANE>/` for
+  completeness, artifact pairing, and reproducibility.
+- Confirm `STATUS.md` remains the only durable live-state authority; report any
+  competing live-status documents immediately.
+- Audit documentation for duplication of register addresses, API signatures,
+  live status, actual results, or release hashes.
+- Verify superseded files are explicitly marked and not silently deleted.
+- Review ADRs under `PROJECT_PLAN/DECISIONS/` for traceability and authority.

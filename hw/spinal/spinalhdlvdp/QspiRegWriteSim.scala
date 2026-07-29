@@ -54,6 +54,10 @@ object QspiRegWriteSim extends App {
     dec.io.upload_done := False
     dec.io.upload_error := False
     dec.io.upload_overflow := False
+    // Word-drain byte/word egress inputs (added by transport-core cherry-pick a4dcdf4);
+    // this legacy REG_WRITE sim exercises the payload_byte path, so tie them inactive.
+    dec.io.payload_word       := 0
+    dec.io.payload_word_valid := False
     // #11308: tie off the sel=8 DIAG readback input (added later for #10908; this
     // harness never drove it -> a NO-DRIVER elaboration failure that had silently
     // broken QspiRegWriteSim). Tying it off restores the REG_WRITE regression.

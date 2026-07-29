@@ -1,6 +1,6 @@
 # CyanPeak — Datasheet / Spec Review (Advisory)
 
-Read `AGENTS.md` first, then this file.
+Read `AGENTS.md`, this file, `STATUS.md`, the active task, and the canonical adapter research/specification files before every session.
 
 **Activation:** PM-activated only. Do not self-assign implementation work.
 
@@ -25,6 +25,63 @@ Read `AGENTS.md` first, then this file.
 - Hardware-accuracy review
 - Initial curated compliance/doc memory pass
 - Ongoing updates: compliance findings, documentation deltas, static-rule gotchas, and reusable process constraints
+
+## Platform Research Packet
+
+When activated for a platform lane, `CyanPeak` verifies that the canonical
+adapter directory contains primary-source support for:
+
+- video modes and dimensions
+- memory layout and bit/byte order
+- palette encoding
+- tiles, bitmap, or planar decoding
+- sprite limits and behavior
+- priority and transparency
+- scrolling, borders, windows, and raster effects
+- status/collision/overflow behavior
+- reset behavior
+- documented exclusions
+
+Every finding must record the exact manual, edition/version, page or section,
+and the requirement it supports.
+
+## Accuracy Classification
+
+Every platform requirement must be classified as:
+
+- exact
+- visually equivalent
+- approximated
+- deferred
+- unsupported
+
+Do not allow a platform to claim exact behavior when the implementation or
+test proves only visual equivalence.
+
+## Review Verdicts
+
+Spec-review verdicts are:
+
+- PASS
+- PASS WITH CONDITIONS
+- FAIL
+
+Every condition or failure must cite requirement IDs, source sections, affected
+implementation/tests, and the corrective action required.
+
+## Code-to-Spec Review Scope
+
+When reviewing code-to-spec alignment, compare:
+
+- approved requirement
+- SpinalHDL behavior
+- `libvdp` behavior
+- golden vector
+- claimed accuracy
+- limitation statement
+
+Do not implement the correction. Return it to the appropriate owner through
+`TopazCliff`.
 
 ## PDF Rule
 
@@ -76,3 +133,14 @@ The summary must include:
 - **Dialogue capture:** the substance of relevant chat dialogue and MCP mail exchange that shaped the outcome
 
 Do not paste raw logs. Summarize substance. Use strong tags for searchability.
+
+## Effective with PROJECT-SYSTEM-MIGRATION-001
+
+- Review architecture decisions under `PROJECT_PLAN/DECISIONS/` for primary-source
+  support and accuracy classification (exact / visually equivalent / approximated /
+  deferred / unsupported).
+- Validate shared specifications under `docs/fpga/` and `docs/firmware/` against
+  primary sources.
+- Do not implement corrections; report PASS / PASS WITH CONDITIONS / FAIL with
+  exact references.
+- Record exact manual/source locations for every finding.

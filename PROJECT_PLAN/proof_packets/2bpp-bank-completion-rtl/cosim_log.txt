@@ -1,0 +1,13 @@
+# Indexed2bppBacklogCoSim — post-hardening run (2bpp-bank-completion-rtl)
+# command: sbt "runMain spinalhdlvdp.Indexed2bppBacklogCoSim"
+# SpinalHDL v1.12.3; curated from raw run log (warnings elided).
+
+=== Indexed2bppBacklogCoSim (#14327/#14332): continuous-scanout backlog + bank-completion scoreboard ===
+[budget] source-row budget = 1600 pixel-clocks/source-row (line-doubled 2×hTotal); nominal fetch ~1566 pixel-clocks (BitmapRowFetch:322). Clock ratio pixel:sdram = 40:25.
+[Progress] Verilator compilation done in 8961.226 ms
+[Done] Simulation done in 277713.484 ms
+[NOMINAL    ] bestDv=3 wrong=1/480 malformed=0 blank=0 grantOverflow=0 rtlUnderflow=0 rowTagMismatch=0 dispValid=true maxFetchSpan=351sdCyc (~219 pixclk)
+[Progress] Verilator compilation done in 7928.311 ms
+[Done] Simulation done in 278302.287 ms
+[FORCED-LATE] bestDv=2 wrong=17/480 malformed=0 blank=0 grantOverflow=25 rtlUnderflow=0 rowTagMismatch=39 dispValid=true maxFetchSpan=16332sdCyc (~10208 pixclk)
+[sim] BACKLOG: PASS (post-hardening) — NOMINAL clean (bestDv=3, zero display-bank violations, gating idle) AND FORCED-LATE shows ZERO malformed/incomplete-bank display with the completion gating ENGAGED (rtlUnderflow/rowTagMismatch>0): the display never advances onto an incomplete or stale bank, degrading to frozen valid rows. External-review claim 2 hazard CLOSED.

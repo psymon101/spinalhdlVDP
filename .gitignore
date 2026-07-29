@@ -26,6 +26,11 @@ fpga/tang20k/*.fs
 fpga/tang20k/*.tmp
 fpga/tang20k/*.log
 
+# ESP-IDF / firmware build artefacts that live outside the standard `build/` dir
+**/build/
+**/build_*
+!scripts/regression/build_*.sh
+
 hw/gen/**
 !hw/gen/.gitkeep
 !hw/verilog/.gitkeep
@@ -35,3 +40,25 @@ hw/gen/**
 fpga/tang20k/captures/*.mp4
 fpga/tang20k/captures/*.png
 fpga/tang20k/captures/*.json
+.aider*
+
+# ESP-IDF generated sdkconfig (sdkconfig.defaults is the committed template)
+sdkconfig
+sdkconfig.old
+**/sdkconfig
+**/sdkconfig.old
+
+# Large generated review bundles for external reviewers (kept on disk, not tracked)
+kb/reviews/spinalhdlvdp_all_*.md
+
+# Agent host local instruction files injected by launch_agent_isolated.sh
+AGENTS.local.md
+.kimi/
+.claude/
+.codex/
+.gemini/
+
+# Local sandbox / embedded git repos
+.venv-sessionlog/
+.worktrees/
+tools/KiCAD-MCP-Server/

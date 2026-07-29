@@ -67,6 +67,10 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
     // Routed to READ_STATUS sel=6 bit3 for host diagnosis. byteValid has no flow
     // control, so this is the only signal that a byte was dropped at ingress.
     val fifoOverflow = out Bool()
+    // DIAG #14260: temporary debug taps for sim integration diagnosis.
+    val dbgHdrPushed  = out Bool()
+    val dbgBytePushed = out Bool()
+    val dbgFsmState   = out Bits(3 bits)
   }
 
   val addrReg   = Reg(UInt(23 bits)) init 0
@@ -75,12 +79,12 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
   // Task 3 (CoralReef #9360): FIFO absorbs the per-active-line backlog so no byte is
   // dropped while the drain is gated. Originally 16 (sized for ESP8266 ~500 kHz,
   // ~13 bytes/line). #11246 F5b (CyanPeak #11266 step 3): UploadSeamSim swept depth
-  // at the 8 MHz host cap with realistic per-line fetch read bursts — 16 dropped
+  // at the 4 MHz host cap with realistic per-line fetch read bursts — 16 dropped
   // ~320/512, 64 dropped 13, depth 128 -> ZERO drops (postFix). A full line-fetch
   // read burst starves the drain longer than 64 can hold, so 128 is required to
   // absorb the worst-case backlog and fully drain in the inter-burst idle. Power-of-
   // two (GT-022). NOTE: backpressure on byteValid is still ignored (the QSPI decoder
-  // has no flow-control input), so the host MUST stay <= 8 MHz (F3); 128 covers a
+  // has no flow-control input), so the host MUST stay <= 4 MHz (F3); 128 covers a
   // bounded upload at that rate, not an unbounded stream during continuous rendering.
   val byteFifo = StreamFifo(Bits(8 bits), depth = 128)
   byteFifo.io.push.valid   := io.byteValid
@@ -186,4 +190,12 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
   io.uploadDone := donePulse
   io.uploadError := uploadError
   io.fifoOverflow := fifoOverflow
+
+  io.dbgHdrPushed  := RegNext(io.headerValid && hdrFifo.io.push.ready, False)
+  io.dbgBytePushed := RegNext(io.byteValid && byteFifo.io.push.ready, False)
+  io.dbgFsmState   := Cat(
+    fsm.isActive(fsm.sIdle),
+    fsm.isActive(fsm.sActive),
+    fsm.isActive(fsm.sDone)
+  )
 }

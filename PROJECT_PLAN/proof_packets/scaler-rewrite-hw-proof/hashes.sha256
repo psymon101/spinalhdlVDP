@@ -1,0 +1,35 @@
+# scaler-rewrite-hw-proof artifact hashes (repo-relative paths + proof-packet captures)
+# --- generated RTL (gitignored build artifact; logic == P4 b246aed7, git-hash comment differs) ---
+662dcfad52c017cec92b16c881ca361f26b791e4c4310f47645cd1e108212704  hw/gen/top_tang20k.v
+# --- fresh scaler bitstream (gitignored; preserved to named path) ---
+38002d5c2bd1ca00c9460fc0349874a5e0f65afad120ab19c26b2144d41b9c09  fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs
+# --- PnR reports ---
+95ca47e94b6c515a416623abe38d0e15edd8842b7003e80ec798044007bdeaa8  synthesis/project.rpt.txt
+339b1313a355d075a9abbca5e365933f05e215523aefd52161bb4fd10c89e2ad  synthesis/project_tr_content.html  (full timing report; not committed — TNS table extracted into PnR_PASS.md)
+# --- hardware smoke captures (2026-07-27) ---
+12038428e646bfc556aea90c5163b21376f6df8b374455efac5b8875ef8311d2  captures/smoke_01.png
+12038428e646bfc556aea90c5163b21376f6df8b374455efac5b8875ef8311d2  captures/smoke_02.png
+12038428e646bfc556aea90c5163b21376f6df8b374455efac5b8875ef8311d2  captures/smoke_03.png
+# reference-only (kept in scratchpad, not committed to keep packet lean; PNGs above are the visual proof):
+# a81f1d9b4586ddf883f1c006b95ac576153b5a5fe70eba7976234793f097f6e8  captures/smoke_raw.yuyv
+# --- preserved reference bitstreams (gitignored) ---
+a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c  fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs  (HW baseline, preserved)
+ca0b7a8324b3ce589e27813d0749a91a042a8766a4aafb690cd443c3e28a08aa  fpga/tang20k/impl/pnr/project_ca0b7a83_scaler_p4.fs  (prior P4 scaler build)
+# --- BronzeGate ESP32-P4 firmware artifacts (ESP-IDF v6.0.2, P4 rev v1.3) ---
+8ae11860f1849d57a91794c8e36e895fc2fac8cdc19cbf41261744809ec96747  firmware/mode_1x/esp32p4_scaler_proof.elf
+c28f48a1324c34a639c3bc116f0276be86240337c4700ba040e427b8a658b336  firmware/mode_1x/esp32p4_scaler_proof.bin
+3598bd575c7ec5561da3164231905a3b5514073b0b1c9be9ce3a5cfac87f2040  firmware/mode_2x/esp32p4_scaler_proof.elf
+4f89402c25a5897bea44c1d200cdadc7c70359eb97ef69576d0d0be6983689bd  firmware/mode_2x/esp32p4_scaler_proof.bin
+c5a6efdecc307e1f41e5cea946aca21e10982f3d2deed154bf41d556b1cc26bf  firmware/mode_3x/esp32p4_scaler_proof.elf
+d24efa870084f9b47d8127109afc5c1586e254d3034dbc59c9bee151ea0b7ed3  firmware/mode_3x/esp32p4_scaler_proof.bin
+a6dbc34448146c1419b4a2443cff142b07ef76f606e600ba1a3d85628427aff1  firmware/mode_1x_reset/esp32p4_scaler_proof.elf
+db092455abfc060dccb29f01e46c050bfb18f7195b542f253c439a9d913726db  firmware/mode_1x_reset/esp32p4_scaler_proof.bin
+9f5848fff44c8d24c00283f6699ba57b687972d792414b61cc5e7064b73fe17c  firmware/phase_b_1x_reset_serial.log
+f5e0e7b0531b2d55af49bbe7367d101d02f785691ac01f4d60ce19e89a025311  firmware/phase_c_3x_serial.log
+fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17  firmware/partition_table.bin
+3929b906d7e420d7ee9465037cd172dec4f8cb865c92667dd449e9be462ffc55  firmware/bootloader.bin
+# --- Phase B/C mode captures (2026-07-28, settled clean frames) ---
+00cf030fe7523a6b30af91b8f640aeee0d4528da3cc82b5486cb9995eb49083f  captures/phaseB_1x/mode0_1x.png
+422d774c264d975d4f43e0b01bf54d1646350a62f0a4add6d4f3449bd9abc5de  captures/phaseC_2x/mode2_2x_scaled.png
+13b609cd77c9dfb1b5c96d084071b00c842a688865b7e6378e2c936174d5c790  captures/phaseC_3x/mode3_3x_scaled.png
+518ec0e7c677b72c905d6175306091b0e8370af1133eb9a525c4cff06b960502  review.md

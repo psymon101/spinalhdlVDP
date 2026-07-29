@@ -1,7 +1,7 @@
 # VDP Programming Guide
 
-**Version:** 1.4 (Draft)  
-**Date:** 2026-06-13  
+**Version:** 1.5 (Draft)  
+**Date:** 2026-06-20  
 **Target Platform:** Tang Nano 20K (Mode0)  
 **Host Libraries:** `libvdp` (C/C++)
 
@@ -27,14 +27,15 @@ function_name(args);
 
 # Part I: libvdp API Guide
 
-The `libvdp` library is the authoritative host-side coordination layer. It handles the low-level hardware transport, timing synchronization, and high-level helpers for the Mode0 display engine. The current Tang Nano 20K host path is i80; QSPI remains available only through legacy aliases and sketches.
+The `libvdp` library is the authoritative host-side coordination layer. It handles the low-level hardware transport, timing synchronization, and high-level helpers for the Mode0 display engine. The current Tang Nano 20K host path is **QSPI/ESP32-P4**; i80/ESP32-S3 and legacy SPI remain in the tree as historical references.
 
 ## 1. Initialization and Basic I/O
 
 ### `vdp_host_init`
 **Description**: Initializes the host microcontroller's interface to the VDP. 
-- **i80 (Primary)**: Configures the 8-bit parallel host interface used on the current Tang Nano 20K deployment. Provides the highest throughput and lowest latency.
-- **QSPI (Legacy)**: Retained for Pico 2 and earlier ESP32/ESP8266 bench setups through deprecated aliases such as `vdp_qspi_init()`.
+- **QSPI (Primary)**: Configures the 1-1-4 quad-SPI host interface used on the current Tang Nano 20K deployment (ESP32-P4). The active RTL front-end is `QspiSlave` → `QspiDecoder` → `QspiSdramBridge`.
+- **i80 (Retired)**: The 8-bit parallel ESP32-S3 interface is no longer the canonical path. It remains supported as a historical reference.
+- **Legacy SPI**: Retained for Pico 2 and earlier ESP32/ESP8266 bench setups through aliases such as `vdp_qspi_init()`.
 
 This must be the first VDP-related function called in your `setup()` or `main()`.
 
@@ -51,7 +52,7 @@ void setup() {
 ### `vdp_read_status`
 **Description**: Performs a synchronous read from the VDP status registers. It takes a `selector` (0-255) to choose which internal data word to return.
 
-**Important**: On the current i80 parallel interface, the `READ_STATUS` opcode (`0x04`) is **not yet implemented in the RTL**. `vdp_read_status()` works only on legacy QSPI builds. For i80/ESP32-S3 deployments, poll status through normal register reads (for example, `vdp_reg_read(0x0320)` for sticky status) and use write-1-to-clear register writes (for example, `vdp_reg_write(0x0320, mask)`) as described in the register spec. Note that `0x0323` (`UPLOAD_STATUS_CLEAR`) is also not decoded in the current bitstream.
+**Important**: On the current QSPI interface, the `READ_STATUS` opcode (`0x04`) **is implemented** in `QspiDecoder` and returns live transport/SDRAM status via `vdp_read_status()`. On retired i80 builds the opcode was not implemented; historical i80 code should poll status through normal register reads or write-1-to-clear operations as described in the register spec.
 
 **Real World Use**: On QSPI builds, use this to check if the FPGA is "alive" before starting a complex graphics sequence.
 
@@ -76,6 +77,26 @@ void check_vdp_status() {
 void hide_sprites() {
     // Write 0x0001 to LAYER_ENABLE (0x0300) to keep L0 visible but hide L1 and sprites.
     vdp_reg_write(VDP_MODE0_REG_LAYER_ENABLE, 0x0001); 
+}
+```
+
+### `vdp_reg_read`
+**Description**: Issues a single 16-bit read from the VDP register bus.
+
+> [!WARNING]
+> On the current i80 parallel interface, `vdp_reg_read()` is **unreliable** for verifying hardware state. The i80 read path returns either the **last value written by the host** (loopback) or a bus-idle pattern (`0x7F7F`), not the live register-file contents. Do not use readback to confirm that `BITMAP_CTRL`, `LAYER_ENABLE`, or other configuration registers have actually latched. Verify behavior visually or through a dedicated status/capture test instead.
+>
+> This limitation is tracked as `I80-STATUS-DECODE-152` and will be resolved when the i80 FSM adds a real readback/status-decode path.
+
+**Real World Use**: Avoid on i80. On legacy QSPI builds the read path may return live values, but portable code should treat register writes as fire-and-forget and verify by observation.
+
+```c
+void do_not_do_this_on_i80() {
+    // This readback is NOT trustworthy on the current i80 bitstream.
+    uint16_t ctrl = vdp_reg_read(VDP_MODE0_REG_BITMAP_CTRL);
+    if ((ctrl & 0x0001) == 0) {
+        // May be loopback of the write you just issued, or 0x7F7F.
+    }
 }
 ```
 
@@ -131,6 +152,9 @@ void toggle_ui(bool show) {
     }
 }
 ```
+
+> [!NOTE]
+> **Layer fetch scheduling surfaces:** `VdpTop` exposes independent fetch pixel addresses for each layer. `TopTang20kHdmi` wires the Layer 1 fetch engine to `video.io.layer1FetchPixelAddr` (commit `10756d1`). Earlier revisions accidentally used `layer0FetchPixelAddr`; the two surfaces differ because the Layer 0 fetch address is pre-registered one pixel ahead of Layer 1. This only matters when Layer 1 SDRAM fetch is enabled.
 
 ---
 
@@ -472,6 +496,11 @@ vdp_mode0_set_backdrop_index(10);
 ```
 
 ### Scaling and Logical Resolution
+
+> [!IMPORTANT]
+> **Status: DORMANT / Experimental**
+> While the integer pixel-repetition scaler is implemented in RTL and proven in simulation/PnR, scaled modes (specifically >1x scaling for bitmap/indexed modes) are **not supported for general host use** at this time. There is no production bitstream or hardware validation sign-off for scaled bitmap/indexed modes. The production path remains 1x scale using SDRAM Layer 0 (`layer0UseSdram=True`).
+
 **Behavior**: The VDP includes an integer pixel-repetition scaler that can repeat logical pixels (1x to 6x) to fill the 640x480 physical panel. This allows for lower logical resolutions (like 320x240 or 256x192) while maintaining a high-quality HDMI signal.
 
 **Implementation Note**: Use the `SCALE_CTRL` register (`0x0349`) to set the X and Y repeat factors. Setting `autoCenter` (bit 7) automatically centers the logical canvas on the screen using the `LOGIC_WIDTH` and `LOGIC_HEIGHT` registers.
@@ -537,7 +566,25 @@ void vdp_soft_reset(void) {
 >
 > `affineTexture`, immutable tile ROMs, transient per-line render buffers, and legacy demo sprite input ports are **not** affected by the reset.
 
+> [!NOTE]
+> **Internal bootstrap linestate upload (standalone / diagnostic builds only).** When `TopTang20kHdmi` is built with `useHostInit=false`, an internal bootstrap FSM writes a default linestate table before the first frame. Commit `10756d1` corrected the `lastStepIdx` range from `colorMathIdx` to `linestateBase + LinestateCount - 1`; the old value made the linestate loop empty, so the standalone bootstrap wrote zero linestate entries and produced a black screen. The production QSPI/ESP32-P4 path uses `useHostInit=true` and relies on the host to write linestate explicitly, so this bug was latent.
+
+### Pipeline Latency and Signal Alignment
+
+To ensure that logical boundaries, active layers, borders, and overlays align precisely at the physical HDMI scanout pins, all VDP internal status flags, coordinate buses, and memory buses are latency-aligned. 
+
+The pipeline latency relative to the physical scan counters (`hCounter` / `vCounter`) and display enable (`colorEn`) at each stage is summarized below:
+
+| Signal / Stage | Pipeline Latency (Pixel Clocks) | Description / Alignment Mechanics |
+|---|---|---|
+| **Physical Scan Counters (`hCounter`, `vCounter`)** | 0 | Raw timing generator coordinate counters. |
+| **Output Sync & Active Display (`io.hsync`, `io.vsync`, `io.de`)** | 2 | Display-side registered sync signals (`hsyncRR`, `vsyncRR`, `deRR`). |
+| **Logical Coordinates (`io.x`, `io.y`)** | 2 | Delayed to align with the active display window. Sourced from `hCounterR` / `vCounterR` registered pipeline stages. |
+| **Internal Compositor Input (`bgOrDirectRgb`)** | 2 | Compositor color input. Co-timed with `io.x` / `io.y` at stage +2. |
+| **Composited Color output (`io.red`/`green`/`blue`)** | 4 | Final output pins driven by `displayRgbScaled`. Registers (`displayRgbScaled`, `maskedRgbR`, etc.) add a 2-cycle latency relative to the compositor inputs (`bgOrDirectRgb`), so the physical outputs carry the color of the pixel at `io.x - 2`. |
+
 ---
+
 
 ## 9. Verification Guidelines
 # Part II: Internal Register Reference
@@ -628,6 +675,9 @@ Without this step the screen will show only the backdrop color, even though `LAY
 
 For each row, pack the low bytes of two consecutive pixels into one 16-bit word, and the high bytes into another 16-bit word, then upload to the respective planes. The canonical example `firmware/esp32s3_rgb565_fullframe/esp32s3_rgb565_fullframe.ino` demonstrates the full sequence.
 
+> [!NOTE]
+> **Bitmap pipeline latency:** The bitmap/double-buffer line buffer is filled and drained by the same pixel clock. The current implementation aligns the fill and drain paths with a **zero-cycle write delay** (`BITMAP_PIPELINE_LATENCY = 0`): source pixel `k` is written to `dcLineBuf[k]` and displayed at the screen column corresponding to `k`. Earlier prototypes required a non-zero compensation delay; that was an artifact of co-simulator sampling and has been removed.
+
 ### Code example
 
 ```c
@@ -658,82 +708,182 @@ void setup_rgb565_fullscreen(void) {
 }
 ```
 
-## 11. i80 Host Interface Notes
+## 11. Host Interface Notes
 
-The canonical ESP32-S3 host path uses the i80 8-bit parallel bus:
+The canonical Tang Nano 20K host path is **QSPI/ESP32-P4**, with RTL front-end `QspiSlave` → `QspiDecoder` → `QspiSdramBridge`:
 - Register writes use opcode `0x00`.
-- Register reads use opcode `0x01` and return the **last-written value** for most addresses (loopback), not a full register-file readback.
-- SDRAM block writes use opcode `0x02`.
+- SDRAM writes use opcode `0x01`.
+- `READ_STATUS` reads use opcode `0x04` and return live transport/SDRAM status.
 
-Use `firmware/libvdp/vdp_i80.h` for transport-agnostic calls such as `vdp_reg_write()`, `vdp_reg_read()`, and `vdp_sdram_write()`.
+Use `firmware/libvdp/vdp_host.h` for transport-agnostic calls such as `vdp_reg_write()`, `vdp_reg_read()`, `vdp_sdram_write()`, and `vdp_read_status()`.
+
+> [!WARNING]
+> **`vdp_reg_read()` is not a reliable verification primitive on QSPI.** The readback path returns the **last-written value** for most addresses (loopback), not the live committed register-file contents. Code that reads back `BITMAP_CTRL`, `LAYER_ENABLE`, `BITMAP_BASE`, etc., to decide whether a configuration step succeeded is at risk of false positives. Treat register writes as fire-and-forget and verify by visual output or a dedicated status read.
+
+### i80 (retired)
+
+The historical ESP32-S3 i80 8-bit parallel bus used opcodes `0x00` (register write), `0x01` (register read, loopback), and `0x02` (SDRAM block write). `vdp_i80.h` is preserved as a historical reference. `READ_STATUS` (opcode `0x04`) was not implemented on the i80 path; see `I80-STATUS-DECODE-152` in the task backlog.
 
 > [!WARNING]
 > **Full-Screen RGB565 Bitmap Limitation (legacy warning):** The power-on reset (POR) default bases for the bitmap layer are `0x3000` (Bitmap) and `0x4000` (Attribute). These defaults overlap after 8 rows when rendering direct-color (RGB565) mode at a 512-byte stride. For full-screen RGB565 bitmaps, you **must** configure non-overlapping bases (e.g., `0x100000` and `0x200000`) using registers `0x0351..0x0354`. The defaults are retained for backward compatibility with legacy indexed 1/2bpp mode demos.
 
-## 12. Native 640×480 Mode Scope and Limitations
+## 12. Bitmap Reference Modes
 
-Mode0 is being extended to support native 640×480 1:1 display modes (under active development in the `NATIVE-640-BITMAP-148` lane). The 16-bit SDRAM bus at 40.5 MHz provides roughly 56 MB/s effective bandwidth, so the supported configurations are strictly budgeted:
+The current Tang Nano 20K reference image uses a **2bpp indexed-color bitmap** uploaded over the word-drain QSPI transport. The earlier **HAM6** mode has been **shelved** from the active critical path and is documented below for historical reference only.
 
-- **2bpp / 4bpp Indexed Modes**: Comfortable gaming targets at native 640×480. Full layer composition (Layer 0, Layer 1, and Sprites) is expected to fit within the SDRAM budget.
-- **8bpp Indexed Mode**: Feasible but tight. Concurrent tile fetches, sprites, and host upload may require limiting active layers or sprite count; exact limits are being validated in `NATIVE-640-BITMAP-148` CP-A.
-- **16bpp Direct-Color (RGB565) Mode**: **Workbench/static-use only**. Fetching 640 RGB565 pixels per line consumes most of the available SDRAM bandwidth; therefore, sprites and background layers are disabled in this mode to prevent FIFO underflow.
+### 12.1 2bpp Indexed Bitmap Mode (active reference)
 
-Developers should target 2bpp/4bpp indexed modes for native 640×480 action/gaming content, use 8bpp indexed when the extra colors are worth the tighter bandwidth budget, and restrict RGB565 native 640×480 to static screens, simple GUIs, or Workbench displays without active overlay layers or hardware sprites.
+Mode0 supports an indexed bitmap layer with configurable bits-per-pixel. The active Tang Nano 20K reference image uses **2bpp** (`bpp=0b01`), giving four palette-selectable colors — enough for a clear vertical-bar or checkerboard reference pattern while staying safely within SDRAM fetch bandwidth.
 
-## 13. HAM6 Bitmap Mode (Amiga Hold-And-Modify)
+This mode is **hardware-proven** on the HAM6-removal lane (firmware commit `90b892d`, capture `captures/indexed2_linestate_l0_2026-07-20.jpg`).
 
-HAM6 provides authentic Amiga-style Hold-And-Modify graphics. It uses a stateful per-scanline colour accumulator instead of a per-pixel palette lookup, which lets the bitmap express many distinct colours from a small base palette.
+#### Memory layout
 
-### Enabling HAM6
+- **Bits per pixel:** 2 (`bpp=0b01`).
+- **Pixels per byte:** 4 (packed MSB-first within each byte).
+- **Logical size:** 320×240 source pixels, scaled 2× to 640×480 display pixels.
+- **Hardware row stride:** 128 bytes (hardwired in `BitmapRowFetch.scala:270` as `lineReg << 7`). The effective data for 320 source pixels is only 80 bytes/row, so the remaining 48 bytes per row are padding.
+- **Attribute plane:** The RTL fetches both the bitmap and attribute planes unconditionally. For the 2bpp reference pattern, upload a second plane filled with `0xE4` (identity attribute) to the same 128-byte stride. The attribute byte determines how each pixel maps to the palette; `0xE4` gives a direct pixel-value → palette-index mapping.
+- **Total upload size:** 128 bytes/row × 240 rows = 30 720 bytes per plane.
+- **Upload packing:** Pack each row into little-endian 16-bit words (`word = byte[x] | (byte[x + 1] << 8)`) and upload to `BITMAP_BASE` and `ATTR_BASE`.
 
-Set `BITMAP_CTRL` (`0x0350`) to `0x0007u`:
+#### Required configuration
 
-- `ENABLE=1`
-- `BPP=0b11` (HAM6)
-- `CELL_WIDTH_LOG2=0b0000`
+| Register | Recommended value | Why |
+|---|---|---|
+| `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | SDRAM base for the 2bpp bitmap plane |
+| `ATTR_BASE_LO` / `ATTR_BASE_HI` | `0x0000` / `0x0022` → base `0x110000` | SDRAM base for the identity attribute plane (proven on bench) |
+| `BITMAP_STRIDE` / `ATTR_STRIDE` | `128` (`0x0080`) | Hardware hardwires 128-byte row stride |
+| `BITMAP_HEIGHT` | `240` (`0x00F0`) | Source bitmap height in rows |
+| `BITMAP_CTRL` | `0x0003` | enable (`bit0=1`) + BPP=`0b01` (`bits[2:1]=1`) |
+| `LAYER_ENABLE` | `0x0001` | Enable bitmap layer 0 globally |
 
-HAM6 reuses the existing RGB565 direct-colour fetch and output path, so `BITMAP_BASE`, `ATTR_BASE`, `BITMAP_STRIDE`, and `ATTR_STRIDE` obey the same 32-byte alignment rules as RGB565 direct-colour mode.
+> [!WARNING]
+> **Do not rely on `BITMAP_STRIDE`/`ATTR_STRIDE` to set the actual fetch stride.** The current RTL hardwires the row increment to 128 bytes. Setting the stride register to 80 will not change the hardware fetch address sequence; the attribute plane must be laid out at 128 bytes/row to stay in sync.
 
-### Pixel format
+#### Linestate precondition (the gotcha)
 
-Each source pixel is **one byte** (320 source pixels/row, stretched ×2 to 640 display columns). Bits `[7:6]` are unused.
+Enabling the global `LAYER_ENABLE` bit 0 is **not enough** to make the bitmap visible. The render pipeline ANDs the global enable with a **per-line linestate** `layer0Enable` bit (`VdpTop.scala:1689`):
 
-```text
-[5:4]  Control
-[3:0]  Data
+```
+effectiveL0Enable = linestate.io.layer0Enable && layerEnableReg(0)
 ```
 
-| Control | Meaning | Effect |
-|---|---|---|
-| `00` | SET | Load accumulator from `palette[data]` (data = 0..15). Base colours are truncated to 12-bit `R4:G4:B4`. |
-| `01` | Modify Blue | Replace the blue channel of the accumulator with `data` (4-bit, expanded to 8-bit). |
-| `10` | Modify Red | Replace the red channel of the accumulator with `data`. |
-| `11` | Modify Green | Replace the green channel of the accumulator with `data`. |
+Soft reset clears every linestate entry, so `layer0Enable` defaults to 0 and the screen shows only the backdrop (black). Before enabling the layer, write `0x0800` to every active line's linestate entry (`0x0000..0x01DF`, one 16-bit word per line):
 
-The 12-bit `R4:G4:B4` accumulator is expanded back to 24-bit `R8:G8:B8` by bit replication before it reaches the display path.
-
-### Setup sequence
-
-1. Load the 16 SET base colours into `palette[0..15]`. These are the only colours that can be loaded directly by a SET pixel; all other pixels modify the previous colour.
-2. Configure non-overlapping `BITMAP_BASE` and `ATTR_BASE` (e.g., `0x100000` and `0x200000`).
-3. Write `BITMAP_CTRL = 0x0007u` at a vblank-safe point.
-4. The accumulator resets to `palette[0]` at the start of every scanline, so ensure `palette[0]` is a sensible default/background colour.
-
-### Example
+- bit `[11]` = `layer0Enable`
+- bit `[10]` = `layer1Enable`
+- bits `[9:0]` = `layer0ScrollX`
 
 ```c
-// Load 16 base colours into palette[0..15] first.
-// Then enable HAM6 bitmap fetch.
-vdp_reg_write(VDP_MODE0_REG_BITMAP_BASE_LO,    0x0000u);
-vdp_reg_write(VDP_MODE0_REG_BITMAP_BASE_HI,    0x0010u); // 0x100000
-vdp_reg_write(VDP_MODE0_REG_ATTR_BASE_LO,      0x0000u);
-vdp_reg_write(VDP_MODE0_REG_ATTR_BASE_HI,      0x0020u); // 0x200000
-vdp_reg_write(VDP_MODE0_REG_BITMAP_STRIDE,     320u);    // 32-byte aligned
-vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL,       0x0007u); // enable + HAM6
+for (uint16_t line = 0; line < VDP_MODE0_LINESTATE_COUNT; ++line) {
+    vdp_mode0_write_linestate(line, 0x0800u); // L0 on, L1 off, scrollX = 0
+}
 ```
 
-> [!IMPORTANT]
-> HAM6 is a **line-order-sensitive** format. Because each pixel depends on the accumulator state of all previous pixels in the same scanline, random access within a row is not meaningful and row content must be authored sequentially from left to right.
+Without this step the QSPI transport, palette, geometry, and layer enable can all be correct and the screen will still be black. This was the root cause of the black-canvas blocker in #14232.
+
+#### Palette
+
+Load the four display colors into palette entries `0..3` before enabling the layer. Palette entries are 24-bit RGB888, written through `PALETTE_PTR` (`0x0601`) and `PALETTE_DATA` (`0x0600`) as described in §4.
+
+#### Canonical 2bpp enable sequence
+
+1. Load palette entries `0..3`.
+2. SDRAM_WRITE bitmap plane → `BITMAP_BASE` (`0x100000`).
+3. SDRAM_WRITE identity attribute plane (`0xE4`) → `ATTR_BASE` (`0x110000`).
+4. Configure geometry: `BITMAP_BASE`, `ATTR_BASE`, `BITMAP_STRIDE`/`ATTR_STRIDE` = 128, `BITMAP_HEIGHT` = 240.
+5. Write `BITMAP_CTRL` = `0x0003` (enable + 2bpp).
+6. Write linestate `0x0000..0x01DF` = `0x0800` (per-line L0 enable).
+7. Write `LAYER_ENABLE` = `0x0001`.
+
+#### Code example
+
+```c
+#include "vdp_host.h"
+#include "vdp_mode0.h"
+
+static const uint32_t indexed2bpp_palette[4] = {
+    0x00000000, // 0: black
+    0x00FF0000, // 1: red
+    0x0000FF00, // 2: green
+    0x000000FF, // 3: blue
+};
+
+static const uint16_t indexed2bpp_image[64 * 240];      // 128 bytes/row packed
+static const uint16_t indexed2bpp_attr[64 * 240];       // 128 bytes/row, fill with 0xE4E4
+
+void setup_2bpp_indexed(void) {
+    vdp_host_init();
+
+    // 1. Load palette entries 0..3.
+    for (uint8_t i = 0; i < 4; ++i) {
+        vdp_mode0_palette_write_rgb888(i,
+            (indexed2bpp_palette[i] >> 16) & 0xFF,
+            (indexed2bpp_palette[i] >>  8) & 0xFF,
+             indexed2bpp_palette[i]        & 0xFF);
+    }
+
+    // 2. Upload the packed 2bpp planes to SDRAM.
+    vdp_sdram_write(0x100000u, indexed2bpp_image, 64u * 240u);
+    vdp_sdram_write(0x110000u, indexed2bpp_attr,  64u * 240u);
+
+    // 3. Configure bitmap geometry.
+    vdp_mode0_set_bitmap_base(0x100000u);
+    vdp_mode0_set_attr_base(0x110000u);
+    vdp_mode0_set_bitmap_stride(128u);
+    vdp_mode0_set_attr_stride(128u);
+    vdp_mode0_set_bitmap_height(240u);
+
+    // 4. Enable 2bpp indexed (BPP = 0b01).
+    vdp_reg_write(VDP_MODE0_REG_BITMAP_CTRL, 0x0003u);
+
+    // 5. Enable L0 for every line. THIS STEP IS REQUIRED.
+    for (uint16_t line = 0; line < VDP_MODE0_LINESTATE_COUNT; ++line) {
+        vdp_mode0_write_linestate(line, 0x0800u);
+    }
+
+    // 6. Enable the bitmap layer.
+    vdp_mode0_set_layer_enable(0x0001u);
+}
+```
+
+---
+
+### 12.2 HAM6 Bitmap Mode (shelved)
+
+> [!WARNING]
+> **HAM6 is shelved from the active critical path.** The owner decided on 2026-07-20 that HAM6 was too problematic to keep on the current lane (#14224). The `bpp=0b11` encoding is **reserved** for future HAM6 work. Do not use it on the current Tang Nano 20K deployment unless a new lane explicitly re-enables it.
+
+Mode0 previously supported a **HAM6** (Hold-And-Modify 6-bit) bitmap layer. In this mode the source image is a single byte plane: each source pixel is a 6-bit code that either selects a base color from palette entries `0..15` or modifies one channel of the previous pixel's color.
+
+#### HAM6 code format
+
+| Bits | Field | Meaning |
+|---|---|---|
+| `[5:4]` | Control | `00` = SET from palette, `01` = modify blue, `10` = modify red, `11` = modify green |
+| `[3:0]` | Data | For SET: palette index `0..15`. For modify: new 4-bit channel value. |
+| `[7:6]` | — | Always zero. |
+
+The first pixel of every scanline is decoded as a SET operation using palette entry `0` as the seed color, regardless of the control field.
+
+#### Memory layout
+
+- Source size: 320×240 logical pixels.
+- Display expectation: 640×480 after 2× horizontal/vertical stretch.
+- One byte per source pixel, packed as little-endian 16-bit words for `vdp_sdram_write()`.
+- Only the **`BITMAP_BASE` byte plane** was used to decode HAM6 pixels. However, the RTL fetched both the bitmap and attribute planes unconditionally, so `ATTR_BASE` had to be configured to point to a memory location in the same SDRAM row/bank as `BITMAP_BASE` (e.g., `0x100020`).
+
+#### Required configuration (historical)
+
+| Register | Recommended value | Why |
+|---|---|---|
+| `BITMAP_BASE_LO` / `BITMAP_BASE_HI` | `0x0000` / `0x0010` → base `0x100000` | Aligned SDRAM base for the HAM byte plane |
+| `ATTR_BASE_LO` / `ATTR_BASE_HI` | `0x0020` / `0x0010` → `0x100020` | Same SDRAM bank/row as BITMAPBase (to prevent thrashing) |
+| `BITMAP_STRIDE` / `ATTR_STRIDE` | `320` | One byte per source pixel, 320 bytes/row |
+| `BITMAP_HEIGHT` | `240` | Source bitmap height in rows |
+| `BITMAP_CTRL` | `0x0007` | enable (`bit0=1`) + BPP=`0b11` (`bits[2:1]=3`) |
+| `LAYER_ENABLE` | `0x0001` | Enable bitmap layer 0 |
 
 ---
 *End of Guide.*

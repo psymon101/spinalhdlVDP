@@ -1,0 +1,20 @@
+ESP32-P4 scaler proof mode-3 hardware run
+source commit: 76f67ad (firmware source includes correction 2f5be56)
+chip revision: v1.3
+ESP-IDF: v6.0.2
+ELF file SHA256: c5a6efdecc307e1f41e5cea946aca21e10982f3d2deed154bf41d556b1cc26bf
+scaler proof mode=3 magic=0x51560002
+scale=3x logic=200x150 expected_bezel=20x15 ctrl=0xB3
+HEALTH_BEFORE_UPLOAD raw=0x00000000 overflow=0 malformed=0
+bitmap uploaded bytes=30720 clock=4000000
+attr uploaded bytes=30720 clock=4000000
+HEALTH_AFTER_UPLOAD raw=0x00000000 overflow=0 malformed=0
+READBACK PASS addr=0x100000 value=0x00000000
+READBACK PASS addr=0x100008 value=0x55555555
+READBACK PASS addr=0x100010 value=0x00000000
+READBACK PASS addr=0x101000 value=0x55555555
+READBACK PASS addr=0x106400 value=0x00000000
+READBACK PASS addr=0x106480 value=0x00000000
+LINESTATE PASS lines=480 chunks=2
+HEALTH_AFTER_ENABLE raw=0x00000000 overflow=0 malformed=0
+SCALER_PROOF mode=3 pass=1

@@ -3,11 +3,11 @@
 Firmware-specific pitfalls, proven fixes, and contract deviations for the
 `spinalhdlVDP` host driver library.
 
-## QSPI Transport
+## legacy SPI Transport
 
 ### GOTCHA-1: ESP32 / ESP8266 SCK speed is ~500 kHz (bit-bang)
 
-**Deviation:** The locked QSPI contract specifies 2 MHz SCK. The Arduino
+**Deviation:** The locked legacy SPI contract specifies 2 MHz SCK. The Arduino
 bit-bang implementation for ESP32 and ESP8266 achieves only ~500 kHz due to
 digitalWrite overhead.
 
@@ -16,22 +16,22 @@ digitalWrite overhead.
   and OSR drain (20 µs), not SCK edge counts.
 - Bench testing with Sc45, Sc62, and Task 55 scenarios on both ESP32 and
   ESP8266 produced correct HDMI output.
-- The VDP QSPI receiver is a shift-register with no minimum frequency spec
+- The VDP legacy SPI receiver is a shift-register with no minimum frequency spec
   other than "fast enough to complete before the next VDP operation."
 
 **Risk:**
-- Very long bursts (>1 ms total QSPI active time) may span multiple scanlines
+- Very long bursts (>1 ms total legacy SPI active time) may span multiple scanlines
   and interact with VDP scanline deadlines.
-- Mitigation: keep individual QSPI bursts under 256 bytes unless explicitly
+- Mitigation: keep individual legacy SPI bursts under 256 bytes unless explicitly
   validated on hardware.
 
 **Fix status:** Documented. No code change required.
 
 ---
 
-### GOTCHA-2: Pico PIO QSPI runs at 2 MHz (native)
+### GOTCHA-2: Pico PIO legacy SPI runs at 2 MHz (native)
 
-**Fact:** The Pico RP2350 uses a PIO state machine for QSPI, achieving the full
+**Fact:** The Pico RP2350 uses a PIO state machine for legacy SPI, achieving the full
 2 MHz contract speed. This is the reference implementation.
 
 **Implication:** When validating timing-sensitive scenarios, use the Pico as the
@@ -47,7 +47,7 @@ Do not compute this as "N clock cycles" because host SCK rates vary by platform.
 
 **Implementation:**
 - Pico: PIO program uses `delay` sideset for microsecond-level hold.
-- ESP32/ESP8266: `vdp_qspi.c` uses `delayMicroseconds(10)` after the final bit.
+- ESP32/ESP8266: `vdp_legacySpi.c` uses `delayMicroseconds(10)` after the final bit.
 
 ---
 
@@ -56,12 +56,12 @@ Do not compute this as "N clock cycles" because host SCK rates vary by platform.
 ### FIDELITY-1: Authoritative vs Functional Host
 
 - **Authoritative:** ESP32-S3 (i80 parallel). Native GPIO fast toggling. Deterministic timing. **Required for audit sign-off.**
-- **Functional / Legacy:** Pico 2 (RP2350) PIO QSPI, ESP32, ESP8266. Bit-bang QSPI @ ~500 kHz. Acceptable for functional regression only; not authoritative for timing-sensitive proofs.
+- **Functional / Legacy:** Pico 2 (RP2350) PIO legacy SPI, ESP32, ESP8266. Bit-bang legacy SPI @ ~500 kHz. Acceptable for functional regression only; not authoritative for timing-sensitive proofs.
 
 ### FIDELITY-2: Upload Error Trust Requirement
 
 Visual output is only valid if the upload bridge sticky error bits remain clear.
-**Procedure:** Poll `vdp_last_error()` after bursts. On legacy QSPI builds, clear error bits with `vdp_clear_upload_status()` if set and retrust only when `vdp_last_error() == 0` throughout setup (this corresponds to `QSPI_ERROR` / sticky bit 3 / `sel=4`).
+**Procedure:** Poll `vdp_last_error()` after bursts. On legacy SPI builds, clear error bits with `vdp_clear_upload_status()` if set and retrust only when `vdp_last_error() == 0` throughout setup (this corresponds to `LEGACY_SPI_ERROR` / sticky bit 3 / `sel=4`).
 
 **Current limitation:** On the canonical i80 bitstream, `vdp_clear_upload_status()` issues the documented `0x0323` write, but the current RTL does not decode that address, so the sticky bits are not actually cleared until the RTL fix lands (see FIDELITY-6 and `MODE0_REGISTER_BUS_SPEC.md` §3.1.2).
 
@@ -91,9 +91,9 @@ Visual output is only valid if the upload bridge sticky error bits remain clear.
 **Fact:** The canonical ESP32-S3 host uses the i80 parallel interface. The i80 RTL decoder (`I80HostInterface.scala`) currently accepts only opcodes `0x00` (register write), `0x01` (register read), and `0x02` (SDRAM block write). It does **not** decode the `READ_STATUS` opcode (`0x04`).
 
 **Implication:**
-- `vdp_read_status()` works correctly only on legacy QSPI builds.
+- `vdp_read_status()` works correctly only on legacy SPI builds.
 - On i80/ESP32-S3 builds, `vdp_read_status()` returns undefined data and does not reflect VDP state.
-- Several ESP32-S3 example sketches still call `vdp_read_status()` for debug prints; those prints are meaningful only when the sketch is built for the legacy QSPI backend.
+- Several ESP32-S3 example sketches still call `vdp_read_status()` for debug prints; those prints are meaningful only when the sketch is built for the legacy SPI backend.
 
 **Workaround:** On i80, poll status through normal register reads:
 - Sticky status → `vdp_reg_read(0x0320)` (or write-1-to-clear with `vdp_reg_write(0x0320, mask)`).
@@ -124,13 +124,13 @@ mappings and SPI peripheral headers are platform-specific.
 ```
 name=libvdp
 version=1.0.0
-author=spinalhdlVDP team
-maintainer=spinalhdlVDP team
-sentence=VDP host driver library
-paragraph=Cross-platform QSPI host driver for spinalhdlVDP
-category=Device Control
-url=
-architectures=esp8266,esp32,rp2040
+author=SignalWire
+maintainer=SignalWire
+sentence=Shared host driver library for VDP Mode0.
+paragraph=Encapsulates host transport, register writes, and SDRAM uploads.
+category=Display
+url=https://github.com/spinalhdlVDP
+architectures=*
 ```
 
 Without this file, the Arduino IDE and `arduino-cli` will not recognize
@@ -140,7 +140,7 @@ Without this file, the Arduino IDE and `arduino-cli` will not recognize
 
 ## Platform-Specific
 
-### GOTCHA-6: ESP32 GPIO 25/27 are safe for QSPI IO2/IO3
+### GOTCHA-6: ESP32 GPIO 25/27 are safe for legacy SPI IO2/IO3
 
 **Fact:** On the ESP32 dev1 board used in this project, GPIO 25 and 27 are
 not strap pins and do not conflict with JTAG or flash access.
@@ -154,15 +154,15 @@ not strap pins and do not conflict with JTAG or flash access.
 **Fact:** IO3 on the ESP8266 NodeMCU maps to GPIO 16 (D0), which has no
 internal pull-up. If the VDP ever tri-states IO3, the ESP8266 side may float.
 
-**Current status:** The VDP QSPI implementation always drives IO3 during
+**Current status:** The VDP legacy SPI implementation always drives IO3 during
 transactions, so this is not a live issue. Documented for future reference if
 the VDP side ever adds high-Z states.
 
 ---
 
-### GOTCHA-8: Barebones 40-bit QSPI protocol (Stage 2+)
+### GOTCHA-8: Barebones 40-bit legacy SPI protocol (Stage 2+)
 
-**Deviation:** The "barebones" rebuild branch (`mode0t20-barebones-rebuild`) uses a simplified 1-bit SPI protocol instead of the full 6-byte header QSPI contract.
+**Deviation:** The "barebones" rebuild branch (`mode0t20-barebones-rebuild`) uses a simplified 1-bit SPI protocol instead of the full 6-byte header legacy SPI contract.
 
 **Protocol:**
 - **Width:** 1-bit (SCK, CS_N, MOSI only; no MISO/IO2/IO3)
@@ -170,9 +170,9 @@ the VDP side ever adds high-Z states.
 - **Command:** Only `0x01` (REG_WRITE) is supported.
 - **Timing:** Same 2 MHz SCK and 10 µs CS hold invariants as the main contract.
 
-**Why it exists:** To provide a truly-minimal bring-up path on Tang Nano 20K that fits in low LUT counts and doesn't require the full SDRAM/QSPI infrastructure.
+**Why it exists:** To provide a truly-minimal bring-up path on Tang Nano 20K that fits in low LUT counts and doesn't require the full SDRAM/legacy SPI infrastructure.
 
-**Fix status:** Documented. Host sketches `esp8266_barebones_scroll`, `esp32_barebones_scroll`, and `test_barebones_scroll` implement this protocol. Main `libvdp` DOES NOT support this protocol; it remains locked to the 6-byte header QSPI contract.
+**Fix status:** Documented. Host sketches `esp8266_barebones_scroll`, `esp32_barebones_scroll`, and `test_barebones_scroll` implement this protocol. Main `libvdp` DOES NOT support this protocol; it remains locked to the 6-byte header legacy SPI contract.
 
 ---
 
@@ -197,13 +197,13 @@ the VDP side ever adds high-Z states.
 
 **Fix:** Write your intended backdrop palette entry (0..127) to `BACKDROP_INDEX` (`0x0348`), then write the RGB color to that palette entry. Do not rely on Layer 0's palette bank for the disabled-layer backdrop.
 
-### GOTCHA-11: ESP32-S3 QSPI SI Ceiling at 80 MHz
+### GOTCHA-11: ESP32-S3 legacy SPI SI Ceiling at 80 MHz
 
 **Fact:** The ESP32-S3 hardware SPI2 peripheral supports up to 80 MHz when using the dedicated FSPI IOMUX pin group (GPIO 9..14).
 
 **Implication:** At 80 MHz, signal integrity on breadboards or long unshielded wires is poor. Reflections can cause bit-flips in bulk register writes, leading to corrupted palette or SDRAM data.
 
-**Fix:** Use **60 MHz** (`VDP_QSPI_SCK_WRITE_HZ`) as the production bulk-write speed. It provides nearly the same throughput (~6.8 MB/s) with significantly more SI margin. Interleaving data lines with multiple Ground wires on the ribbon cable is also recommended.
+**Fix:** Use **60 MHz** (`VDP_SPI_SCK_WRITE_HZ`) as the production bulk-write speed. It provides nearly the same throughput (~6.8 MB/s) with significantly more SI margin. Interleaving data lines with multiple Ground wires on the ribbon cable is also recommended.
 
 ### GOTCHA-12: Scaler Register Ordering and Safe-Boundary Commit
 
@@ -274,15 +274,108 @@ vdp_mode0_set_scale_ctrl(
 
 ---
 
-### GOTCHA-033: QSPI Physical SCK Ceiling (25.2 MHz Oversampling)
+### GOTCHA-033: legacy SPI Physical SCK Ceiling (25.2 MHz Oversampling)
 
 **Fact:** The `QspiSlave.scala` oversamples the asynchronous SCK pin using the 25.2 MHz pixel clock.
 
 **Logic Ceiling:** Per Nyquist-Shannon, the SCK frequency MUST be less than 12.6 MHz (half the oversampling rate). In practice, with routing jitter and setup/hold requirements, the stable ceiling is ~8 MHz.
 
+**Physical Ceiling:** The current ESP32-P4-to-Tang-Nano-20K wiring shows intermittent byte/nibble shifts at 8 MHz bulk SDRAM upload (QSPI-SI-CEILING-183). Bench logs: 8 MHz = 4/10 pass, 4 MHz = 3/3 pass, 2 MHz = 3/3 pass.
+
 **Implication:**
 - The 60 MHz write speed recommended in earlier firmware versions is **physically invalid**.
 - At 60 MHz, the FPGA sees aliased/random transitions, causing protocol collapse and non-deterministic register/SDRAM write failures.
+- At 8 MHz, signal-integrity margin is insufficient for reliable bulk SDRAM upload on this wiring.
 
-**Fix:** Cap the QSPI write clock to **8 MHz** max. Adjust `VDP_QSPI_SCK_WRITE_HZ` in `vdp_platform.h` and the ESP32 probe firmware.
+**Fix:** Cap the legacy SPI write clock to **4 MHz** max for production bulk uploads. Adjust `VDP_SPI_SCK_WRITE_HZ` in `vdp_platform.h` and the ESP32 probe firmware. Register traffic may still use higher functional clocks after the upload.
 
+---
+
+### GOTCHA-034: Persistent FPGA flash does not prove active SRAM configuration
+
+**Fact:** On the Tang Nano 20K bench, `openFPGALoader --write-flash --verify`
+successfully erased, programmed, and verified the persistent bitstream, but its
+completion left FPGA SRAM unconfigured. The ESP32-P4 QSPI proof then read
+`0xFFFFFFFF` for the magic/status values. A separate
+`openFPGALoader --board tangnano20k --bitstream project.fs` SRAM load restored
+the active design; the same firmware immediately produced magic `0x51560002`,
+health `0x00000000`, and the display-pass marker (`HAM6_PROOF_DONE` at the time;
+now the 2bpp indexed reference-mode marker).
+
+**Implication:** A flash hash/verify result is not sufficient for a live host
+proof. Load SRAM explicitly for the current session, or power-cycle and verify
+the device's configure-from-flash path before interpreting all-ones QSPI reads
+as a transport or pin failure.
+
+**Related pin distinction:** The Tang CST numbers (`CS=85`, `SCK=77`,
+`IO0..3=25..28`) are FPGA package pins, not ESP32-P4 GPIO numbers. The P4
+adapter uses `SCLK=21`, `CS=20`, `IO0=32`, `IO1=33`, `IO2=22`, `IO3=23`.
+
+### GOTCHA-035: ESP32-P4 bulk SDRAM upload clock is 4 MHz on current wiring
+
+**Fact:** The clean-room 30,720-byte checkerboard plane upload passed 3/3 cold-start cycles at 4 MHz and 3/3 at 2 MHz, while 8 MHz passed only 4/10. At 8 MHz, readback showed intermittent byte/nibble shifts in lower bitmap rows even though transport health (`READ_STATUS` selector `0x0A`) stayed `overflow=0`, `malformed=0`.
+
+**Implication:** The current ESP32-P4-to-Tang-Nano-20K QSPI wiring has insufficient signal-integrity margin for the 8 MHz bulk SDRAM upload. This is a host-clock policy, not evidence of FPGA FIFO congestion or a new register/QSPI command.
+
+**Fix:** Keep `QSPI_SDRAM_CLOCK_HZ = 4u * 1000u * 1000u` for checkerboard and other 30,720-byte SDRAM plane uploads on this wiring. Register traffic may return to the 40 MHz functional clock after the upload. Revalidate on any physical wiring, pin, level-shifter, or board revision change.
+
+**Proof:** Checkerboard firmware commit `3d40636` fixed write dummy framing; the 4 MHz policy was directed in mail `#14261`. The 4 MHz canonical rerun must retain 10+ cold-start logs and clean HDMI capture before closeout.
+
+### GOTCHA-036: Guermok USB2 direct-capture chroma and streak artifacts
+
+**Fact:** The Guermok USB2 card can produce stable, repeatable YUV/MJPEG encoding artifacts on an otherwise correct static HDMI frame. In the QSPI-CRC8-185 proof, `/dev/video0` YUYV 720×480 frames 1–3 were byte-identical with SHA-256 `6ce9676fae857417b15bdc0f89aac8e2f336af530786c7b4c900b4babdb17b3d`, and MJPEG 1280×720 frames 1–3 were byte-identical with SHA-256 `499ed65f8385836dcdf5c991cfc6c19d4703a91133f1e742e525caaa2abc029c`, while CRC retry, SDRAM readback, line-state programming, and checkerboard proofs all passed. The earlier HAM6-removal capture artifact showed the same class of evidence—stepped/noisy bands in the direct capture despite a passing transport/display proof (recorded in `PROJECT_PLAN/STATUS.md`, prior capture SHA-256 `f5b36020597f970e21e41e4f1393aff66caaae99e9d9c0521eda642d2a5b8201`).
+
+**Implication:** A stable cyan block, chroma block, or repeated left-edge horizontal streak in this capture path is not by itself evidence of SDRAM corruption, fetch/bank cadence failure, or HDMI scanout failure. Treat serial readback, transport health, and repeat-frame hashes as the authoritative checks before changing firmware or RTL.
+
+**Fix:** If those checks pass, retain the firmware/bitstream and pair-verify with a monitor or alternate capture path. Do not retune QSPI clock, fetch cadence, or bank sequencing solely from this Guermok artifact.
+
+---
+
+### GOTCHA-037: External static review Tier A latent fixes
+
+**Fact:** An external static review of the RTL surfaced two real but dormant wiring/logic issues in `TopTang20kHdmi.scala`, both fixed in commit `10756d1`:
+
+1. **Bootstrap `lastStepIdx` range:** The standalone (`useHostInit=false`) bootstrap FSM wrote zero linestate entries because `lastStepIdx` was set to `colorMathIdx`, which is one less than `linestateBase`. The fix sets `lastStepIdx = linestateBase + LinestateCount - 1`.
+2. **Layer 1 pixel-address wiring:** `fetchL1.io.pixelAddr` was wired to `video.io.layer0FetchPixelAddr` instead of `video.io.layer1FetchPixelAddr`. The two scheduling surfaces differ because Layer 0 fetch is pre-registered one pixel ahead of Layer 1.
+
+**Implication:** Neither issue affects the current production path. Production uses `useHostInit=true` (the host writes linestate explicitly) and generates `enableL1Fetch=false` (Layer 1 SDRAM fetch is disabled). They would only become visible in standalone diagnostic builds or in future scenarios that enable Layer 1 fetch.
+
+**Fix status:** Fixed in RTL commit `10756d1`. `VDP_PROGRAMMING_GUIDE.md` notes the Layer 1 scheduling surface and the internal bootstrap linestate behavior.
+
+### GOTCHA-038: FPGA scaler registers persist across MCU reset
+
+**Fact:** Resetting or reflashing the ESP32-P4 does not reset registers in an
+already-loaded Tang Nano 20K FPGA bitstream. During the scaler hardware proof,
+the mode-0 firmware reported a clean upload/readback pass but the display
+remained in the previous mode-2 state (`SCALE_CTRL=0xA2`) until the host
+explicitly wrote the mode-0 defaults.
+
+**Implication:** A serial `SCALER_PROOF mode=0 pass=1` proves transport and
+content, but it does not prove a 1× display if `SCALE_CTRL` was left untouched
+after a prior scaled run. This applies to any proof or application that
+restarts the MCU while the FPGA remains configured.
+
+**Fix:** In the canonical GOTCHA-12 order, write the intended logic dimensions
+first and then the scale control. For a 1× proof, explicitly use
+`vdp_mode0_set_logic_size(640, 480)` followed by
+`vdp_mode0_set_scale_ctrl(0)`. For scaled modes, write the corresponding
+dimensions and `SCALE_CTRL` every time; do not rely on FPGA POR defaults.
+
+**Proof:** Mode-0 capture after correction commit `2f5be56` showed zero bezel,
+full-frame 64×64 checker squares, and 1× baseline regression PASS (BrightForge
+mail `#14461`).
+
+### GOTCHA-039: P3b bitmap scaling composes with the built-in 2× path
+
+**Checkpoint recommendation:** For bitmap/indexed content authored at 320×240,
+`SCALE_CTRL` composes with the existing 2× source-to-display mapping. Thus
+`scaleX=scaleY=1` retains the current 640×480 behavior, while `scaleY=2`
+requests 4× effective vertical scaling before the active-display clamp. This
+is the BronzeGate concurrence with BrightForge Option B in interface
+checkpoint #14467; PM/CyanPeak review remains required before RTL changes.
+
+**Host workflow:** Treat `LOGIC_WIDTH`/`LOGIC_HEIGHT` as the logical crop/source
+dimensions and write them before `SCALE_CTRL`. A full 320×240 bitmap at 2× is
+too large for the 640×480 active area; crop the logical source first when the
+zoomed result must fit. The existing `vdp_mode0_set_scale_mode()` helper is
+sufficient; no new host command or public helper is needed.

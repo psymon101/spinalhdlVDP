@@ -83,7 +83,7 @@ The authoritative register map is canonically defined in `firmware/libvdp/mode0_
 | `0x0350..0x037F` | Bitmap / fetch / raster config |
 | `0x0380..0x0AFF` | Automation / tables (Copper, HDMA, scroll, sprite tables) |
 | `0x0B00..0x0DFF` | DMA / Blitter |
-| `0x1000..0x17FF` | Palette RAM |
+| `0x1000..0x7FFF` | Reserved (Future Mode0 Expansion) |
 
 ### 3.5 Command FIFO
 

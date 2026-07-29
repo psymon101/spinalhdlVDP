@@ -19,9 +19,8 @@ Project identity: `spinalhdlVDP`.
 - `hw/spinal/spinalhdlvdp/` Scala / SpinalHDL sources
 - `hw/gen/` generated HDL output
 - `fpga/tang20k/` Tang Nano 20K HDMI build files
-- `firmware/libvdp/` host driver library (C/C++): i80/QSPI transports, Mode0 helpers, register map
-- `firmware/esp32s3_i80_*/` canonical ESP32-S3 i80 example sketches (smoke, RGB565 full-frame, scaler bezel, sprite mask, copper bars)
-- `firmware/esp32s3_rgb565_fullframe/` canonical RGB565 full-frame example (ESP32-S3)
+- `firmware/libvdp/` host driver library (C/C++): QSPI (active) / i80 (retired) / legacy SPI transports, Mode0 helpers, register map
+- `PROJECT_PLAN/archive/firmware_tests/` historical example / proof-of-concept sketches (retired from the canonical path)
 - `kb/` local hardware and Gowin documentation
 - `scripts/assets/` host-side asset conversion helpers for PNG → VDP data
 - `scripts/gen_reg_docs.py` register-spec generator from `firmware/libvdp/mode0_regs.json`
@@ -33,16 +32,21 @@ The Scala package for this repository is `spinalhdlvdp`.
 
 - **Scala:** Java 11+, `sbt`
 - **FPGA:** Gowin IDE CLI `gw_sh`, `openFPGALoader`
-- **Firmware:** `arduino-cli` (ESP), CMake & Pico SDK 2.2.0 (Pico 2)
+- **Firmware:** `idf.py` / ESP-IDF v6.0.2 (ESP32-P4 canonical); historical sketches are archived
 - **Assets:** Python 3.8+ (PNG → VDP)
 
 ## Host Interface
 
-The current Tang Nano 20K deployment uses an **8-bit parallel i80 bus** driven by an **ESP32-S3** as the canonical host path. `firmware/libvdp/vdp_i80.h` exposes host-neutral register and SDRAM upload calls over this interface.
+The current Tang Nano 20K deployment uses a **1-1-4 quad-SPI (QSPI) bus** driven by an **ESP32-P4** as the canonical host path. The active RTL front-end is `QspiSlave` → `QspiDecoder` → `QspiSdramBridge` in `hw/spinal/spinalhdlvdp/`. `firmware/libvdp/vdp_host.h` exposes host-neutral register and SDRAM upload calls over this interface.
 
-- **i80 protocol:** opcode `0x00` register write, `0x01` register read, `0x02` SDRAM block write; CS#/WR#/RD#/DC control.
-- **Readback semantics:** most register reads return the last-written value (loopback). Special debug readback is available via `READ_STATUS` selectors.
-- **Legacy QSPI:** the 4-wire QSPI path is still present for Raspberry Pi Pico 2 and earlier ESP32/ESP8266 bench setups, but it is **retired from the canonical ESP32-S3 path**. See `PROJECT_PLAN/PLATFORM.md` for pinouts and `PROJECT_PLAN/archive/QSPI_HOST_CONTROL_PLAN.md` for historical QSPI details.
+- **QSPI protocol:** opcode `0x01` register write, `0x02` SDRAM write, `0x04` read status; CS#/SCK control with quad I/O on `spi_io[3:0]`.
+- **Readback semantics:** `READ_STATUS` selectors return live transport/SDRAM status. Most other register reads return the last-written value (loopback) or are transport-dependent.
+- **i80 (retired):** the 8-bit parallel i80 path driven by ESP32-S3 is **retired from the canonical path**. It remains in the tree as historical reference only.
+- **Legacy SPI:** the 4-wire legacy SPI path remains supported for Raspberry Pi Pico 2 and earlier ESP32/ESP8266 bench setups, but it is **retired from the canonical ESP32-P4 path**. See `PROJECT_PLAN/PLATFORM.md` for pinouts and `PROJECT_PLAN/archive/deleted legacy host control plan` for historical legacy SPI details.
+
+## Current Development Focus
+
+The active lane is **QSPI word-drain transport + 2bpp indexed bitmap display** on Tang Nano 20K with an ESP32-P4 host. The previous HAM6 render mode has been **shelved** from the critical path and `bpp=0b11` is reserved for future work. See `VDP_PROGRAMMING_GUIDE.md` §12 for the 2bpp indexed reference-mode programming sequence and `PROJECT_PLAN/STATUS.md` for lane state.
 
 ## Mode0 Architecture
 
@@ -53,5 +57,5 @@ The current Tang Nano 20K deployment uses an **8-bit parallel i80 bus** driven b
 2. **Firmware Personality:** Platform-specific personality (register shims, initialization sequences, asset management) resides entirely in `libvdp` or host-side firmware.
 3. **Quirk Isolation:** Platform-specific quirks are handled by the host library translating to generic Mode0 register writes.
 
-Roadmap: [PROJECT_PLAN/archive/planning/MODE0_PLANNING.md](PROJECT_PLAN/archive/planning/MODE0_PLANNING.md).
-User guide: [VDP_PROGRAMMING_GUIDE.md](VDP_PROGRAMMING_GUIDE.md).
+Roadmap: [`PROJECT_PLAN/archive/planning/MODE0_PLANNING.md`](PROJECT_PLAN/archive/planning/MODE0_PLANNING.md).
+User guide: [`VDP_PROGRAMMING_GUIDE.md`](VDP_PROGRAMMING_GUIDE.md).

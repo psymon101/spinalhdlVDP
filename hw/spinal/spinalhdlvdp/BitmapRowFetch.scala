@@ -128,6 +128,14 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     // be the one the FSM chose when it fetched this row — carried here, not a
     // separate pixel-side register that could drift out of sync.
     val bank = UInt(2 bits)
+    // 2bpp-bank-completion-rtl (PROJECT-SYSTEM-MIGRATION-001 pilot): the source
+    // row this word belongs to (`rowTag`) and whether it is the FINAL word of the
+    // row fetch (`last`, = last attr word). Both travel with the word so the
+    // pixel-domain completion tracker sets bankReady/bankRowTag exactly when the
+    // last word of a row lands in the line-buffer bank — no separate sd-domain
+    // completion signal to CDC (writes already happen pixel-side at pop).
+    val rowTag = UInt(10 bits)
+    val last   = Bool()
   }
 
   val byteFifo = StreamFifoCC(
@@ -158,8 +166,52 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
   val fetchGrantPixPrev = RegNext(io.fetchGrant) init False
   val fetchGrantPixEdge = io.fetchGrant && !fetchGrantPixPrev
   val dispBank = RegInit(U(0, 2 bits))
+
+  // 2bpp-bank-completion-rtl (BITMAP_ENGINE.md §Open hardening): gate display-bank
+  // rotation on completion + row-tag match. Previously a fetchGrant edge advanced
+  // dispBank UNCONDITIONALLY — even onto a bank still filling (incomplete) or holding
+  // a stale row when the fetch fell behind (hazard proven reachable by
+  // Indexed2bppBacklogCoSim forced-late @5efe049: grantOverflow=25, wrong-row 214/480).
+  // Now dispBank advances only when the next bank is READY (its last word has landed)
+  // AND holds the CONSECUTIVE next row (bankRowTag == current+1); otherwise it HOLDS the
+  // last-good bank (graceful degradation: repeat a valid row rather than show garbage)
+  // and counts the miss. The tag check is RELATIVE (consecutive), so the nominal phase
+  // (bestDv==3) is unchanged — with ample lead every next bank is ready + consecutive,
+  // giving rotation identical to the pre-hardening design.
+  val bankReady        = Vec.fill(NBanks)(RegInit(False))
+  val bankRowTag       = Vec.fill(NBanks)(Reg(UInt(10 bits)) init 0)
+  val everReady        = Vec.fill(NBanks)(RegInit(False))          // each bank has completed >= 1 fill (startup priming)
+  val primed           = everReady.reduce(_ && _)                  // pipeline primed: safe to enforce gating without shifting the offset
+  val dispValid        = (RegInit(False)).simPublic()             // dispBank validly loaded >= once
+  val displayUnderflow = (Reg(UInt(16 bits)) init 0).simPublic()  // rotation held: next bank incomplete
+  val rowTagMismatch   = (Reg(UInt(16 bits)) init 0).simPublic()  // rotation held: next bank complete but non-consecutive
+  val nextBank         = inc3(dispBank)
+  // The fetch line runs once per source row (VdpTop:1627 grant cadence) as 1..bitmapHeight
+  // then WRAPS to the top of the next frame. So a legitimate consecutive display step is
+  // either tag+1 OR the frame wrap (a large decrease, prevTag-nextTag > bitmapHeight/2).
+  // Genuine starvation staleness is a SMALL decrease (a few rows behind) or a skip-ahead,
+  // which fails both clauses and is held. (A naive tag+1-only check false-holds on the
+  // frame wrap every frame and permanently shifts the line-doubling offset — bestDv 3->2.)
+  val expectTag        = (bankRowTag(dispBank) + 1).resize(10)
+  val tagStepOk        = (bankRowTag(nextBank) === expectTag) ||
+                         ((bankRowTag(dispBank) > bankRowTag(nextBank)) &&
+                          ((bankRowTag(dispBank) - bankRowTag(nextBank)) > (io.bitmapHeight >> 1)))
   when(fetchGrantPixEdge) {
-    dispBank := inc3(dispBank)
+    when(!primed) {
+      // Startup priming: advance unconditionally, exactly as the pre-hardening design,
+      // so the steady-state line-doubling offset (bestDv==3) is preserved. Enforcing the
+      // gate before the 3-bank pipeline is filled would hold at the first grants and
+      // permanently shift the offset. Once every bank has completed one fill, the fetch
+      // is running ahead and the gate below never holds in the nominal case.
+      dispBank  := nextBank
+      dispValid := True
+    } elsewhen(!bankReady(nextBank)) {
+      displayUnderflow := displayUnderflow + 1   // hold last-good bank: next row incomplete
+    } elsewhen(!tagStepOk) {
+      rowTagMismatch := rowTagMismatch + 1       // hold last-good bank: next bank complete but stale (non-consecutive, non-wrap)
+    } otherwise {
+      dispBank  := nextBank        // steady state: rotate only onto a complete, consecutive (or frame-wrap) bank
+    }
   }
 
   // Compositor read. Indexed 1bpp/2bpp pack 8 hCounter values per byte → byte =
@@ -190,10 +242,25 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
   val popKind     = byteFifo.io.pop.payload.kind
   val popBank     = byteFifo.io.pop.payload.bank   // FSM-chosen target bank, carried with the word
   val popWordAddr = (byteFifo.io.pop.payload.idx >> 2).resize(log2Up(WordDepth))
+  val popLast     = byteFifo.io.pop.payload.last
+  val popRowTag   = byteFifo.io.pop.payload.rowTag
+  val popIdx      = byteFifo.io.pop.payload.idx
   for (b <- 0 until NBanks) {
     val isFillBank = popBank === U(b, 2 bits)
     bitmapBuf(b).write(popWordAddr, popData, enable = popFire && !popKind && isFillBank)
     attrBuf(b).write  (popWordAddr, popData, enable = popFire &&  popKind && isFillBank)
+  }
+  // 2bpp-bank-completion-rtl: pixel-domain per-bank completion. A bank goes NOT-ready
+  // the moment its refill starts (first bitmap word, idx 0) and READY when the row's
+  // final word lands (`last`), latching the source row it now holds. Writes already
+  // happen in this (pixel) domain at pop, so completion needs no extra CDC.
+  when(popFire) {
+    when(popIdx === 0 && !popKind) { bankReady(popBank) := False }
+    when(popLast) {
+      bankReady(popBank)  := True
+      bankRowTag(popBank) := popRowTag
+      everReady(popBank)  := True   // this bank has completed a full fill (used for startup priming)
+    }
   }
 
   val sd = new ClockingArea(sdramCd) {
@@ -317,6 +384,14 @@ case class BitmapRowFetch(sdramCd: ClockDomain, skipSdramInit: Boolean = false) 
     byteFifo.io.push.payload.idx   := (inflightIdx + (burstCnt << 2)).resize(log2Up(BitmapBufferDepth))
     byteFifo.io.push.payload.data  := io.sdramDout32   // current burst word (dq_in_r), valid at data_ready
     byteFifo.io.push.payload.bank  := fetchBank        // FSM-chosen target bank, carried with the word
+    // 2bpp-bank-completion-rtl: the source row this word carries, and whether it is
+    // the FINAL word of the row fetch (last attr word = highest byteIdx, last burst
+    // word, kind=attr). The pixel-domain completion tracker uses these to set
+    // bankReady/bankRowTag exactly when a bank's last word lands.
+    byteFifo.io.push.payload.rowTag := lineReg
+    byteFifo.io.push.payload.last   := inflightKind &&
+      (inflightIdx === (fetchCount - (burstWords << 2)).resize(inflightIdx.getWidth)) &&
+      (burstCnt === (burstWords - 1))
 
     // RGB565-FULLFRAME-132 B.2 (#12350): grant QUEUE. At 40.5 MHz a row fetch
     // (1566 pixel-clocks) + an AUTO_REFRESH can overrun the ~1600 pixel-clock
