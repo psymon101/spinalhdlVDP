@@ -154,7 +154,7 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
   // Pixel-domain logic (VdpTop + SDRAM fetch instance)
   // --------------------------------------------------------------------------
   val pixelArea = new ClockingArea(pixelClockDomain) {
-    val video = VdpTop(sdramCd = sdramClockDomain, enableL1Fetch = enableL1Fetch, withExtraRasterTriggers = withExtraRasterTriggers, enableL2L3 = enableL2L3,
+    val video = VdpTop(sdramCd = sdramClockDomain, enableL1Fetch = enableL1Fetch, withExtraRasterTriggers = withExtraRasterTriggers, enableL2L3 = enableL2L3, diagnosticMode = diagnosticMode,
                        scaleCtrlInit   = scaleCtrlInit,
                        logicWidthInit  = logicWidthInit,
                        logicHeightInit = logicHeightInit,

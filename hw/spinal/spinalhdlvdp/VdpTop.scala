@@ -4,7 +4,7 @@ import spinal.core._
 import spinal.core.sim._
 import spinal.lib.BufferCC
 
-case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false, enableL2L3: Boolean = false,
+case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, withExtraRasterTriggers: Boolean = false, enableL2L3: Boolean = false, diagnosticMode: Boolean = false,
                   scaleCtrlInit:   Int = 0,
                   logicWidthInit:  Int = 640,
                   logicHeightInit: Int = 480,
@@ -316,7 +316,7 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   // Prepare side is writable; commit side is read by render pipeline.
   // Commit at line boundary: at the start of each line, the prepare entry for
   // the current fillLine is copied to the commit side.
-  val linestate = LinestateStore(lineCount = vActive)
+  val linestate = LinestateStore(lineCount = vActive, l0EnabledDefault = diagnosticMode)
 
   // VDP-SOFT-RESET-135: soft-reset controller state. Declared here (before the
   // linestate/scroll/palette/pattern write ports that the clear-sweep muxes

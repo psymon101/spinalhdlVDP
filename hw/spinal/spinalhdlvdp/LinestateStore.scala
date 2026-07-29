@@ -14,7 +14,7 @@ import spinal.core._
   *   [10]    = layer1Enable
   *   [9:0]   = layer0ScrollX
   */
-case class LinestateStore(lineCount: Int) extends Component {
+case class LinestateStore(lineCount: Int, l0EnabledDefault: Boolean = false) extends Component {
   val io = new Bundle {
     // Write interface (prepare side)
     val writeAddr   = in UInt(log2Up(lineCount) bits)
@@ -48,8 +48,8 @@ case class LinestateStore(lineCount: Int) extends Component {
   // prepare readSync output. BH-6 collision handling is preserved
   // via parallel pipeline of collide/writeData. Same external
   // contract — no impact on host-write or render-side timing.
-  val prepare = Mem(Bits(12 bits), initialContent = LinestateStore.defaultInit(lineCount))
-  val commit  = Mem(Bits(12 bits), initialContent = LinestateStore.defaultInit(lineCount))
+  val prepare = Mem(Bits(12 bits), initialContent = LinestateStore.defaultInit(lineCount, l0EnabledDefault))
+  val commit  = Mem(Bits(12 bits), initialContent = LinestateStore.defaultInit(lineCount, l0EnabledDefault))
   prepare.addAttribute("ram_style", "block")
 
   // Write to prepare side.
@@ -112,9 +112,14 @@ object LinestateStore {
   // Generic boot default (lane #10567 agnosticism): all per-line layer-enable
   // bits start off. The host owns line-level layer activation via the copper
   // / linestate write path; the RTL ships quiescent.
-  def defaultInit(lineCount: Int): Seq[Bits] = {
+  // l0Default=true ships every line with l0en (bit 11) set — used by the
+  // standalone-diagnostic-build so the on-chip L0 test pattern fills the whole
+  // screen without a per-line linestate upload. Production keeps l0Default=false
+  // (all bits off; host owns line-level enable).
+  def defaultInit(lineCount: Int, l0Default: Boolean = false): Seq[Bits] = {
     val depth = nextPow2(lineCount)
-    (0 until depth).map(_ => B(0, 12 bits))
+    val v = if (l0Default) BigInt(0x800) else BigInt(0)   // bit 11 = layer0Enable
+    (0 until depth).map(_ => B(v, 12 bits))
   }
 
   def expectedRecord(line: Int): (Boolean, Boolean, Int) = (false, false, 0)
