@@ -30,6 +30,8 @@ fpga/tang20k/*.log
 **/build/
 **/build_*
 !scripts/regression/build_*.sh
+# Gowin build TCL scripts are source, not build output (build.tcl et al. predate the rule).
+!fpga/tang20k/build_*.tcl
 
 hw/gen/**
 !hw/gen/.gitkeep
