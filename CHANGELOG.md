@@ -1,5 +1,13 @@
 # spinalhdlVDP Changelog
 
+## 2026-07-28 — External Review Closeouts: Scaler Docs, Latency Table, HDMI-TX Black Box (DONE)
+
+- **Scaler productization docs (F5)** — PM disposition: scaled bitmap/indexed modes are **dormant/experimental**. `VDP_PROGRAMMING_GUIDE.md` §scaling now states that >1x scaled modes are implemented in RTL but not supported for general host use; production remains 1x scale via SDRAM Layer 0.
+- **Pipeline latency / sync documentation (F8)** — Added latency-alignment table to `VDP_PROGRAMMING_GUIDE.md` §8 describing logical coordinates, composited color, display enable, and overlay timing. Added 2-cycle digital alignment assertion to `VdpInnerBorderCoSim.scala`.
+- **HDMI TX black-box review (HDMI-TX)** — BrightForge completed read-only assessment of the actual HDMI transmitter implementation. Verdict **OK**: the implementation is open-source SV (`fpga/tang20k/tang20k_hdmi_tx.sv` + `third_party/hdl_util_hdmi/tmds_channel.sv`) with phase-aligned ÷5 clocks, PLL-lock-gated reset, and standard OSER10 serialization. No RTL change, no follow-up lane. Review report: `kb/reviews/hdmi_tx_blackbox_review_2026-07-28.md`.
+- **Doc-impact tracker:** `PROJECT_PLAN/external_review_doc_impact.md` updated; F5 and HDMI-TX rows marked **Done**.
+- **Status:** `PROJECT_PLAN/STATUS.md` rows closed; task files updated to `DONE`.
+
 ## 2026-07-25 — External Static Review Tier A Fixes (DONE)
 
 - **External static review of Tang Nano 20K VDP RTL** produced ten findings; the team assessed each against the canonical QSPI/ESP32-P4 host-driven production path.
