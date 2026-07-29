@@ -4,7 +4,7 @@
 TopazCliff / BrightForge
 
 ## Status
-RUNNING — compile/elaborate PASS; Indexed2bppFineCoSim PASS; remaining co-sims + Gowin PnR running in background task `bash-698thmxm`
+DONE — 2026-07-28; regression PASS; go recommendation recorded
 
 ## Background
 
@@ -30,13 +30,13 @@ Prepare `topazcliff/scaler-rewrite` for merge to `main` by running the standard 
 
 ## Acceptance criteria
 
-- [ ] Branch `topazcliff/scaler-rewrite` is clean and X commits ahead of `main`.
-- [ ] `sbt compile` PASS.
-- [ ] `TopTang20kHdmiVerilog` elaboration PASS.
-- [ ] All listed regression co-sims PASS with outputs captured.
-- [ ] Gowin PnR PASS (TNS=0, resource summary captured, bitstream SHA-256 recorded).
-- [ ] Proof packet created with `PASS.txt`, `review.md`, `manifest.yaml`, and `hashes.sha256`.
-- [ ] PM go/no-go recommendation documented in task file and `STATUS.md` row updated.
+- [x] Branch `topazcliff/scaler-rewrite` is clean; ahead of `main` (`f09159f`) by scaler-rewrite feature work + doc/cleanup closeouts.
+- [x] `sbt compile` PASS.
+- [x] `TopTang20kHdmiVerilog` elaboration PASS; generated `hw/gen/top_tang20k.v` SHA-256 `7ad5cee1…`.
+- [x] All listed regression co-sims PASS (`Indexed2bppFineCoSim`, `Indexed2bppCheckerCoSim`, `Indexed2bppFrameCoSim`, `DirectColorFrameCoSim`).
+- [x] Gowin PnR PASS: TNS=0, setup/hold violated endpoints=0; bitstream SHA-256 `8b241328…`.
+- [x] Proof packet created at `PROJECT_PLAN/proof_packets/scaler-rewrite-merge-prep/` with `PASS.txt`, `review.md`, `manifest.yaml`, `hashes.sha256`, `simulation/regression.log`, `simulation/results.txt`, `synthesis/pnr.log`.
+- [x] PM go recommendation: **GO for merge to main** pending PM sign-off; residual F1/F7 docs and stale `PROJECT_PLAN.md` link should be handled before/after merge.
 
 ## Blockers
 None.

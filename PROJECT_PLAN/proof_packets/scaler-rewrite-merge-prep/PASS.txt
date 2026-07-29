@@ -1,0 +1,16 @@
+scaler-rewrite-merge-prep: PASS
+branch: topazcliff/scaler-rewrite
+baseline main: f09159f
+source commit: f91f58a
+date: 2026-07-28
+
+sbt compile: PASS
+TopTang20kHdmiVerilog: PASS
+Indexed2bppFineCoSim: PASS
+Indexed2bppCheckerCoSim: PASS
+Indexed2bppFrameCoSim: PASS
+DirectColorFrameCoSim: PASS
+Gowin PnR: PASS (TNS=0, setup/hold violated endpoints=0)
+bitstream: 8b2413288dc2c47c8ebed6a1af8b88ada6566a99a16ac1da4c0948b80f429ed6
+
+Verdict: GO for merge to main pending PM sign-off.

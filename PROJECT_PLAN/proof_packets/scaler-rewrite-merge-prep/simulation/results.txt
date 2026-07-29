@@ -1,0 +1,5 @@
+Indexed2bppFineCoSim=0
+Indexed2bppCheckerCoSim=0
+Indexed2bppFrameCoSim=0
+DirectColorFrameCoSim=0
+pnr=0
