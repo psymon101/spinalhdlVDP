@@ -1,0 +1,40 @@
+lane: standalone-diagnostic-build
+owner: BrightForge
+pm: TopazCliff
+reviewer: CyanPeak
+branch: brightforge/standalone-diagnostic-build
+approved_plan: ragman-monet-green-lantern.md
+assignment_mail: [14496, 14497]
+scope: native 640x480 no-host/no-QSPI/no-SDRAM 1x test-pattern build (Option A)
+
+rtl:
+  approach: Option A — TopTang20kHdmi(diagnosticMode=false default)
+  changes:
+    - useHostInit = !diagnosticMode (bootstrap runs)
+    - layer0UseSdram=False, layer0TestPatternEnable=True, select=6 (grid)
+    - bootstrap linestate 0x0800 (L0) + color-math op=00 (no shadow) in diagnosticMode
+    - LinestateStore.defaultInit ships all lines L0-enabled in diagnosticMode (VdpTop threaded)
+    - module setDefinitionName -> top_tang20k_diagnostic
+  commits: [685580e5, c5c799a7, ac90dfbe]
+  generated_verilog: hw/gen/top_tang20k_diagnostic.v
+  production_spot_check: PASS (normalized diff vs main = 0; diagnosticMode gated; production untouched)
+
+build:
+  generator: spinalhdlvdp.TopTang20kHdmiDiagnosticVerilog
+  tcl: fpga/tang20k/build_diagnostic.tcl
+  makefile_target: diagnostic (gen-diagnostic / prog-diagnostic / flash-diagnostic)
+  tool: Gowin V1.9.12.01 (place=2 route=2)
+  device: GW2AR-LV18QN88C8/I7
+  bitstream: fpga/tang20k/impl/pnr/project_60b23c77_diagnostic.fs
+  bitstream_sha256: 60b23c77219faa0067cb74baad108be53a7244480134013ddeae99e35a2849cb
+  timing: TNS=0 all clocks (clk_pixel/clk_x5/I_clk/clk_sdram/qspi_sck, setup+hold)
+  fmax_clk_pixel: 30.052 MHz (constraint 25.2, +19.3%)
+  resources: Logic 56% / CLS 74% / BSRAM 37/46 (no new) / DSP 12/24
+
+hardware:
+  board: Tang Nano 20K (GW2A(R)-18C)
+  cold_por: PASS 10/10 (SRAM-load POR proxy; full-frame grid every cycle; frame byte-identical 7803de18 across cycles)
+  visual: full-screen 1x grid + cyan canary; no host/QSPI/SDRAM
+  note: capture must settle ~4s after POR (UVC re-lock); first build 3e96c1d3 showed sparse grid (linestate default), fixed in 60b23c77
+
+status: PASS — all acceptance criteria met; CyanPeak review + PM closeout pending
