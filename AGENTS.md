@@ -324,6 +324,31 @@ If this session exceeds 50 tool calls or 2 hours:
 5. Re-read the governing technical specification
 6. Do not resume work without verifying lane ownership, latest commit, and latest passing proof
 
+## GitHub Authentication
+
+Pushing to the upstream repository (`https://github.com/psymon101/spinalhdlVDP.git`)
+requires authentication. The canonical shared credential for this workspace is
+stored locally in:
+
+```text
+~/.netrc
+```
+
+Required format:
+
+```text
+machine github.com login <GITHUB_USER> password <TOKEN>
+```
+
+Rules:
+
+- Keep `~/.netrc` mode `600`.
+- Do **not** commit the token, a `.netrc` file, or any credential file to the repository.
+- For repeated use, prefer `git credential-manager` or `git credential.helper store`.
+- If the token is revoked or regenerated, update `~/.netrc` and verify the next push succeeds.
+
+*Owner-directed addition on 2026-07-29.*
+
 ## Preventive Rules
 
 Binding rules. Enforced to prevent identity, authorization, contract, status,
