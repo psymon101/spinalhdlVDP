@@ -4,7 +4,7 @@
 TopazCliff / BrightForge
 
 ## Status
-DONE — 2026-07-28; regression PASS; go recommendation recorded
+DONE — 2026-07-28; regression PASS; **merged to `main`** at `a442707`; post-merge `sbt compile` + `Indexed2bppFineCoSim` PASS
 
 ## Background
 
@@ -37,6 +37,8 @@ Prepare `topazcliff/scaler-rewrite` for merge to `main` by running the standard 
 - [x] Gowin PnR PASS: TNS=0, setup/hold violated endpoints=0; bitstream SHA-256 `8b241328…`.
 - [x] Proof packet created at `PROJECT_PLAN/proof_packets/scaler-rewrite-merge-prep/` with `PASS.txt`, `review.md`, `manifest.yaml`, `hashes.sha256`, `simulation/regression.log`, `simulation/results.txt`, `synthesis/pnr.log`.
 - [x] PM go recommendation: **GO for merge to main** pending PM sign-off; residual F1/F7 docs and stale `PROJECT_PLAN.md` link should be handled before/after merge.
+- [x] Merged `topazcliff/scaler-rewrite` into `main` at commit `a442707`; resolved conflicts in `AGENTS.md`, `TopTang20kHdmi.scala`, `VdpTop.scala` (preserved main's BSRAM-L1-GATE conditional and PIXELWITHINBYTE-ALIGN fix while adopting branch's scaler `logicalX`/`logicalY` sourcing).
+- [x] Post-merge sanity: `sbt compile` PASS, `Indexed2bppFineCoSim` PASS.
 
 ## Blockers
 None.
