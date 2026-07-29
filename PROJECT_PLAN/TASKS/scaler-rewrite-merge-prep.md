@@ -4,7 +4,7 @@
 TopazCliff / BrightForge
 
 ## Status
-RUNNING
+RUNNING — compile/elaborate PASS; Indexed2bppFineCoSim PASS; remaining co-sims + Gowin PnR running in background task `bash-698thmxm`
 
 ## Background
 
