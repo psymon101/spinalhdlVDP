@@ -2,7 +2,7 @@
 
 **Owner:** BrightForge (RTL) + BronzeGate (firmware)  
 **PM:** TopazCliff  
-**Status:** OPEN  
+**Status:** BLOCKED — pending BronzeGate firmware-path facts (#14507)  
 **Opened:** 2026-07-30  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Address the residual intermittent silent QSPI upload corruption observed in `HAM6 removal + 2bpp indexed replacement` / `QSPI-SI-CEILING-183` at the canonical 4 MHz bulk-upload ceiling.
 
@@ -28,6 +28,19 @@ This lane picks the more actionable of the two and proves it reduces/eliminates 
 - No production fetch/display RTL changes.
 - No change to the 4 MHz canonical bulk-upload ceiling unless new data justifies it.
 - Host-visible addition (new health selector / firmware retry) requires Rule 19 interface checkpoint: independent BrightForge + BronzeGate approval before implementation.
+
+## Approach Reframe (2026-07-30)
+
+BrightForge confirmed that the RTL described as "Option A" already exists on `main` from the `QSPI-CRC8-185` lane (`QspiSlaveSync.scala` / `QspiTransportCore.scala`, commit `368839f`, HW-proven bitstream `780ee698`, mail #14274/#14276/#14278). The per-`SDRAM_WRITE` CRC8 covers `[CMD, ADDR, LEN, payload]` and is exposed via `READ_STATUS sel=11`.
+
+Therefore this lane does **not** build new RTL. The actionable work is:
+
+1. BronzeGate confirms whether the failing 4 MHz bulk 2bpp-upload path actually appends the CRC byte (using `firmware/libvdp/vdp_crc8.h`) and polls `sel=11` with retry-on-mismatch.
+2. If yes, run the 4 MHz byte-readback stress at **N≥30 uploads with CRC retry enabled** and measure residual uncorrected corruption.
+3. If no, adopt the existing CRC+retry on the bulk path, then run the same stress.
+4. Only if residual corruption remains do we scope a minimal delta (likely firmware plumbing, not RTL).
+
+Rule 19 remains open until BronzeGate reports facts and the team agrees on the next step.
 
 ---
 
