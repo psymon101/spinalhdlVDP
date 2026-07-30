@@ -78,6 +78,27 @@ the digital component regardless of the analog margin.
 
 ---
 
+## Guard A/B/C result (2026-07-30) — hypothesis FALSIFIED, mechanism still open
+
+Prototyped two `canAccept` guards in the sim: **g1 busy-settle** (`!busy` for 2 consecutive cycles)
+and **g2 busy-settle + post-refresh cooldown**. Result (refresh ON):
+
+| guard | lost words | note |
+|---|---|---|
+| g0 baseline | 5 | all lost bytes popCount 1,1,1,1 |
+| g1 busy-settle | **5 (same addrs)** | **no help** |
+| g2 +cooldown | **6** | **no help** |
+
+`sdram.v` sets `busy<=0` and `state<=IDLE` together (`busy=0 ⟺ IDLE`), so g1 issued writes only into a
+≥2-cycle-idle controller — yet they still vanish. ⇒ the write is **accepted but not stored**; the
+registered-busy-edge fix class is **ruled out**. Open items before any production fix:
+- **`sdram_model.v` `CMD_REF` is a functional no-op** (sets `refreshed<=1` only). Refresh cannot
+  directly corrupt data in the model → the refresh-correlation must be a `sdram.v` **command-sequencing**
+  effect (real; in production RTL) **or** a harness/model timing subtlety. **Not yet disambiguated.**
+- **Next: pywellen waveform-pin** a lost write's exact cycle (ACT/WRITE cmd stream, `SDRAM_A` row/col at
+  CMD_WR, refresh preemption) to find the true mechanism. No fix proposed until the mechanism is pinned
+  and the loss is reproduced on the strengthened (§2) matrix.
+
 ## Bottom line / gating
 
 - **Iron-clad now:** the loss is (a) real-`sdram.v` write-path, (b) refresh-triggered, (c) a
