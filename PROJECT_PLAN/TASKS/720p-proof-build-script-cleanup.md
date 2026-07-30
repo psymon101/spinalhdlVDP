@@ -2,7 +2,7 @@
 
 **Owner:** BrightForge  
 **PM:** TopazCliff  
-**Status:** OPEN  
+**Status:** DONE — 2026-07-30 (archive-all; PM-approved #14502)  
 **Opened:** 2026-07-30  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Finish the leftover cleanup from `repo-cleanup-rtl-build` (2026-07-19).
 
@@ -70,16 +70,51 @@ Source proof tops in `hw/spinal/spinalhdlvdp/`:
 
 ---
 
+## Audit Decision (2026-07-30)
+
+**Method:** inventory of all 720p build artifacts, git-history age check, and a
+repo-wide reference scan (docs / runbooks / README / CI). PM checkpoint proposed
+in #14501; **archive-all approved in #14502**.
+
+**Findings:**
+- All 5 build TCLs + 10 CST/SDC files last touched `4e3dfcf4` (2026-06-07) — dormant.
+- **No references** in `docs/`, `docs/runbooks/`, `README*`, or CI. (Only
+  `scripts/readasync_baseline.txt` names `Hdmi720pPlanarProofTop` as a readAsync
+  inventory reference — that is the Scala source, which is not being moved.)
+- All 5 are 720p output-shell HDMI bring-up experiments, now covered by the
+  native 640×480 production build + the `diagnostic` target (`standalone-diagnostic-build`,
+  merged `ec5c9724`). `720p-mode0` is the direct predecessor the diagnostic build replaced.
+- Against the keep-rule (§Scope), **none** exercise a path uncovered by production or diagnostic.
+
+**Decision — ARCHIVE all 5** (keep 0, delete 0):
+
+| Target | Decision | Rationale |
+|---|---|---|
+| `720p-proof`   | ARCHIVE | colour-bars shell; HDMI output sanity now covered by production + diagnostic |
+| `720p-bridge`  | ARCHIVE | 720p centered-640×480 bridge; superseded by native 640×480 |
+| `720p-mode0`   | ARCHIVE | VdpTop-under-720p-shell; directly superseded by `diagnostic` |
+| `720p-linebuf` | ARCHIVE | dual-clock line-buffer CDC bring-up experiment; historical |
+| `720p-planar`  | ARCHIVE | planar fetch-primitive bring-up experiment; historical |
+
+**Actions taken:**
+- `git mv` 15 build artifacts (5 `build_hdmi720p_*.tcl` + 10 `.cst/.sdc`) → `fpga/tang20k/archive/720p_proofs/`.
+- Removed the 5 720p target blocks from `fpga/tang20k/Makefile` (lines 44–190),
+  replaced with an archival breadcrumb comment; fixed a now-stale "720p-proof target"
+  note in the diagnostic section.
+- Removed the 5 `impl_720p_*` entries from `.gitignore`.
+- Added `fpga/tang20k/archive/720p_proofs/README.md` (provenance + supersession).
+- **Left the Scala `Hdmi720p*ProofTop.scala` generators untouched** (RTL/source; out of scope, no RTL changes).
+
 ## Acceptance Criteria
 
-- [ ] Audit decision recorded in this task file (keep/archive/delete per target).
-- [ ] Surviving 720p proof files moved to a clean location; obsolete files archived/deleted.
-- [ ] `Makefile` updated and still passes a dry-run / syntax check.
-- [ ] `sbt compile` passes.
-- [ ] At least one surviving 720p proof Verilog generator (`sbt runMain spinalhdlvdp.<Name>Verilog`) runs cleanly.
-- [ ] Production `make gen` or equivalent still generates `hw/gen/top_tang20k.v` without error.
-- [ ] `.gitignore` updated and `git status` clean after build.
-- [ ] Any doc/runbook changes committed.
+- [x] Audit decision recorded in this task file (keep/archive/delete per target). *(all 5 → ARCHIVE, above)*
+- [x] Surviving 720p proof files moved to a clean location; obsolete files archived/deleted. *(all → `archive/720p_proofs/`)*
+- [x] `Makefile` updated and still passes a dry-run / syntax check. *(`make -n gen`/`gen-diagnostic`/`all` OK; `make -n 720p-proof` → "No rule", as intended)*
+- [x] `sbt compile` passes.
+- [x] At least one surviving 720p proof Verilog generator (`sbt runMain spinalhdlvdp.<Name>Verilog`) runs cleanly. *(`Hdmi720pProofTopVerilog` → Done, only benign pruned-signal warning)*
+- [x] Production `make gen` or equivalent still generates `hw/gen/top_tang20k.v` without error. *(1135805 B, sha256 `945b060b…`)*
+- [x] `.gitignore` updated and `git status` clean after build. *(15 renames + 2 modified + 1 new README; no stray artifacts)*
+- [x] Any doc/runbook changes committed. *(no runbook referenced these targets; archive README added)*
 
 ---
 
