@@ -4,6 +4,7 @@
  * SCALER_PROOF_MODE=0: 1x checkerboard regression (explicit 640x480 / 1x reset)
  * SCALER_PROOF_MODE=2: 2x centered checkerboard, logic 300x220
  * SCALER_PROOF_MODE=3: 3x centered checkerboard, logic 200x150
+ * SCALER_PROOF_MODE=4: QSPI write-vs-readback discriminator (proof only)
  */
 #include <inttypes.h>
 #include <stdbool.h>
@@ -32,6 +33,7 @@ enum {
     SEL_MAGIC = 0x00,
     SEL_SDRAM = 0x08,
     SEL_TRANSPORT_HEALTH = 0x0A,
+    SEL_CRC8_STATUS = 0x0B,
     BITMAP_BASE = 0x100000,
     ATTR_BASE = 0x110000,
     REG_SDRAM_READ_ADDR_LO = 0x0326,
@@ -109,6 +111,43 @@ static bool upload_plane(uint32_t base, const uint16_t *words, const char *name)
     return true;
 }
 
+static bool upload_plane_diagnostic(uint32_t base, const uint16_t *words,
+                                    const char *name)
+{
+    const unsigned frame_count = (IMAGE_WORDS + MAX_CHUNK_WORDS - 1u) /
+                                 MAX_CHUNK_WORDS;
+    for (unsigned frame = 0; frame < frame_count; ++frame) {
+        const unsigned offset = frame * MAX_CHUNK_WORDS;
+        const uint16_t count = (uint16_t)(((IMAGE_WORDS - offset) < MAX_CHUNK_WORDS) ?
+                                          (IMAGE_WORDS - offset) : MAX_CHUNK_WORDS);
+        const uint32_t frame_addr = base + offset * 2u;
+        vdp_host_set_speed_hz(2000000u);
+        const uint32_t crc_before = vdp_read_status(SEL_CRC8_STATUS);
+        const int crc_before_err = vdp_last_error();
+        vdp_host_set_speed_hz(4000000u);
+        vdp_sdram_write(frame_addr, words + offset, count);
+        const int write_err = vdp_last_error();
+        vdp_host_set_speed_hz(2000000u);
+        const uint32_t crc_after = vdp_read_status(SEL_CRC8_STATUS);
+        const int crc_after_err = vdp_last_error();
+        ESP_LOGI(TAG,
+                 "DIAG_FRAME plane=%s frame=%u addr=0x%06" PRIX32
+                 " words=%u bytes=%u crc_before=0x%08" PRIX32
+                 " crc_after=0x%08" PRIX32 " crc_err=%d/%d write_err=%d",
+                 name, frame, frame_addr, count, (unsigned)count * 2u,
+                 crc_before, crc_after, crc_before_err, crc_after_err,
+                 write_err);
+        if (write_err != VDP_HOST_ERR_NONE ||
+            crc_before_err != VDP_HOST_ERR_NONE ||
+            crc_after_err != VDP_HOST_ERR_NONE) {
+            return false;
+        }
+    }
+    ESP_LOGI(TAG, "DIAG_UPLOAD plane=%s frames=%u chunk_words=%u chunk_bytes=%u",
+             name, frame_count, MAX_CHUNK_WORDS, MAX_CHUNK_WORDS * 2u);
+    return true;
+}
+
 static bool readback_word(uint32_t addr, uint32_t *value)
 {
     vdp_host_set_speed_hz(2000000u);
@@ -146,6 +185,56 @@ static bool verify_readback(void)
     for (unsigned i = 0; i < sizeof(offsets) / sizeof(offsets[0]); ++i) {
         pass &= verify_sample(BITMAP_BASE + offsets[i]);
     }
+    return pass;
+}
+
+static uint32_t bitmap_expected_word(uint32_t addr)
+{
+    const uint8_t *bitmap = (const uint8_t *)s_bitmap;
+    const unsigned offset = (unsigned)(addr - BITMAP_BASE);
+    return (uint32_t)bitmap[offset] |
+           ((uint32_t)bitmap[offset + 1u] << 8) |
+           ((uint32_t)bitmap[offset + 2u] << 16) |
+           ((uint32_t)bitmap[offset + 3u] << 24);
+}
+
+static bool diagnostic_neighbor_reads(void)
+{
+    static const uint32_t first_window[] = {
+        0x100000u, 0x100004u, 0x100008u, 0x10000Cu,
+        0x100010u, 0x100014u, 0x100018u, 0x10001Cu,
+    };
+    static const uint32_t second_window[] = {
+        0x100FF8u, 0x100FFCu, 0x101000u, 0x101004u, 0x101008u,
+    };
+    bool pass = true;
+    ESP_LOGI(TAG, "DIAG_GEOMETRY sdram_row_bytes=1024 addr=bank[22:21],row[20:10],col[9:2],lane[1:0]");
+    ESP_LOGI(TAG, "DIAG_SAMPLE_LIST first=0x100000,0x100004,0x100008,0x10000C,0x100010,0x100014,0x100018,0x10001C");
+    ESP_LOGI(TAG, "DIAG_SAMPLE_LIST second=0x100FF8,0x100FFC,0x101000,0x101004,0x101008");
+    for (unsigned repeat = 0; repeat < 8u; ++repeat) {
+        const uint32_t *windows[] = { first_window, second_window };
+        const unsigned counts[] = {
+            sizeof(first_window) / sizeof(first_window[0]),
+            sizeof(second_window) / sizeof(second_window[0]),
+        };
+        for (unsigned window = 0; window < 2u; ++window) {
+            for (unsigned i = 0; i < counts[window]; ++i) {
+                const uint32_t addr = windows[window][i];
+                uint32_t actual = 0;
+                const bool read_ok = readback_word(addr, &actual);
+                const uint32_t expected = bitmap_expected_word(addr);
+                ESP_LOGI(TAG,
+                         "DIAG_READ repeat=%u addr=0x%06" PRIX32
+                         " expected=0x%08" PRIX32 " got=0x%08" PRIX32
+                         " read_ok=%u err=%d",
+                         repeat, addr, expected, actual, read_ok ? 1u : 0u,
+                         vdp_last_error());
+                if (!read_ok || actual != expected) pass = false;
+            }
+        }
+    }
+    ESP_LOGI(TAG, "DIAG_READ_RESULT pass=%u repeats=8 addresses=13",
+             pass ? 1u : 0u);
     return pass;
 }
 
@@ -200,6 +289,24 @@ void app_main(void)
 
     build_checkerboard();
     pass &= configure_display();
+
+#if SCALER_PROOF_MODE == 4
+    ESP_LOGI(TAG,
+             "DIAG_GEOMETRY bitmap_base=0x%06X attr_base=0x%06X image_words=%u"
+             " chunk_words=%u chunk_bytes=%u bitmap_frames=%u attr_frames=%u",
+             BITMAP_BASE, ATTR_BASE, IMAGE_WORDS, MAX_CHUNK_WORDS,
+             MAX_CHUNK_WORDS * 2u,
+             (IMAGE_WORDS + MAX_CHUNK_WORDS - 1u) / MAX_CHUNK_WORDS,
+             (IMAGE_WORDS + MAX_CHUNK_WORDS - 1u) / MAX_CHUNK_WORDS);
+    pass &= health("HEALTH_BEFORE_UPLOAD");
+    pass &= upload_plane_diagnostic(BITMAP_BASE, s_bitmap, "bitmap");
+    pass &= upload_plane_diagnostic(ATTR_BASE, s_attr, "attr");
+    pass &= health("HEALTH_AFTER_UPLOAD");
+    pass &= diagnostic_neighbor_reads();
+    ESP_LOGI(TAG, "DIAG_RESULT pass=%u", pass ? 1u : 0u);
+    for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+#endif
+
     pass &= health("HEALTH_BEFORE_UPLOAD");
     pass &= upload_plane(BITMAP_BASE, s_bitmap, "bitmap");
     pass &= upload_plane(ATTR_BASE, s_attr, "attr");
