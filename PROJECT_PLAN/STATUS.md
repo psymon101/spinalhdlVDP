@@ -23,6 +23,11 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 > real SDRAM/write-path branch. Exact frame mapping, six CRC counter deltas,
 > geometry, and serial evidence are in
 > `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/DIAGNOSTIC_RESULTS.md`.
+> BrightForge's follow-up sim-coverage finding (#14514) confirms the existing
+> integrity sim omits display-fetch arbitration, real refresh cadence, and the
+> `sel=8` readback path; BrightForge is ready to extend it if PM opens that
+> conditional write-path step. Final proof commits are `9e0d5efe` (harness)
+> and `7f917659` (packet/status correction).
 > No production firmware or RTL fix is authorized until the PM/BrightForge/
 > BronzeGate three-way scope decision. The detailed lane row below is pending
 > reconciliation by the PM.
