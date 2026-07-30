@@ -14,6 +14,19 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 ## Active Lanes
 
+> **BronzeGate discriminator update (2026-07-30):** `qspi-upload-si-hardening`
+> is still `BLOCKED`, but the requested discriminator is complete. Proof mode
+> 4 uploaded both planes in 61 × 253-word frames, logged selector-`0x0B`
+> before/after values, and re-read 13 assigned addresses eight times at 2 MHz
+> (104 successful reads). The six expected-`0x55555555` suspect words were
+> stable `0x00000000`; expected-zero neighbors remained zero. This selects the
+> real SDRAM/write-path branch. Exact frame mapping, six CRC counter deltas,
+> geometry, and serial evidence are in
+> `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/DIAGNOSTIC_RESULTS.md`.
+> No production firmware or RTL fix is authorized until the PM/BrightForge/
+> BronzeGate three-way scope decision. The detailed lane row below is pending
+> reconciliation by the PM.
+
 > **Release v0.2.0 (2026-07-29):** `topazcliff/scaler-rewrite` merged into `main` at `a442707`; all external-review doc-impact items closed (F1–F9 + HDMI-TX). Tag `v0.2.0` points to `134b4d6`. Working tree clean; no active lanes remaining.
 
 > **BronzeGate 4 MHz canonical closeout packet (2026-07-21):** implemented the PM-directed 4 MHz bulk SDRAM upload policy in commit `17bdfd7` (`QSPI_SDRAM_CLOCK_HZ = 4u * 1000u * 1000u`), updated `firmware/esp32p4_checkerboard/README.md`, and documented GOTCHA-035 in `firmware/GOTCHAS.md`. Clean ESP-IDF v6.0.2 rebuild PASS: ELF `264925e16bcfcc73a19558fd703361f32d92d999fc6394f72bfa6cabd67652a7`, BIN `5a227180989c72ac2df1a00f42d054eb2e41dd98cee46cd7ba8ff2593d4ba896`, partition `fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17`; flash/verify PASS. Explicit SRAM reload of assigned bitstream `aaa0fea2336081dfb2905246555ecc8e31d3c11528149600a56ef207ba86004` PASS. Ten MCU cold-start cycles all passed (`CHECKERBOARD_TEST PASS`), all health values were `raw=0x00000000`, and all basic plus row-200 samples passed; cycle log hashes: `8887e6ed`, `6f33a906`, `c6902684`, `80f4564a`, `58997473`, `784d3b8e`, `d534ee2e`, `0329e131`, `33abcf62`, `3c5eec24`. Final clean-build serial proof SHA `65fe1076e4f0241a2c3f405b0cd9e16256a0040677783d75927dabc14cae7f4d`. RTSP HDMI proof captured three frames showing a clean static checkerboard; frame hashes `e4100c0b`, `2226d31a`, `429e73fa`. A fresh direct `/dev/video0` YUYV capture is also clean and straight across three frames; hashes `79e17c1f`, `a1f2ccda`, `9e43e991` (single-frame retry `6aaae9ac`).

@@ -3,7 +3,7 @@ owners: [BrightForge, BronzeGate]
 pm: TopazCliff
 status: BLOCKED_RESIDUAL_UNCORRECTED_CORRUPTION
 date: 2026-07-30
-source_commit: 4f205a08dbc396e2dffa76133fb553947936c487
+source_commit: 9e0d5efe
 firmware_path: firmware/libvdp/vdp_host_p4.c
 firmware_contract: QSPI-CRC8-185
 bitstream: fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs
@@ -12,8 +12,8 @@ firmware_build:
   project: firmware/esp32p4_scaler_proof
   tool: ESP-IDF v6.0.2
   target: ESP32-P4 v1.3
-  elf_sha256: 0dda4bcfc67c5b7c7ca63d6f1deebe9bccafe984d3d1afa2fe2b684e8536179d
-  bin_sha256: 66d4eaa0f863fc302a551b94b0e3cfb25718fef22b71b04a7709aa61217ea901
+  elf_sha256: 9836eacc949bf3dbce8c2f4fb614e926725709dec6b2b259be09ab55e787f690
+  bin_sha256: dd1e0c28cfd47c0d718d0e21e935f022fe259ec1d9cdc3dacff1cdd92239410f
   partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
 transport:
   bulk_clock_hz: 4000000
@@ -26,5 +26,17 @@ stress:
   fail: 15
   residual_mismatches_per_failed_cycle: 2
   health: raw=0x00000000,overflow=0,malformed=0
-mail: [14506, 14507]
-decision: Existing CRC+retry is engaged; residual is not closed by CRC8-185. Await PM/RTL owner scope.
+diagnostic:
+  mode: 4
+  sample_repeats: 8
+  sample_addresses: 13
+  sample_reads: 104
+  sample_clock_hz: 2000000
+  upload_frame_words: 253
+  upload_frame_bytes: 506
+  bitmap_frames: 61
+  attr_frames: 61
+  stable_zero: true
+  crc_counter_delta_frames: 6
+mail: [14506, 14507, 14508, 14509, 14510, 14511, 14512]
+decision: Stable-zero discriminator selects the real SDRAM/write-path branch; no production fix is authorized until BrightForge/TopazCliff three-way agreement.

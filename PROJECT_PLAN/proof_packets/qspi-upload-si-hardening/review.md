@@ -9,6 +9,16 @@ Stress disposition: FAIL for the stronger acceptance criterion. The clean
 mismatches per failed cycle and no transport-health flags. This is residual
 uncorrected corruption, not evidence that the CRC path is absent.
 
-Open decision: BrightForge and TopazCliff must identify whether the mismatch is
-inside the bridge/SDRAM write path or the readback/proof surface before any
-firmware edit or RTL scope is authorized.
+Focused discriminator: PASS. BronzeGate's proof-mode run re-read 13 addresses
+eight times at 2 MHz (104 successful reads) and observed stable zeros at all
+six expected-`0x55555555` suspect words. The frame map is exact: `0x100008`
+is in bitmap frame 0 and `0x101000` is in bitmap frame 8. Selector `0x0B`
+counter deltas were logged around all 122 upload frames; six deltas occurred,
+with no host API errors and no transport-health flags.
+
+Disposition: the PM discriminator selects the real SDRAM/write-path branch,
+not a varying readback artifact. This is a scope decision, not a root-cause
+claim. BrightForge and TopazCliff must agree on the minimal next delta before
+any production firmware or RTL edit is authorized.
+
+Proof details: `hardware/DIAGNOSTIC_RESULTS.md`.

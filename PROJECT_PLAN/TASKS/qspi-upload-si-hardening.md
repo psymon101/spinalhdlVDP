@@ -2,7 +2,7 @@
 
 **Owner:** BrightForge (RTL) + BronzeGate (firmware)  
 **PM:** TopazCliff  
-**Status:** BLOCKED — residual corruption confirmed; pending write-vs-readback discrimination and PM/BrightForge scope (#14508)  
+**Status:** BLOCKED — discriminator selects stable SDRAM/write-path zeros; pending PM/BrightForge three-way scope agreement (#14509–#14512)
 **Opened:** 2026-07-30  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Address the residual intermittent silent QSPI upload corruption observed in `HAM6 removal + 2bpp indexed replacement` / `QSPI-SI-CEILING-183` at the canonical 4 MHz bulk-upload ceiling.
 
@@ -64,13 +64,32 @@ Proof packet: `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`.
 
 Rule 19 remains open pending BrightForge/TopazCliff agreement on the next step.
 
+## BronzeGate focused discriminator result (2026-07-30)
+
+BronzeGate ran proof-only `SCALER_PROOF_MODE=4` using the existing `libvdp`
+upload path. Bitmap and attribute planes each used 61 frames of 253 words
+(506 bytes) at 4 MHz. Selector `0x0B` was logged before and after every
+frame; six counter deltas occurred and all host calls returned success.
+
+The assigned neighborhoods were read at 2 MHz eight times each: 13 addresses,
+104 successful reads total. The expected-`0x55555555` words at
+`0x100008`, `0x10000C`, `0x100018`, `0x10001C`, `0x101000`, and `0x101004`
+all returned stable `0x00000000`; expected-zero neighbors also remained zero.
+Health was `raw=0x00000000 overflow=0 malformed=0`. Per the PM discriminator,
+this selects the real SDRAM/write-path branch rather than a varying readback
+artifact. Detailed evidence is in
+`PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/DIAGNOSTIC_RESULTS.md`.
+
+No production firmware or RTL fix was made. Rule 19 remains open pending the
+three-way PM/BrightForge/BronzeGate scope decision.
+
 ## Next step
 
 Before any RTL or firmware edit, discriminate where the residual zeros originate:
 
-1. **BrightForge** — analyze the fixed-address failure signature (`0x100008`, `0x101000`, expected `0x55555555`, observed `0x00000000`) and the `QspiSdramBridge`/SDRAM write path behavior when the host retries a `SDRAM_WRITE` frame. Is there a bridge state or retry hazard that can leave a written word as zero despite a passing CRC?
-2. **BronzeGate** — run a focused diagnostic on the next failing cycle: immediately re-read the failing address and its neighbors several times at 2 MHz, and log the per-transaction CRC status counter delta for the frames covering those addresses. This tells us whether the corruption is in SDRAM content (stable zero) or in the readback sample (unstable).
-3. **TopazCliff** — after those two analyses, choose the minimal delta: firmware per-chunk readback-verify retry, an RTL bridge fix, or physical hardening (native SPI2 IOMUX / bench SI).
+1. **BronzeGate** — discriminator complete. The required 2 MHz reads are stable zero and the exact 4 MHz frame/CRC map is recorded in the proof packet.
+2. **BrightForge + TopazCliff** — review the stable-zero result with the bridge analysis and choose the minimal authorized delta (firmware readback verification, RTL write-path fix, or physical hardening).
+3. **BronzeGate** — implement only the approved host-side change after the independent interface checkpoint; otherwise remain blocked.
 
 No code changes until the discrimination analysis is complete.
 
