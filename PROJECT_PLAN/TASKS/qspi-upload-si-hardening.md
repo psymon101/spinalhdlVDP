@@ -2,7 +2,7 @@
 
 **Owner:** BrightForge (RTL) + BronzeGate (firmware)  
 **PM:** TopazCliff  
-**Status:** BLOCKED — pending BronzeGate firmware-path facts (#14507)  
+**Status:** BLOCKED — residual corruption confirmed; pending write-vs-readback discrimination and PM/BrightForge scope (#14508)  
 **Opened:** 2026-07-30  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Address the residual intermittent silent QSPI upload corruption observed in `HAM6 removal + 2bpp indexed replacement` / `QSPI-SI-CEILING-183` at the canonical 4 MHz bulk-upload ceiling.
 
@@ -63,6 +63,16 @@ pending BrightForge/TopazCliff scope of the minimal next delta.
 Proof packet: `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`.
 
 Rule 19 remains open pending BrightForge/TopazCliff agreement on the next step.
+
+## Next step
+
+Before any RTL or firmware edit, discriminate where the residual zeros originate:
+
+1. **BrightForge** — analyze the fixed-address failure signature (`0x100008`, `0x101000`, expected `0x55555555`, observed `0x00000000`) and the `QspiSdramBridge`/SDRAM write path behavior when the host retries a `SDRAM_WRITE` frame. Is there a bridge state or retry hazard that can leave a written word as zero despite a passing CRC?
+2. **BronzeGate** — run a focused diagnostic on the next failing cycle: immediately re-read the failing address and its neighbors several times at 2 MHz, and log the per-transaction CRC status counter delta for the frames covering those addresses. This tells us whether the corruption is in SDRAM content (stable zero) or in the readback sample (unstable).
+3. **TopazCliff** — after those two analyses, choose the minimal delta: firmware per-chunk readback-verify retry, an RTL bridge fix, or physical hardening (native SPI2 IOMUX / bench SI).
+
+No code changes until the discrimination analysis is complete.
 
 ---
 
