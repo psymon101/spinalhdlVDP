@@ -1,0 +1,10 @@
+5b86b0be4963b40e04bfd71ec73578c208bc18f07e5fb032243de4aaccd9bf6a  manifest.yaml
+f3c03d34ab2936c3f28d81cdaba2bcc5c3d0a91cd32b1c7d3831ddad8dd0c6fe  source/FACTS.md
+17464f4d7253a99a6ea113716196491099e82980e3226d7273ff2df30744ebaf  firmware/BUILD.md
+58483a3ff7eb3340416138682da25fef2b0b2f1f2f6c2e32948e24fb4d1b2dae  hardware/PROCEDURE.md
+13247979f6e4bb50c3e5fcdf0036446cadafa963b8aefbd828d2305d4f9dc388  hardware/RESULTS.md
+c7a1359b0236b33c217ad4f4b56947dd51539162ac8f5fa0639ea66936fe35d6  review.md
+91677ac30ccad7443ba5b79f9cb6fa0d1faa60e99c27ffb40cf20c4fe54e1a3b  ../../../firmware/libvdp/vdp_host_p4.c
+600145ab70fe3fdd8f5b58fad50e15e7ad501c414e9d6756a5e39b2441a2caaf  ../../../firmware/libvdp/vdp_crc8.h
+4b9a5d9fb220fbd5d4cb61c4510da5052e652d02e313386f62b190f831fb9fb3  ../../../firmware/esp32p4_scaler_proof/main/main.c
+38002d5c2bd1ca00c9460fc0349874a5e0f65afad120ab19c26b2144d41b9c09  ../../../fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs

@@ -40,7 +40,29 @@ Therefore this lane does **not** build new RTL. The actionable work is:
 3. If no, adopt the existing CRC+retry on the bulk path, then run the same stress.
 4. Only if residual corruption remains do we scope a minimal delta (likely firmware plumbing, not RTL).
 
-Rule 19 remains open until BronzeGate reports facts and the team agrees on the next step.
+## BronzeGate firmware-path result (2026-07-30)
+
+The current ESP32-P4 backend is already CRC-enabled: `vdp_host_p4.c`
+`write_frame()` computes `vdp_crc8_qspi_write_frame()` over the wire-order
+`[CMD, ADDR, LEN, payload]`, appends the CRC byte, polls `READ_STATUS` selector
+`0x0B` before and after each frame, and retries once when the 16-bit CRC status
+counter changes. Both `vdp_reg_write_burst()` and `vdp_sdram_write()` use this
+helper; the scaler proof app's 4 MHz bulk bitmap/attribute uploads therefore
+exercise the existing CRC8-185 path without a firmware edit.
+
+Clean-baseline hardware stress (`project_38002d5c_scaler_hwproof.fs`, ESP-IDF
+6.0.2, app source commit `4f205a08`) ran 30 reset/upload/readback cycles. The
+result was 15/30 pass and 15/30 fail. Every failed cycle had two byte-readback
+mismatches at the checkerboard samples `0x100008` and `0x101000` (expected
+`0x55555555`, observed `0x00000000`); all other sampled words passed. All three
+health samples per cycle remained `raw=0x00000000 overflow=0 malformed=0`, and
+the application returned after upload without a CRC retry failure. This is
+residual uncorrected corruption after CRC+retry, so the lane remains blocked
+pending BrightForge/TopazCliff scope of the minimal next delta.
+
+Proof packet: `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`.
+
+Rule 19 remains open pending BrightForge/TopazCliff agreement on the next step.
 
 ---
 

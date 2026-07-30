@@ -1,0 +1,30 @@
+lane: qspi-upload-si-hardening
+owners: [BrightForge, BronzeGate]
+pm: TopazCliff
+status: BLOCKED_RESIDUAL_UNCORRECTED_CORRUPTION
+date: 2026-07-30
+source_commit: 4f205a08dbc396e2dffa76133fb553947936c487
+firmware_path: firmware/libvdp/vdp_host_p4.c
+firmware_contract: QSPI-CRC8-185
+bitstream: fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs
+bitstream_sha256: 38002d5c2bd1ca00c9460fc0349874a5e0f65afad120ab19c26b2144d41b9c09
+firmware_build:
+  project: firmware/esp32p4_scaler_proof
+  tool: ESP-IDF v6.0.2
+  target: ESP32-P4 v1.3
+  elf_sha256: 0dda4bcfc67c5b7c7ca63d6f1deebe9bccafe984d3d1afa2fe2b684e8536179d
+  bin_sha256: 66d4eaa0f863fc302a551b94b0e3cfb25718fef22b71b04a7709aa61217ea901
+  partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
+transport:
+  bulk_clock_hz: 4000000
+  control_clock_hz: 2000000
+  crc_status_selector: 11
+  retry_attempts: 2
+stress:
+  cycles: 30
+  pass: 15
+  fail: 15
+  residual_mismatches_per_failed_cycle: 2
+  health: raw=0x00000000,overflow=0,malformed=0
+mail: [14506, 14507]
+decision: Existing CRC+retry is engaged; residual is not closed by CRC8-185. Await PM/RTL owner scope.
