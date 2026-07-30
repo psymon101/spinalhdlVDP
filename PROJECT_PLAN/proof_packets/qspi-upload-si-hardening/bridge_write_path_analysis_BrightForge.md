@@ -48,14 +48,29 @@ no flow control on `byteValid`, or a stall-watchdog abort) would be **silent to 
 
 ## Q2 — Do `+0x8` / `+0x1000` map to a frame/burst/FIFO/row boundary?
 
-- **`0x101000` = base + `0x1000` = 4096 B.** This is the classic **4 KB SDRAM row/page boundary**
-  and is the *first word of a new row*. Row crossings force PRECHARGE + ACTIVATE (extra `ctrl.busy`
-  latency); the first write into a freshly-activated row is the canonical point for a lost write
-  (tRCD not yet met) or a readback-across-row artifact. Strongest structural signal in the data.
-- **`0x100008` = base + 8 B** (3rd 32-bit word). Near upload start; not a 4 KB boundary. Candidates:
-  first-frame/first-row transient, or alignment with the fetch read-burst or the host frame chunk.
-  **Cannot be pinned from RTL alone** — needs (a) the exact `sdram.v` row/bank/column geometry and
-  (b) the host frame chunk size + which upload frame covers each failing address.
+**Verified `sdram.v` geometry** (`fpga/tang20k/third_party/sdram/sdram.v:30-35,178-242`): 64 Mbit,
+32-bit, **2048 rows × 256 cols × 4 banks**; `addr[22:0]` is a **byte** address decoded as
+`{bank = addr[22:21], row = addr[20:10], col = addr[9:2], byte-lane = addr[1:0]}` (sequential, bank
+high-order). **One row = 256 words = 1024 bytes.**
+
+Decoding the two failures (base `0x100000` = {bank0, row1024, col0}):
+- **`0x100008`** = {bank0, **row1024, col2**} — the 3rd word (col 2) of the base row, near upload start.
+- **`0x101000`** = {bank0, **row1028, col0**} — a **row start** (col 0), 4 rows (4×1024 B) past base.
+
+**Correction to my first pass:** a row is **1 KB, not 4 KB**, so `0x101000` is a row start — but so are
+`0x100400`, `0x100800`, `0x100C00`, which BronzeGate did **not** report failing. A generic per-row
+PRECHARGE/ACTIVATE hazard would hit those too. Therefore the two sampled addresses are **not uniquely
+explained by SDRAM row geometry.** Two readings remain open:
+1. The reported set is **under-sampled** — BronzeGate's readback samples a sparse grid, so the true
+   failing region may be broader (e.g. the whole first few KB / first frame) and only these two grid
+   points intersect it. → need BronzeGate's **exact readback sample-address list**.
+2. The offsets are **transport/frame-relative, not SDRAM-relative** — e.g. `0x101000` = a host upload
+   **frame/chunk boundary** (if chunk = 0x1000) and `0x100008` = an early in-frame offset. → need the
+   host frame chunk size + which frame covers each address (the per-frame CRC-delta correlation the PM
+   already tasked).
+
+Net: the geometry **removes** "clean 4 KB row boundary" as the explanation and makes the neighbor
+re-read + sample-grid disclosure the deciding evidence.
 
 ## Q3 — Write-path bug, readback artifact, or remaining SI?
 
@@ -70,9 +85,10 @@ set the overall ceiling, but it does not explain fixed-address whole-word zeros.
    already-fixed CyanPeak GT-17 (registered `sdramRd/Wr` → pop swallowed by `sdram.v` rd|wr ternary)
    and #11144. The current `canAccept` guards fetch clients (current+next) and arbiter-owned refresh,
    so the *known* gaps are closed. A residual would be an *uncovered* window — e.g. planar is gated
-   current-only (line 1158-1162; not a live client for 2bpp so unlikely here), a row-activate latency
-   that `ctrl.busy` doesn't fully cover at the `0x101000` crossing, or a burst-refresh-in-vblank
-   interaction. Would yield stable-zero-in-SDRAM.
+   current-only (line 1158-1162; not a live client for 2bpp so unlikely here) or a burst-refresh-in-
+   vblank interaction. (NB: a plain per-row ACTIVATE hazard is **weakened** by the geometry above —
+   every 1 KB is a row start, but only one row-start address was reported failing.) Would yield
+   stable-zero-in-SDRAM.
 2. **Readback-path artifact** — the `sel=8` debug read (`dbgReadArea`/`dout32`) has documented
    fixed-data history (#10928), is **32-bit-word granular** while writes are **per-byte**, and reads
    `0x101000` exactly across a row boundary. Would yield *varying* re-reads or method-dependent zeros.
