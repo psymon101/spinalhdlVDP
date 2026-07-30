@@ -33,6 +33,7 @@ The launcher (`launch_agent_isolated.sh`) injects your role file into the host's
 | **Critical path rule** | One active shared engineering lane at a time |
 | **Session start** | Read `AGENTS.md` → your model-specific instruction file (`CLAUDE.md` for BrightForge, otherwise `AGENTS/<YourName>.md`) → `STATUS.md` → `PROJECT_PLAN/PROJECT_PLAN.md` → `PROJECT_PLAN/TASKS.md` → active task/specification |
 | **Hardware proof rule** | Simulator first, then unambiguous hardware proof. 100% required. No exceptions. |
+| **No simulation assumptions** | No path or corner may be dismissed as "structurally impossible" without a sim run that exercises it and shows it clean. Paths that cannot be modeled must be documented as unclosed risks, not as proof of safety. |
 | **Sim config (global)** | Automatic — no per-agent setup. JVM heap 16G via `.jvmopts`; Verilator threads via `Config.simThreads` (=19). Use `Config.sim` for sims, or for headless/no-wave add `--threads ${Config.simThreads}` via `SimConfig.addSimulatorFlag`. |
 | **FPGA source rule** | SpinalHDL is editable source; generated Verilog is a build artifact |
 | **Live status authority** | `STATUS.md` owns durable state, history, blockers, active lanes, and immediate next work |
