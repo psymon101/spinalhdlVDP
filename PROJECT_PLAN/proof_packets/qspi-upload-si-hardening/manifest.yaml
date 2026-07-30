@@ -3,7 +3,7 @@ owners: [BrightForge, BronzeGate]
 pm: TopazCliff
 status: BLOCKED_RESIDUAL_UNCORRECTED_CORRUPTION
 date: 2026-07-30
-source_commit: 9e0d5efe
+source_commit: 9e0d5efe4e837d677c094813aa6f89bc80fa5a2d
 firmware_path: firmware/libvdp/vdp_host_p4.c
 firmware_contract: QSPI-CRC8-185
 bitstream: fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs
