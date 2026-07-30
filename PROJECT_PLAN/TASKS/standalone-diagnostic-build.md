@@ -2,8 +2,9 @@
 
 **Owner:** BrightForge  
 **PM:** TopazCliff  
-**Status:** OPEN  
-**Opened:** 2026-07-29  
+**Status:** DONE — 2026-07-30  
+**Closed:** 2026-07-30  
+**Merge commit:** `ec5c9724`  
 **Trigger:** External static review Phase 1; owner request to close the remaining reviewer-recommended work.
 
 ---
@@ -56,13 +57,13 @@ Current state:
 
 ## Acceptance Criteria
 
-- [ ] `sbt compile` passes with no errors.
-- [ ] Diagnostic Verilog generation (`make gen-diagnostic` or equivalent) passes cleanly.
-- [ ] Gowin PnR passes with TNS=0 on all clocks and no new resource alarms.
-- [ ] Bitstream is produced; SHA-256 recorded in proof packet.
-- [ ] Hardware proof: ≥10 cold power cycles; HDMI locks every cycle; test pattern is stable and matches expectation.
-- [ ] Proof packet contains `manifest.yaml`, `hashes.sha256`, `PASS.txt`, `review.md`, synthesis summary, and capture hashes.
-- [ ] Production regression spot-check: default `TopTang20kHdmiVerilog` still elaborates and PnRs cleanly, or BrightForge demonstrates no production-path diff.
+- [x] `sbt compile` passes with no errors.
+- [x] Diagnostic Verilog generation (`make gen-diagnostic`) passes cleanly.
+- [x] Gowin PnR passes with TNS=0 on all clocks and no new resource alarms.
+- [x] Bitstream is produced; SHA-256 recorded in proof packet.
+- [x] Hardware proof: 10/10 cold power cycles; HDMI locks every cycle; full-frame grid byte-identical `7803de18`.
+- [x] Proof packet contains `manifest.yaml`, `hashes.sha256`, `PASS.txt`, `review.md`, synthesis summary, and capture hashes.
+- [x] Production regression spot-check: default `TopTang20kHdmiVerilog` normalized diff vs `main` = 0 (only SpinalHDL line-number signal renames differ).
 
 ---
 
