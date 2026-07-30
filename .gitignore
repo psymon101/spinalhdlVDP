@@ -21,6 +21,7 @@ fpga/tang20k/impl_720p_bridge/
 fpga/tang20k/impl_720p_mode0/
 fpga/tang20k/impl_720p_linebuf/
 fpga/tang20k/impl_720p_planar/
+fpga/tang20k/impl_diagnostic/
 fpga/tang20k/gwlog/
 fpga/tang20k/*.fs
 fpga/tang20k/*.tmp
@@ -30,6 +31,8 @@ fpga/tang20k/*.log
 **/build/
 **/build_*
 !scripts/regression/build_*.sh
+# Gowin build TCL scripts are source, not build output (build.tcl et al. predate the rule).
+!fpga/tang20k/build_*.tcl
 
 hw/gen/**
 !hw/gen/.gitkeep

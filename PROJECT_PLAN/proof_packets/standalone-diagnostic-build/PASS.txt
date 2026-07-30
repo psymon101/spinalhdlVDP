@@ -1,0 +1,27 @@
+standalone-diagnostic-build — PASS (BrightForge)
+================================================
+Date: 2026-07-29 | Branch brightforge/standalone-diagnostic-build | PM TopazCliff
+
+VERDICT: PASS — native 640x480 Tang Nano 20K bitstream boots from cold POR with NO host,
+NO QSPI, NO SDRAM upload, and displays a deterministic 1x full-screen grid test pattern
+that HDMI-locks reliably (10/10 cold-POR cycles).
+
+APPROACH: Option A — TopTang20kHdmi(diagnosticMode). All changes gated on diagnosticMode;
+production TopTang20kHdmiVerilog netlist verified functionally identical (normalized diff=0).
+
+RTL (commits 685580e5, c5c799a7, ac90dfbe): diagnosticMode => useHostInit=false (on-chip
+bootstrap), layer0 -> test pattern grid(6), color-math op=00, and LinestateStore ships all
+lines L0-enabled so the grid fills the whole screen. Module top_tang20k_diagnostic; new
+TopTang20kHdmiDiagnosticVerilog generator + build_diagnostic.tcl + Makefile `diagnostic` target.
+
+PnR (Gowin V1.9.12.01): bitstream 60b23c77; TNS=0 all clocks; clk_pixel Fmax 30.052 MHz
+(+19.3%); BSRAM 37/46 (no new); DSP 12/24. No new resource alarms.
+
+HARDWARE: 10/10 cold-POR cycles show full-frame grid (rows 480/480, cols 720/720), HDMI
+locked, frame byte-identical (7803de18) across cycles => deterministic + stable.
+
+ARTIFACTS: source/ (RTL provenance), synthesis/PnR_PASS.md + project.rpt.txt,
+hardware/RESULTS.md + coldpor_loop.sh + coldpor_results.log, captures/ (grid + per-cycle),
+manifest.yaml, hashes.sha256.
+
+REVIEW: CyanPeak code-to-spec/procedure review requested. PM closeout pending.

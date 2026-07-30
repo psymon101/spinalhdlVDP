@@ -187,3 +187,38 @@ flash-720p-planar: $(PLANAR_BITSTREAM)
 
 clean-720p-planar:
 	rm -rf $(PLANAR_BUILD_DIR)
+
+# ---------------------------------------------------------------------------
+# standalone-diagnostic-build lane — no-host / no-QSPI / no-SDRAM native 640x480
+# 1x test-pattern build. Separate top (top_tang20k_diagnostic) and impl dir.
+# Reuses the production tang20k_hdmi.cst / .sdc (same native 640x480 pinout).
+# NOTE: does NOT `rm -rf impl` (unlike the 720p-proof target) so preserved
+# authority bitstreams under impl/pnr/project_*.fs are not deleted.
+# ---------------------------------------------------------------------------
+DIAG_BUILD_DIR := impl_diagnostic
+DIAG_TCL       := build_diagnostic.tcl
+DIAG_BITSTREAM := $(DIAG_BUILD_DIR)/pnr/project.fs
+DIAG_GEN       := spinalhdlvdp.TopTang20kHdmiDiagnosticVerilog
+
+.PHONY: gen-diagnostic diagnostic prog-diagnostic flash-diagnostic clean-diagnostic
+
+gen-diagnostic:
+	$(SBT) "runMain $(DIAG_GEN)"
+
+$(DIAG_BITSTREAM): gen-diagnostic $(DIAG_TCL) tang20k_hdmi.cst tang20k_hdmi.sdc
+	$(GW_ENV) $(GW_SH) $(DIAG_TCL)
+	mkdir -p $(DIAG_BUILD_DIR)/pnr
+	cp $(BUILD_DIR)/pnr/project.fs $(DIAG_BITSTREAM)
+	cp $(BUILD_DIR)/pnr/project.rpt.txt $(DIAG_BUILD_DIR)/pnr/ 2>/dev/null || true
+	cp $(BUILD_DIR)/pnr/project_tr_content.html $(DIAG_BUILD_DIR)/pnr/ 2>/dev/null || true
+
+diagnostic: $(DIAG_BITSTREAM)
+
+prog-diagnostic: $(DIAG_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) --bitstream $(DIAG_BITSTREAM)
+
+flash-diagnostic: $(DIAG_BITSTREAM)
+	$(LOADER) --board $(BOARD) $(LOADER_ARGS) -f --verify $(DIAG_BITSTREAM)
+
+clean-diagnostic:
+	rm -rf $(DIAG_BUILD_DIR)
