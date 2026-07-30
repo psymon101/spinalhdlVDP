@@ -93,6 +93,33 @@ set the overall ceiling, but it does not explain fixed-address whole-word zeros.
    fixed-data history (#10928), is **32-bit-word granular** while writes are **per-byte**, and reads
    `0x101000` exactly across a row boundary. Would yield *varying* re-reads or method-dependent zeros.
 
+## Addendum 2 — why sim-clean / HW-fail: the one real-`sdram.v` sim omits the collision path
+
+`QspiUploadIntegritySim` is the only sim that co-sims the **real `sdram.v` + SDRAM model**
+end-to-end (`SdramWithModel`, upload checkerboard → readback → compare). But it deliberately models
+a **narrow slice** (verified in-file):
+- **No display-fetch clients** (header:12,30 — "minus display fetch clients"). Its pop-ready gate
+  (line 117) is `!bb.busy && !doRefresh && !testRd && !testWr` — it **omits** the real top's
+  `anyClientActive` fetch/fetchL1/bitmap/planar CURRENT+NEXT look-ahead (`TopTang20kHdmi:1148-1165`).
+  So the **upload-vs-fetch arbiter collision** (the GT-17/#11144 write-path candidate) is
+  **structurally not exercised** — a fetch-collision-induced lost write passes here but fails on HW.
+- **Simplified refresh** (line 113-115: a plain 10-bit counter), not the real
+  arbiter/BurstRefreshController cadence.
+- **Readback via direct controller reads** (line 322), **not** the `sel=8` `dbgReadArea`/`dout32` path
+  HW uses — so a sel=8 readback artifact (#10928 class) is also invisible to this sim.
+
+**Consequence:** `QspiUploadIntegritySim` passing does **not** exonerate the write path under real
+conditions. Its own stated conclusion (header:22 — "if it passes at the same frequency the defect is
+outside digital RTL") holds only for the slice it models; it never tested fetch/refresh collision,
+which is exactly where the write-path candidate lives. This **tempers the #14266 "physical SI"
+attribution** — the one real-`sdram.v` sim deliberately omitted the collision path. Matches prior art
+`ham6_warp_attr_fetch` (sim-clean/HW-warp ⇒ real-SDRAM timing) and the "integration ≠ unit sim" rule.
+
+**Reproduction co-sim scope (if BronzeGate's re-read → write-path):** extend `QspiUploadIntegritySim`
+to (a) instantiate concurrent display-fetch client(s) driving the **real** `canAccept` arbitration,
+(b) use the real refresh cadence, (c) read back via the `sel=8` debug path. Target: reproduce the
+fixed-address zero deterministically, then bisect fetch-collision vs refresh vs readback.
+
 ## Recommended discrimination (before any delta)
 
 1. **BronzeGate re-read the two failing words 5-10× at 2 MHz** (already tasked #14509):
