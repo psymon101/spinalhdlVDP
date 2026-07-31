@@ -14,21 +14,16 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 ## Active Lanes
 
-> **Lane 3 update (2026-07-30):** `qspi-upload-si-hardening` is `IN PROGRESS`.
-> BronzeGate's discriminator (#14515) selected the real SDRAM/write-path branch.
-> BrightForge's `QspiUploadCollisionSim` (#14521) reproduces the loss and bisects
-> it to **refresh**: refresh ON ⇒ 7–8 lost words, refresh OFF ⇒ byte-perfect.
-> Pop-audit shows every lost byte was issued to the controller (controller-lost,
-> not upstream drop), and all error flags are 0. BrightForge delivered the
-> coverage matrix (#14527, `sim_coverage_matrix_BrightForge.md`): exact RTL,
-> modeled SDRAM array/refresh cadence, and explicitly labeled unclosed risks
-> (fetch `anyClientActive`, `sel=8` readback). All six PM-requested sweeps are
-> feasible and are executing now; no production RTL/firmware edits until the
-> fix candidate survives the strengthened matrix and gets 3-way approval.
-> Rule 19 remains open.
-> No production firmware or RTL fix is authorized until the PM/BrightForge/
-> BronzeGate three-way scope decision. The detailed lane row below is pending
-> reconciliation by the PM.
+> **Lane 3 update (2026-07-31):** `qspi-upload-si-hardening` is `BLOCKED` on the
+> true mechanism. BronzeGate's discriminator (#14515) selected the real SDRAM/
+> write-path branch. BrightForge's co-sim (#14521) reproduces refresh-correlated
+> losses, but the first two candidate guards (`canAccept` busy-settle and
+> post-refresh cooldown) were **falsified** (#14528). Pop-audit confirms bytes are
+> issued to the controller and then vanish, but it is not yet proven whether this
+> is a real `sdram.v` command-sequencing bug or a sim-harness/model subtlety.
+> Next: pywellen waveform-pin of a lost write, then disambiguate (a) vs (b).
+> Rule 19 remains open; no production RTL/firmware edits until the real mechanism
+> is identified and a fix survives the strengthened sim matrix.
 
 > **Release v0.2.0 (2026-07-29):** `topazcliff/scaler-rewrite` merged into `main` at `a442707`; all external-review doc-impact items closed (F1–F9 + HDMI-TX). Tag `v0.2.0` points to `134b4d6`. Working tree clean; no active lanes remaining.
 
