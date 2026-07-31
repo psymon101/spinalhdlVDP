@@ -177,3 +177,48 @@ under stress stimulus.
 - Priority 3 Planar Hardening: `SdramTileAttributeFetch.scala:176-223`,
   audit mail #10809, lane closed in commit `1efa9c1`.
 - Sim discriminator: `PlanarWriteBufRaceSim.scala` (reproduced race in #10804).
+
+---
+
+## GOTCHA-16: SDRAM co-sim — Verilator reads tri-stated `SDRAM_DQ` as `0`, causing false `0x00` write loss
+
+**Context.** The SDRAM co-sims wire the **real** `sdram.v` controller to the behavioral
+`sdram_model.v` chip through the internal `SDRAM_DQ` bus (`SdramWithModel` / `sdram_with_model.v`).
+`sdram.v` drives write data on `SDRAM_DQ` for **exactly one cycle** at `{WRITE, T_RCD}`
+(`sdram.v:247-248`, `dq_oen<=0`, `dq_out<={din×4}`), then **tri-states** it at `{WRITE, T_RCD+1}`
+(`sdram.v:251`, `dq_oen<=1`): `assign SDRAM_DQ = dq_oen ? 32'bz : dq_out` (`sdram.v:85`). The model
+samples `SDRAM_DQ` on `posedge clk_sdram` (the 180°-phased chip clock).
+
+**The trap.** **Verilator is 2-state: it resolves high-Z (`'z`) as `0`.** If a co-sim shifts a
+write's DQ-valid window off the model's `clk_sdram` sample edge — e.g. a **hand-rolled, racing
+refresh** driven from a free-running timer while a bridge autonomously pops writes — the model
+samples DQ during the tri-state window and latches `0x00`. The word then reads back as a false
+`0x00000000` "write loss." **The RTL is correct; sdram.v drives the right data.** A real chip / a
+4-state simulator latches DQ during the valid window and never sees this.
+
+**Discriminator (all textual, no waveform needed):**
+- Lost word reads `0x00000000` **exactly** (Verilator Z-read), *not* `0xDEADBEEF` (= `sdram_model` mem
+  init = a genuinely un-written word). `got=0xDEADBEEF` ⇒ dropped/never-issued; `got=0x00` ⇒ issued
+  then Z-sampled.
+- The correct data *was* issued (the popped `din` = the expected byte) — corruption is downstream of
+  issue, in the DQ handoff.
+- Refresh-correlated (refresh-off = 0 losses) because the racing refresh is what shifts the alignment.
+- A busy-edge `canAccept` guard does **not** fix it (the loss is the DQ sample, not command acceptance).
+- Waveform confirmation: `dq_out` holds `0x55` while `SDRAM_DQ` is `0x55` (`dq_oen=0`), then `SDRAM_DQ`
+  goes `0x00` the next cycle when `dq_oen=1`.
+
+**Fix / how to avoid.** Drive writes and refresh **non-racing**, like `BurstRefreshDataSurvivalSim`:
+`waitIdle()` between every command so a write fully completes before a refresh, and never interleave a
+testbench refresh with an autonomous write stream. Or source refresh from the real
+`SdramArbiter`/`BurstRefreshController` (single-transaction controller ownership). Do **not** build a
+co-sim that pulses `bb.io.refresh` from a free-running timer against an autonomous upload bridge.
+
+### Reference
+
+- Lane `qspi-upload-si-hardening`, mail #14518→#14539. False reproducer:
+  `QspiUploadCollisionSim.scala` (branch `brightforge/qspi-upload-collision-sim`, artifact evidence).
+- Proven-clean non-racing pattern: `BurstRefreshDataSurvivalSim.scala` (SDRAM-BURST-REFRESH P16, main
+  `6e6a1f3`) — real write+refresh+readback EXACT.
+- Prior art / same class: `[[project_2bpp_backlog_cosim_lane]]` ("never drop/mis-time a request
+  coincident with refresh; only delay").
+- Memory: `[[reference_verilator_sdram_dq_z_artifact]]`.
