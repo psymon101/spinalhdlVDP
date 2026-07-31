@@ -64,6 +64,32 @@ Proof packet: `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`.
 
 Rule 19 remains open pending BrightForge/TopazCliff agreement on the next step.
 
+## BronzeGate firmware framing/readback audit (2026-07-31)
+
+Per TopazCliff #14539, BronzeGate traced the source buffer and upload path for
+the deterministic failures at `0x100008` and `0x101000`. The checkerboard
+contains `0x55555555` at both target words. Frame 0 begins at `0x100000`, with
+the first target at byte offset 8; frame 8 begins at `0x100FD0`, with the
+second target at byte offset 48. The 253-word frame map, little-endian length
+and word encoding, parity-encoded wire addresses, and appended CRC8-185 values
+were recomputed from the firmware. The target frames produce wire addresses
+`0x100000`/`0x900FD0` and CRC values `0xDF`/`0x67`; the CRC is appended after
+the payload and cannot shift it.
+
+The P4 backend's `vdp_reg_read()` is an explicit RX stub. The diagnostic's
+selector `0x08` is the only current P4 SDRAM-content surface; selector `0x09`
+is transport loopback/status, not alternate SDRAM data. No new command,
+register, bitstream, or firmware behavior was invented. The full audit and
+Rule 10 citation block are in
+`PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/firmware/FRAMING_READBACK_AUDIT.md`.
+
+Disposition: host framing/address/CRC is not the demonstrated mechanism, and
+the lane remains blocked on an approved alternate readback surface or a
+physical-layer test. Any host-visible readback change requires the independent
+BrightForge + BronzeGate Rule 19 checkpoint and TopazCliff authorization.
+
+Related mail: #14539, #14540, #14542, #14543.
+
 ## BronzeGate focused discriminator result (2026-07-30)
 
 BronzeGate ran proof-only `SCALER_PROOF_MODE=4` using the existing `libvdp`
