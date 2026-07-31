@@ -5,6 +5,7 @@
  * SCALER_PROOF_MODE=2: 2x centered checkerboard, logic 300x220
  * SCALER_PROOF_MODE=3: 3x centered checkerboard, logic 200x150
  * SCALER_PROOF_MODE=4: QSPI write-vs-readback discriminator (proof only)
+ * SCALER_PROOF_MODE=5: sel=8 readback SCLK sweep (proof only)
  */
 #include <inttypes.h>
 #include <stdbool.h>
@@ -38,6 +39,7 @@ enum {
     ATTR_BASE = 0x110000,
     REG_SDRAM_READ_ADDR_LO = 0x0326,
     REG_SDRAM_READ_ADDR_HI = 0x0327,
+    SWEEP_CYCLES = 30,
 };
 
 static const char *TAG = "p4_scaler_proof";
@@ -156,6 +158,93 @@ static bool readback_word(uint32_t addr, uint32_t *value)
     if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
     *value = vdp_read_status(SEL_SDRAM);
     return vdp_last_error() == VDP_HOST_ERR_NONE;
+}
+
+static uint32_t bitmap_expected_word(uint32_t addr);
+
+static bool readback_word_at_rate(uint32_t addr, uint32_t rate_hz,
+                                  uint32_t *value, int *error)
+{
+    vdp_host_set_speed_hz(rate_hz);
+    vdp_reg_write(REG_SDRAM_READ_ADDR_LO, (uint16_t)addr);
+    if (vdp_last_error() != VDP_HOST_ERR_NONE) {
+        *error = vdp_last_error();
+        return false;
+    }
+    vdp_reg_write(REG_SDRAM_READ_ADDR_HI, (uint16_t)(addr >> 16));
+    if (vdp_last_error() != VDP_HOST_ERR_NONE) {
+        *error = vdp_last_error();
+        return false;
+    }
+    *value = vdp_read_status(SEL_SDRAM);
+    *error = vdp_last_error();
+    return *error == VDP_HOST_ERR_NONE;
+}
+
+static bool sweep_readback(void)
+{
+    static const uint32_t rates_hz[] = {
+        2000000u, 1000000u, 500000u, 250000u,
+    };
+    static const uint32_t addresses[] = {
+        0x100004u, 0x100008u, 0x10000Cu,
+        0x100FFCu, 0x101000u, 0x101004u,
+    };
+    bool pass = true;
+
+    ESP_LOGI(TAG,
+             "SWEEP_START rates=2000000,1000000,500000,250000 cycles=%u"
+             " cs_post=8 targets=0x100008,0x101000 neighbors=word+-1",
+             SWEEP_CYCLES);
+    for (unsigned rate_index = 0;
+         rate_index < sizeof(rates_hz) / sizeof(rates_hz[0]); ++rate_index) {
+        const uint32_t rate_hz = rates_hz[rate_index];
+        unsigned reads = 0u;
+        unsigned value_pass = 0u;
+        unsigned zero_values = 0u;
+        unsigned errors = 0u;
+        ESP_LOGI(TAG, "SWEEP_RATE_BEGIN hz=%" PRIu32, rate_hz);
+        for (unsigned cycle = 0; cycle < SWEEP_CYCLES; ++cycle) {
+            for (unsigned i = 0; i < sizeof(addresses) / sizeof(addresses[0]); ++i) {
+                const uint32_t addr = addresses[i];
+                const uint32_t expected = bitmap_expected_word(addr);
+                uint32_t actual = 0u;
+                int error = VDP_HOST_ERR_NONE;
+                const bool read_ok = readback_word_at_rate(addr, rate_hz,
+                                                           &actual, &error);
+                const bool word_pass = read_ok && actual == expected;
+                ++reads;
+                if (word_pass) {
+                    ++value_pass;
+                } else {
+                    pass = false;
+                }
+                if (actual == 0u) ++zero_values;
+                if (error != VDP_HOST_ERR_NONE) ++errors;
+                ESP_LOGI(TAG,
+                         "SWEEP_READ hz=%" PRIu32 " cycle=%u addr=0x%06" PRIX32
+                         " expected=0x%08" PRIX32 " got=0x%08" PRIX32
+                         " ok=%u err=%d",
+                         rate_hz, cycle, addr, expected, actual,
+                         word_pass ? 1u : 0u, error);
+            }
+            const uint32_t health_raw = vdp_read_status(SEL_TRANSPORT_HEALTH);
+            const int health_error = vdp_last_error();
+            ESP_LOGI(TAG,
+                     "SWEEP_HEALTH hz=%" PRIu32 " cycle=%u raw=0x%08" PRIX32
+                     " overflow=%u malformed=%u err=%d",
+                     rate_hz, cycle, health_raw, health_raw & 1u,
+                     (health_raw >> 1) & 1u, health_error);
+            if (health_error != VDP_HOST_ERR_NONE || (health_raw & 3u) != 0u) {
+                pass = false;
+            }
+        }
+        ESP_LOGI(TAG,
+                 "SWEEP_SUMMARY hz=%" PRIu32 " reads=%u pass=%u zeros=%u errors=%u",
+                 rate_hz, reads, value_pass, zero_values, errors);
+    }
+    ESP_LOGI(TAG, "SWEEP_RESULT pass=%u", pass ? 1u : 0u);
+    return pass;
 }
 
 static bool verify_sample(uint32_t addr)
@@ -304,6 +393,21 @@ void app_main(void)
     pass &= health("HEALTH_AFTER_UPLOAD");
     pass &= diagnostic_neighbor_reads();
     ESP_LOGI(TAG, "DIAG_RESULT pass=%u", pass ? 1u : 0u);
+    for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+#endif
+
+#if SCALER_PROOF_MODE == 5
+    ESP_LOGI(TAG,
+             "SWEEP_GEOMETRY bitmap_base=0x%06X attr_base=0x%06X image_words=%u"
+             " chunk_words=%u chunk_bytes=%u",
+             BITMAP_BASE, ATTR_BASE, IMAGE_WORDS, MAX_CHUNK_WORDS,
+             MAX_CHUNK_WORDS * 2u);
+    pass &= health("SWEEP_HEALTH_BEFORE_UPLOAD");
+    pass &= upload_plane(BITMAP_BASE, s_bitmap, "bitmap");
+    pass &= upload_plane(ATTR_BASE, s_attr, "attr");
+    pass &= health("SWEEP_HEALTH_AFTER_UPLOAD");
+    pass &= sweep_readback();
+    ESP_LOGI(TAG, "SWEEP_DONE pass=%u", pass ? 1u : 0u);
     for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
 #endif
 

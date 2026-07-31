@@ -27,11 +27,20 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 > BronzeGate's curated audit packet is now committed at
 > `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/firmware/FRAMING_READBACK_AUDIT.md`;
 > it records the exact frame/wire/CRC map and the readback interface limitation.
-> **BronzeGate discriminator-plan update (2026-07-31, #14545):** the first
-> recommended experiment is a proof-only sweep of existing `sel=8` readback
-> at lower SCLK rates using `vdp_host_set_speed_hz()`; no run or interface
-> change is authorized yet. Display-indirect readback is second, physical bus
-> capture third, and a new host-visible surface remains last under Rule 19.
+> **BronzeGate SCLK sweep update (2026-07-31, #14547/#14549):** the authorized
+> proof-only `sel=8` readback sweep completed on the approved `38002d5c`
+> bitstream with CS post-idle unchanged (`cs_ena_posttrans=8`). After one
+> canonical 4 MHz upload, 30 cycles at each requested read rate (2, 1, 0.5,
+> 0.25 MHz) read the two targets and four immediate word neighbors. Every rate
+> returned the same deterministic zeros at the four expected-`0x55555555`
+> words; each rate had 180 reads, 60 expected-zero neighbors matching, 120
+> target/neighbor mismatches, and clean health (`raw=0`, `overflow=0`,
+> `malformed=0`) on all 30 health polls. The 0.5 MHz run also had one
+> `VDP_HOST_ERR_RX` read error. No slower rate returned `0x55555555`; the
+> readback timing/SI discriminator therefore did not clear the residual.
+> Rule 19 remains open; next ranked action is display-indirect readback or
+> physical bus capture, pending PM direction. No production firmware/RTL edit
+> was made.
 
 > **Release v0.2.0 (2026-07-29):** `topazcliff/scaler-rewrite` merged into `main` at `a442707`; all external-review doc-impact items closed (F1–F9 + HDMI-TX). Tag `v0.2.0` points to `134b4d6`. Working tree clean; no active lanes remaining.
 
@@ -51,7 +60,7 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 | Lane | Owner | Status | Since | Blocker | Next Action | Proof / Artifacts |
 |---|---|---|---|---|---|---|
-| qspi-upload-si-hardening | BrightForge + BronzeGate | BLOCKED — RTL transport/bridge proven clean (#14542); Verilator-Z artifact confirmed (#14537); firmware framing correct (#14540); residual narrowed to physical/readback surface | 2026-07-31 | Rule 19 open. No alternate P4 SDRAM readback command exposed. Need either an approved alternate readback surface or a physical-layer SI test; no production edit until mechanism is isolated and proved. | **BronzeGate:** submit/execute the ranked discriminator plan from #14545 after PM approval; first candidate is an existing sel=8 SCLK sweep. **BrightForge:** standby for RTL questions only. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/firmware/FRAMING_READBACK_AUDIT.md`; faithful transport proof #14542; hardware cross-check #14536. |
+| qspi-upload-si-hardening | BrightForge + BronzeGate | BLOCKED — RTL transport/bridge proven clean (#14542); Verilator-Z artifact confirmed (#14537); firmware framing correct (#14540); sel=8 SCLK sweep found stable zeros at all rates (#14549) | 2026-07-31 | Rule 19 open. No alternate P4 SDRAM readback command exposed. Need either an approved alternate readback surface or a physical-layer SI test; no production edit until mechanism is isolated and proved. | **TopazCliff:** choose/authorize display-indirect readback or physical bus capture. **BronzeGate:** execute the next approved discriminator only; **BrightForge:** standby for RTL questions. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/SCLK_SWEEP_RESULTS.md`; `firmware/FRAMING_READBACK_AUDIT.md`; faithful transport proof #14542; hardware cross-check #14536. |
 | 720p-proof-build-script-cleanup | BrightForge | DONE — 2026-07-30; archive-all executed (PM #14502) | 2026-07-30 | — | **ARCHIVE all 5** 720p proof targets (`proof`/`bridge`/`mode0`/`linebuf`/`planar`) — none met the keep-rule (dormant since `4e3dfcf4` 2026-06-07; no doc/runbook/README/CI deps; superseded by native 640×480 production + `diagnostic`). `git mv` 15 build artifacts (5 `.tcl` + 10 `.cst/.sdc`) → `fpga/tang20k/archive/720p_proofs/`; removed 5 720p Makefile target-blocks + 5 `impl_720p_*` `.gitignore` entries; added `archive/720p_proofs/README.md`; Scala `Hdmi720p*ProofTop.scala` tops untouched (out of scope). **Verify PASS:** `make -n gen`/`gen-diagnostic`/`all` resolve + `make -n 720p-proof` → "No rule"; `sbt compile` PASS; `Hdmi720pProofTopVerilog` gen clean; production `make gen` → `hw/gen/top_tang20k.v` (sha256 `945b060b…`); `git status` clean (15 renames + `.gitignore`/`Makefile` + README). No RTL/production-CST/HW. | Task `PROJECT_PLAN/TASKS/720p-proof-build-script-cleanup.md`; closeout commit `a27e07ff`; mail #14503. |
 | standalone-diagnostic-build | BrightForge | DONE — 2026-07-30; **merged to `main`** at `ec5c9724`; PM closeout | 2026-07-29 | — | Option A: `diagnosticMode` param → no-host/QSPI/SDRAM native 640×480 1× grid (useHostInit=false, layer0→test-pattern grid6, color-math op=00, LinestateStore all-lines L0-enabled). Module `top_tang20k_diagnostic`; generator + `build_diagnostic.tcl` + Makefile `diagnostic` target. **Production spot-check PASS** (normalized diff vs main = 0; gated → production untouched). **Diagnostic PnR PASS**: bitstream `60b23c77`, TNS=0 all clocks, Fmax 30.052 MHz, BSRAM 37/DSP 12 (no new). **HW proof PASS: 10/10 cold-POR cycles** full-frame grid (rows 480/480, cols 720/720, HDMI locked, frame byte-identical `7803de18`) + cyan canary. | Task `PROJECT_PLAN/TASKS/standalone-diagnostic-build.md`; proof packet `PROJECT_PLAN/proof_packets/standalone-diagnostic-build/`; merge commit `ec5c9724`; assignment #14496/#14497/#14498. |
 | external-review-doc-cleanup-f1-f7-stale-links | CyanPeak | DONE — 2026-07-29 | 2026-07-29 | — | Standalone diagnostic build procedure documented in [DIAGNOSTICS.md](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DIAGNOSTICS.md); BasicPatternSource async-read path documented as approved/deferred in [ADR-008](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DECISIONS/ADR-008-BASICPATTERNSOURCE-ASYNC-READS.md); stale VOODOO_ADOPTION_PLAN.md link resolved. | Task file `PROJECT_PLAN/TASKS/external-review-doc-cleanup-f1-f7-stale-links.md`; doc-impact F1 and F7 updated; closeout commit 7615718. |
