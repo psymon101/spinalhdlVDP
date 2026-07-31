@@ -366,7 +366,7 @@ source, and evidence drift.
 | 7 | Side-Lane Authorization | Parallel work requires TopazCliff lane-open authorization before implementation |
 | 8 | AGENTS.md Immutability | No unilateral rewrites. Requires TopazCliff authorization AND `CyanPeak` review (when activated) AND diff review |
 | 9 | Project Owner Override | Owner may override process constraints by direct instruction. Agent records owner-directed change; diff remains reviewable; scope is limited to instruction unless broader intent stated |
-| 10 | Prior Art Search | No novel-root-cause claims without searching `TASKS_HISTORY.md`, `archive/artifacts/`, `GOTCHAS.md`, and `memory` first |
+| 10 | Prior Art Search | No novel-root-cause/mechanism/fix claim without searching `TASKS_HISTORY.md`, `archive/artifacts/`, `GOTCHAS.md`, and `memory`, and citing results in the same message. Claims without citation are invalid. |
 | 11 | Memory Closeout | After every task, write comprehensive task summary to `memory` including lessons learned and dialogue context. PM writes lane/project summaries. No closeout without memory entry |
 | 12 | Live Status Authority | `STATUS.md` owns durable live state; authoritative mail changes must be synchronized into it during the same engineering cycle |
 | 13 | Generated RTL Integrity | FPGA behavior changes originate in SpinalHDL; permanent generated-Verilog-only edits are prohibited |
@@ -376,6 +376,18 @@ source, and evidence drift.
 | 17 | Validated Runbooks | Operational commands must be validated from a clean state and stored under `docs/runbooks/` |
 | 18 | Canonical Adapter Directory | Each platform adapter has one canonical directory under `kb/<Adapter>/`; do not duplicate adapter authority |
 | 19 | Interface Checkpoint | Host-visible changes require independent BrightForge + BronzeGate approval before implementation |
+
+### Prior-art search procedure (Rule 10)
+
+Before claiming a new root cause, mechanism, or fix, the agent **must**:
+
+1. Search `TASKS_HISTORY.md`, `PROJECT_PLAN/TASKS/*/`, `archive/artifacts/`, `kb/*/`, and `GOTCHAS.md` for related failures, fixes, or warnings.
+2. Query `memory` for related lessons, root causes, and dialogue context.
+3. Search the git history (`git log --all --grep=<keyword>`) for prior commits, sims, or proof packets on the same path.
+4. Cite the exact prior-art found (file path, commit hash, memory entry, GOTCHA id) in the same message that makes the claim.
+5. If no prior art is found, explicitly state **"No prior art found after searching X/Y/Z"**.
+
+The PM will reject any root-cause/mechanism/fix claim that does not include this citation block. A claim that is later contradicted by prior art is grounds for a lane post-mortem and a `memory` lesson-learned entry.
 
 **Legacy SPI contract:** 2 MHz SCK, 10 µs CS hold, 20 µs OSR drain.
 
