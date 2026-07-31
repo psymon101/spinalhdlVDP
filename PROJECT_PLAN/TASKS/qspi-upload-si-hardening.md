@@ -158,6 +158,59 @@ made.
 
 ---
 
+## External reviewer findings (2026-07-31)
+
+An external reviewer examined the bundled source (`PROJECT_PLAN/external_review/`).
+
+### Primary hypothesis: 1-read pipeline lag in `sel=8` debug readback
+
+The `sel=8` diagnostic readback path has a **one-word pipeline lag**. When the
+Pico issues `rx_status(sel=8)` for address N, the QSPI slave returns the value
+that was already latched in `dataReg` from the *previous* read request (N-1),
+because the SDRAM controller needs ~5 SDRAM clock cycles to produce new data and
+the SPI transaction cannot wait.
+
+This explains why `0x100008` and `0x101000` return `0x00`:
+- `0x100008` is read immediately after `0x100004`; the first 8 bytes of the row
+  are `0x00`, so the lagged result for `0x100008` is the `0x00` from `0x100004`.
+- `0x101000` is the start of row 32; the previous diagnostic read is `0x100FFC`,
+  which falls in the `0x00` padding at the end of row 31 (active width is only
+  320 px = 80 bytes per row, stride is 128 bytes). The lagged result is that
+  padding.
+- Other sampled addresses do not cross a color/padding boundary, so the lagged
+  value happens to match the expected value and the bug is hidden.
+
+### Secondary finding: `memcpy` overlap bug in `write_frame()`
+
+`vdp_host_p4.c:write_frame()` calls:
+
+```c
+memcpy(s_tx_buf, frame, frame_len);
+```
+
+In several callers (`vdp_sdram_write()`, `vdp_reg_write_burst()`), `frame` is
+` s_tx_buf` itself. Overlapping `memcpy` source and destination is undefined
+behavior in C and should be fixed immediately (use `memmove` or a distinct
+scratch buffer). The reviewer notes this is likely a red herring for the
+observed zeros but is a real bug.
+
+### Proposed confirmation
+
+Issue `READ_STATUS sel=8` **twice** for the same target address and return the
+second value. If the second read returns `0x55555555` at `0x100008`, the SDRAM
+writes are proven correct and the `sel=8` lag is the sole culprit.
+
+### Next steps
+
+1. BronzeGate implements the double-read diagnostic and reports results.
+2. BronzeGate fixes the `memcpy` overlap in `write_frame()`.
+3. BrightForge reviews the `sel=8` CDC timing and confirms the one-read lag from
+   the RTL side.
+4. PM decides whether to fix the diagnostic readback path or document the lag
+   and retire `sel=8` as scheduled.
+
+---
+
 ## Out of Scope
 
 - Reopening the `QspiSlave` clock-domain architecture (that was dispositioned in `QSPI_CLK_DOMAIN_EVAL.md`).
