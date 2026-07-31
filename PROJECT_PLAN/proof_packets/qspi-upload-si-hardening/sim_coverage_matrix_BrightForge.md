@@ -99,6 +99,27 @@ registered-busy-edge fix class is **ruled out**. Open items before any productio
   CMD_WR, refresh preemption) to find the true mechanism. No fix proposed until the mechanism is pinned
   and the loss is reproduced on the strengthened (§2) matrix.
 
+## Prior-art reconciliation (2026-07-31) — reproducer is likely a HARNESS/Verilator-Z ARTIFACT
+
+Per Rule 10 prior-art search (owner-prompted): the real write+refresh+readback path is **already
+proven clean**. `BurstRefreshDataSurvivalSim` (SDRAM-BURST-REFRESH P16, main `6e6a1f3`) drives the
+**real `sdram.v` + `sdram_model`** through write → burst-refresh → readback = **EXACT 4/4, 0 violations**.
+That sim **never races** writes vs refresh (`waitIdle()` between every command). My
+`QspiUploadCollisionSim` **interleaves** them with a hand-rolled 593-cycle `refreshDrive` + combinational
+`canAccept` — the exact co-sim modeling-error class flagged by the **2bpp-backlog-cosim GOTCHA**
+(never drop/mis-time a request coincident with refresh; only delay).
+
+Mechanism (all symptoms fit a 2-state-sim DQ artifact): `sdram.v` drives write data on `SDRAM_DQ`
+for **one cycle** (`dq_oen<=0` at `{WRITE,T_RCD}`) then high-Z (`dq_oen<=1` at `+1`, `sdram.v:247-251`);
+`sdram_model` samples on the 180° `clk_sdram`. My refresh timing shifts a write so the model samples
+DQ in the **high-Z window**, and **Verilator (2-state) reads Z as `0x00`** → `poppedDin=0x55` but
+`got=0x00`. Refresh-off removes the shift → 0 losses.
+
+**Revised conclusion:** the "refresh-triggered write loss" (#14521/#14528) is very likely a
+**harness/Verilator-Z artifact, not a production bug**; the residual HW corruption root cause is again
+**OPEN**. Next: either (1) pywellen-confirm DQ=high-Z at a corrupted write, or (2) **pivot** to extending
+the proven, non-racing `BurstRefreshDataSurvivalSim` harness to a bulk 30 KB upload. Recommend (2).
+
 ## Bottom line / gating
 
 - **Iron-clad now:** the loss is (a) real-`sdram.v` write-path, (b) refresh-triggered, (c) a
