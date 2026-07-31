@@ -125,7 +125,8 @@ static esp_err_t write_frame(uint8_t cmd, uint32_t addr, const uint8_t *frame,
         uint32_t after = 0;
         esp_err_t err = rx_status(SEL_CRC8_STATUS, &before);
         if (err != ESP_OK) return err;
-        memcpy(s_tx_buf, frame, frame_len);
+        /* vdp_*_write() builds frame in s_tx_buf and passes that same buffer. */
+        memmove(s_tx_buf, frame, frame_len);
         s_tx_buf[frame_len] = crc;
         err = tx_frame(cmd, addr, s_tx_buf, frame_len + 1u);
         if (err != ESP_OK) return err;
