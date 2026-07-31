@@ -3,7 +3,9 @@ owners: [BrightForge, BronzeGate]
 pm: TopazCliff
 status: BLOCKED_PHYSICAL_READBACK_SURFACE
 date: 2026-07-31
-source_commit: 5f2a69312159416b94af278606d4093eede2ef1f
+source_commit: 3b246fc7
+firmware_proof_commits: [619f76b8, 3b246fc7]
+memcpy_overlap_fix_commit: 619f76b8
 firmware_path: firmware/libvdp/vdp_host_p4.c
 firmware_contract: QSPI-CRC8-185
 bitstream: fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs
@@ -15,6 +17,39 @@ firmware_build:
   elf_sha256: 1c41993ee8de004be07bd5d97872651aebdf2383f6363379ace9082a08706ed5
   bin_sha256: 91f036688621d02e3a0ca469a74837bf6b3c2d2c8233e22abd54ea92e900eb04
   partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
+double_read_proof:
+  firmware_mode: 6
+  elf_sha256: e690ce1a05f93fbf6bf476df034b97f3d05be7be27b02f77993c9e0eea3ac7e0
+  bin_sha256: c94547a1fb087830bf6ed2cd1c862e9259bed73545eb8f5942f07a333731c72e
+  partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
+  repeats: 8
+  addresses: [0x100004, 0x100008, 0x10000C, 0x100FFC, 0x101000, 0x101004]
+  expected_nonzero_addresses: [0x100008, 0x10000C, 0x101000, 0x101004]
+  first_and_second_nonzero_matches: 0
+  read_errors: 0
+  health: raw=0x00000000,overflow=0,malformed=0
+  result: proposed_pipeline_lag_not_confirmed
+  artifacts:
+    - firmware/DOUBLE_READ_BUILD.md
+    - hardware/DOUBLE_READ_PROCEDURE.md
+    - hardware/DOUBLE_READ_RESULTS.md
+display_indirect_proof:
+  firmware_mode: 7
+  elf_sha256: dd169667e4b50bfbbbb455db837b1973179bc0c2d57cc36d3197c10e040a4565
+  bin_sha256: ad5331cfb8cd7b3a9914f8cf8ddf8d5b9ca7c05a4aa486e5dd818660c8e9e269
+  partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
+  targets: [0x100008, 0x101000]
+  byte_pattern: 0xAA
+  health: raw=0x00000000,overflow=0,malformed=0
+  serial_ready: true
+  capture_frames: 3
+  capture_sha256: a2a67849bdeb2f6ef4bbaba841797948181d22dd19b41f5d7443f73eb0a3e49b
+  result: no_clean_palette2_confirmation
+  artifacts:
+    - firmware/DOUBLE_READ_BUILD.md
+    - hardware/INDIRECT_DISPLAY_PROCEDURE.md
+    - hardware/INDIRECT_DISPLAY_RESULTS.md
+    - captures/indirect_display_frame_01.png
 transport:
   bulk_clock_hz: 4000000
   control_clock_hz: 2000000

@@ -14,16 +14,19 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 ## Active Lanes
 
-> **Lane 3 update (2026-07-31):** `qspi-upload-si-hardening` has a likely root
-> cause from external review: a **1-read pipeline lag in the `sel=8` debug
-> readback path**. The diagnostic sweep is phase-shifted by one, so reading
-> address N returns the data from address N-1. Because the checkerboard pattern
-> has 0x00 at 0x100004 and row-31 padding at 0x100FFC, the lag makes
-> 0x100008 and 0x101000 appear as 0x00 while SDRAM is actually correct. The
-> reviewer also identified a `memcpy(s_tx_buf, s_tx_buf, ...)` overlap bug in
-> `vdp_host_p4.c:write_frame()` that should be fixed. Next: BronzeGate to
-> confirm with a double-read diagnostic, then fix the overlap bug and document
-> or fix the `sel=8` lag. Rule 19 remains open until a fix is scoped.
+> **Lane 3 update (2026-07-31):** BronzeGate completed the authorized proof
+> actions. Internal overlapping frame copy is fixed with `memmove` in commit
+> `619f76b8`; proof-only double-read and display-indirect modes are in
+> `3b246fc7`, both built cleanly with ESP-IDF v6.0.2. Mode 6 uploaded cleanly
+> at 4 MHz and read `sel=8` twice across 8 repeats and 6 addresses: the four
+> expected `0x55555555` words returned zero on both reads, so the proposed
+> one-read lag is **not confirmed** by this diagnostic. Mode 7 reported clean
+> health and readiness, but three identical HDMI captures showed only the
+> grayscale/cyan baseline and no distinctive palette-2 block; this is not a
+> clean positive display-indirect confirmation. Rule 19 remains open; no
+> production host-interface or RTL change is authorized. Next: TopazCliff /
+> BrightForge disposition of a physical bus capture or alternate approved
+> readback test. Proof packet: `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`.
 
 > **Release v0.2.0 (2026-07-29):** `topazcliff/scaler-rewrite` merged into `main` at `a442707`; all external-review doc-impact items closed (F1–F9 + HDMI-TX). Tag `v0.2.0` points to `134b4d6`. Working tree clean; no active lanes remaining.
 
@@ -43,7 +46,7 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 | Lane | Owner | Status | Since | Blocker | Next Action | Proof / Artifacts |
 |---|---|---|---|---|---|---|
-| qspi-upload-si-hardening | BrightForge + BronzeGate | BLOCKED — external reviewer: likely 1-read pipeline lag in sel=8 debug readback + memcpy overlap bug; pending BronzeGate double-read confirmation| 2026-07-31 | Rule 19 open. Need BronzeGate double-read diagnostic proof and firmware fix for memcpy overlap. **BrightForge sel=8 CDC review DONE (#14554)**. No production RTL change until double-read confirms + scope decision.| **BronzeGate:** run double-read diagnostic (read sel=8 twice, return second) and fix memcpy overlap in write_frame(). **BrightForge DONE (#14554):** concur reviewer — marginal CDC handoff (`resultToggle` leads `dataReg` by only 1 sdram cycle ~24.7 ns < 1 pixel cycle ~39.7 ns; `TopTang20kHdmi:1120-1121`/`1253-1258`) ⇒ pixel-domain edge can latch prior `dataSync` ⇒ deterministic 1-read lag (read N returns N-1). SDRAM data correct. Rec **(b) document + firmware double-read** (sel=8 diag-only, slated for removal); (a) CDC fix (widen toggle lead ≥3 cyc / +1 `RegNext(dataSync)`) available; offered a CDC co-sim for independent confirmation. **TopazCliff:** update docs and close lane after proof.| `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/SCLK_SWEEP_RESULTS.md`; `firmware/FRAMING_READBACK_AUDIT.md`; faithful transport proof #14542; hardware cross-check #14536. |
+| qspi-upload-si-hardening | BrightForge + BronzeGate | BLOCKED — firmware overlap fix landed; proposed sel=8 one-read lag not confirmed by double-read; display-indirect capture ambiguous | 2026-07-31 | Rule 19 remains open. No production RTL or host-interface change authorized. **BrightForge sel=8 CDC review DONE (#14554)**; physical/alternate readback decision required.| **BronzeGate DONE:** `memmove` fix `619f76b8`; proof modes `3b246fc7`; mode 6 clean upload/read diagnostic returned zero on both reads at all four expected-nonzero words; mode 7 clean health/readiness but no distinctive palette-2 block in stable HDMI capture. **BrightForge:** review the negative/ambiguous result. **TopazCliff:** choose physical bus capture or another approved readback proof.| `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`; `hardware/DOUBLE_READ_RESULTS.md`; `hardware/INDIRECT_DISPLAY_RESULTS.md`; #14553/#14554. |
 | 720p-proof-build-script-cleanup | BrightForge | DONE — 2026-07-30; archive-all executed (PM #14502) | 2026-07-30 | — | **ARCHIVE all 5** 720p proof targets (`proof`/`bridge`/`mode0`/`linebuf`/`planar`) — none met the keep-rule (dormant since `4e3dfcf4` 2026-06-07; no doc/runbook/README/CI deps; superseded by native 640×480 production + `diagnostic`). `git mv` 15 build artifacts (5 `.tcl` + 10 `.cst/.sdc`) → `fpga/tang20k/archive/720p_proofs/`; removed 5 720p Makefile target-blocks + 5 `impl_720p_*` `.gitignore` entries; added `archive/720p_proofs/README.md`; Scala `Hdmi720p*ProofTop.scala` tops untouched (out of scope). **Verify PASS:** `make -n gen`/`gen-diagnostic`/`all` resolve + `make -n 720p-proof` → "No rule"; `sbt compile` PASS; `Hdmi720pProofTopVerilog` gen clean; production `make gen` → `hw/gen/top_tang20k.v` (sha256 `945b060b…`); `git status` clean (15 renames + `.gitignore`/`Makefile` + README). No RTL/production-CST/HW. | Task `PROJECT_PLAN/TASKS/720p-proof-build-script-cleanup.md`; closeout commit `a27e07ff`; mail #14503. |
 | standalone-diagnostic-build | BrightForge | DONE — 2026-07-30; **merged to `main`** at `ec5c9724`; PM closeout | 2026-07-29 | — | Option A: `diagnosticMode` param → no-host/QSPI/SDRAM native 640×480 1× grid (useHostInit=false, layer0→test-pattern grid6, color-math op=00, LinestateStore all-lines L0-enabled). Module `top_tang20k_diagnostic`; generator + `build_diagnostic.tcl` + Makefile `diagnostic` target. **Production spot-check PASS** (normalized diff vs main = 0; gated → production untouched). **Diagnostic PnR PASS**: bitstream `60b23c77`, TNS=0 all clocks, Fmax 30.052 MHz, BSRAM 37/DSP 12 (no new). **HW proof PASS: 10/10 cold-POR cycles** full-frame grid (rows 480/480, cols 720/720, HDMI locked, frame byte-identical `7803de18`) + cyan canary. | Task `PROJECT_PLAN/TASKS/standalone-diagnostic-build.md`; proof packet `PROJECT_PLAN/proof_packets/standalone-diagnostic-build/`; merge commit `ec5c9724`; assignment #14496/#14497/#14498. |
 | external-review-doc-cleanup-f1-f7-stale-links | CyanPeak | DONE — 2026-07-29 | 2026-07-29 | — | Standalone diagnostic build procedure documented in [DIAGNOSTICS.md](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DIAGNOSTICS.md); BasicPatternSource async-read path documented as approved/deferred in [ADR-008](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DECISIONS/ADR-008-BASICPATTERNSOURCE-ASYNC-READS.md); stale VOODOO_ADOPTION_PLAN.md link resolved. | Task file `PROJECT_PLAN/TASKS/external-review-doc-cleanup-f1-f7-stale-links.md`; doc-impact F1 and F7 updated; closeout commit 7615718. |
