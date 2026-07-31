@@ -3,7 +3,7 @@ owners: [BrightForge, BronzeGate]
 pm: TopazCliff
 status: BLOCKED_PHYSICAL_READBACK_SURFACE
 date: 2026-07-31
-source_commit: 9e0d5efe4e837d677c094813aa6f89bc80fa5a2d
+source_commit: 5f2a69312159416b94af278606d4093eede2ef1f
 firmware_path: firmware/libvdp/vdp_host_p4.c
 firmware_contract: QSPI-CRC8-185
 bitstream: fpga/tang20k/impl/pnr/project_38002d5c_scaler_hwproof.fs
@@ -12,8 +12,8 @@ firmware_build:
   project: firmware/esp32p4_scaler_proof
   tool: ESP-IDF v6.0.2
   target: ESP32-P4 v1.3
-  elf_sha256: 9836eacc949bf3dbce8c2f4fb614e926725709dec6b2b259be09ab55e787f690
-  bin_sha256: dd1e0c28cfd47c0d718d0e21e935f022fe259ec1d9cdc3dacff1cdd92239410f
+  elf_sha256: 1c41993ee8de004be07bd5d97872651aebdf2383f6363379ace9082a08706ed5
+  bin_sha256: 91f036688621d02e3a0ca469a74837bf6b3c2d2c8233e22abd54ea92e900eb04
   partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
 transport:
   bulk_clock_hz: 4000000
@@ -96,3 +96,19 @@ firmware_framing_readback_audit:
   rule10_search: complete
 mail: [14506, 14507, 14508, 14509, 14510, 14511, 14512, 14531, 14532, 14533, 14534, 14537, 14538, 14539, 14540, 14542, 14543]
 decision: Host framing/address/CRC audit is clean; faithful transport/bridge proof is clean; no production fix is authorized until an approved alternate readback or physical-layer test isolates the residual and BrightForge/TopazCliff complete the Rule 19 checkpoint.
+sclk_sweep:
+  assignment_mail: 14547
+  acknowledgement_mail: 14549
+  firmware_mode: 5
+  requested_rates_hz: [2000000, 1000000, 500000, 250000]
+  cycles_per_rate: 30
+  addresses: [0x100004, 0x100008, 0x10000C, 0x100FFC, 0x101000, 0x101004]
+  cs_posttrans: 8
+  upload_clock_hz: 4000000
+  per_rate_reads: 180
+  per_rate_expected_zero_matches: 60
+  per_rate_expected_nonzero_mismatches: 120
+  per_rate_read_errors: 0
+  health_each_rate: raw=0x00000000,overflow=0,malformed=0,errors=0
+  result: stable_zero_at_all_rates
+  next_decision: display_indirect_readback_or_physical_bus_capture

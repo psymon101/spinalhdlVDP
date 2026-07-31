@@ -31,7 +31,18 @@ successfully (exit 0); the project flags permit the existing mode-specific
 unused-function warnings (`-Wno-error=unused-function`). Flash write and
 verification completed successfully. No FPGA reflash was performed.
 
-Artifact hashes from the flashed build are recorded in the lane manifest and
-`hashes.sha256` after the source commit.
+Committed source: `5f2a69312159416b94af278606d4093eede2ef1f`.
+
+Final flashed-build hashes:
+
+```text
+ELF:        1c41993ee8de004be07bd5d97872651aebdf2383f6363379ace9082a08706ed5
+BIN:        91f036688621d02e3a0ca469a74837bf6b3c2d2c8233e22abd54ea92e900eb04
+partition:  fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
+bootloader:3929b906d7e420d7ee9465037cd172dec4f8cb865c92667dd449e9be462ffc55
+```
+
+The final committed-source binary was flashed and rerun before these hashes
+were recorded.
 
 — BronzeGate

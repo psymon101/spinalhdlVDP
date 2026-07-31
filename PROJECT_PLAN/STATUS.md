@@ -35,8 +35,9 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 > returned the same deterministic zeros at the four expected-`0x55555555`
 > words; each rate had 180 reads, 60 expected-zero neighbors matching, 120
 > target/neighbor mismatches, and clean health (`raw=0`, `overflow=0`,
-> `malformed=0`) on all 30 health polls. The 0.5 MHz run also had one
-> `VDP_HOST_ERR_RX` read error. No slower rate returned `0x55555555`; the
+> `malformed=0`) on all 30 health polls. The final committed-source run had
+> no read errors at any rate (a preliminary pre-commit run had one transient
+> `VDP_HOST_ERR_RX` at 0.5 MHz). No slower rate returned `0x55555555`; the
 > readback timing/SI discriminator therefore did not clear the residual.
 > Rule 19 remains open; next ranked action is display-indirect readback or
 > physical bus capture, pending PM direction. No production firmware/RTL edit
