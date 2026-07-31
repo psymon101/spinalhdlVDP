@@ -6,6 +6,8 @@
  * SCALER_PROOF_MODE=3: 3x centered checkerboard, logic 200x150
  * SCALER_PROOF_MODE=4: QSPI write-vs-readback discriminator (proof only)
  * SCALER_PROOF_MODE=5: sel=8 readback SCLK sweep (proof only)
+ * SCALER_PROOF_MODE=6: sel=8 double-read pipeline-lag confirmation (proof only)
+ * SCALER_PROOF_MODE=7: display-indirect target-word color discriminator (proof only)
  */
 #include <inttypes.h>
 #include <stdbool.h>
@@ -157,6 +159,19 @@ static bool readback_word(uint32_t addr, uint32_t *value)
     vdp_reg_write(REG_SDRAM_READ_ADDR_HI, (uint16_t)(addr >> 16));
     if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
     *value = vdp_read_status(SEL_SDRAM);
+    return vdp_last_error() == VDP_HOST_ERR_NONE;
+}
+
+static bool readback_word_twice(uint32_t addr, uint32_t *first,
+                                uint32_t *second)
+{
+    vdp_host_set_speed_hz(2000000u);
+    vdp_reg_write(REG_SDRAM_READ_ADDR_LO, (uint16_t)addr);
+    vdp_reg_write(REG_SDRAM_READ_ADDR_HI, (uint16_t)(addr >> 16));
+    if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
+    *first = vdp_read_status(SEL_SDRAM);
+    if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
+    *second = vdp_read_status(SEL_SDRAM);
     return vdp_last_error() == VDP_HOST_ERR_NONE;
 }
 
@@ -327,6 +342,55 @@ static bool diagnostic_neighbor_reads(void)
     return pass;
 }
 
+static bool diagnostic_double_reads(void)
+{
+    static const uint32_t addresses[] = {
+        0x100004u, 0x100008u, 0x10000Cu,
+        0x100FFCu, 0x101000u, 0x101004u,
+    };
+    bool pass = true;
+    ESP_LOGI(TAG,
+             "DOUBLE_READ_START addresses=0x100004,0x100008,0x10000C"
+             ",0x100FFC,0x101000,0x101004 repeats=8");
+    for (unsigned repeat = 0; repeat < 8u; ++repeat) {
+        for (unsigned i = 0; i < sizeof(addresses) / sizeof(addresses[0]); ++i) {
+            const uint32_t addr = addresses[i];
+            const uint32_t expected = bitmap_expected_word(addr);
+            uint32_t first = 0u;
+            uint32_t second = 0u;
+            const bool read_ok = readback_word_twice(addr, &first, &second);
+            const bool second_pass = read_ok && second == expected;
+            ESP_LOGI(TAG,
+                     "DOUBLE_READ repeat=%u addr=0x%06" PRIX32
+                     " expected=0x%08" PRIX32 " first=0x%08" PRIX32
+                     " second=0x%08" PRIX32 " ok=%u err=%d",
+                     repeat, addr, expected, first, second,
+                     second_pass ? 1u : 0u, vdp_last_error());
+            if (!second_pass) pass = false;
+        }
+    }
+    ESP_LOGI(TAG, "DOUBLE_READ_RESULT pass=%u repeats=8 addresses=6",
+             pass ? 1u : 0u);
+    return pass;
+}
+
+static void build_display_indirect_pattern(void)
+{
+    uint8_t *bitmap = (uint8_t *)s_bitmap;
+    static const unsigned words[] = {
+        0x100004u - BITMAP_BASE, 0x100008u - BITMAP_BASE,
+        0x10000Cu - BITMAP_BASE, 0x100FFCu - BITMAP_BASE,
+        0x101000u - BITMAP_BASE, 0x101004u - BITMAP_BASE,
+    };
+    for (unsigned i = 0; i < sizeof(words) / sizeof(words[0]); ++i) {
+        const unsigned offset = words[i];
+        memset(bitmap + offset, 0xAA, 4u);
+    }
+    ESP_LOGI(TAG,
+             "INDIRECT_ASSET targets=0x100008,0x101000 color=palette2"
+             " byte_pattern=0xAA neighbors=word+-1");
+}
+
 static bool configure_display(void)
 {
     const vdp_mode0_bitmap_cfg_t bitmap = {
@@ -408,6 +472,39 @@ void app_main(void)
     pass &= health("SWEEP_HEALTH_AFTER_UPLOAD");
     pass &= sweep_readback();
     ESP_LOGI(TAG, "SWEEP_DONE pass=%u", pass ? 1u : 0u);
+    for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+#endif
+
+#if SCALER_PROOF_MODE == 6
+    ESP_LOGI(TAG,
+             "DOUBLE_READ_GEOMETRY bitmap_base=0x%06X attr_base=0x%06X"
+             " image_words=%u chunk_words=%u chunk_bytes=%u",
+             BITMAP_BASE, ATTR_BASE, IMAGE_WORDS, MAX_CHUNK_WORDS,
+             MAX_CHUNK_WORDS * 2u);
+    pass &= health("DOUBLE_READ_HEALTH_BEFORE_UPLOAD");
+    pass &= upload_plane(BITMAP_BASE, s_bitmap, "bitmap");
+    pass &= upload_plane(ATTR_BASE, s_attr, "attr");
+    pass &= health("DOUBLE_READ_HEALTH_AFTER_UPLOAD");
+    pass &= diagnostic_double_reads();
+    ESP_LOGI(TAG, "DOUBLE_READ_DONE pass=%u", pass ? 1u : 0u);
+    for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+#endif
+
+#if SCALER_PROOF_MODE == 7
+    build_display_indirect_pattern();
+    ESP_LOGI(TAG,
+             "INDIRECT_GEOMETRY bitmap_base=0x%06X attr_base=0x%06X"
+             " image_words=%u chunk_words=%u chunk_bytes=%u",
+             BITMAP_BASE, ATTR_BASE, IMAGE_WORDS, MAX_CHUNK_WORDS,
+             MAX_CHUNK_WORDS * 2u);
+    pass &= health("INDIRECT_HEALTH_BEFORE_UPLOAD");
+    pass &= upload_plane(BITMAP_BASE, s_bitmap, "bitmap");
+    pass &= upload_plane(ATTR_BASE, s_attr, "attr");
+    pass &= health("INDIRECT_HEALTH_AFTER_UPLOAD");
+    vdp_mode0_set_bitmap_ctrl(0x0003u);
+    vdp_mode0_set_layer_enable(0x0001u);
+    pass &= health("INDIRECT_HEALTH_AFTER_ENABLE");
+    ESP_LOGI(TAG, "INDIRECT_DISPLAY_READY pass=%u", pass ? 1u : 0u);
     for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
 #endif
 
