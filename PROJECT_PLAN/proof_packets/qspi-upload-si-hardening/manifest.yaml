@@ -38,5 +38,33 @@ diagnostic:
   attr_frames: 61
   stable_zero: true
   crc_counter_delta_frames: 6
-mail: [14506, 14507, 14508, 14509, 14510, 14511, 14512]
+refresh_pressure_cross_check:
+  date: 2026-07-31
+  approved_bitstream_sha256: 38002d5c2bd1ca00c9460fc0349874a5e0f65afad120ab19c26b2144d41b9c09
+  target_addresses: [0x100008, 0x101000]
+  expected_value: 0x55555555
+  upload_clock_hz: 4000000
+  read_clock_hz: 2000000
+  mode4_layer_disabled:
+    n: 30
+    pass: 0
+    fail: 30
+    target_mismatches: 60
+    health: raw=0x00000000,overflow=0,malformed=0
+    elf_sha256: 32e643a31e070dfc1d3d03c17acbc04ac760c70c12f84c13984032cce93c5830
+    bin_sha256: abadf79b5f23a167e9597a99ebece2ee62462a81978e304420fb42075364cd6a
+  mode0_layer_enabled:
+    n: 30
+    pass: 0
+    fail: 30
+    target_mismatches: 60
+    health: raw=0x00000000,overflow=0,malformed=0
+    elf_sha256: 6dce108ff57c3340f4c8985ead2b16ccade9092873643e5511506efb73056649
+    bin_sha256: 29c0cb7a75d770e968d39b31121db5aad9e1940f643beebfe7667769c2668a58
+  correlation: no workload scaling observed; both conditions were deterministic 30/30 failures
+  artifacts:
+    - hardware/REFRESH_PRESSURE_PROCEDURE.md
+    - hardware/REFRESH_PRESSURE_RESULTS.md
+    - firmware/REFRESH_PRESSURE_BUILD.md
+mail: [14506, 14507, 14508, 14509, 14510, 14511, 14512, 14531, 14532, 14533, 14534]
 decision: Stable-zero discriminator selects the real SDRAM/write-path branch; no production fix is authorized until BrightForge/TopazCliff three-way agreement.

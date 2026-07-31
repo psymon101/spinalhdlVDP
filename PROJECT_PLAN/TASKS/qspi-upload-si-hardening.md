@@ -93,6 +93,31 @@ Before any RTL or firmware edit, discriminate where the residual zeros originate
 
 No code changes until the discrimination analysis is complete.
 
+## BronzeGate refresh-pressure cross-check (2026-07-31)
+
+Per TopazCliff #14531, BronzeGate ran the existing proof firmware against the
+same approved `38002d5c` bitstream under two display-workload conditions. Mode 4
+kept layer 0 disabled after upload; mode 0 enabled layer 0 and display fetch.
+Both conditions used the existing CRC8/retry path, 4 MHz uploads, and 2 MHz
+readback. Each condition ran N=30 reset/upload/readback cycles.
+
+Results: mode 4 was 0/30 pass and mode 0 was 0/30 pass. The expected
+`0x55555555` words at `0x100008` and `0x101000` failed on every cycle in both
+conditions (60 target mismatches per condition). Health remained
+`raw=0x00000000 overflow=0 malformed=0`. Therefore this test observed no
+display-workload scaling; it is a correlation result, not a mechanism claim.
+
+Proof artifacts:
+
+- `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/REFRESH_PRESSURE_RESULTS.md`
+- `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/REFRESH_PRESSURE_PROCEDURE.md`
+- `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/firmware/REFRESH_PRESSURE_BUILD.md`
+
+Rule 10 prior-art search and citations are included in the results artifact.
+The lane remains blocked on BrightForge's waveform-pin/proven bulk-upload
+harness and the PM's Rule 19 decision. No production firmware or RTL change was
+made.
+
 ---
 
 ## Acceptance Criteria
