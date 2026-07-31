@@ -15,33 +15,14 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 ## Active Lanes
 
 > **Lane 3 update (2026-07-31):** `qspi-upload-si-hardening` is `BLOCKED` on the
-> physical/readback surface. BrightForge's Line-2 faithful pivot (#14542) proves
-> the transport/bridge/`uploadCc` + real `sdram.v` path is **clean** under
-> faithful refresh (61 frames, 7680 words, 0 mismatches). The earlier
-> refresh-triggered co-sim loss is a confirmed Verilator-Z artifact (#14537).
-> BronzeGate's firmware audit (#14540) confirms host buffers and frame/address/
-> CRC calculations are correct, and no alternate P4 SDRAM readback command is
-> currently exposed. The deterministic `0x100008`/`0x101000` zeros are therefore
-> not explained by RTL, transport, or host framing. Rule 19 remains open; no
-> production edit until the physical/readback mechanism is isolated and proved.
-> BronzeGate's curated audit packet is now committed at
-> `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/firmware/FRAMING_READBACK_AUDIT.md`;
-> it records the exact frame/wire/CRC map and the readback interface limitation.
-> **BronzeGate SCLK sweep update (2026-07-31, #14547/#14549):** the authorized
-> proof-only `sel=8` readback sweep completed on the approved `38002d5c`
-> bitstream with CS post-idle unchanged (`cs_ena_posttrans=8`). After one
-> canonical 4 MHz upload, 30 cycles at each requested read rate (2, 1, 0.5,
-> 0.25 MHz) read the two targets and four immediate word neighbors. Every rate
-> returned the same deterministic zeros at the four expected-`0x55555555`
-> words; each rate had 180 reads, 60 expected-zero neighbors matching, 120
-> target/neighbor mismatches, and clean health (`raw=0`, `overflow=0`,
-> `malformed=0`) on all 30 health polls. The final committed-source run had
-> no read errors at any rate (a preliminary pre-commit run had one transient
-> `VDP_HOST_ERR_RX` at 0.5 MHz). No slower rate returned `0x55555555`; the
-> readback timing/SI discriminator therefore did not clear the residual.
-> Rule 19 remains open; next ranked action is display-indirect readback or
-> physical bus capture, pending PM direction. No production firmware/RTL edit
-> was made.
+> write-side vs readback-side fork. BronzeGate's SCLK sweep (#14550) found
+> stable `0x00000000` at `0x100008`/`0x101000` across 2, 1, 0.5, and 0.25 MHz,
+> with clean health and no per-word read errors. This **rules out readback SCLK
+> timing sensitivity**. The lane now moves to option 2: **display-output indirect
+> readback** (#14552). A distinctive proof-only 2bpp asset will reveal whether
+> SDRAM actually contains `0x55` (display correct ⇒ `sel=8` readback bug) or
+> `0x00` (write-side physical/SDRAM issue). Rule 19 remains open; no production
+> RTL/firmware edits until the discriminator resolves the fork.
 
 > **Release v0.2.0 (2026-07-29):** `topazcliff/scaler-rewrite` merged into `main` at `a442707`; all external-review doc-impact items closed (F1–F9 + HDMI-TX). Tag `v0.2.0` points to `134b4d6`. Working tree clean; no active lanes remaining.
 
@@ -61,7 +42,7 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 | Lane | Owner | Status | Since | Blocker | Next Action | Proof / Artifacts |
 |---|---|---|---|---|---|---|
-| qspi-upload-si-hardening | BrightForge + BronzeGate | BLOCKED — RTL transport/bridge proven clean (#14542); Verilator-Z artifact confirmed (#14537); firmware framing correct (#14540); sel=8 SCLK sweep found stable zeros at all rates (#14549) | 2026-07-31 | Rule 19 open. No alternate P4 SDRAM readback command exposed. Need either an approved alternate readback surface or a physical-layer SI test; no production edit until mechanism is isolated and proved. | **TopazCliff:** choose/authorize display-indirect readback or physical bus capture. **BronzeGate:** execute the next approved discriminator only; **BrightForge:** standby for RTL questions. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/SCLK_SWEEP_RESULTS.md`; `firmware/FRAMING_READBACK_AUDIT.md`; faithful transport proof #14542; hardware cross-check #14536. |
+| qspi-upload-si-hardening | BrightForge + BronzeGate | BLOCKED — SCLK sweep rules out readback timing (#14550); display-indirect readback authorized (#14552) | 2026-07-31 | Rule 19 open. Need display-output discriminator to separate SDRAM content loss from sel=8 readback artifact. No production edit until fork resolved. | **BronzeGate:** build/run distinctive proof-only 2bpp asset + Mode 0 observation. **BrightForge:** standby for RTL questions. **TopazCliff:** authorize fallback to physical bus capture if display confounders are too high. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/SCLK_SWEEP_RESULTS.md`; `firmware/FRAMING_READBACK_AUDIT.md`; faithful transport proof #14542; hardware cross-check #14536. |
 | 720p-proof-build-script-cleanup | BrightForge | DONE — 2026-07-30; archive-all executed (PM #14502) | 2026-07-30 | — | **ARCHIVE all 5** 720p proof targets (`proof`/`bridge`/`mode0`/`linebuf`/`planar`) — none met the keep-rule (dormant since `4e3dfcf4` 2026-06-07; no doc/runbook/README/CI deps; superseded by native 640×480 production + `diagnostic`). `git mv` 15 build artifacts (5 `.tcl` + 10 `.cst/.sdc`) → `fpga/tang20k/archive/720p_proofs/`; removed 5 720p Makefile target-blocks + 5 `impl_720p_*` `.gitignore` entries; added `archive/720p_proofs/README.md`; Scala `Hdmi720p*ProofTop.scala` tops untouched (out of scope). **Verify PASS:** `make -n gen`/`gen-diagnostic`/`all` resolve + `make -n 720p-proof` → "No rule"; `sbt compile` PASS; `Hdmi720pProofTopVerilog` gen clean; production `make gen` → `hw/gen/top_tang20k.v` (sha256 `945b060b…`); `git status` clean (15 renames + `.gitignore`/`Makefile` + README). No RTL/production-CST/HW. | Task `PROJECT_PLAN/TASKS/720p-proof-build-script-cleanup.md`; closeout commit `a27e07ff`; mail #14503. |
 | standalone-diagnostic-build | BrightForge | DONE — 2026-07-30; **merged to `main`** at `ec5c9724`; PM closeout | 2026-07-29 | — | Option A: `diagnosticMode` param → no-host/QSPI/SDRAM native 640×480 1× grid (useHostInit=false, layer0→test-pattern grid6, color-math op=00, LinestateStore all-lines L0-enabled). Module `top_tang20k_diagnostic`; generator + `build_diagnostic.tcl` + Makefile `diagnostic` target. **Production spot-check PASS** (normalized diff vs main = 0; gated → production untouched). **Diagnostic PnR PASS**: bitstream `60b23c77`, TNS=0 all clocks, Fmax 30.052 MHz, BSRAM 37/DSP 12 (no new). **HW proof PASS: 10/10 cold-POR cycles** full-frame grid (rows 480/480, cols 720/720, HDMI locked, frame byte-identical `7803de18`) + cyan canary. | Task `PROJECT_PLAN/TASKS/standalone-diagnostic-build.md`; proof packet `PROJECT_PLAN/proof_packets/standalone-diagnostic-build/`; merge commit `ec5c9724`; assignment #14496/#14497/#14498. |
 | external-review-doc-cleanup-f1-f7-stale-links | CyanPeak | DONE — 2026-07-29 | 2026-07-29 | — | Standalone diagnostic build procedure documented in [DIAGNOSTICS.md](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DIAGNOSTICS.md); BasicPatternSource async-read path documented as approved/deferred in [ADR-008](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DECISIONS/ADR-008-BASICPATTERNSOURCE-ASYNC-READS.md); stale VOODOO_ADOPTION_PLAN.md link resolved. | Task file `PROJECT_PLAN/TASKS/external-review-doc-cleanup-f1-f7-stale-links.md`; doc-impact F1 and F7 updated; closeout commit 7615718. |
