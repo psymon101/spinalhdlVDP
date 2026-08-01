@@ -9,12 +9,14 @@
  * SCALER_PROOF_MODE=6: full readback_word double-read lag confirmation (proof only)
  * SCALER_PROOF_MODE=7: display-indirect target-word color discriminator (proof only)
  * SCALER_PROOF_MODE=8: READ_DONE completion-poll readback (proof only)
+ * SCALER_PROOF_MODE=9: CS# high-before-SPI reset/settle diagnostic (proof only)
  */
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
+#include "driver/gpio.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -50,6 +52,18 @@ enum {
 static const char *TAG = "p4_scaler_proof";
 static uint16_t s_bitmap[IMAGE_WORDS];
 static uint16_t s_attr[IMAGE_WORDS];
+
+#if SCALER_PROOF_MODE == 9
+static void hold_qspi_cs_high(void)
+{
+    /* Set the output latch before the settle delay; SPI2 takes ownership later. */
+    (void)gpio_set_direction(GPIO_NUM_20, GPIO_MODE_OUTPUT);
+    (void)gpio_set_level(GPIO_NUM_20, 1u);
+    (void)gpio_set_pull_mode(GPIO_NUM_20, GPIO_PULLUP_ONLY);
+    ESP_LOGI(TAG, "CS_IDLE_PROOF cs_gpio=20 level=1 settle_ms=1200");
+    vTaskDelay(pdMS_TO_TICKS(1200));
+}
+#endif
 
 static void build_checkerboard(void)
 {
@@ -542,13 +556,29 @@ static bool configure_display(void)
 void app_main(void)
 {
     bool pass = true;
+#if SCALER_PROOF_MODE == 9
+    hold_qspi_cs_high();
+#endif
     vdp_host_init();
     if (vdp_last_error() != VDP_HOST_ERR_NONE) {
         ESP_LOGE(TAG, "host init failed err=%d", vdp_last_error());
         return;
     }
+    const uint32_t magic = vdp_read_status(SEL_MAGIC);
     ESP_LOGI(TAG, "scaler proof mode=%d magic=0x%08" PRIX32,
-             SCALER_PROOF_MODE, vdp_read_status(SEL_MAGIC));
+             SCALER_PROOF_MODE, magic);
+
+#if SCALER_PROOF_MODE == 9
+    const uint32_t health_raw = vdp_read_status(SEL_TRANSPORT_HEALTH);
+    const bool magic_ok = magic == 0x51560002u;
+    const bool health_ok = health_raw == 0u &&
+                           vdp_last_error() == VDP_HOST_ERR_NONE;
+    ESP_LOGI(TAG, "CS_IDLE_PROOF magic_ok=%u health_raw=0x%08" PRIX32
+             " health_ok=%u", magic_ok ? 1u : 0u, health_raw,
+             health_ok ? 1u : 0u);
+    ESP_LOGI(TAG, "CS_IDLE_PROOF_RESULT pass=%u", (magic_ok && health_ok) ? 1u : 0u);
+    for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+#endif
 
     build_checkerboard();
     pass &= configure_display();
