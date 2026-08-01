@@ -28,12 +28,18 @@ double_read_proof:
   first_and_second_nonzero_matches: 0
   read_errors: 0
   health: raw=0x00000000,overflow=0,malformed=0
-  upload_error: VDP_HOST_ERR_TX_at_offset_1518
-  first_and_second_nonzero_matches_valid_run: null
+  initial_attempt_upload_error: VDP_HOST_ERR_TX_at_offset_1518
+  rerun_clean_upload: true
+  rerun_elf_sha256: b66b1747c3f0aa19ea318b59faeca251636a4246a85c0499688e13c7e7b709de
+  rerun_bin_sha256: ed4fb5d01dc2b339069f7ebad076771a7cd9bba6af019bb7d144e6ff79633944
+  rerun_serial_log_sha256: 0fa2965cbc2a220293ba2e63ae31bbc1d1472d9eee1a1b70d7532b9a57e35954
+  first_and_second_nonzero_matches_valid_run: 0
+  read_errors_valid_run: 0
+  health_valid_run: raw=0x00000000,overflow=0,malformed=0
   dummy_neighbor_lag_matches: 16
   dummy_neighbor_samples: 16
   target_matches: 0
-  result: invalid_unclean_upload_pending_reviewed_rerun
+  result: clean_rerun_second_call_zero_fork_unresolved
   artifacts:
     - firmware/DOUBLE_READ_BUILD.md
     - hardware/DOUBLE_READ_PROCEDURE.md

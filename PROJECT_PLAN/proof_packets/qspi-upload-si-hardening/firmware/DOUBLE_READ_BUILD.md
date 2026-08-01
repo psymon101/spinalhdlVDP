@@ -36,5 +36,15 @@ The approved FPGA image was already active and was not changed:
 
 The first corrected hardware run is not an accepted data proof: the bitmap
 upload returned `VDP_HOST_ERR_TX` (`err=5`) at offset 1518. The application
-continued only to collect diagnostic context; no second hardware attempt was
-made after this first failure.
+continued only to collect diagnostic context. A controlled rerun after the
+failure completed the full bitmap and attribute uploads cleanly. The accepted
+rerun artifact hashes were:
+
+| Artifact | SHA-256 |
+|---|---|
+| `esp32p4_scaler_proof.elf` | `b66b1747c3f0aa19ea318b59faeca251636a4246a85c0499688e13c7e7b709de` |
+| `esp32p4_scaler_proof.bin` | `ed4fb5d01dc2b339069f7ebad076771a7cd9bba6af019bb7d144e6ff79633944` |
+| `partition-table.bin` | `fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17` |
+
+The rerun serial transcript hash is
+`0fa2965cbc2a220293ba2e63ae31bbc1d1472d9eee1a1b70d7532b9a57e35954`.
