@@ -2,7 +2,7 @@
 
 **Owner:** BronzeGate (firmware/flash/procedure) + BrightForge (bitstream/RTL support)  
 **PM:** TopazCliff  
-**Status:** RUNNING — PM authorized ten-cycle reproof with mandatory CS#-high pre-flight (#14600)
+**Status:** BLOCKED — campaign cycle 01 repeated `0x22222222` despite CS#-high pre-flight; escalated for review (#14605)
 **Opened:** 2026-07-30  
 **Started:** 2026-08-01  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Provide the hardware reproof gate for the `2bpp-bank-completion-rtl` sim+PnR hardening.
@@ -188,6 +188,26 @@ CS#-high pre-flight above.
    records a non-zero transport-health sticky bit, stop immediately and escalate
    to TopazCliff/BrightForge.
 7. Record all artifacts in `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/` and update this task file + `STATUS.md`.
+
+## Ten-cycle campaign cycle 01 blocker (2026-08-01)
+
+The PM-authorized campaign was stopped on its first cycle at the mandatory
+magic precondition. The explicit `a5a047a2` SRAM load completed and the mode-0
+proof firmware drove GPIO20 high and held it for 1200 ms before SPI
+initialization, but the first read returned `magic=0x22222222`. No second cycle
+was attempted.
+
+Evidence:
+
+- Serial: `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/firmware/cycle_01_serial.log`, SHA-256 `54ac6f38762a1b351f5abb4a3982141d69fbc8e0261d85e9288cf8b2bcd2e171`.
+- Loader: `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/hardware/cycle_01_openfpgaloader.log`, SHA-256 `f130c7690c698dc87ddbaadd5d181bd094106d92e7b42cbd3d99076b60b8a71b`.
+- Curated result: `hardware/CAMPAIGN_CYCLE_01.md`.
+
+The same capture later reported clean health before/after upload/enable, six
+readback passes, and `SCALER_PROOF mode=0 pass=1`; those checks are not valid
+campaign proof because the magic precondition failed. Per #14605, the lane is
+blocked pending TopazCliff/BrightForge review; no further cycle is authorized
+until that review supplies the next discriminator.
 
 **BrightForge:** the `a5a047a2` bitstream is confirmed preserved and
 hash-verified. Stand by for RTL support **only if** a new anomaly appears; no
