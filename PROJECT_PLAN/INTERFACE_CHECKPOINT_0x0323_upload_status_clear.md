@@ -37,8 +37,8 @@ The W1C payload mirrors the `sel=6` byte0 layout:
 |---|---|---|---|
 | 2 | 2 | `upload_error` | CP-A1 watchdog abort (wedge / short frame) — sticky |
 | 3 | 3 | `upload_overflow` | CP-A4 ingress-FIFO overflow — sticky |
-| 4 | 4 | `txn_dropped` | New `SDRAM_WRITE` header arrived while previous write still had bytes outstanding — sticky |
-| 5 | 5 | `short_frame` | RESERVED — Fix A framing-hardening lane; currently stays 0 until that logic lands |
+| 4 | 4 | `txn_dropped` | **RESERVED-0** — spec placeholder; no backing sticky detector in current RTL |
+| 5 | 5 | `short_frame` | **RESERVED-0** — Fix A framing-hardening lane; no backing sticky yet |
 | 0, 1, 6, 7 | — | ignored | No effect |
 
 ### W1C atomicity requirement
@@ -50,8 +50,8 @@ A clear and a live set of the same sticky bit in the same clock cycle must **not
 ## 3. RTL Notes
 
 - The current `QspiTransportCore` MVP ties off the legacy `sel=6` response path, so the bridge upload-status bits are currently **invisible** to the host. Implementing this checkpoint therefore requires both:
-  1. Re-surfacing the bridge `upload_error` / `upload_overflow` / `txn_dropped` / `short_frame` sticky bits on `READ_STATUS` `sel=6`, and
-  2. Decoding `0x0323` writes to emit the W1C clear strobes to those sticky registers.
+  1. Re-surfacing the bridge `upload_error` (bit 2) and `upload_overflow` (bit 3) sticky bits on `READ_STATUS` `sel=6`. Bits 4 and 5 remain reserved-0 until separate detectors are authorized.
+  2. Decoding `0x0323` writes to emit W1C clear strobes for bits 2 and 3; bits 4 and 5 are no-ops.
 - The decode must be present for **both** the QSPI and i80 host interfaces (the firmware helper issues the same write on both backends).
 - No new host-visible selectors, no new commands, and no protocol changes are introduced.
 - This decode must **not** be folded into the `a5a047a2` Lane 1 authority bitstream; it builds its own lane bitstream so the `2bpp-bank-completion-hw-reproof` gate remains valid.
@@ -69,12 +69,12 @@ void vdp_clear_upload_status(uint16_t mask);
 with mask bits:
 
 ```c
-#define VDP_UPLOAD_STATUS_ERROR       0x0004u  // bit 2
-#define VDP_UPLOAD_STATUS_OVERFLOW    0x0008u  // bit 3
-#define VDP_UPLOAD_STATUS_TXN_DROPPED 0x0010u  // bit 4
+#define VDP_UPLOAD_STATUS_ERROR       0x0004u  // bit 2 — clears implemented sticky
+#define VDP_UPLOAD_STATUS_OVERFLOW    0x0008u  // bit 3 — clears implemented sticky
+#define VDP_UPLOAD_STATUS_TXN_DROPPED 0x0010u  // bit 4 — reserved-0 in this lane
 ```
 
-`vdp_clear_upload_status()` already issues `vdp_reg_write(VDP_UPLOAD_STATUS_CLEAR_REG, mask)`. Once the RTL decode lands, the same call will clear the corresponding sticky bits.
+`vdp_clear_upload_status()` already issues `vdp_reg_write(VDP_UPLOAD_STATUS_CLEAR_REG, mask)`. Once the RTL decode lands, bits 2 and 3 will clear the corresponding sticky bits; bits 4 and 5 are ignored by hardware (no backing detector).
 
 ---
 

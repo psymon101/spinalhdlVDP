@@ -2,7 +2,7 @@
 
 **Owner:** BronzeGate (firmware/flash/procedure) + BrightForge (bitstream/RTL support)  
 **PM:** TopazCliff  
-**Status:** REVIEW — CS#-high reset diagnostic passed; ten-cycle reproof awaits PM authorization (#14600)
+**Status:** RUNNING — PM authorized ten-cycle reproof with mandatory CS#-high pre-flight (#14600)
 **Opened:** 2026-07-30  
 **Started:** 2026-08-01  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Provide the hardware reproof gate for the `2bpp-bank-completion-rtl` sim+PnR hardening.
@@ -146,20 +146,52 @@ full reproof without the next PM direction. Evidence is recorded in
   `e3f8000d3b4cb778249888b7b6bf8510ad3a386a823c86a4b8f68457a21a9a91`.
 - Procedure/result: `hardware/CS_IDLE_RESULTS.md`.
 
+## PM authorization for ten-cycle reproof (2026-08-01)
+
+The CS#-high diagnostic decisively resolved the reproduced anomaly on the same
+`a5a047a2` bitstream that previously failed. TopazCliff authorizes the full
+ten-cycle hardware reproof with the following mandatory procedure:
+
+- **CS#-high pre-flight is mandatory on every cycle.** Immediately after each
+  ESP32-P4 reset/boot, before SPI peripheral initialization, configure GPIO20
+  (CS_N) as a GPIO output and drive it HIGH. Hold it high for the settle delay
+  (≥1 s, matching the 1200 ms diagnostic). Then hand the pin to the SPI
+  peripheral and run the normal proof sequence.
+- **Keep `cs_ena_pretrans` ≥ 1 SCLK** in the SPI device configuration so the
+  async-reset release does not race the first SCLK edge (BrightForge robustness
+  note).
+- **Retain all earlier gates:** good magic (`0x51560002`), clean
+  `SEL_TRANSPORT_HEALTH` (`raw=0x00000000`) before upload, health read
+  immediately after upload, and hard abort on any non-zero transport-health
+  sticky bit.
+- **No RTL changes** in this lane; `a5a047a2` remains the authority bitstream.
+
 ## Current Action
 
-**BronzeGate:** the CS#-high diagnostic passed. Hold for PM authorization before
-starting the ten-cycle reproof; if authorized, make the CS#-high pre-flight a
-mandatory part of every cycle and retain the existing health/readback abort
-criteria.
+**BronzeGate:** run the authorized ≥10-cycle reproof using the mandatory
+CS#-high pre-flight above.
 
 1. Flash `fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs` (SHA-256 `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`) via explicit SRAM load.
-2. Wait **≥1 second** after `openFPGALoader` reports 100% / success before resetting or connecting to the ESP32. LED0 lit (PLL locked) is the ready indicator; ~1 s is ample for the QSPI transport.
-3. Reset/serial-connect the ESP32 and verify the first read returns `magic=0x51560002`.
-4. Immediately after a good magic, read `SEL_TRANSPORT_HEALTH` (`sel=0x0A`) and verify `raw == 0x00000000`. If non-zero, stop and escalate.
-5. If the preconditions pass, continue the reproof: run ≥10 full cold-POR or `openFPGALoader` reconfigure cycles with the settle delay, capturing per-cycle health (before upload, immediately after upload, and after enable), basic + row-200 readbacks, `CHECKERBOARD_TEST PASS`/equivalent, and `/dev/video0` YUYV capture.
-6. If `magic=0x22222222` (or any other wrong magic) recurs **after** the settle delay, or if any cycle records a non-zero transport-health sticky bit, stop immediately and escalate to TopazCliff/BrightForge.
+2. After `openFPGALoader` reports success, boot the ESP32-P4 and **immediately**
+   configure GPIO20 (CS_N) as a GPIO output and drive it HIGH. Keep it high for
+   ≥1 s before any SPI initialization.
+3. Hand CS_N to the SPI peripheral, run `vdp_host_init()` / the proof app, and
+   verify the first read returns `magic=0x51560002`.
+4. Immediately after a good magic, read `SEL_TRANSPORT_HEALTH` (`sel=0x0A`) and
+   verify `raw == 0x00000000`. If non-zero, stop and escalate.
+5. If the preconditions pass, continue the reproof: run ≥10 full cold-POR or
+   `openFPGALoader` reconfigure cycles with the settle delay and CS#-high
+   pre-flight, capturing per-cycle health (before upload, immediately after
+   upload, and after enable), basic + row-200 readbacks,
+   `CHECKERBOARD_TEST PASS`/equivalent, and `/dev/video0` YUYV capture.
+6. If `magic=0x22222222` (or any other wrong magic) recurs, or if any cycle
+   records a non-zero transport-health sticky bit, stop immediately and escalate
+   to TopazCliff/BrightForge.
 7. Record all artifacts in `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/` and update this task file + `STATUS.md`.
+
+**BrightForge:** the `a5a047a2` bitstream is confirmed preserved and
+hash-verified. Stand by for RTL support **only if** a new anomaly appears; no
+pre-emptive patching inside this lane.
 
 **BrightForge:** the `a5a047a2` bitstream is confirmed preserved and hash-verified. Stand by for RTL support **only if** the post-settle anomaly repeats or the new `upload-status-clear-rtl-decode` lane needs interface review; no pre-emptive patching inside this lane.
 

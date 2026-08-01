@@ -81,41 +81,42 @@ Until the decode lands, sticky upload-status bits clear only at power-on reset o
 
 An external reviewer provided a Rule-19-style checkpoint draft that aligns with
 BrightForge's option (A): implement the documented `0x0323` W1C decode for the
-bridge upload-status bits surfaced on `READ_STATUS` `sel=6`, with **zero
-firmware changes**. This matches the existing `vdp_clear_upload_status()`
-contract and `MODE0_REGISTER_BUS_SPEC.md` §3.1.2.
+implemented bridge upload-status bits surfaced on `READ_STATUS` `sel=6`, with
+**zero firmware changes**.
 
 **Decision:**
 
 1. **Primary scope is (A):** implement the `0x0323` write-1-to-clear decode for
-the `sel=6` upload-status sticky bits (`upload_error`, `upload_overflow`,
-`txn_dropped`, `short_frame`). Re-surface `sel=6` if it is currently tied off.
-Use the exact bit mapping in `PROJECT_PLAN/INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md`.
-2. **Zero firmware changes:** BronzeGate must confirm the existing
-`VDP_UPLOAD_STATUS_ERROR` / `OVERFLOW` / `TXN_DROPPED` mask bits already match
-this mapping.
-3. **Opportunistic (B) only if free:** making the live `sel=0x0A`
-transport-health stickies (`overflow`/`malformed`) clearable is acceptable, but
-must not expand schedule or require firmware mask changes. If it cannot be done
-inside the ~1-day option-A envelope, defer it.
-4. **Keep i80 `READ_STATUS` opcode `0x04` out of this lane:** that is the
-separate read-path finding (`DOC_AUDIT_FINDINGS.md` #3). This lane is the
-register-write `0x0323` clear decode on both QSPI and i80 write paths.
-5. **Rule 19 checkpoint required:** before any RTL is committed, BrightForge and
-BronzeGate must both approve
-`PROJECT_PLAN/INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md` in writing.
-6. **Bitstream isolation:** this lane builds its own bitstream; do **not** fold
-the decode into the `a5a047a2` Lane 1 authority bitstream, because that would
-invalidate the bank-completion hardware reproof.
+   the implemented `sel=6` upload-status sticky bits: **bit 2 `upload_error`**
+   and **bit 3 `upload_overflow`**. Re-surface `sel=6` if it is currently tied
+   off. Use the exact bit mapping in
+   `PROJECT_PLAN/INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md`.
+2. **Bits 4 and 5 are RESERVED-0:** `txn_dropped` and `short_frame` have no
+   backing sticky detector in the current RTL. The `0x0323` payload bits 4/5 are
+   ignored (no-ops). Separate detectors may be authorized later; this lane does
+   not introduce them.
+3. **Zero firmware changes:** BronzeGate confirms the existing
+   `VDP_UPLOAD_STATUS_ERROR` / `OVERFLOW` masks (bits 2/3) match the mapping;
+   the `TXN_DROPPED` mask (bit 4) is reserved-0 in hardware.
+4. **Opportunistic (B) only if free:** making the live `sel=0x0A`
+   transport-health stickies (`overflow`/`malformed`) clearable is acceptable,
+   but must not expand schedule or require firmware mask changes. If it cannot
+   be done inside the ~1-day option-A envelope, defer it.
+5. **Keep i80 `READ_STATUS` opcode `0x04` out of this lane:** that is the
+   separate read-path finding (`DOC_AUDIT_FINDINGS.md` #3). This lane is the
+   register-write `0x0323` clear decode on both QSPI and i80 write paths.
+6. **Rule 19 checkpoint:** BrightForge and BronzeGate both approved
+   `PROJECT_PLAN/INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md` with the
+   bits-4/5 reservation (mail #14599/#14601). The checkpoint has been updated
+   accordingly and is now final.
+7. **Bitstream isolation:** this lane builds its own bitstream; do **not** fold
+   the decode into the `a5a047a2` Lane 1 authority bitstream, because that would
+   invalidate the bank-completion hardware reproof.
 
 ## Next Action
 
-**BrightForge:** Review and approve
-`PROJECT_PLAN/INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md`. Reply to the
-mail thread with sign-off. BronzeGate has completed the firmware review and
-approved the checkpoint in #14597, confirming zero firmware changes are
-required: the existing `0x0323` address, bit-2/3/4 masks, and QSPI+i80 helper
-writes already match the contract. Once BrightForge approves, implementation
-may begin (estimated ~0.5–1 day RTL + sim + PnR per BrightForge's earlier
-note). This lane can proceed in parallel with the Lane 1 investigation because
-it uses a separate bitstream.
+**BrightForge:** begin implementation on a separate lane bitstream. Estimated
+~0.5–1 day RTL + sim + PnR. Post the exact signal/clock-domain mini-spec before
+committing RTL if the implementation deviates from the checkpoint.
+**BronzeGate:** stand by to validate the clear behavior on hardware once the
+bitstream is ready.
