@@ -247,17 +247,43 @@ production RTL or host-interface change is needed (only documentation of the
 lag and/or an optional CDC fix). If the second call still returns `0x00`, the
 write-side hunt must reopen.
 
+### Corrected implementation and first-run TX failure (2026-08-01)
+
+BronzeGate implemented the corrected double-read in commit `2d066b5e` using:
+
+```c
+static bool readback_word_twice(uint32_t addr, uint32_t *first,
+                                uint32_t *second)
+{
+    /* Each full call rewrites REG_SDRAM_READ_ADDR_HI and arms a new read. */
+    if (!readback_word(addr, first)) return false;
+    return readback_word(addr, second);
+}
+```
+
+The first corrected hardware run flashed successfully but is **invalid as
+proof**: bitmap upload failed at offset 1518 with `VDP_HOST_ERR_TX` (`err=5`).
+Health stayed clean, but because the upload did not complete, no readback
+conclusion can be drawn.
+
+BrightForge separately confirmed from the RTL that the SDRAM read is indeed
+armed by the write to `REG_SDRAM_READ_ADDR_HI` (0x0327), not by `sel=8` polling
+(#14558).
+
+Physical QSPI bus capture is infeasible on the current host (no sigrok/PulseView,
+Saleae, DSView, or logic-analyzer tooling available).
+
 ### Next steps
 
-1. **BronzeGate:** implement the corrected double-read (full
-   `readback_word()` called twice per address) and report results.
-2. **BrightForge:** confirm from the RTL that the SDRAM read is armed by the
-   0x0327 address-HI write, not by `sel=8` polling, and validate the reviewer's
-   explanation.
-3. **TopazCliff:** if the second call returns `0x55555555`, scope the
-   documentation/optional CDC fix and close the lane; otherwise convene the next
-   discriminator.
-4. No production change until the corrected discriminator resolves the fork.
+1. **BronzeGate:** debug the `VDP_HOST_ERR_TX` failure at offset 1518 and rerun
+   the corrected Mode 6 cleanly. Do not jump to Rule 19 until at least one clean
+   corrected run is attempted.
+2. **BrightForge:** standby with the option-4 diagnostic-interface spec; if the
+   clean rerun still cannot confirm the fork, we will convene the Rule 19
+   checkpoint on that spec.
+3. **TopazCliff:** run Rule 19 checkpoint only if the corrected double-read is
+   still blocked after TX-failure debugging.
+4. No production RTL/firmware change until the fork resolves.
 
 ---
 

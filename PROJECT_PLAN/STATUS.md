@@ -14,16 +14,18 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 ## Active Lanes
 
-> **Lane 3 update (2026-08-01):** `qspi-upload-si-hardening` has a refined
-> diagnostic hypothesis from the external reviewer. The previous double-read
-> test was flawed because `READ_STATUS sel=8` only returns the already-latched
-> `dataReg`; it does not arm a new SDRAM read. The SDRAM read is armed by the
-> write to `REG_SDRAM_READ_ADDR_HI` (0x0327). Therefore, to flush the 1-read
-> lag one must call the full `readback_word(addr, &val)` routine twice for the
-> same address. The reviewer predicts the **second call will return the correct
-> `0x55555555`**. If confirmed, SDRAM writes are proven clean and the defect is
-> entirely in the `sel=8` debug readback CDC. BronzeGate is authorized to run
-> this corrected firmware-only diagnostic; no RTL or new host interface needed.
+> **Lane 3 update (2026-08-01):** `qspi-upload-si-hardening` is `BLOCKED` on a
+> clean rerun. BrightForge confirmed the SDRAM read is armed by writing
+> `REG_SDRAM_READ_ADDR_HI` (0x0327), so the corrected double-read must call
+> `readback_word()` twice per address (#14558). BronzeGate implemented that
+> corrected Mode 6 (#14559), but the first hardware run failed during bitmap
+> upload with `VDP_HOST_ERR_TX` at offset 1518, so the run is invalid.
+> Physical QSPI bus capture is infeasible on this host (no analyzer tools).
+> Next: BronzeGate must debug the TX failure and rerun the corrected
+> double-read cleanly. If the rerun confirms second-call `0x55555555`, the
+> lane resolves to a `sel=8` CDC issue. If the rerun is still blocked, we
+> convene Rule 19 on BrightForge's option-4 diagnostic interface. Rule 19
+> remains open; no production change until the fork resolves.
 
 > **BronzeGate corrected-run update (2026-08-01):** Mode 6 was corrected in
 > `2d066b5e` to call the full `readback_word()` routine twice, re-arming the
@@ -55,7 +57,7 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 | Lane | Owner | Status | Since | Blocker | Next Action | Proof / Artifacts |
 |---|---|---|---|---|---|---|
-| qspi-upload-si-hardening | BrightForge + BronzeGate | BLOCKED — corrected full-readback double-read implemented, but first hardware run failed bitmap upload (`VDP_HOST_ERR_TX` at offset 1518); proof invalid pending review | 2026-07-31 | Rule 19 remains open. Physical capture is infeasible on this host; no further hardware rerun until BrightForge/TopazCliff review the first TX failure and authorize the next attempt or option-4 checkpoint.| **BronzeGate:** implementation `2d066b5e`; build/flash PASS; first run invalid due TX failure, context `lag_matches=16/16`, `target_matches=0/16`; exact corrected snippet sent in #14559. **BrightForge DONE (#14558):** confirmed 0x0327 arms read; option-4 fallback available. **TopazCliff:** choose reviewed clean rerun or Rule 19 option 4.| `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`; `hardware/DOUBLE_READ_RESULTS.md`; `hardware/INDIRECT_DISPLAY_RESULTS.md`; #14556/#14557/#14558/#14559. |
+| qspi-upload-si-hardening | BrightForge + BronzeGate | BLOCKED — corrected double-read implemented; first HW run invalid due to VDP_HOST_ERR_TX (#14559/#14560); need clean rerun or Rule 19 fallback | 2026-07-31 | Rule 19 open. Physical bus capture infeasible. Debug TX failure, rerun corrected double-read. If still blocked, convene Rule 19 on option-4 diagnostic interface. | **BronzeGate:** debug TX failure and rerun corrected Mode 6. **BrightForge:** standby; option-4 spec ready if needed. **TopazCliff:** run Rule 19 checkpoint if clean rerun fails. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`; `hardware/DOUBLE_READ_RESULTS.md`; `hardware/INDIRECT_DISPLAY_RESULTS.md`; #14556/#14557/#14558/#14559. |
 | 720p-proof-build-script-cleanup | BrightForge | DONE — 2026-07-30; archive-all executed (PM #14502) | 2026-07-30 | — | **ARCHIVE all 5** 720p proof targets (`proof`/`bridge`/`mode0`/`linebuf`/`planar`) — none met the keep-rule (dormant since `4e3dfcf4` 2026-06-07; no doc/runbook/README/CI deps; superseded by native 640×480 production + `diagnostic`). `git mv` 15 build artifacts (5 `.tcl` + 10 `.cst/.sdc`) → `fpga/tang20k/archive/720p_proofs/`; removed 5 720p Makefile target-blocks + 5 `impl_720p_*` `.gitignore` entries; added `archive/720p_proofs/README.md`; Scala `Hdmi720p*ProofTop.scala` tops untouched (out of scope). **Verify PASS:** `make -n gen`/`gen-diagnostic`/`all` resolve + `make -n 720p-proof` → "No rule"; `sbt compile` PASS; `Hdmi720pProofTopVerilog` gen clean; production `make gen` → `hw/gen/top_tang20k.v` (sha256 `945b060b…`); `git status` clean (15 renames + `.gitignore`/`Makefile` + README). No RTL/production-CST/HW. | Task `PROJECT_PLAN/TASKS/720p-proof-build-script-cleanup.md`; closeout commit `a27e07ff`; mail #14503. |
 | standalone-diagnostic-build | BrightForge | DONE — 2026-07-30; **merged to `main`** at `ec5c9724`; PM closeout | 2026-07-29 | — | Option A: `diagnosticMode` param → no-host/QSPI/SDRAM native 640×480 1× grid (useHostInit=false, layer0→test-pattern grid6, color-math op=00, LinestateStore all-lines L0-enabled). Module `top_tang20k_diagnostic`; generator + `build_diagnostic.tcl` + Makefile `diagnostic` target. **Production spot-check PASS** (normalized diff vs main = 0; gated → production untouched). **Diagnostic PnR PASS**: bitstream `60b23c77`, TNS=0 all clocks, Fmax 30.052 MHz, BSRAM 37/DSP 12 (no new). **HW proof PASS: 10/10 cold-POR cycles** full-frame grid (rows 480/480, cols 720/720, HDMI locked, frame byte-identical `7803de18`) + cyan canary. | Task `PROJECT_PLAN/TASKS/standalone-diagnostic-build.md`; proof packet `PROJECT_PLAN/proof_packets/standalone-diagnostic-build/`; merge commit `ec5c9724`; assignment #14496/#14497/#14498. |
 | external-review-doc-cleanup-f1-f7-stale-links | CyanPeak | DONE — 2026-07-29 | 2026-07-29 | — | Standalone diagnostic build procedure documented in [DIAGNOSTICS.md](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DIAGNOSTICS.md); BasicPatternSource async-read path documented as approved/deferred in [ADR-008](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DECISIONS/ADR-008-BASICPATTERNSOURCE-ASYNC-READS.md); stale VOODOO_ADOPTION_PLAN.md link resolved. | Task file `PROJECT_PLAN/TASKS/external-review-doc-cleanup-f1-f7-stale-links.md`; doc-impact F1 and F7 updated; closeout commit 7615718. |
