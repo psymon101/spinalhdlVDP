@@ -1,22 +1,28 @@
-# Double-read diagnostic results
+# Corrected double-read diagnostic results
 
-Accepted run: mode 6, source commit `3b246fc7`, internal copy fix
-`619f76b8`, approved bitstream SHA-256
-`38002d5c2bd1ca00c9460fc0349874a5e0f65afad120ab19c26b2144d41b9c09`, serial
-port `/dev/ttyACM0`.
+The corrected proof-only firmware is source commit `2d066b5e` and uses the
+existing overlap fix `619f76b8`. The approved bitstream remained active:
+`38002d5c2bd1ca00c9460fc0349874a5e0f65afad120ab19c26b2144d41b9c09`.
+The run used `/dev/ttyACM0`, ESP-IDF v6.0.2, 4 MHz bulk upload, and 2 MHz
+control/read transactions.
 
-The upload completed cleanly at 4 MHz. Transport health was
-`raw=0x00000000`, `overflow=0`, and `malformed=0` before and after upload.
-Across 8 repeats and 6 addresses, all reads completed without an error. The
-four addresses expected to contain `0x55555555` were
-`0x100008`, `0x10000C`, `0x101000`, and `0x101004`; each returned
-`first=0x00000000`, `second=0x00000000` in every repeat. The zero-expected
-addresses also returned zero.
+## Run validity
 
-Result: `DOUBLE_READ_RESULT pass=0 repeats=8 addresses=6`.
+The first corrected run is **invalid as a write/readback proof** because the
+bitmap upload failed at offset 1518 with `VDP_HOST_ERR_TX` (`err=5`). Health
+was still `raw=0x00000000`, `overflow=0`, `malformed=0`, but a clean upload is
+required before interpreting target contents. Per the first-failure rule, no
+second hardware attempt was made.
 
-This run does **not** confirm that returning the second `sel=8` read exposes
-the expected word. It therefore does not close the Rule 19 interface question
-or authorize an RTL change. The result is consistent with the existing
-readback anomaly, but does not by itself distinguish the proposed pipeline-lag
-hypothesis from another readback/observation issue.
+## Diagnostic context from the invalid run
+
+Despite the upload failure, the full-call sequence executed 8 repeats × 6
+addresses. The expected nonzero words still returned `first=0x00000000` and
+`second=0x00000000`, so the run ended `DOUBLE_READ_RESULT pass=0`. The
+dummy-neighbor pairs `(0x100004, 0x100008)` and `(0x100FFC, 0x101000)` showed
+`lag_matches=16/16` and `target_matches=0/16`; this is consistent with the
+proposed one-word readback pattern, but cannot prove SDRAM contents after an
+unclean upload.
+
+No production firmware, host-interface, or RTL change was made. The corrected
+discriminator remains pending a reviewed rerun with a clean upload.

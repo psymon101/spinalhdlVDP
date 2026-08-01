@@ -3,8 +3,8 @@ owners: [BrightForge, BronzeGate]
 pm: TopazCliff
 status: BLOCKED_PHYSICAL_READBACK_SURFACE
 date: 2026-07-31
-source_commit: 3b246fc7
-firmware_proof_commits: [619f76b8, 3b246fc7]
+source_commit: 2d066b5e
+firmware_proof_commits: [619f76b8, 3b246fc7, 2d066b5e]
 memcpy_overlap_fix_commit: 619f76b8
 firmware_path: firmware/libvdp/vdp_host_p4.c
 firmware_contract: QSPI-CRC8-185
@@ -19,8 +19,8 @@ firmware_build:
   partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
 double_read_proof:
   firmware_mode: 6
-  elf_sha256: e690ce1a05f93fbf6bf476df034b97f3d05be7be27b02f77993c9e0eea3ac7e0
-  bin_sha256: c94547a1fb087830bf6ed2cd1c862e9259bed73545eb8f5942f07a333731c72e
+  elf_sha256: 43e02289df7218f86ac236959d3202117a8e4ec710b971b367aa19290634a35c
+  bin_sha256: dbd26957392fef6cb04668f02e776f17eaecb5928d5995046de204c69d1050d5
   partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
   repeats: 8
   addresses: [0x100004, 0x100008, 0x10000C, 0x100FFC, 0x101000, 0x101004]
@@ -28,7 +28,12 @@ double_read_proof:
   first_and_second_nonzero_matches: 0
   read_errors: 0
   health: raw=0x00000000,overflow=0,malformed=0
-  result: proposed_pipeline_lag_not_confirmed
+  upload_error: VDP_HOST_ERR_TX_at_offset_1518
+  first_and_second_nonzero_matches_valid_run: null
+  dummy_neighbor_lag_matches: 16
+  dummy_neighbor_samples: 16
+  target_matches: 0
+  result: invalid_unclean_upload_pending_reviewed_rerun
   artifacts:
     - firmware/DOUBLE_READ_BUILD.md
     - hardware/DOUBLE_READ_PROCEDURE.md
