@@ -47,9 +47,26 @@ The external review of the lane-1 source bundle concurred with the settle-delay 
 3. **Sticky-bit abort policy until `0x0323` decode lands:** `vdp_clear_upload_status()` writes `0x0323`, but the current RTL does not decode that address (`FULL-DOC-AUDIT-151` finding #4). Therefore, if any cycle records a non-zero transport-health sticky bit, the **entire reproof run must be aborted** rather than continuing to the next cycle. The bits cannot be cleared without an FPGA POR/reconfigure. A dedicated RTL lane (`upload-status-clear-rtl-decode`) has been opened to fix this; see `PROJECT_PLAN/TASKS/upload-status-clear-rtl-decode.md`.
 4. **READ_DONE polling retained:** The `sel=8` / `sel=0x0C` completion-poll mechanism remains the diagnostic standard; no auto-stall or packet protocol will be added.
 
+## Settled retry result (2026-08-01)
+
+The PM-authorized retry was stopped at the escalation bar. The preserved
+bitstream SRAM load completed successfully, followed by a measured 1.2-second
+settle delay, but the first ESP32 read again returned `magic=0x22222222`
+instead of `0x51560002`. No upload, readback, or video capture was attempted;
+this retry is not counted toward the ten-cycle gate.
+
+Evidence:
+
+- Serial: `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/firmware/settled_cycle_01_serial.log`, SHA-256 `98914b9218ed0cadf0602f8d7d42864c488c3be7380b116e8bad2c0999663d96`
+- Loader: `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/hardware/settled_cycle_01_openfpgaloader.log`, SHA-256 `9c440acb8292411bc77ee7ae2e48bd230a990646246e3932f3c609c6568b9855`
+
+Per PM procedure in #14591, the lane is paused and escalated in #14593 for
+BrightForge/TopazCliff investigation. No further retry, RTL edit, or
+production firmware change is authorized at this point.
+
 ## Current Action
 
-**BronzeGate:** run the authorized controlled retry with the external-review preconditions above.
+**BronzeGate:** the authorized retry was attempted and the lane is now paused pending review of the repeated post-settle magic anomaly.
 
 1. Flash `fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs` (SHA-256 `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`) via explicit SRAM load.
 2. Wait **≥1 second** after `openFPGALoader` reports 100% / success before resetting or connecting to the ESP32. LED0 lit (PLL locked) is the ready indicator; ~1 s is ample for the QSPI transport.
