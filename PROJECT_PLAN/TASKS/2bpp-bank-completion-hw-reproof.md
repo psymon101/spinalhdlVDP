@@ -28,17 +28,28 @@
 
 ---
 
+## First-cycle anomaly (2026-08-01)
+
+After a successful `openFPGALoader` SRAM load of `project_a5a047a2_bankcompletion.fs`, the first ESP32 reset/serial capture read `magic=0x22222222` instead of the expected `0x51560002`. No upload/readback/capture was attempted for this cycle.
+
+Evidence preserved:
+- Serial log: `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/firmware/cycle_01_serial.log`, SHA-256 `578344c894f4566676ef92b0a77e99db244c81cab6c23ecaf1f63cba879de6a0`
+- Loader log: `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/hardware/cycle_01_openfpgaloader.log`, SHA-256 `527863653a61563bd541ef034935bba6ce22747456422f53623843c8461a4c0d`
+
+BrightForge assessed the value `0x22222222` as the legacy framing-mismatch signature (`TopTang20kHdmi.scala:392-402`, #13966) and concluded it is a **post-reconfigure early-read / QSPI-responder settle artifact**, not a real RTL failure, because the magic constant is static and the same bitstream has previously read the correct magic. BrightForge endorsed a controlled retry with a post-SRAM-load settle delay before the first ESP32 read (#14590).
+
 ## Current Action
 
-**BronzeGate:** start the hardware reproof using the preserved bitstream and approved 4 MHz firmware.
+**BronzeGate:** run the authorized controlled retry.
 
 1. Flash `fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs` (SHA-256 `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`) via explicit SRAM load.
-2. Build/flash the canonical 4 MHz ESP32-P4 checkerboard/QSPI proof firmware.
-3. Run ≥10 cold-POR or `openFPGALoader` reconfigure cycles.
-4. Per cycle, capture serial proof, health, basic + row-200 readbacks, and `/dev/video0` YUYV capture.
-5. Record all artifacts in `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/`.
+2. Wait **≥1 second** after `openFPGALoader` reports 100% / success before resetting or connecting to the ESP32. LED0 lit (PLL locked) is the ready indicator; ~1 s is ample for the QSPI transport.
+3. Reset/serial-connect the ESP32 and verify the first read returns `magic=0x51560002`.
+4. If the magic is correct, continue the reproof: run ≥10 full cold-POR or `openFPGALoader` reconfigure cycles with the settle delay, capturing per-cycle health, basic + row-200 readbacks, `CHECKERBOARD_TEST PASS`/equivalent, and `/dev/video0` YUYV capture.
+5. If `magic=0x22222222` (or any other wrong magic) recurs **after** the settle delay, stop immediately and escalate to TopazCliff/BrightForge — that would be a genuine anomaly requiring RTL investigation.
+6. Record all artifacts in `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/` and update this task file + `STATUS.md`.
 
-**BrightForge:** confirm the `a5a047a2` bitstream is preserved and available; stand by for RTL support only if the reproof exposes a real hardware failure.
+**BrightForge:** the `a5a047a2` bitstream is confirmed preserved and hash-verified. Stand by for RTL support **only if** the post-settle anomaly repeats; no pre-emptive RTL patching.
 
 ---
 
