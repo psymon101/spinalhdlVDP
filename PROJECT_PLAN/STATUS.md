@@ -22,7 +22,11 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 > ≥1 s post-SRAM-load settle delay before the ESP32 reset (#14590). TopazCliff
 > authorized the retry; if the correct magic returns after the settle, the
 > reproof continues to ≥10 fully passing cycles. If `0x2222…` recurs after the
-> settle, the lane escalates back to BrightForge for RTL investigation.
+> settle, the lane escalates back to BrightForge for RTL investigation. An
+> external AI review of the source bundle and event description concurred with
+> the settle-delay explanation and recommended strict preconditions (good magic
+> + clean transport health before counting each cycle); see
+> `PROJECT_PLAN/external_review/lane1_magic_anomaly_2026-08-01/external_review_response.md`.
 
 > **Lane 3 closeout / Lane 1 start (2026-08-01):** `qspi-upload-si-hardening`
 > is `DONE`. The option-4 `READ_DONE` mode-8 hardware proof returned
