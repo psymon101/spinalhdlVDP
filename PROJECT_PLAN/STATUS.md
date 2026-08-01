@@ -18,15 +18,18 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 > the PM-authorized controlled retry with a measured **1.2 s post-SRAM-load
 > settle delay**, but the first ESP32 read again returned `magic=0x22222222`
 > instead of `0x51560002` (#14593). This contradicts the post-reconfigure
-> early-read/settle hypothesis and is now treated as a genuine anomaly requiring
-> BrightForge/PM investigation. No upload/readback/capture was attempted in the
-> settled retry; the cycle is not counted. BronzeGate preserved the evidence and
-> awaits direction. The retry preconditions (good magic + clean
-> `SEL_TRANSPORT_HEALTH`) and the sticky-bit hard-abort policy remain on the
-> books for any future attempt. Lane status is **BLOCKED** until BrightForge
-> provides a technical assessment and a go/no-go plan. The parallel
-> `upload-status-clear-rtl-decode` lane is independent and awaiting a PM
-> decision on the clear-decode scope (#14594).
+> early-read/settle hypothesis. An external review identified a testable CS#-reset
+> hypothesis: `QspiSlaveSync` uses `io.csn` as its active-high SCLK-domain
+> reset (`hw/spinal/spinalhdlvdp/QspiSlaveSync.scala:86-94`), so if the ESP32-P4
+> leaves CS# low during the settle delay, the responder FSM never resets and the
+> first `READ_STATUS` transaction is out of phase. **BronzeGate** is asked to run
+> a firmware test that drives CS# high as a GPIO immediately after boot, then
+> hands it to the SPI peripheral before the magic read. **BrightForge** is asked
+> to confirm the reset semantics and, if the firmware test fails, propose a
+> non-logic-analyzer diagnostic. No bench logic analyzer is available. The retry
+> preconditions and sticky-bit hard-abort policy remain on the books. The
+> parallel `upload-status-clear-rtl-decode` lane is independent and awaiting
+> BrightForge + BronzeGate checkpoint sign-off (#14596).
 
 > **Lane 3 closeout / Lane 1 start (2026-08-01):** `qspi-upload-si-hardening`
 > is `DONE`. The option-4 `READ_DONE` mode-8 hardware proof returned

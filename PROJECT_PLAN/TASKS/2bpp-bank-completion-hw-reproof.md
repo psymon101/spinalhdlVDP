@@ -84,6 +84,44 @@ BrightForge is asked to investigate and propose the next diagnostic step. Until
 a technical assessment is delivered, Lane 1 stays **BLOCKED** and no further
 hardware cycles are authorized.
 
+## CS_N reset hypothesis (external review 2026-08-01)
+
+An external reviewer identified a likely mechanism consistent with the symptoms:
+
+- `QspiSlaveSync` (`hw/spinal/spinalhdlvdp/QspiSlaveSync.scala:86-94`) uses
+  `io.csn` as the **SCLK-domain asynchronous reset, active-high**. CS# high
+  resets the FSM to `Phase.CMD`; CS# low releases reset and starts the
+  transaction.
+- The Tang Nano 20K CST pulls `I_qspi_cs` up (`PULL_MODE=UP`), so if the
+  ESP32-P4 leaves the pin floating after reset, the FPGA sees CS# high and the
+  FSM resets correctly.
+- **If the ESP32-P4 boot/peripheral default drives CS# low during the settle
+  delay, the FSM never resets.** The first `READ_STATUS` transaction then starts
+  with the FSM out of phase, causing the host to sample a stale/default bus
+  value — the observed `0x22222222`.
+
+This hypothesis is testable without RTL changes:
+
+1. **Firmware test (BronzeGate):** Immediately after ESP32-P4 boot, before the
+   1-second settle delay, configure the CS_N GPIO as an output and drive it
+   **HIGH**. Then hand the pin to the SPI peripheral and run `vdp_host_init()`
+   / the normal magic read. This guarantees the FPGA sees the required CS#
+   high-idle / rising-edge reset.
+2. **RTL review (BrightForge):** Confirm whether the `QspiSlaveSync` reset
+   semantics and the CST pull-up make this hypothesis consistent with the
+   observed 1.2 s failure. If the firmware fix does not resolve it, propose the
+   next electrical/state-machine diagnostic.
+3. **Electrical verification:** No bench logic analyzer is available on this
+   host (`sigrok-cli`, PulseView, DSView, Saleae, and logic-node tooling are
+   absent). If the firmware fix fails, BrightForge should propose an
+   alternative diagnostic that does not require external capture hardware
+   (e.g., a firmware-driven GPIO probe, internal FPGA LED state, or a
+   diagnostic bitstream).
+
+If the firmware test resolves the anomaly, the Lane 1 procedure will be updated
+with a mandatory CS#-high pre-flight step. If it does not resolve it, the lane
+remains blocked pending BrightForge's next assessment.
+
 ## Current Action
 
 **BronzeGate:** the authorized retry was attempted and the lane is now paused pending review of the repeated post-settle magic anomaly.
