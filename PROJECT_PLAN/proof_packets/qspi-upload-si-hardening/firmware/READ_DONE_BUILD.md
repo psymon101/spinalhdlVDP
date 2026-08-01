@@ -11,6 +11,9 @@ on the existing `sel=8` path.
 Source commit: `158b9d7c`.
 Proof mode: `SCALER_PROOF_MODE=8` in
 `firmware/esp32p4_scaler_proof/main/main.c`.
+The reproducible build was performed from workspace commit `70c43d7a`;
+the mode-8 source file is unchanged from `158b9d7c` (SHA-256
+`e674c1cc76940a656bc8530bb9736bf0a509d06c67763aaafa659847274c000a`).
 
 Build environment:
 
@@ -31,10 +34,11 @@ Artifact hashes:
 
 | Artifact | SHA-256 |
 |---|---|
-| `esp32p4_scaler_proof.elf` | `2c35c2c60d420b8820cf6a1c6d3f6ee0fca3c2cfeee9c1ea916cd36e5b04a165` |
-| `esp32p4_scaler_proof.bin` | `ff525e9d8011e96f99f28a879d40916a39884ad1842a6b0d93909475e2592842` |
+| `esp32p4_scaler_proof.elf` | `fd592e3562e8a278b200b0c95f5a0f8ec2d2709c15ed54a441b572e48018907a` |
+| `esp32p4_scaler_proof.bin` | `cb977e17bedcfe639382c6d2f16fcd79649e1aca5f66dc252b09521e0249ca8c` |
 | `partition-table.bin` | `fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17` |
 
-Hardware proof is pending BrightForge's matching bitstream and the PM hardware
-ready/flash authorization. No production firmware or host-driver behavior was
-changed.
+The PM-authorized hardware proof completed after unloading the FTDI serial
+drivers and retrying the preserved bitstream. See
+`hardware/READ_DONE_RESULTS.md`; no production firmware or host-driver
+behavior was changed.
