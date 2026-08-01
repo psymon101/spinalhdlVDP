@@ -14,29 +14,32 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 ## Active Lanes
 
-> **Lane 3 update (2026-08-01):** `qspi-upload-si-hardening` is `BLOCKED` on
-> the Rule 19 checkpoint. BronzeGate ran the corrected double-read cleanly
-> (#14563): uploads completed, health clean, but **both first and second calls
-> returned `0x00` at the target addresses**; no second-call `0x55555555`
-> appeared. Dummy-neighbor pairs did show `lag_matches=16/16`, so the `sel=8`
-> path is not transparent, but the simple 1-read-lag model does not fully
-> explain the target-word values. Physical QSPI bus capture is infeasible.
-> The next step is BrightForge's **option-4 completion-poll readback surface**
-> (one new host-visible status bit). I am convening the Rule 19 checkpoint now.
-> No production change until both BrightForge and BronzeGate independently
-> approve the spec and a fix survives proof.
+> **Lane 3 update (2026-08-01):** `qspi-upload-si-hardening` remains `BLOCKED`
+> pending implementation and proof of the Rule 19 option-4 diagnostic surface.
+> BronzeGate independently **approved** the proposal in #14565, with the
+> constraint that `READ_DONE` use a dedicated spare `READ_STATUS` selector
+> rather than a high bit of the 32-bit `sel=8` data word. BrightForge's approval
+> and TopazCliff's implementation authorization are still required. No
+> production change until the approved surface passes co-sim and HW proof.
 
-> **BronzeGate corrected-run update (2026-08-01):** Mode 6 was corrected in
+> **BronzeGate clean corrected-run update (2026-08-01):** #14563 completed the
+> corrected double-read cleanly: uploads completed at 4 MHz, health was clean,
+> both first and second calls returned `0x00` at the target addresses, and no
+> second-call `0x55555555` appeared. Dummy-neighbor pairs showed
+> `lag_matches=16/16`, `target_matches=0/16`; the simple 1-read-lag model does
+> not fully explain the target-word values. Physical QSPI bus capture remains
+> infeasible on this host.
+
+> **BronzeGate initial corrected-run note (2026-08-01):** Mode 6 was corrected in
 > `2d066b5e` to call the full `readback_word()` routine twice, re-arming the
 > read through `0x0327` on each call, and to run the dummy-neighbor pattern.
 > The ESP-IDF v6.0.2 build and flash completed, but the first hardware run had
 > `VDP_HOST_ERR_TX` (`err=5`) at bitmap upload offset 1518. Its readback data
-> is invalid proof because the upload was not clean. Diagnostic context was
-> `lag_matches=16/16`, `target_matches=0/16`; no second attempt was made after
-> the first failure. No bench logic-analyzer tooling is present on this host
-> (`sigrok-cli`, PulseView, DSView, Saleae, and logic nodes absent), so option
-> 3 physical capture is infeasible here. Rule 19 remains open pending review
-> and either a reviewed clean rerun or the option-4 interface checkpoint.
+> was invalid proof because the upload was not clean. The controlled clean rerun
+> is recorded above and in proof packet `qspi-upload-si-hardening`. No bench
+> logic-analyzer tooling is present on this host (`sigrok-cli`, PulseView,
+> DSView, Saleae, and logic nodes absent), so option 3 physical capture is
+> infeasible here.
 
 > **Release v0.2.0 (2026-07-29):** `topazcliff/scaler-rewrite` merged into `main` at `a442707`; all external-review doc-impact items closed (F1–F9 + HDMI-TX). Tag `v0.2.0` points to `134b4d6`. Working tree clean; no active lanes remaining.
 
@@ -56,7 +59,7 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 | Lane | Owner | Status | Since | Blocker | Next Action | Proof / Artifacts |
 |---|---|---|---|---|---|---|
-| qspi-upload-si-hardening | BrightForge + BronzeGate | BLOCKED — Rule 19 checkpoint: corrected double-read unresolved (#14563); option-4 completion-poll readback surface pending approval | 2026-07-31 | Rule 19 open. Need independent BrightForge + BronzeGate approval of option-4 spec (one new host-visible status bit). Then implement, simulate, and run HW proof. | **BrightForge + BronzeGate:** review and approve/reject option-4 spec. **TopazCliff:** authorize implementation after both approvals. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`; `hardware/DOUBLE_READ_RESULTS.md`; #14561/#14558/#14560. |
+| qspi-upload-si-hardening | BrightForge + BronzeGate | BLOCKED — corrected double-read unresolved (#14563); BronzeGate approved option-4 in #14565, awaiting BrightForge approval and PM authorization | 2026-07-31 | Rule 19 implementation gate. Dedicated spare `READ_STATUS` selector for `READ_DONE`, then RTL/co-sim and firmware HW proof. | **BrightForge:** independent approval + RTL/co-sim. **TopazCliff:** authorize implementation. **BronzeGate:** proof firmware/HW test after approved surface lands. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`; `hardware/DOUBLE_READ_RESULTS.md`; #14563/#14564/#14565. |
 | 720p-proof-build-script-cleanup | BrightForge | DONE — 2026-07-30; archive-all executed (PM #14502) | 2026-07-30 | — | **ARCHIVE all 5** 720p proof targets (`proof`/`bridge`/`mode0`/`linebuf`/`planar`) — none met the keep-rule (dormant since `4e3dfcf4` 2026-06-07; no doc/runbook/README/CI deps; superseded by native 640×480 production + `diagnostic`). `git mv` 15 build artifacts (5 `.tcl` + 10 `.cst/.sdc`) → `fpga/tang20k/archive/720p_proofs/`; removed 5 720p Makefile target-blocks + 5 `impl_720p_*` `.gitignore` entries; added `archive/720p_proofs/README.md`; Scala `Hdmi720p*ProofTop.scala` tops untouched (out of scope). **Verify PASS:** `make -n gen`/`gen-diagnostic`/`all` resolve + `make -n 720p-proof` → "No rule"; `sbt compile` PASS; `Hdmi720pProofTopVerilog` gen clean; production `make gen` → `hw/gen/top_tang20k.v` (sha256 `945b060b…`); `git status` clean (15 renames + `.gitignore`/`Makefile` + README). No RTL/production-CST/HW. | Task `PROJECT_PLAN/TASKS/720p-proof-build-script-cleanup.md`; closeout commit `a27e07ff`; mail #14503. |
 | standalone-diagnostic-build | BrightForge | DONE — 2026-07-30; **merged to `main`** at `ec5c9724`; PM closeout | 2026-07-29 | — | Option A: `diagnosticMode` param → no-host/QSPI/SDRAM native 640×480 1× grid (useHostInit=false, layer0→test-pattern grid6, color-math op=00, LinestateStore all-lines L0-enabled). Module `top_tang20k_diagnostic`; generator + `build_diagnostic.tcl` + Makefile `diagnostic` target. **Production spot-check PASS** (normalized diff vs main = 0; gated → production untouched). **Diagnostic PnR PASS**: bitstream `60b23c77`, TNS=0 all clocks, Fmax 30.052 MHz, BSRAM 37/DSP 12 (no new). **HW proof PASS: 10/10 cold-POR cycles** full-frame grid (rows 480/480, cols 720/720, HDMI locked, frame byte-identical `7803de18`) + cyan canary. | Task `PROJECT_PLAN/TASKS/standalone-diagnostic-build.md`; proof packet `PROJECT_PLAN/proof_packets/standalone-diagnostic-build/`; merge commit `ec5c9724`; assignment #14496/#14497/#14498. |
 | external-review-doc-cleanup-f1-f7-stale-links | CyanPeak | DONE — 2026-07-29 | 2026-07-29 | — | Standalone diagnostic build procedure documented in [DIAGNOSTICS.md](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DIAGNOSTICS.md); BasicPatternSource async-read path documented as approved/deferred in [ADR-008](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DECISIONS/ADR-008-BASICPATTERNSOURCE-ASYNC-READS.md); stale VOODOO_ADOPTION_PLAN.md link resolved. | Task file `PROJECT_PLAN/TASKS/external-review-doc-cleanup-f1-f7-stale-links.md`; doc-impact F1 and F7 updated; closeout commit 7615718. |
