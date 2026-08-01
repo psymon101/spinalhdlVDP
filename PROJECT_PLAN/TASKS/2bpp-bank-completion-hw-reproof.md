@@ -38,18 +38,28 @@ Evidence preserved:
 
 BrightForge assessed the value `0x22222222` as the legacy framing-mismatch signature (`TopTang20kHdmi.scala:392-402`, #13966) and concluded it is a **post-reconfigure early-read / QSPI-responder settle artifact**, not a real RTL failure, because the magic constant is static and the same bitstream has previously read the correct magic. BrightForge endorsed a controlled retry with a post-SRAM-load settle delay before the first ESP32 read (#14590).
 
+## External-review feedback incorporated (2026-08-01)
+
+The external review of the lane-1 source bundle concurred with the settle-delay explanation and recommended the following preconditions/safety checks, which are now part of this lane:
+
+1. **Cycle-start preconditions:** After the ≥1 s post-SRAM-load settle, the first host read must be `SEL_MAGIC` (`sel=0`). If `magic != 0x51560002`, stop and escalate. If magic is correct, immediately read `SEL_TRANSPORT_HEALTH` (`sel=0x0A`) and confirm `raw == 0x00000000` (both `malformed` and `overflow` sticky bits clear). Only proceed to upload when both preconditions pass.
+2. **Mid-test safety monitor:** Immediately after each bulk SDRAM upload finishes, log `SEL_TRANSPORT_HEALTH` (`sel=0x0A`). A non-zero value here means the `uploadCc` FIFO or bridge tripped during the burst; the rest of the cycle's readbacks/capture are invalid proof.
+3. **Sticky-bit abort policy until `0x0323` decode lands:** `vdp_clear_upload_status()` writes `0x0323`, but the current RTL does not decode that address (`FULL-DOC-AUDIT-151` finding #4). Therefore, if any cycle records a non-zero transport-health sticky bit, the **entire reproof run must be aborted** rather than continuing to the next cycle. The bits cannot be cleared without an FPGA POR/reconfigure. A dedicated RTL lane (`upload-status-clear-rtl-decode`) has been opened to fix this; see `PROJECT_PLAN/TASKS/upload-status-clear-rtl-decode.md`.
+4. **READ_DONE polling retained:** The `sel=8` / `sel=0x0C` completion-poll mechanism remains the diagnostic standard; no auto-stall or packet protocol will be added.
+
 ## Current Action
 
-**BronzeGate:** run the authorized controlled retry.
+**BronzeGate:** run the authorized controlled retry with the external-review preconditions above.
 
 1. Flash `fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs` (SHA-256 `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`) via explicit SRAM load.
 2. Wait **≥1 second** after `openFPGALoader` reports 100% / success before resetting or connecting to the ESP32. LED0 lit (PLL locked) is the ready indicator; ~1 s is ample for the QSPI transport.
 3. Reset/serial-connect the ESP32 and verify the first read returns `magic=0x51560002`.
-4. If the magic is correct, continue the reproof: run ≥10 full cold-POR or `openFPGALoader` reconfigure cycles with the settle delay, capturing per-cycle health, basic + row-200 readbacks, `CHECKERBOARD_TEST PASS`/equivalent, and `/dev/video0` YUYV capture.
-5. If `magic=0x22222222` (or any other wrong magic) recurs **after** the settle delay, stop immediately and escalate to TopazCliff/BrightForge — that would be a genuine anomaly requiring RTL investigation.
-6. Record all artifacts in `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/` and update this task file + `STATUS.md`.
+4. Immediately after a good magic, read `SEL_TRANSPORT_HEALTH` (`sel=0x0A`) and verify `raw == 0x00000000`. If non-zero, stop and escalate.
+5. If the preconditions pass, continue the reproof: run ≥10 full cold-POR or `openFPGALoader` reconfigure cycles with the settle delay, capturing per-cycle health (before upload, immediately after upload, and after enable), basic + row-200 readbacks, `CHECKERBOARD_TEST PASS`/equivalent, and `/dev/video0` YUYV capture.
+6. If `magic=0x22222222` (or any other wrong magic) recurs **after** the settle delay, or if any cycle records a non-zero transport-health sticky bit, stop immediately and escalate to TopazCliff/BrightForge.
+7. Record all artifacts in `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/` and update this task file + `STATUS.md`.
 
-**BrightForge:** the `a5a047a2` bitstream is confirmed preserved and hash-verified. Stand by for RTL support **only if** the post-settle anomaly repeats; no pre-emptive RTL patching.
+**BrightForge:** the `a5a047a2` bitstream is confirmed preserved and hash-verified. Stand by for RTL support **only if** the post-settle anomaly repeats or the new `upload-status-clear-rtl-decode` lane needs interface review; no pre-emptive patching inside this lane.
 
 ---
 
