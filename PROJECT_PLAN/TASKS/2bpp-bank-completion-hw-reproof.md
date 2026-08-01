@@ -2,8 +2,9 @@
 
 **Owner:** BronzeGate (firmware/flash/procedure) + BrightForge (bitstream/RTL support)  
 **PM:** TopazCliff  
-**Status:** QUEUED — do not start until `qspi-upload-si-hardening` closes  
+**Status:** RUNNING — lane 3 closed; hardware reproof gate started  
 **Opened:** 2026-07-30  
+**Started:** 2026-08-01  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Provide the hardware reproof gate for the `2bpp-bank-completion-rtl` sim+PnR hardening.
 
 ---
@@ -24,6 +25,20 @@
   - Basic + row-200 readbacks match expected non-uniform pattern.
   - `CHECKERBOARD_TEST PASS` or equivalent 2bpp content proof.
   - `/dev/video0` YUYV capture shows no torn/stale rows.
+
+---
+
+## Current Action
+
+**BronzeGate:** start the hardware reproof using the preserved bitstream and approved 4 MHz firmware.
+
+1. Flash `fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs` (SHA-256 `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`) via explicit SRAM load.
+2. Build/flash the canonical 4 MHz ESP32-P4 checkerboard/QSPI proof firmware.
+3. Run ≥10 cold-POR or `openFPGALoader` reconfigure cycles.
+4. Per cycle, capture serial proof, health, basic + row-200 readbacks, and `/dev/video0` YUYV capture.
+5. Record all artifacts in `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/`.
+
+**BrightForge:** confirm the `a5a047a2` bitstream is preserved and available; stand by for RTL support only if the reproof exposes a real hardware failure.
 
 ---
 
@@ -48,7 +63,7 @@
 ## Dependencies
 
 - `2bpp-bank-completion-rtl` — DONE.
-- `qspi-upload-si-hardening` — must close first.
+- `qspi-upload-si-hardening` — DONE; this lane is unblocked.
 
 ## Next after this lane
 
