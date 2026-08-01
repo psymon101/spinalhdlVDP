@@ -14,21 +14,19 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 ## Active Lanes
 
-> **Lane 1 first-cycle anomaly resolution (2026-08-01):** BronzeGate paused
-> after the first reconfigure cycle returned `magic=0x22222222` instead of
-> `0x51560002` (#14589). BrightForge assessed this as a post-reconfigure
-> early-read / QSPI-responder settle artifact (the legacy framing-mismatch
-> signature), not a real RTL failure, and endorsed a controlled retry with a
-> ≥1 s post-SRAM-load settle delay before the ESP32 reset (#14590). TopazCliff
-> authorized the retry. The retry now includes external-review preconditions:
-> good magic (`0x51560002`) **plus** clean `SEL_TRANSPORT_HEALTH` (`sel=0x0A`,
-> `raw=0x00000000`) before any upload, and a health read immediately after each
-> bulk upload. If `0x2222…` recurs after the settle, or if any cycle records a
-> non-zero transport-health sticky bit, the run aborts and escalates to
-> BrightForge. A non-zero sticky bit is a hard abort because
-> `UPLOAD_STATUS_CLEAR` (`0x0323`) is allocated but not yet decoded in the RTL
-> (`FULL-DOC-AUDIT-151` finding #4); see `PROJECT_PLAN/TASKS/upload-status-clear-rtl-decode.md`.
-> `READ_DONE` polling (`sel=0x0C`/`sel=8`) remains the diagnostic standard.
+> **Lane 1 post-settle magic anomaly — BLOCKED (2026-08-01):** BronzeGate ran
+> the PM-authorized controlled retry with a measured **1.2 s post-SRAM-load
+> settle delay**, but the first ESP32 read again returned `magic=0x22222222`
+> instead of `0x51560002` (#14593). This contradicts the post-reconfigure
+> early-read/settle hypothesis and is now treated as a genuine anomaly requiring
+> BrightForge/PM investigation. No upload/readback/capture was attempted in the
+> settled retry; the cycle is not counted. BronzeGate preserved the evidence and
+> awaits direction. The retry preconditions (good magic + clean
+> `SEL_TRANSPORT_HEALTH`) and the sticky-bit hard-abort policy remain on the
+> books for any future attempt. Lane status is **BLOCKED** until BrightForge
+> provides a technical assessment and a go/no-go plan. The parallel
+> `upload-status-clear-rtl-decode` lane is independent and awaiting a PM
+> decision on the clear-decode scope (#14594).
 
 > **Lane 3 closeout / Lane 1 start (2026-08-01):** `qspi-upload-si-hardening`
 > is `DONE`. The option-4 `READ_DONE` mode-8 hardware proof returned
@@ -120,7 +118,7 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 |---|---|---|---|---|---|---|
 | qspi-upload-si-hardening | BrightForge + BronzeGate | DONE — mode-8 READ_DONE proof PASS; SDRAM writes clean; residual `sel=8` readback/CDC artifact documented; no production change | 2026-08-01 | None. | PM closeout complete; optional `sel=8` readback hardening may be scoped later if needed. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/` (`hardware/READ_DONE_RESULTS.md`, `hardware/READ_DONE_SERIAL.log`, `firmware/READ_DONE_BUILD.md`, `manifest.yaml`); FPGA SHA `0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2`; firmware ELF `fd592e3562e8a278b200b0c95f5a0f8ec2d2709c15ed54a441b572e48018907a`; serial SHA `b86647404db6b89d04c563879e044a22596bff147f68600d00336ad416ef3ed8`; #14573/#14575/#14576/#14577/#14578/#14581/#14583/#14584. |
 | 2bpp-bank-completion-hw-reproof | BronzeGate + BrightForge | BLOCKED — `0x22222222` recurred after 1.2 s post-SRAM settle; escalated for BrightForge/PM investigation (#14593) | 2026-08-01 | Settled retry SRAM load succeeded, but the first ESP32 read again returned `0x22222222` instead of `0x51560002`; no upload/readback/capture attempted and no further retry authorized. | **BronzeGate:** preserve evidence and await BrightForge/TopazCliff direction. **BrightForge:** investigate post-settle QSPI responder/reset behavior; no pre-emptive production patch. The ≥10-cycle proof is paused. | Task file updated; blocker reply #14593; initial anomaly logs SHA `578344c894f4566676ef92b0a77e99db244c81cab6c23ecaf1f63cba879de6a0` / `527863653a61563bd541ef034935bba6ce22747456422f53623843c8461a4c0d`; settled retry logs SHA `98914b9218ed0cadf0602f8d7d42864c488c3be7380b116e8bad2c0999663d96` / `9c440acb8292411bc77ee7ae2e48bd230a990646246e3932f3c609c6568b9855`. |
-| upload-status-clear-rtl-decode | BrightForge + BronzeGate | OPEN — waiting on BrightForge effort/timeline estimate | 2026-08-01 | None. External review of Lane 1 identified that `UPLOAD_STATUS_CLEAR` (`0x0323`) is allocated but not decoded in current RTL, so sticky bits cannot be cleared by firmware. | **BrightForge:** provide implementation effort estimate and target timeline; confirm whether this can proceed in parallel with Lane 1 or must be sequenced after. If small (≤1 day RTL + sim), consider landing before Lane 1 10-cycle reproof. **BronzeGate:** stand by for validation once RTL decode is available. | Task file `PROJECT_PLAN/TASKS/upload-status-clear-rtl-decode.md`; `PROJECT_PLAN/DOC_AUDIT_FINDINGS.md` #4; `PROJECT_PLAN/MODE0_REGISTER_BUS_SPEC.md` §3.1.2. |
+| upload-status-clear-rtl-decode | BrightForge + BronzeGate | OPEN — Rule 19 checkpoint drafted; awaiting BrightForge + BronzeGate sign-off | 2026-08-01 | None. External review of Lane 1 identified that `UPLOAD_STATUS_CLEAR` (`0x0323`) is allocated but not decoded in current RTL, so sticky bits cannot be cleared by firmware. | **BrightForge + BronzeGate:** review and approve `PROJECT_PLAN/INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md`. BrightForge estimates ~0.5–1 day RTL + sim + PnR once approved. **BrightForge:** after sign-off, implement the `0x0323` W1C decode for the `sel=6` upload-status sticky bits (re-surface `sel=6` if needed) on both QSPI and i80 write paths. **BronzeGate:** confirm zero firmware changes required. | Checkpoint `PROJECT_PLAN/INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md`; task file `PROJECT_PLAN/TASKS/upload-status-clear-rtl-decode.md`; `PROJECT_PLAN/DOC_AUDIT_FINDINGS.md` #4; `PROJECT_PLAN/MODE0_REGISTER_BUS_SPEC.md` §3.1.2. |
 | 720p-proof-build-script-cleanup | BrightForge | DONE — 2026-07-30; archive-all executed (PM #14502) | 2026-07-30 | — | **ARCHIVE all 5** 720p proof targets (`proof`/`bridge`/`mode0`/`linebuf`/`planar`) — none met the keep-rule (dormant since `4e3dfcf4` 2026-06-07; no doc/runbook/README/CI deps; superseded by native 640×480 production + `diagnostic`). `git mv` 15 build artifacts (5 `.tcl` + 10 `.cst/.sdc`) → `fpga/tang20k/archive/720p_proofs/`; removed 5 720p Makefile target-blocks + 5 `impl_720p_*` `.gitignore` entries; added `archive/720p_proofs/README.md`; Scala `Hdmi720p*ProofTop.scala` tops untouched (out of scope). **Verify PASS:** `make -n gen`/`gen-diagnostic`/`all` resolve + `make -n 720p-proof` → "No rule"; `sbt compile` PASS; `Hdmi720pProofTopVerilog` gen clean; production `make gen` → `hw/gen/top_tang20k.v` (sha256 `945b060b…`); `git status` clean (15 renames + `.gitignore`/`Makefile` + README). No RTL/production-CST/HW. | Task `PROJECT_PLAN/TASKS/720p-proof-build-script-cleanup.md`; closeout commit `a27e07ff`; mail #14503. |
 | standalone-diagnostic-build | BrightForge | DONE — 2026-07-30; **merged to `main`** at `ec5c9724`; PM closeout | 2026-07-29 | — | Option A: `diagnosticMode` param → no-host/QSPI/SDRAM native 640×480 1× grid (useHostInit=false, layer0→test-pattern grid6, color-math op=00, LinestateStore all-lines L0-enabled). Module `top_tang20k_diagnostic`; generator + `build_diagnostic.tcl` + Makefile `diagnostic` target. **Production spot-check PASS** (normalized diff vs main = 0; gated → production untouched). **Diagnostic PnR PASS**: bitstream `60b23c77`, TNS=0 all clocks, Fmax 30.052 MHz, BSRAM 37/DSP 12 (no new). **HW proof PASS: 10/10 cold-POR cycles** full-frame grid (rows 480/480, cols 720/720, HDMI locked, frame byte-identical `7803de18`) + cyan canary. | Task `PROJECT_PLAN/TASKS/standalone-diagnostic-build.md`; proof packet `PROJECT_PLAN/proof_packets/standalone-diagnostic-build/`; merge commit `ec5c9724`; assignment #14496/#14497/#14498. |
 | external-review-doc-cleanup-f1-f7-stale-links | CyanPeak | DONE — 2026-07-29 | 2026-07-29 | — | Standalone diagnostic build procedure documented in [DIAGNOSTICS.md](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DIAGNOSTICS.md); BasicPatternSource async-read path documented as approved/deferred in [ADR-008](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DECISIONS/ADR-008-BASICPATTERNSOURCE-ASYNC-READS.md); stale VOODOO_ADOPTION_PLAN.md link resolved. | Task file `PROJECT_PLAN/TASKS/external-review-doc-cleanup-f1-f7-stale-links.md`; doc-impact F1 and F7 updated; closeout commit 7615718. |

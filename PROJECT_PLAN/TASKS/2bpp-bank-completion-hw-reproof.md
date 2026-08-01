@@ -2,7 +2,7 @@
 
 **Owner:** BronzeGate (firmware/flash/procedure) + BrightForge (bitstream/RTL support)  
 **PM:** TopazCliff  
-**Status:** RUNNING — lane 3 closed; hardware reproof gate started  
+**Status:** BLOCKED — post-settle retry repeated the `0x22222222` anomaly; awaiting BrightForge/PM investigation (#14593)  
 **Opened:** 2026-07-30  
 **Started:** 2026-08-01  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Provide the hardware reproof gate for the `2bpp-bank-completion-rtl` sim+PnR hardening.
@@ -63,6 +63,26 @@ Evidence:
 Per PM procedure in #14591, the lane is paused and escalated in #14593 for
 BrightForge/TopazCliff investigation. No further retry, RTL edit, or
 production firmware change is authorized at this point.
+
+## PM disposition on the repeated anomaly (2026-08-01)
+
+The post-settle recurrence rules out a simple "FPGA not ready yet" explanation.
+The uniform `0x22222222` value is the legacy framing-mismatch signature, but it
+is appearing on the current `QspiTransportCore` (Option A) path, which replaced
+that legacy slave specifically to fix the mismatch (#13973/#13974). The same
+`a5a047a2` bitstream has read the correct magic in prior runs, so the bitstream
+itself is not globally broken. The failure is therefore either:
+
+1. A post-reconfigure state in the FPGA QSPI responder that persists well past
+   1.2 s under the current reset/clocking sequence, or
+2. An interaction between the ESP32-P4 reset/boot and the FPGA responder state
+   that leaves the responder misframed, or
+3. A difference between the SRAM-load configuration path and the persistent-flash
+   configuration path that the prior successful runs relied on.
+
+BrightForge is asked to investigate and propose the next diagnostic step. Until
+a technical assessment is delivered, Lane 1 stays **BLOCKED** and no further
+hardware cycles are authorized.
 
 ## Current Action
 
