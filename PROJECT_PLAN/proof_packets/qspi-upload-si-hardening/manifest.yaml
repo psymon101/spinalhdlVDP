@@ -1,9 +1,9 @@
 lane: qspi-upload-si-hardening
 owners: [BrightForge, BronzeGate]
 pm: TopazCliff
-status: BLOCKED_PHYSICAL_READBACK_SURFACE
-date: 2026-07-31
-source_commit: 2d066b5e
+status: IN_PROGRESS_READ_DONE_PROOF
+date: 2026-08-01
+source_commit: 158b9d7c
 firmware_proof_commits: [619f76b8, 3b246fc7, 2d066b5e]
 memcpy_overlap_fix_commit: 619f76b8
 firmware_path: firmware/libvdp/vdp_host_p4.c
@@ -61,6 +61,26 @@ display_indirect_proof:
     - hardware/INDIRECT_DISPLAY_PROCEDURE.md
     - hardware/INDIRECT_DISPLAY_RESULTS.md
     - captures/indirect_display_frame_01.png
+read_done_proof:
+  firmware_mode: 8
+  source_commit: 158b9d7c
+  interface_spec:
+    selector: 0x0C
+    bit: 0
+    polarity: high_true
+    clear_on: 0x0327_arm_write
+    set_on: settled_pixel_domain_result_latch
+    data_selector: 0x08
+  elf_sha256: 2c35c2c60d420b8820cf6a1c6d3f6ee0fca3c2cfeee9c1ea916cd36e5b04a165
+  bin_sha256: ff525e9d8011e96f99f28a879d40916a39884ad1842a6b0d93909475e2592842
+  partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
+  target_addresses: [0x100008, 0x101000]
+  repeats: 8
+  upload_clock_hz: 4000000
+  read_clock_hz: 2000000
+  hardware_status: pending_matching_bitstream_and_flash_authorization
+  artifacts:
+    - firmware/READ_DONE_BUILD.md
 transport:
   bulk_clock_hz: 4000000
   control_clock_hz: 2000000
