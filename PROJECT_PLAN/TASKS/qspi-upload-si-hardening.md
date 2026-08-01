@@ -2,7 +2,7 @@
 
 **Owner:** BrightForge (RTL) + BronzeGate (firmware)  
 **PM:** TopazCliff  
-**Status:** DONE — mode-8 READ_DONE hardware proof PASS (`0x55555555` at `0x100008` and `0x101000`); SDRAM writes are clean; residual `sel=8` zeros are a readback/CDC artifact. PM disposition: document the `sel=8` diagnostic caveat; no production RTL or host-interface change. Closeout pending commit.
+**Status:** DONE — mode-8 READ_DONE hardware proof PASS (`0x55555555` at `0x100008` and `0x101000`); SDRAM writes are clean; residual `sel=8` zeros are a readback/CDC artifact. PM disposition: document the `sel=8` diagnostic caveat; no production RTL or host-interface change. Closeout commit `542e4ad5`.
 **Opened:** 2026-07-30  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Address the residual intermittent silent QSPI upload corruption observed in `HAM6 removal + 2bpp indexed replacement` / `QSPI-SI-CEILING-183` at the canonical 4 MHz bulk-upload ceiling.
 
@@ -152,7 +152,7 @@ made.
 - [x] Option-4 RTL implemented (`5ef5db2a`), `sbt compile` PASS, CDC co-sim `ReadDoneCdcSim` ALL PASS (ideal-2FF caveat), 3-build STA TNS=0 all clocks, BSRAM 40/46 (no new).
 - [x] Matching proof firmware built (`SCALER_PROOF_MODE=8`, source `158b9d7c`), hardware proof run, and result recorded.
 - [x] Production `make gen` still emits `top_tang20k.v` with no unintended diff (no production path touched).
-- [ ] `git status` clean; all changes committed (awaiting PM commit approval).
+- [x] `git status` clean; all changes committed (`542e4ad5`).
 - [x] Proof packet created under `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`.
 - [x] `STATUS.md` lane updated to `DONE` with proof.
 
