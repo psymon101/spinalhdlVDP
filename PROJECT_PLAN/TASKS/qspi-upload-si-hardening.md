@@ -223,27 +223,41 @@ BronzeGate implemented two proof-only diagnostics in commits `3b246fc7` and
 - Interpretation: ambiguous/negative. The display path adds confounders (color
   LUT, scaler, capture), so this test cannot alone prove SDRAM contents.
 
-### Status after attempts
-The write-side vs readback-side fork remains open. The deterministic zeros at
-`0x100008` and `0x101000` have survived:
-- CRC8 + retry,
-- stable re-read at 2 MHz,
-- SCLK sweep down to 0.25 MHz,
-- workload-independent refresh/fetch cross-check,
-- faithful RTL sim of the transport/bridge/controller path,
-- double-read `sel=8` diagnostic,
-- display-indirect readback.
+### External reviewer correction (2026-08-01)
+
+The reviewer pointed out that the Mode 6 double-read was **flawed**: the SDRAM
+read is not armed by `READ_STATUS sel=8`; it is armed by the write to
+`REG_SDRAM_READ_ADDR_HI` (0x0327). Polling `sel=8` twice without rewriting the
+address registers merely returns the same stale `dataReg` twice.
+
+**Corrected discriminator:** call the full `readback_word(addr, &val)` routine
+**twice** for the same target address. The first call arms a new read but
+returns the previously-latched value; the second call arms another read and
+returns the value fetched during the first call. The reviewer predicts the
+**second call will return `0x55555555`** at `0x100008` and `0x101000`, which
+would prove the SDRAM writes are pristine and the defect is entirely in the
+`sel=8` CDC path.
+
+### Status after correction
+
+The write-side vs readback-side fork is **still open** but now has a decisive,
+firmware-only discriminator. If the corrected double-read returns `0x55555555`
+on the second call, the lane resolves to a `sel=8` readback illusion and no
+production RTL or host-interface change is needed (only documentation of the
+lag and/or an optional CDC fix). If the second call still returns `0x00`, the
+write-side hunt must reopen.
 
 ### Next steps
 
-1. **BrightForge:** draft a minimal Rule-19 diagnostic interface proposal
-   (e.g., a single-word SDRAM read register accessible through the existing
-   QSPI register space) that avoids the `sel=8` CDC path entirely.
-2. **BronzeGate:** attempt physical QSPI/SDRAM bus capture (option 3) if
-   instrumentation is available; otherwise prepare firmware support for the
-   Rule-19 diagnostic interface.
-3. **TopazCliff:** run the Rule 19 checkpoint if option 4 is selected.
-4. No production RTL/firmware change until the fork is resolved.
+1. **BronzeGate:** implement the corrected double-read (full
+   `readback_word()` called twice per address) and report results.
+2. **BrightForge:** confirm from the RTL that the SDRAM read is armed by the
+   0x0327 address-HI write, not by `sel=8` polling, and validate the reviewer's
+   explanation.
+3. **TopazCliff:** if the second call returns `0x55555555`, scope the
+   documentation/optional CDC fix and close the lane; otherwise convene the next
+   discriminator.
+4. No production change until the corrected discriminator resolves the fork.
 
 ---
 
