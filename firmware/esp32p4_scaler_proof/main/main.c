@@ -564,6 +564,12 @@ void app_main(void)
         ESP_LOGE(TAG, "host init failed err=%d", vdp_last_error());
         return;
     }
+    /* Sample the GPIO input matrix after SPI claims the bus, before READ_STATUS. */
+    const int cs_post_init_level = gpio_get_level(GPIO_NUM_20);
+    ESP_LOGI(TAG, "CS_POST_INIT_PROBE cs_gpio=20 level=%d", cs_post_init_level);
+    ESP_LOGI(TAG,
+             "SPI_CONFIG cs_io_num=20 cs_ena_pretrans=2 cs_ena_posttrans=8"
+             " mode=0 clock_hz=2000000 idle_policy=driver-default");
     const uint32_t magic = vdp_read_status(SEL_MAGIC);
     ESP_LOGI(TAG, "scaler proof mode=%d magic=0x%08" PRIX32,
              SCALER_PROOF_MODE, magic);
