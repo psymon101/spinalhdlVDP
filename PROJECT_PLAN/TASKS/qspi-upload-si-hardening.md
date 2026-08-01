@@ -289,19 +289,37 @@ ran the corrected Mode 6 cleanly:
 
 Physical QSPI/SDRAM bus capture remains infeasible on the current host.
 
+### Rule 19 checkpoint result (2026-08-01)
+
+Both BrightForge and BronzeGate independently approved the option-4
+completion-poll readback surface:
+
+- **BronzeGate (#14565):** Approve — use a dedicated spare `READ_STATUS`
+  selector for `READ_DONE`; clear on `0x0327` arm write; assert only after the
+  settled pixel-domain result latch.
+- **BrightForge (#14566):** Approve — smallest host-visible surface that yields
+  a definitively lag-free SDRAM readback. Also interprets the clean corrected
+  double-read as leaning **write-side/physical**: because the second call still
+  returned `0x00`, SDRAM itself is likely fetching `0x00` at the targets, even
+  though the `sel=8` path also exhibits a real 1-read lag on dummy-neighbor
+  pairs.
+
+**Authorization granted:** BrightForge may implement option-4 RTL, CDC co-sim,
+and a new bitstream; BronzeGate may build the matching proof firmware and run
+HW test.
+
 ### Next steps
 
-1. **TopazCliff:** convene the Rule 19 checkpoint on BrightForge's option-4
-   completion-poll readback surface (one new host-visible status bit, no new
-   command).
-2. **BrightForge + BronzeGate:** independently review and approve/reject the
-   option-4 spec.
-3. **BrightForge:** implement the approved option-4 surface and a focused CDC
-   co-sim showing the before/after handoff.
-4. **BronzeGate:** build proof firmware, run the option-4 HW test, and report
-   whether the target addresses read back correctly.
-5. No production RTL/firmware change until both approvals are recorded and the
-   fix survives proof.
+1. **BrightForge:** implement option-4 RTL (`READ_DONE` status bit + hardened
+   `dbgResultPixArea` latch), add CDC co-sim proof, build bitstream (3-build
+   STA, TNS=0, no regression).
+2. **BronzeGate:** build proof firmware using arm → poll `READ_DONE` → read
+   result, and run HW test at `0x100008`/`0x101000`.
+3. **TopazCliff:** track proof and pivot lane scope based on the result:
+   - `0x55555555` ⇒ SDRAM writes are clean; defect is in `sel=8`/readback.
+   - `0x00000000` ⇒ reopen physical write-side investigation with the two
+     fixed-address constraint.
+4. No production firmware/host driver uses the new surface unless PM decides.
 
 ---
 

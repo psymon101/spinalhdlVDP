@@ -14,13 +14,16 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 ## Active Lanes
 
-> **Lane 3 update (2026-08-01):** `qspi-upload-si-hardening` remains `BLOCKED`
-> pending implementation and proof of the Rule 19 option-4 diagnostic surface.
-> BronzeGate independently **approved** the proposal in #14565, with the
-> constraint that `READ_DONE` use a dedicated spare `READ_STATUS` selector
-> rather than a high bit of the 32-bit `sel=8` data word. BrightForge's approval
-> and TopazCliff's implementation authorization are still required. No
-> production change until the approved surface passes co-sim and HW proof.
+> **Lane 3 update (2026-08-01):** `qspi-upload-si-hardening` is `IN PROGRESS`.
+> BrightForge and BronzeGate both independently approved the Rule-19 option-4
+> completion-poll readback surface (#14565, #14566). BrightForge notes the
+> clean corrected double-read result — second call still `0x00` despite
+> confirmed dummy-neighbor lag matches — actually points toward the
+> **write-side/physical** fork, not a pure readback illusion. Option 4 is
+> now authorized as the definitive discriminator. If it returns `0x55`,
+> SDRAM is good; if it returns `0x00`, the lane pivots back to physical
+> write-side investigation. Rule 19 checkpoint passed; implementation may
+> proceed.
 
 > **BronzeGate clean corrected-run update (2026-08-01):** #14563 completed the
 > corrected double-read cleanly: uploads completed at 4 MHz, health was clean,
@@ -59,7 +62,7 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 | Lane | Owner | Status | Since | Blocker | Next Action | Proof / Artifacts |
 |---|---|---|---|---|---|---|
-| qspi-upload-si-hardening | BrightForge + BronzeGate | Rule 19 option-4 APPROVED by both (BronzeGate #14565, BrightForge #14566); awaiting PM authorization to implement | 2026-08-01 | Rule 19 implementation gate. Both approvals in; PM to authorize. Then interface mini-spec (`READ_DONE` bit placement), RTL/co-sim, new bitstream+STA, firmware HW proof. | **BrightForge (#14566):** Approved. **Key analysis:** corrected double-read leans **WRITE-SIDE** — 1-read lag CONFIRMED (dummy-neighbor `lag_matches=16/16`) but 2nd call still `0x00` ⇒ SDRAM genuinely fetches `0x00` at targets ⇒ reviewer's "lag is sole culprit" DISPROVEN. Option 4 will most likely confirm write-side; be ready to reopen the physical write-side hunt (RTL write path already proven clean, Line-2 #14542 ⇒ physical/SI at 2 deterministic addrs `0x100008`/`0x101000`). Impl on PM go: `READ_DONE` completion-poll + hardened CDC handshake + co-sim (Verilator-CDC-fidelity caveat) + bitstream/STA. **TopazCliff:** authorize implementation. **BronzeGate:** proof firmware/HW test after surface lands. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`; `hardware/DOUBLE_READ_RESULTS.md`; #14563/#14564/#14565. |
+| qspi-upload-si-hardening | BrightForge + BronzeGate | IN PROGRESS — Rule 19 passed; option-4 completion-poll readback surface approved and authorized (#14565/#14566) | 2026-08-01 | BrightForge+BronzeGate approved one new host-visible READ_DONE status bit. Implement RTL+sim, build bitstream, run HW proof. Result will decide SDRAM-content vs readback. | **BrightForge:** implement option-4 RTL + CDC co-sim + build bitstream. **BronzeGate:** proof firmware using arm→poll DONE→read. **TopazCliff:** track proof and pivot scope based on result. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`; `hardware/DOUBLE_READ_RESULTS.md`; #14563/#14564/#14565. |
 | 720p-proof-build-script-cleanup | BrightForge | DONE — 2026-07-30; archive-all executed (PM #14502) | 2026-07-30 | — | **ARCHIVE all 5** 720p proof targets (`proof`/`bridge`/`mode0`/`linebuf`/`planar`) — none met the keep-rule (dormant since `4e3dfcf4` 2026-06-07; no doc/runbook/README/CI deps; superseded by native 640×480 production + `diagnostic`). `git mv` 15 build artifacts (5 `.tcl` + 10 `.cst/.sdc`) → `fpga/tang20k/archive/720p_proofs/`; removed 5 720p Makefile target-blocks + 5 `impl_720p_*` `.gitignore` entries; added `archive/720p_proofs/README.md`; Scala `Hdmi720p*ProofTop.scala` tops untouched (out of scope). **Verify PASS:** `make -n gen`/`gen-diagnostic`/`all` resolve + `make -n 720p-proof` → "No rule"; `sbt compile` PASS; `Hdmi720pProofTopVerilog` gen clean; production `make gen` → `hw/gen/top_tang20k.v` (sha256 `945b060b…`); `git status` clean (15 renames + `.gitignore`/`Makefile` + README). No RTL/production-CST/HW. | Task `PROJECT_PLAN/TASKS/720p-proof-build-script-cleanup.md`; closeout commit `a27e07ff`; mail #14503. |
 | standalone-diagnostic-build | BrightForge | DONE — 2026-07-30; **merged to `main`** at `ec5c9724`; PM closeout | 2026-07-29 | — | Option A: `diagnosticMode` param → no-host/QSPI/SDRAM native 640×480 1× grid (useHostInit=false, layer0→test-pattern grid6, color-math op=00, LinestateStore all-lines L0-enabled). Module `top_tang20k_diagnostic`; generator + `build_diagnostic.tcl` + Makefile `diagnostic` target. **Production spot-check PASS** (normalized diff vs main = 0; gated → production untouched). **Diagnostic PnR PASS**: bitstream `60b23c77`, TNS=0 all clocks, Fmax 30.052 MHz, BSRAM 37/DSP 12 (no new). **HW proof PASS: 10/10 cold-POR cycles** full-frame grid (rows 480/480, cols 720/720, HDMI locked, frame byte-identical `7803de18`) + cyan canary. | Task `PROJECT_PLAN/TASKS/standalone-diagnostic-build.md`; proof packet `PROJECT_PLAN/proof_packets/standalone-diagnostic-build/`; merge commit `ec5c9724`; assignment #14496/#14497/#14498. |
 | external-review-doc-cleanup-f1-f7-stale-links | CyanPeak | DONE — 2026-07-29 | 2026-07-29 | — | Standalone diagnostic build procedure documented in [DIAGNOSTICS.md](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DIAGNOSTICS.md); BasicPatternSource async-read path documented as approved/deferred in [ADR-008](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DECISIONS/ADR-008-BASICPATTERNSOURCE-ASYNC-READS.md); stale VOODOO_ADOPTION_PLAN.md link resolved. | Task file `PROJECT_PLAN/TASKS/external-review-doc-cleanup-f1-f7-stale-links.md`; doc-impact F1 and F7 updated; closeout commit 7615718. |
