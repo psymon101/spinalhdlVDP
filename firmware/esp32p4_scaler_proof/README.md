@@ -12,6 +12,7 @@ SCALER_PROOF_MODE=3 idf.py build       # 3x centered checkerboard
 SCALER_PROOF_MODE=4 idf.py build       # QSPI write-vs-readback discriminator
 SCALER_PROOF_MODE=6 idf.py build       # full readback_word double-read lag confirmation
 SCALER_PROOF_MODE=7 idf.py build       # display-indirect target color proof
+SCALER_PROOF_MODE=8 idf.py build       # READ_DONE completion-poll readback proof
 ```
 
 The mode-0 image explicitly writes `LOGIC_WIDTH=640`, `LOGIC_HEIGHT=480`, and
@@ -41,3 +42,11 @@ through the normal CRC8 path, and enables Mode 0 display fetch. The target
 regions should therefore appear in the palette-2 color if SDRAM contains the
 uploaded bytes; serial health is logged before upload, after upload, and after
 display enable.
+
+Mode 8 is the authorized proof-only completion-poll discriminator. It uploads
+the normal checkerboard at 4 MHz, writes the target address through `0x0326`
+and `0x0327`, polls `READ_STATUS` selector `0x0C` until bit 0 is high, then
+reads the result through the existing selector `0x08`. It repeats both target
+addresses eight times and records the returned words, poll counts, reserved-bit
+state, upload result, and transport health. It does not change production
+`libvdp` or use the new selector outside this proof mode.

@@ -8,6 +8,7 @@
  * SCALER_PROOF_MODE=5: sel=8 readback SCLK sweep (proof only)
  * SCALER_PROOF_MODE=6: full readback_word double-read lag confirmation (proof only)
  * SCALER_PROOF_MODE=7: display-indirect target-word color discriminator (proof only)
+ * SCALER_PROOF_MODE=8: READ_DONE completion-poll readback (proof only)
  */
 #include <inttypes.h>
 #include <stdbool.h>
@@ -37,11 +38,13 @@ enum {
     SEL_SDRAM = 0x08,
     SEL_TRANSPORT_HEALTH = 0x0A,
     SEL_CRC8_STATUS = 0x0B,
+    SEL_READ_DONE = 0x0C,
     BITMAP_BASE = 0x100000,
     ATTR_BASE = 0x110000,
     REG_SDRAM_READ_ADDR_LO = 0x0326,
     REG_SDRAM_READ_ADDR_HI = 0x0327,
     SWEEP_CYCLES = 30,
+    READ_DONE_POLL_LIMIT = 100,
 };
 
 static const char *TAG = "p4_scaler_proof";
@@ -160,6 +163,40 @@ static bool readback_word(uint32_t addr, uint32_t *value)
     if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
     *value = vdp_read_status(SEL_SDRAM);
     return vdp_last_error() == VDP_HOST_ERR_NONE;
+}
+
+static bool readback_word_wait_done(uint32_t addr, uint32_t *value,
+                                    unsigned *poll_count)
+{
+    vdp_host_set_speed_hz(2000000u);
+    vdp_reg_write(REG_SDRAM_READ_ADDR_LO, (uint16_t)addr);
+    if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
+    vdp_reg_write(REG_SDRAM_READ_ADDR_HI, (uint16_t)(addr >> 16));
+    if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
+
+    for (unsigned poll = 1u; poll <= READ_DONE_POLL_LIMIT; ++poll) {
+        const uint32_t status = vdp_read_status(SEL_READ_DONE);
+        const int error = vdp_last_error();
+        const bool done = (status & 0x1u) != 0u;
+        const bool reserved_zero = (status & ~0x1u) == 0u;
+        ESP_LOGI(TAG,
+                 "READ_DONE_POLL addr=0x%06" PRIX32 " poll=%u raw=0x%08" PRIX32
+                 " done=%u reserved_zero=%u err=%d",
+                 addr, poll, status, done ? 1u : 0u,
+                 reserved_zero ? 1u : 0u, error);
+        if (poll_count != NULL) *poll_count = poll;
+        if (error != VDP_HOST_ERR_NONE || !reserved_zero) return false;
+        if (done) {
+            *value = vdp_read_status(SEL_SDRAM);
+            return vdp_last_error() == VDP_HOST_ERR_NONE;
+        }
+        vTaskDelay(pdMS_TO_TICKS(1));
+    }
+
+    ESP_LOGE(TAG, "READ_DONE_TIMEOUT addr=0x%06" PRIX32 " polls=%u",
+             addr, READ_DONE_POLL_LIMIT);
+    if (poll_count != NULL) *poll_count = READ_DONE_POLL_LIMIT;
+    return false;
 }
 
 static bool readback_word_twice(uint32_t addr, uint32_t *first,
@@ -428,6 +465,42 @@ static void build_display_indirect_pattern(void)
              " byte_pattern=0xAA neighbors=word+-1");
 }
 
+static bool diagnostic_completion_poll(void)
+{
+    static const uint32_t addresses[] = { 0x100008u, 0x101000u };
+    bool pass = true;
+    unsigned total_polls = 0u;
+    unsigned max_polls = 0u;
+    ESP_LOGI(TAG,
+             "READ_DONE_START selector=0x%02X bit=0 polarity=high"
+             " arm=0x0327 data_selector=0x%02X repeats=8",
+             SEL_READ_DONE, SEL_SDRAM);
+    for (unsigned repeat = 0; repeat < 8u; ++repeat) {
+        for (unsigned i = 0; i < sizeof(addresses) / sizeof(addresses[0]); ++i) {
+            const uint32_t addr = addresses[i];
+            const uint32_t expected = bitmap_expected_word(addr);
+            uint32_t actual = 0u;
+            unsigned polls = 0u;
+            const bool read_ok = readback_word_wait_done(addr, &actual, &polls);
+            const bool word_pass = read_ok && actual == expected;
+            total_polls += polls;
+            if (polls > max_polls) max_polls = polls;
+            ESP_LOGI(TAG,
+                     "READ_DONE_READ repeat=%u addr=0x%06" PRIX32
+                     " expected=0x%08" PRIX32 " got=0x%08" PRIX32
+                     " polls=%u pass=%u err=%d",
+                     repeat, addr, expected, actual, polls,
+                     word_pass ? 1u : 0u, vdp_last_error());
+            if (!word_pass) pass = false;
+        }
+    }
+    ESP_LOGI(TAG,
+             "READ_DONE_RESULT pass=%u repeats=8 addresses=2 total_polls=%u"
+             " max_polls=%u",
+             pass ? 1u : 0u, total_polls, max_polls);
+    return pass;
+}
+
 static bool configure_display(void)
 {
     const vdp_mode0_bitmap_cfg_t bitmap = {
@@ -543,6 +616,22 @@ void app_main(void)
     vdp_mode0_set_layer_enable(0x0001u);
     pass &= health("INDIRECT_HEALTH_AFTER_ENABLE");
     ESP_LOGI(TAG, "INDIRECT_DISPLAY_READY pass=%u", pass ? 1u : 0u);
+    for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
+#endif
+
+#if SCALER_PROOF_MODE == 8
+    ESP_LOGI(TAG,
+             "READ_DONE_GEOMETRY bitmap_base=0x%06X attr_base=0x%06X"
+             " image_words=%u chunk_words=%u chunk_bytes=%u",
+             BITMAP_BASE, ATTR_BASE, IMAGE_WORDS, MAX_CHUNK_WORDS,
+             MAX_CHUNK_WORDS * 2u);
+    pass &= health("READ_DONE_HEALTH_BEFORE_UPLOAD");
+    pass &= upload_plane(BITMAP_BASE, s_bitmap, "bitmap");
+    pass &= upload_plane(ATTR_BASE, s_attr, "attr");
+    pass &= health("READ_DONE_HEALTH_AFTER_UPLOAD");
+    pass &= diagnostic_completion_poll();
+    pass &= health("READ_DONE_HEALTH_AFTER_READ");
+    ESP_LOGI(TAG, "READ_DONE_PROOF pass=%u", pass ? 1u : 0u);
     for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
 #endif
 
