@@ -2,7 +2,7 @@
 
 **Owner:** BronzeGate (firmware/flash/procedure) + BrightForge (bitstream/RTL support)  
 **PM:** TopazCliff  
-**Status:** BLOCKED — post-settle retry repeated the `0x22222222` anomaly; awaiting BrightForge/PM investigation (#14593)  
+**Status:** REVIEW — CS#-high reset diagnostic passed; ten-cycle reproof awaits PM authorization (#14600)
 **Opened:** 2026-07-30  
 **Started:** 2026-08-01  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Provide the hardware reproof gate for the `2bpp-bank-completion-rtl` sim+PnR hardening.
@@ -122,9 +122,36 @@ If the firmware test resolves the anomaly, the Lane 1 procedure will be updated
 with a mandatory CS#-high pre-flight step. If it does not resolve it, the lane
 remains blocked pending BrightForge's next assessment.
 
+## CS#-high diagnostic result (2026-08-01)
+
+BronzeGate executed the PM-authorized proof-only test from #14600. Commit
+`08ee736a` drives ESP32-P4 GPIO20 (CS_N) high before SPI initialization, holds
+it high for 1200 ms, and then performs the first magic and transport-health
+reads. On the preserved `a5a047a2` SRAM-loaded bitstream, the diagnostic
+returned:
+
+```text
+magic=0x51560002
+health_raw=0x00000000
+CS_IDLE_PROOF_RESULT pass=1
+```
+
+This confirms the CS#-reset hypothesis for the reproduced failure. The
+diagnostic does not count toward the ten-cycle gate and does not authorize the
+full reproof without the next PM direction. Evidence is recorded in
+`PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/`:
+
+- Firmware/build: `firmware/CS_IDLE_BUILD.md`; source commit `08ee736a`.
+- Serial result: `firmware/cs_idle_serial.log`, SHA-256
+  `e3f8000d3b4cb778249888b7b6bf8510ad3a386a823c86a4b8f68457a21a9a91`.
+- Procedure/result: `hardware/CS_IDLE_RESULTS.md`.
+
 ## Current Action
 
-**BronzeGate:** the authorized retry was attempted and the lane is now paused pending review of the repeated post-settle magic anomaly.
+**BronzeGate:** the CS#-high diagnostic passed. Hold for PM authorization before
+starting the ten-cycle reproof; if authorized, make the CS#-high pre-flight a
+mandatory part of every cycle and retain the existing health/readback abort
+criteria.
 
 1. Flash `fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs` (SHA-256 `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`) via explicit SRAM load.
 2. Wait **≥1 second** after `openFPGALoader` reports 100% / success before resetting or connecting to the ESP32. LED0 lit (PLL locked) is the ready indicator; ~1 s is ample for the QSPI transport.
