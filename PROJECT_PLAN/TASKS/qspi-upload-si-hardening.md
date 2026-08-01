@@ -200,14 +200,50 @@ Issue `READ_STATUS sel=8` **twice** for the same target address and return the
 second value. If the second read returns `0x55555555` at `0x100008`, the SDRAM
 writes are proven correct and the `sel=8` lag is the sole culprit.
 
+## BronzeGate confirmation attempts (2026-08-01)
+
+BronzeGate implemented two proof-only diagnostics in commits `3b246fc7` and
+`619f76b8` (the latter fixes the overlapping `memcpy` → `memmove`):
+
+### Double-read diagnostic (Mode 6)
+- Protocol: for each target address, issue `READ_STATUS sel=8` twice and report
+  both values.
+- Result: **both first and second reads returned `0x00` every time** across
+  8 repeats × 6 addresses, with clean health (`raw=0`, `overflow=0`,
+  `malformed=0`).
+- Interpretation: the proposed 1-read lag **was not confirmed by this test**.
+  Either the lag does not manifest in this configuration, the second read also
+  re-triggered the same artifact, or the root cause lies elsewhere.
+
+### Display-indirect readback (Mode 7)
+- Protocol: paint the target words (`0x100008`, `0x101000`) with palette index
+  `0xAA` and render the bitmap in normal Mode 0.
+- Result: **no distinctive palette-2 block was visible** in three identical
+  720×480 HDMI captures; images remained grayscale/cyan.
+- Interpretation: ambiguous/negative. The display path adds confounders (color
+  LUT, scaler, capture), so this test cannot alone prove SDRAM contents.
+
+### Status after attempts
+The write-side vs readback-side fork remains open. The deterministic zeros at
+`0x100008` and `0x101000` have survived:
+- CRC8 + retry,
+- stable re-read at 2 MHz,
+- SCLK sweep down to 0.25 MHz,
+- workload-independent refresh/fetch cross-check,
+- faithful RTL sim of the transport/bridge/controller path,
+- double-read `sel=8` diagnostic,
+- display-indirect readback.
+
 ### Next steps
 
-1. BronzeGate implements the double-read diagnostic and reports results.
-2. BronzeGate fixes the `memcpy` overlap in `write_frame()`.
-3. BrightForge reviews the `sel=8` CDC timing and confirms the one-read lag from
-   the RTL side.
-4. PM decides whether to fix the diagnostic readback path or document the lag
-   and retire `sel=8` as scheduled.
+1. **BrightForge:** draft a minimal Rule-19 diagnostic interface proposal
+   (e.g., a single-word SDRAM read register accessible through the existing
+   QSPI register space) that avoids the `sel=8` CDC path entirely.
+2. **BronzeGate:** attempt physical QSPI/SDRAM bus capture (option 3) if
+   instrumentation is available; otherwise prepare firmware support for the
+   Rule-19 diagnostic interface.
+3. **TopazCliff:** run the Rule 19 checkpoint if option 4 is selected.
+4. No production RTL/firmware change until the fork is resolved.
 
 ---
 
