@@ -273,17 +273,35 @@ armed by the write to `REG_SDRAM_READ_ADDR_HI` (0x0327), not by `sel=8` polling
 Physical QSPI bus capture is infeasible on the current host (no sigrok/PulseView,
 Saleae, DSView, or logic-analyzer tooling available).
 
+### Clean corrected rerun results (2026-08-01)
+
+BronzeGate debugged the TX failure (it did not reproduce on rebuild/flash) and
+ran the corrected Mode 6 cleanly:
+
+- Uploads completed at 4 MHz; health `raw=0`, `overflow=0`, `malformed=0`.
+- 8 repeats × 6 addresses using the full `readback_word()` twice per address.
+- At `0x100008`, `0x10000C`, `0x101000`, `0x101004`: **both first and second
+  calls returned `0x00000000` every time**.
+- Dummy-neighbor pairs (`0x100004→0x100008`, `0x100FFC→0x101000`):
+  `lag_matches=16/16`, `target_matches=0/16`.
+- Result: `pass=0`. The simple 1-read-lag model predicts second-call
+  `0x55555555` at the targets; this did not happen, so the fork remains open.
+
+Physical QSPI/SDRAM bus capture remains infeasible on the current host.
+
 ### Next steps
 
-1. **BronzeGate:** debug the `VDP_HOST_ERR_TX` failure at offset 1518 and rerun
-   the corrected Mode 6 cleanly. Do not jump to Rule 19 until at least one clean
-   corrected run is attempted.
-2. **BrightForge:** standby with the option-4 diagnostic-interface spec; if the
-   clean rerun still cannot confirm the fork, we will convene the Rule 19
-   checkpoint on that spec.
-3. **TopazCliff:** run Rule 19 checkpoint only if the corrected double-read is
-   still blocked after TX-failure debugging.
-4. No production RTL/firmware change until the fork resolves.
+1. **TopazCliff:** convene the Rule 19 checkpoint on BrightForge's option-4
+   completion-poll readback surface (one new host-visible status bit, no new
+   command).
+2. **BrightForge + BronzeGate:** independently review and approve/reject the
+   option-4 spec.
+3. **BrightForge:** implement the approved option-4 surface and a focused CDC
+   co-sim showing the before/after handoff.
+4. **BronzeGate:** build proof firmware, run the option-4 HW test, and report
+   whether the target addresses read back correctly.
+5. No production RTL/firmware change until both approvals are recorded and the
+   fix survives proof.
 
 ---
 
