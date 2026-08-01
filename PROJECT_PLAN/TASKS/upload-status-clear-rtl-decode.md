@@ -3,7 +3,7 @@
 **Owner:** BrightForge (RTL clear decode) + BronzeGate (firmware validation)  
 **PM:** TopazCliff  
 **Verifier:** CyanPeak (code-to-spec review)  
-**Status:** OPEN — waiting on BrightForge effort/timeline estimate  
+**Status:** OPEN — BronzeGate firmware sign-off complete; waiting on BrightForge RTL sign-off and implementation
 **Opened:** 2026-08-01  
 **Trigger:** External review of Lane 1 (`2bpp-bank-completion-hw-reproof`) flagged that uncleared upload-bridge sticky bits could derail automated multi-cycle reproofs. The firmware helper already issues `0x0323`, but the RTL decoder is missing (`FULL-DOC-AUDIT-151` finding #4).
 
@@ -110,9 +110,12 @@ invalidate the bank-completion hardware reproof.
 
 ## Next Action
 
-**BrightForge and BronzeGate:** Review and approve
+**BrightForge:** Review and approve
 `PROJECT_PLAN/INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md`. Reply to the
-mail thread with sign-off. Once both approve, BrightForge may begin
-implementation (estimated ~0.5–1 day RTL + sim + PnR per BrightForge's earlier
+mail thread with sign-off. BronzeGate has completed the firmware review and
+approved the checkpoint in #14597, confirming zero firmware changes are
+required: the existing `0x0323` address, bit-2/3/4 masks, and QSPI+i80 helper
+writes already match the contract. Once BrightForge approves, implementation
+may begin (estimated ~0.5–1 day RTL + sim + PnR per BrightForge's earlier
 note). This lane can proceed in parallel with the Lane 1 investigation because
 it uses a separate bitstream.
