@@ -1,7 +1,7 @@
 /*
  * ESP32-P4 scaler hardware-proof host.
  *
- * SCALER_PROOF_MODE=0: 1x checkerboard regression (explicit 640x480 / 1x reset)
+ * SCALER_PROOF_MODE=0: 1x checkerboard regression with CS#-high pre-flight
  * SCALER_PROOF_MODE=2: 2x centered checkerboard, logic 300x220
  * SCALER_PROOF_MODE=3: 3x centered checkerboard, logic 200x150
  * SCALER_PROOF_MODE=4: QSPI write-vs-readback discriminator (proof only)
@@ -53,7 +53,7 @@ static const char *TAG = "p4_scaler_proof";
 static uint16_t s_bitmap[IMAGE_WORDS];
 static uint16_t s_attr[IMAGE_WORDS];
 
-#if SCALER_PROOF_MODE == 9
+#if SCALER_PROOF_MODE == 0 || SCALER_PROOF_MODE == 9
 static void hold_qspi_cs_high(void)
 {
     /* Set the output latch before the settle delay; SPI2 takes ownership later. */
@@ -556,7 +556,7 @@ static bool configure_display(void)
 void app_main(void)
 {
     bool pass = true;
-#if SCALER_PROOF_MODE == 9
+#if SCALER_PROOF_MODE == 0 || SCALER_PROOF_MODE == 9
     hold_qspi_cs_high();
 #endif
     vdp_host_init();
