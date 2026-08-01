@@ -10,7 +10,7 @@ SCALER_PROOF_MODE=0 idf.py build       # 1x checkerboard regression
 SCALER_PROOF_MODE=2 idf.py build       # 2x centered checkerboard
 SCALER_PROOF_MODE=3 idf.py build       # 3x centered checkerboard
 SCALER_PROOF_MODE=4 idf.py build       # QSPI write-vs-readback discriminator
-SCALER_PROOF_MODE=6 idf.py build       # sel=8 double-read lag confirmation
+SCALER_PROOF_MODE=6 idf.py build       # full readback_word double-read lag confirmation
 SCALER_PROOF_MODE=7 idf.py build       # display-indirect target color proof
 ```
 
@@ -27,10 +27,12 @@ does not change the production transport or register contract.
 
 Mode 6 is a proof-only diagnostic for the suspected one-read pipeline lag in
 the existing `sel=8` debug readback. It uploads the normal checkerboard, then
-issues `READ_STATUS sel=8` twice for each target and immediate neighbor; the
-first value is logged as the pipeline-lag candidate and the second value is
-the confirmation result. It does not change the production transport or
-register contract.
+calls the complete `readback_word()` routine twice for each target and
+immediate neighbor. Each call rewrites the SDRAM read address and arms a fresh
+read before polling `sel=8`; the second call is the confirmation result. It
+also performs a dummy-neighbor read followed by a target read to expose a
+one-word lag pattern. It does not change the production transport or register
+contract.
 
 Mode 7 is the authorized display-indirect discriminator. It changes the
 proof-only bitmap asset at the two target words (`0x100008`, `0x101000`) and

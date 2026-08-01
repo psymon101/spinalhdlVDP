@@ -6,7 +6,7 @@
  * SCALER_PROOF_MODE=3: 3x centered checkerboard, logic 200x150
  * SCALER_PROOF_MODE=4: QSPI write-vs-readback discriminator (proof only)
  * SCALER_PROOF_MODE=5: sel=8 readback SCLK sweep (proof only)
- * SCALER_PROOF_MODE=6: sel=8 double-read pipeline-lag confirmation (proof only)
+ * SCALER_PROOF_MODE=6: full readback_word double-read lag confirmation (proof only)
  * SCALER_PROOF_MODE=7: display-indirect target-word color discriminator (proof only)
  */
 #include <inttypes.h>
@@ -165,14 +165,9 @@ static bool readback_word(uint32_t addr, uint32_t *value)
 static bool readback_word_twice(uint32_t addr, uint32_t *first,
                                 uint32_t *second)
 {
-    vdp_host_set_speed_hz(2000000u);
-    vdp_reg_write(REG_SDRAM_READ_ADDR_LO, (uint16_t)addr);
-    vdp_reg_write(REG_SDRAM_READ_ADDR_HI, (uint16_t)(addr >> 16));
-    if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
-    *first = vdp_read_status(SEL_SDRAM);
-    if (vdp_last_error() != VDP_HOST_ERR_NONE) return false;
-    *second = vdp_read_status(SEL_SDRAM);
-    return vdp_last_error() == VDP_HOST_ERR_NONE;
+    /* Each full call rewrites REG_SDRAM_READ_ADDR_HI and arms a new read. */
+    if (!readback_word(addr, first)) return false;
+    return readback_word(addr, second);
 }
 
 static uint32_t bitmap_expected_word(uint32_t addr);
@@ -374,6 +369,48 @@ static bool diagnostic_double_reads(void)
     return pass;
 }
 
+static void diagnostic_dummy_then_target(void)
+{
+    static const struct {
+        uint32_t dummy;
+        uint32_t target;
+    } pairs[] = {
+        { 0x100004u, 0x100008u },
+        { 0x100FFCu, 0x101000u },
+    };
+    unsigned lag_matches = 0u;
+    unsigned target_matches = 0u;
+    for (unsigned repeat = 0; repeat < 8u; ++repeat) {
+        for (unsigned i = 0; i < sizeof(pairs) / sizeof(pairs[0]); ++i) {
+            uint32_t dummy_value = 0u;
+            uint32_t target_value = 0u;
+            const uint32_t dummy_expected = bitmap_expected_word(pairs[i].dummy);
+            const uint32_t target_expected = bitmap_expected_word(pairs[i].target);
+            const bool dummy_ok = readback_word(pairs[i].dummy, &dummy_value);
+            const bool target_ok = readback_word(pairs[i].target, &target_value);
+            const bool lag_match = target_ok && target_value == dummy_expected;
+            const bool target_match = target_ok && target_value == target_expected;
+            if (lag_match) ++lag_matches;
+            if (target_match) ++target_matches;
+            ESP_LOGI(TAG,
+                     "DUMMY_TARGET repeat=%u dummy=0x%06" PRIX32
+                     " target=0x%06" PRIX32 " dummy_expected=0x%08" PRIX32
+                     " dummy_got=0x%08" PRIX32 " target_expected=0x%08" PRIX32
+                     " target_got=0x%08" PRIX32 " lag_match=%u target_match=%u"
+                     " ok=%u/%u err=%d",
+                     repeat, pairs[i].dummy, pairs[i].target, dummy_expected,
+                     dummy_value, target_expected, target_value,
+                     lag_match ? 1u : 0u, target_match ? 1u : 0u,
+                     dummy_ok ? 1u : 0u, target_ok ? 1u : 0u,
+                     vdp_last_error());
+        }
+    }
+    ESP_LOGI(TAG,
+             "DUMMY_TARGET_RESULT repeats=8 pairs=2 lag_matches=%u"
+             " target_matches=%u",
+             lag_matches, target_matches);
+}
+
 static void build_display_indirect_pattern(void)
 {
     uint8_t *bitmap = (uint8_t *)s_bitmap;
@@ -486,6 +523,7 @@ void app_main(void)
     pass &= upload_plane(ATTR_BASE, s_attr, "attr");
     pass &= health("DOUBLE_READ_HEALTH_AFTER_UPLOAD");
     pass &= diagnostic_double_reads();
+    diagnostic_dummy_then_target();
     ESP_LOGI(TAG, "DOUBLE_READ_DONE pass=%u", pass ? 1u : 0u);
     for (;;) vTaskDelay(pdMS_TO_TICKS(1000));
 #endif
