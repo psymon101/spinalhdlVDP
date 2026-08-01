@@ -2,7 +2,7 @@
 
 **Owner:** BrightForge (RTL) + BronzeGate (firmware)  
 **PM:** TopazCliff  
-**Status:** BLOCKED — discriminator selects stable SDRAM/write-path zeros; pending PM/BrightForge three-way scope agreement (#14509–#14512)
+**Status:** REVIEW — option-4 READ_DONE RTL+CDC co-sim+3-build STA complete (`5ef5db2a`); hardware-ready gate delivered (#14576); awaiting PM flash authorization for the mode-8 HW run
 **Opened:** 2026-07-30  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Address the residual intermittent silent QSPI upload corruption observed in `HAM6 removal + 2bpp indexed replacement` / `QSPI-SI-CEILING-183` at the canonical 4 MHz bulk-upload ceiling.
 
@@ -312,9 +312,16 @@ HW test.
 
 1. **BrightForge:** implement option-4 RTL (`READ_DONE` status bit + hardened
    `dbgResultPixArea` latch), add CDC co-sim proof, build bitstream (3-build
-   STA, TNS=0, no regression).
+   STA, TNS=0, no regression). **DONE in commit `5ef5db2a` (gen `ff01ab71`);
+   `sbt compile` PASS; `ReadDoneCdcSim` ALL PASS (ideal-2FF caveat); 3-build STA
+   TNS=0 all clocks, BSRAM 40/46 (no new). Authoritative bitstream
+   `fpga/tang20k/impl/pnr/project_0c218b9a_readdone.fs` SHA-256
+   `0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2`
+   (preserved read-only). Hardware-ready gate delivered #14576; awaiting PM flash
+   authorization.**
 2. **BronzeGate:** build proof firmware using arm → poll `READ_DONE` → read
-   result, and run HW test at `0x100008`/`0x101000`.
+   result, and run HW test at `0x100008`/`0x101000`. **Firmware `SCALER_PROOF_MODE=8`
+   built in `158b9d7c` (#14573); holds for PM flash authorization (gate #14574 / delivery #14576).**
 3. **TopazCliff:** track proof and pivot lane scope based on the result:
    - `0x55555555` ⇒ SDRAM writes are clean; defect is in `sel=8`/readback.
    - `0x00000000` ⇒ reopen physical write-side investigation with the two

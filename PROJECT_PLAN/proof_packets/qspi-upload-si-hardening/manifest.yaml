@@ -78,9 +78,37 @@ read_done_proof:
   repeats: 8
   upload_clock_hz: 4000000
   read_clock_hz: 2000000
-  hardware_status: pending_matching_bitstream_and_flash_authorization
+  hardware_status: gate_delivered_awaiting_pm_flash_authorization
+  brightforge_rtl:
+    rtl_source_commit: 5ef5db2a
+    rtl_branch: brightforge/read-done-diag
+    generated_rtl: hw/gen/top_tang20k.v
+    generated_rtl_sha256: ff01ab712a1758b1844a60459cbfaf2f2e628bf20ed45bcb2ae77e13ede5bccb
+    sbt_compile: PASS
+    cdc_cosim: ReadDoneCdcSim
+    cdc_cosim_result: ALL_PASS
+    cdc_cosim_caveat: Verilator models BufferCC as ideal 2-FF (no metastability); proves handshake logic, not real-timing margin. HW is the arbiter.
+    sta_3build:
+      task: bj9ocj9x9
+      builds: 3
+      tns_all_clocks: 0
+      bsram: 40/46
+      no_new_bsram: true
+      no_regression: true
+      build_shas:
+        - 05bc5ede09b2cbba21139dd8cae75ec2ad34f40c0fc765fcddc774f2bfcbdaeb
+        - 6fd0a81f17db852381096d0d3e491c74ae789064530dcabf016418629ebe1353
+        - 0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2
+    authoritative_bitstream: fpga/tang20k/impl/pnr/project_0c218b9a_readdone.fs
+    authoritative_bitstream_sha256: 0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2
+    fmax_tightest: clk_pixel 29.101MHz @ 25.200MHz (+15.5%)
+    tool: Gowin V1.9.12.01
+    device: GW2AR-LV18QN88C8/I7
   artifacts:
     - firmware/READ_DONE_BUILD.md
+    - simulation/READ_DONE_CDC_COSIM.md
+    - simulation/read_done_cdc_cosim.log
+    - synthesis/STA_3BUILD_SUMMARY.md
 transport:
   bulk_clock_hz: 4000000
   control_clock_hz: 2000000
