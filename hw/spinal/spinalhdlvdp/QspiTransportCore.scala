@@ -54,6 +54,12 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
     // via sel=8), so a 2FF BufferCC into the SCLK responder is safe — same justification as
     // the sel=9 loopback. Lets the host split QSPI-upload corruption from downstream defects.
     val debug_sdram_data = in Bits(32 bits)
+    // Lane qspi-upload-si-hardening option-4 (#14568/#14574): host-pollable completion flag for the
+    // sel=8 SDRAM debug read. Generated in the pixel domain (dbgResultPixArea), cleared on the 0x0327
+    // arm write, set only after the settled result latch. Surfaced high-true at READ_STATUS sel=0x0C
+    // bit 0 so the host arms → polls sel=0x0C until 1 → reads the coherent word via sel=8 (kills the
+    // 1-read CDC lag on the sel=8 result). A single-bit level → a 2FF BufferCC is safe.
+    val debug_read_done = in Bool() default False
   }
 
   // DIAG #14260 sim integration: allow a parent to supply the sys clock domain so the
@@ -111,6 +117,8 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
     // sel=8 SDRAM readback: quasi-static debug word (armed via 0x0326/0x0327), 2FF-synced
     // into the SCLK responder — same static-value CDC justification as the loopback above.
     val dbgSdramCC = BufferCC(io.debug_sdram_data, B(0, 32 bits))
+    // option-4 (#14568/#14574): sel=0x0C READ_DONE completion flag (single-bit level, 2FF-safe).
+    val readDoneCC = BufferCC(io.debug_read_done, False)
     // header parity error: sticky flag + running count (survive CS# on the global reset)
     val hdrErrSticky = Reg(Bool()) init False
     val hdrErrCount  = Reg(UInt(16 bits)) init 0
@@ -185,6 +193,7 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
     is(U(9, 8 bits)) { rxWordSel := loop.lastDataCC ## loop.lastAddrCC.asBits }        // loopback {data,addr}
     is(U(10, 8 bits)){ rxWordSel := B(0, 30 bits) ## push.malformed ## push.overflow } // transport health
     is(U(11, 8 bits)){ rxWordSel := B(0, 15 bits) ## loop.crcErrSticky ## loop.crcErrCount.asBits } // CRC8 {sticky, count} (#14274)
+    is(U(12, 8 bits)){ rxWordSel := B(0, 31 bits) ## loop.readDoneCC }                  // READ_DONE bit0 high-true (option-4 #14568/#14574; poll then read sel=8)
     default          { rxWordSel := B(0, 32 bits) }
   }
   slave.io.rxWord := rxWordSel

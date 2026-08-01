@@ -582,6 +582,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     // 2bpp banding). qspiCore CDCs it into its SCLK responder (quasi-static, 2FF-safe).
     val debugSdramDataPix = Bits(32 bits)
     qspiCore.io.debug_sdram_data := debugSdramDataPix
+    // option-4 (#14568/#14574): READ_DONE completion flag (pixel domain), driven from dbgResultPixArea
+    // and surfaced at READ_STATUS sel=0x0C bit0. Cleared on the 0x0327 arm, set after the settled latch.
+    val debugReadDonePix = Bool()
+    qspiCore.io.debug_read_done := debugReadDonePix
 
     // === Lane P22: i80 reg-read access to the SDRAM debug readback surface =====
     // P21's i80 reg-read was a last-write loopback. P22 needs byte-exact SDRAM
@@ -1253,9 +1257,26 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val resultToggleSync = BufferCC(dbgReadArea.resultToggle, False)
     val resultTogglePrev = RegNext(resultToggleSync) init False
     val dataSync         = BufferCC(dbgReadArea.dataReg, B(0, 32 bits))
+    val edge             = resultToggleSync =/= resultTogglePrev
+    // option-4 CDC hardening (lane qspi-upload-si-hardening #14568/#14574): the source flips
+    // `resultToggle` only ~1 sdram cycle after `dataReg` settles; that <1-pixel-cycle lead can be
+    // absorbed by the slower pixel clock (and 2FF metastability can invert the resolution order),
+    // so latching `dataSync` ON the toggle edge risks grabbing the PRIOR value — the confirmed
+    // 1-read lag on the sel=8 result (dummy-neighbor lag_matches=16/16, HW #14563). Fix: DELAY the
+    // latch two pixel cycles after the edge so `dataSync` is fully settled, and derive READ_DONE
+    // from that settled latch. NOTE: Verilator models BufferCC as ideal 2-FF (no metastability), so
+    // the co-sim shows logical correctness but the HW test is the arbiter of the real-timing margin.
+    val edgeReady        = RegNext(RegNext(edge, False), False)   // 2-cycle settle after the edge
     val dbgResultHold    = Reg(Bits(32 bits)) init 0
-    when(resultToggleSync =/= resultTogglePrev) { dbgResultHold := dataSync }
+    when(edgeReady) { dbgResultHold := dataSync }
     pixelArea.debugSdramDataPix := dbgResultHold
+
+    // READ_DONE (sel=0x0C bit0, high-true): cleared on the 0x0327 arm write, set after the settled
+    // latch. Arm-clear wins if coincident (a fresh arm supersedes a stale completion).
+    val readDone = Reg(Bool()) init False
+    when(edgeReady)            { readDone := True }
+    when(pixelArea.dbgHiWrite) { readDone := False }
+    pixelArea.debugReadDonePix := readDone
   }
 
   // Task 44b iter 6: gate BitmapRowFetch init on tile-fetch bootDone
