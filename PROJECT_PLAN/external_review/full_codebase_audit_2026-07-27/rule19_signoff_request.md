@@ -52,7 +52,7 @@ Decode moved into `VdpTop.scala` so both i80 and QSPI writes hit the same state.
 | 4 | `RESERVED` | Must read 0; W1C write ignored |
 | 5 | `RESERVED` | Must read 0; W1C write ignored |
 
-Clear mask for `0x0323`: bits 2 and 3 only. Bits 4/5 remain RESERVED-0, matching the existing `INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md`. A future lane may define bit 4 (`TXN_DROPPED`) only after adding a backing detector.
+Clear mask for `0x0323`: bits 2 and 3 only. Bits 4/5 remain RESERVED-0, matching the existing `INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md`. A future lane may define bit 4 only after adding a backing detector.
 
 ### 4. i80 status read path
 
@@ -142,7 +142,7 @@ Firmware plan: mail #14631; no separate plan commit.
 
 - [x] BrightForge approval recorded.
 - [x] BronzeGate approval recorded.
-- [ ] Lane 1 reproof closed or explicitly paused by PM.
+- [x] Lane 1 reproof explicitly paused by PM (discard-read prime authorized; campaign resumes on `a5a047a2`).
 - [x] Lane 2 officially paused/folded.
 - [ ] Cleanup branch created from current active branch.
 - [ ] SpinalHDL simulation passes.
@@ -164,4 +164,4 @@ Firmware plan: mail #14631; no separate plan commit.
 
 - Lane 1 (`2bpp-bank-completion-hw-reproof`) remains frozen. No RTL/firmware changes may be committed beneath it.
 - This cleanup is larger than the original Lane 2 scope and replaces it.
-- `TXN_DROPPED` (bit 4) is intentionally deferred until a detector is designed and authorized.
+- Bit 4 is intentionally deferred until a detector is designed and authorized.

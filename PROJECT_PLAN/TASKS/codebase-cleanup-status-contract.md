@@ -68,7 +68,7 @@ Reads return the current value; writes are W1C clear.
 | 4 | `RESERVED` | Must read 0; W1C write ignored |
 | 5 | `RESERVED` | Must read 0; W1C write ignored |
 
-Clear mask for `0x0323`: bits 2 and 3. Bit 4 (`TXN_DROPPED`) is deferred until a detector is designed and authorized.
+Clear mask for `0x0323`: bits 2 and 3. Bits 4/5 remain RESERVED-0; a future lane may define bit 4 only after adding a backing detector.
 
 ### i80 parity
 
@@ -125,7 +125,7 @@ The following are **out of scope** for this cleanup lane:
 ## Dependencies / Blockers
 
 - **Rule 19 sign-off:** COMPLETE (BrightForge #14629, BronzeGate #14631, External AI).
-- **Lane 1:** remains BLOCKED on its own diagnostic discriminator; cleanup must not commit RTL/firmware into the Lane 1 authority bitstream.
+- **Lane 1:** explicitly paused by PM pending BronzeGate's discard-read prime reproof; cleanup proceeds independently and must not commit RTL/firmware into the Lane 1 authority bitstream.
 - **Lane 2:** `upload-status-clear-rtl-decode` is PAUSED and folded into this lane; do not commit its option-1 local decode.
 
 ---
@@ -134,7 +134,7 @@ The following are **out of scope** for this cleanup lane:
 
 - [x] Rule 19 written approval recorded.
 - [x] External AI approval recorded.
-- [ ] Lane 1 closed or explicitly paused by PM.
+- [x] Lane 1 explicitly paused by PM (discard-read prime authorized; campaign resumes on `a5a047a2`).
 - [x] Lane 2 officially paused/folded.
 - [ ] Cleanup branch created from current active branch.
 - [ ] SpinalHDL sim PASS (full affected regression suite).
