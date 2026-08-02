@@ -63,7 +63,7 @@ Do not compute this as "N clock cycles" because host SCK rates vary by platform.
 Visual output is only valid if the upload bridge sticky error bits remain clear.
 **Procedure:** Poll `vdp_last_error()` after bursts. On legacy SPI builds, clear error bits with `vdp_clear_upload_status()` if set and retrust only when `vdp_last_error() == 0` throughout setup (this corresponds to `LEGACY_SPI_ERROR` / sticky bit 3 / `sel=4`).
 
-**Current limitation:** On the canonical i80 bitstream, `vdp_clear_upload_status()` issues the documented `0x0323` write, but the current RTL does not decode that address, so the sticky bits are not actually cleared until the RTL fix lands (see FIDELITY-6 and `MODE0_REGISTER_BUS_SPEC.md` §3.1.2).
+**Current limitation:** On bitstreams built before the `codebase-cleanup-status-contract` lane, `vdp_clear_upload_status()` issues the documented `0x0323` write, but the RTL does not decode that address, so the sticky bits are not actually cleared. On bitstreams built after that lane, `0x0323` is decoded centrally in `VdpTop.scala` and the sticky bits clear normally. See FIDELITY-6 and `MODE0_REGISTER_BUS_SPEC.md` §3.1.2.
 
 ### FIDELITY-3: Pico 2 / RP2350 Authority Notes
 
@@ -88,18 +88,21 @@ Visual output is only valid if the upload bridge sticky error bits remain clear.
 
 ### FIDELITY-6: `vdp_read_status()` is not supported on the i80 backend
 
-**Fact:** The canonical ESP32-S3 host uses the i80 parallel interface. The i80 RTL decoder (`I80HostInterface.scala`) currently accepts only opcodes `0x00` (register write), `0x01` (register read), and `0x02` (SDRAM block write). It does **not** decode the `READ_STATUS` opcode (`0x04`).
+**Fact:** The canonical ESP32-P4 host uses the QSPI transport, where `vdp_read_status()` issues the `READ_STATUS` opcode (`0x04`). The i80 RTL decoder (`I80HostInterface.scala`) does **not** decode opcode `0x04`, so `vdp_read_status()` is not available on i80 builds.
 
 **Implication:**
-- `vdp_read_status()` works correctly only on legacy SPI builds.
+- `vdp_read_status()` works correctly only on QSPI (and legacy SPI) builds.
 - On i80/ESP32-S3 builds, `vdp_read_status()` returns undefined data and does not reflect VDP state.
-- Several ESP32-S3 example sketches still call `vdp_read_status()` for debug prints; those prints are meaningful only when the sketch is built for the legacy SPI backend.
+- i80 hosts must use memory-mapped register reads instead.
 
 **Workaround:** On i80, poll status through normal register reads:
 - Sticky status → `vdp_reg_read(0x0320)` (or write-1-to-clear with `vdp_reg_write(0x0320, mask)`).
-- Upload status is not yet available over i80; `vdp_clear_upload_status()` issues the documented `0x0323` write, but the current bitstream does not decode that address (see `MODE0_REGISTER_BUS_SPEC.md` §3.1.2).
+- Upload status → `vdp_reg_read(0x0323)`.
+- Upload sticky clear → `vdp_clear_upload_status()` writes `0x0323` with the W1C mask (bits 2 and 3).
 
-**Fix status:** Documented. RTL implementation tracked under `FULL-DOC-AUDIT-151` / escalated to BrightForge.
+On bitstreams built before the `codebase-cleanup-status-contract` lane, `0x0323` is not decoded and upload sticky bits clear only at POR or bridge reset. On bitstreams built after that lane, both QSPI and i80 writes to `0x0323` are decoded centrally in `VdpTop.scala`. See `MODE0_REGISTER_BUS_SPEC.md` §2.3 and §3.1.2.
+
+**Fix status:** Implemented by the `codebase-cleanup-status-contract` lane.
 
 ---
 

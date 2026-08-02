@@ -65,7 +65,15 @@ The primary host interface is an 8-bit parallel Intel-8080-style bus driven by a
 - `DC#` low = opcode or address byte; `DC#` high = data byte.
 - `WR#` rising edge latches host output; `RD#` rising edge samples host input.
 
-**Readback semantics:** Most register reads return the **last value written to that address** (loopback). This is sufficient for host shadow verification but is not a full register-file readback. `0x0328`/`0x0329` return armed SDRAM debug data. Status snapshots use the `READ_STATUS` selector mechanism described in §5 on legacy QSPI builds; the i80 RTL path does not currently implement `READ_STATUS`.
+**Readback semantics:** Most register reads return the **last value written to that address** (loopback). This is sufficient for host shadow verification but is not a full register-file readback. `0x0328`/`0x0329` return armed SDRAM debug data.
+
+**Status readback on i80:** The i80 RTL path does not implement the `READ_STATUS` opcode (`0x04`). Instead, i80 hosts read status through the memory-mapped status registers:
+- `0x0320` read → `STATUS_STICKY` (same bit layout as `READ_STATUS` sel `0x05`).
+- `0x0323` read → upload status (same bit layout as `READ_STATUS` sel `0x06`).
+- `0x0321` read → sticky IRQ enable mask.
+- `0x0322` read → sprite-sprite collision mask.
+
+These reads are ordinary register reads and are not available on the ESP32-P4 QSPI backend, where `vdp_reg_read()` is write-only. QSPI hosts must use `READ_STATUS` (§5).
 
 ### 2.4 QSPI Transport Performance (Bench-validated 2026-05-23) — Retired
 The QSPI transport performance below is historical; QSPI is no longer the canonical Tang Nano 20K host path. See `archive/QSPI_HOST_CONTROL_PLAN.md` for the full QSPI history.
@@ -171,7 +179,7 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 >
 > In HAM6 mode (`BPP = 0b11`) the attribute plane is **not used**. Only `BITMAP_BASE` and `BITMAP_STRIDE` are fetched; `ATTR_BASE` and `ATTR_STRIDE` are don't-care. The HAM source is one byte per pixel, so a 320-pixel row uses a stride of 320 bytes.
 
-### 3.1.1 STATUS_STICKY bit layout (`0x0320`, write-1-to-clear)
+### 3.1.1 STATUS_STICKY bit layout (`0x0320`, write-1-to-clear; also `READ_STATUS` sel `0x05`)
 
 | Bit | Name | Source | Landed |
 |---|---|---|---|
@@ -189,25 +197,27 @@ All addresses below are 15-bit; high bit is always 0 within current use.
 
 `STATUS_ENABLE` (`0x0321`) is the per-bit IRQ mask using the same bit layout; commit is safe-boundary at `hCounter === 0`.
 
-### 3.1.2 UPLOAD_STATUS (READ_STATUS sel=6) and `UPLOAD_STATUS_CLEAR` (`0x0323`, W1C)
+### 3.1.2 UPLOAD_STATUS (`READ_STATUS` sel `0x06`) and `UPLOAD_STATUS_CLEAR` (`0x0323`, W1C)
 
-ACK/NAK lane (#11500 / #11508 / #11557). The bridge's upload status is surfaced on READ_STATUS sel=6 and is **physically separate** from `STATUS_STICKY` (`0x0320`) — a `0x0320` write does NOT clear it.
+The upload-bridge status is surfaced on `READ_STATUS` sel `0x06` and is **physically separate** from `STATUS_STICKY` (`0x0320`) — a `0x0320` write does NOT clear it.
 
-| sel=6 byte0 bit | Name | Semantics | Host-clearable |
+| sel `0x06` byte0 bit | Name | Semantics | Host-clearable |
 |---|---|---|---|
-| 0 | `upload_busy` | bridge active OR uploadCc not fully drained | live (not sticky) |
-| 1 | `upload_done` | last SDRAM_WRITE handed off (latched) | live |
-| 2 | `upload_error` | CP-A1 watchdog abort (wedge / short frame) — sticky | **W1C via `0x0323` bit2** |
-| 3 | `upload_overflow` | CP-A4 ingress-FIFO overflow — sticky | **W1C via `0x0323` bit3** |
-| 4 | `txn_dropped` | **Phase 2 (PA-2 #11614/#11626)**: a new SDRAM_WRITE header arrived while the previous write still had bytes outstanding (drop / re-anchor) — sticky | **W1C via `0x0323` bit4** |
-| 5 | `short_frame` | RESERVED — Fix A framing-hardening lane (#11557); stays 0 until that logic lands | (W1C via `0x0323` bit5) |
-| 6..7 | reserved | 0 | — |
+| 0 | `BUSY` | bridge active OR uploadCc not fully drained | live (not sticky) |
+| 1 | `DONE` | last SDRAM_WRITE handed off (latched) | sticky until cleared |
+| 2 | `ERROR` | CP-A1 watchdog abort (wedge / short frame) — sticky | **W1C via `0x0323` bit 2** |
+| 3 | `OVERFLOW` | CP-A4 ingress-FIFO overflow — sticky | **W1C via `0x0323` bit 3** |
+| 4 | *RESERVED* | must read `0`; W1C write ignored | no-op |
+| 5 | *RESERVED* | must read `0`; W1C write ignored | no-op |
+| 6..7 | reserved | `0` | — |
 
-byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
+byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = `0`.
 
-**`UPLOAD_STATUS_CLEAR` (`0x0323`, write-1-to-clear)** — within the reserved `0x0320..0x032F` block. The intended behavior is that a host `REG_WRITE` whose data bits mirror the sel=6 byte0 positions clears the corresponding sticky bit (bit2→`upload_error`, bit3→`fifoOverflow`, **bit4→`txn_dropped`**; bit5→`short_frame` once Fix A lands). The clear strobes would be decoded in the pixel domain by the host bridge (`QspiDecoder` on legacy QSPI builds, equivalent i80 decoder on i80 builds; no CDC): bit2/bit3 strobe into the bridge's Regs (a genuine re-set the same cycle wins, so a live error is never lost); bit4 clears the decoder's own `txn_dropped` Reg.
+**Clear mask for `0x0323`:** bits 2 and 3 only. Writing `1` to bit 2 clears `ERROR`; writing `1` to bit 3 clears `OVERFLOW`. Bits 4 and 5 are **RESERVED-0**; W1C writes to those positions are ignored. A future lane may define bit 4 (`TXN_DROPPED`) only after a backing detector is designed and authorized.
 
-> **Current limitation (FULL-DOC-AUDIT-151):** As of the current `main` bitstream, address `0x0323` is **not decoded** in `VdpTop.scala` or `QspiDecoder.scala`. Writing `0x0323` therefore has no effect on current hardware; upload sticky bits clear only at POR or through an upload-bridge reset path. The `vdp_clear_upload_status()` helper in `firmware/libvdp/vdp_host.c` has been updated to issue the `0x0323` write on both i80 and QSPI, but the RTL clear decode is still pending (escalated to BrightForge).
+**`UPLOAD_STATUS_CLEAR` (`0x0323`, write-1-to-clear)** — within the status `0x0320..0x032F` block. The host issues a normal `REG_WRITE` to `0x0323` with `1`s in the positions to clear. The W1C decode is centralized in `VdpTop.scala` so both QSPI and i80 writes hit the same state. If a sticky event occurs in the same cycle as a clear write, the event wins (the bit stays/becomes `1`).
+
+> **Compatibility note:** Bitstreams built before the `codebase-cleanup-status-contract` lane do not decode `0x0323`; on those bitstreams the sticky bits clear only at POR or through an upload-bridge reset path.
 
 ### 3.1.3 Auto-Generated Register Detail Tables
 
@@ -389,14 +399,14 @@ byte1 = `txn_counter` (ACK/NAK Phase 1 commit counter, mod 256). bytes2-3 = 0.
 | Access | W1C |
 | Reset | `0x0000` |
 | Category | diagnostic |
-| Description | Clears sticky host upload bridge error flags. **Current bitstream: the address is allocated and the firmware helper issues the write, but the RTL clear decode is not yet implemented; writes have no effect until the decode lands (FULL-DOC-AUDIT-151).** |
+| Description | Clears sticky host upload bridge error flags. Bits 4 and 5 are RESERVED-0; W1C writes to those positions are ignored. |
 
 | Bits | Field | Description |
 |---|---|---|
 | `[2]` | UPLOAD_ERROR | Clears upload error sticky flag. |
 | `[3]` | UPLOAD_OVERFLOW | Clears upload overflow sticky flag. |
-| `[4]` | TXN_DROPPED | Clears dropped transaction sticky flag. |
-| `[5]` | SHORT_FRAME | Clears short-frame sticky flag. |
+| `[4]` | RESERVED | Must read 0; W1C write ignored. |
+| `[5]` | RESERVED | Must read 0; W1C write ignored. |
 
 ### WIN1_X0 (`0x0330`)
 
@@ -971,22 +981,26 @@ Registers marked W1C (e.g. `STATUS_STICKY` @ `0x0320`) are used to clear sticky 
 
 ---
 
-## 5. READ_STATUS Response (Companion)
+## 5. READ_STATUS Response (QSPI Companion)
 
-Host `READ_STATUS` returns a 32-bit word over the active host transport. On legacy QSPI builds this is the QSPI status command; on i80 builds the planned opcode is `0x04`, but **the i80 RTL path currently does not decode opcode `0x04`** — only register write (`0x00`), register read (`0x01`), and SDRAM block write (`0x02`) are implemented. Until `READ_STATUS` is added to the i80 decoder, i80 hosts must use normal register reads for status. The `sel` byte in the command picks the word:
+Host `READ_STATUS` returns a 32-bit word over the active QSPI host transport. The `sel` byte in the command picks the word. This opcode is implemented only on the QSPI transport; i80 hosts read status through the memory-mapped registers documented in §2.3.
 
 | sel | Response Word [31:0] |
 |---|---|
-| `0` | Magic `0x51560002` (host transport ID) |
-| `1..3` | **Removed** (Sc1..Sc4 legacy debug readback) |
-| `4` | committed live mode (post-safe-boundary `MODE_SELECT` and layer state) |
-| `5` | sticky status bits (`STATUS_STICKY` bit layout, §3.1.1) |
-| `6` | upload status (`busy`/`done`/`error`/`overflow`/`txn_dropped` bits, §3.1.2) |
-| `7` | **Reserved** — future diagnostic |
-| `8` | SDRAM readback — 32-bit word from debug address (0x0326/0x0327) |
-| `9..255` | Reserved — zero response |
+| `0x00` | Magic `0x51560002` (host transport ID) |
+| `0x01`..`0x04` | zero/unsupported |
+| `0x05` | VDP sticky status (`STATUS_STICKY` bit layout, §3.1.1) |
+| `0x06` | upload status (`BUSY`/`DONE`/`ERROR`/`OVERFLOW` bits, §3.1.2) |
+| `0x07` | header-parity health |
+| `0x08` | SDRAM debug readback — 32-bit word from debug address (`0x0326`/`0x0327`) |
+| `0x09` | last reg-write loopback |
+| `0x0A` | transport health (malformed, overflow, CRC) |
+| `0x0B` | CRC8 error |
+| `0x0C` | `READ_DONE` |
+| `0x0D` | reserved for the Lane 1 diagnostic bitstream only; **not** part of the production contract |
+| `0x0E`..`0xFF` | reserved — zero response |
 
-Task 35 status registers MUST be readable both by mapping into this sel table (extending to sel=5+) AND by appearing in the allocated `0x0320..0x032F` write-path block for clear-on-write semantics.
+Status sources MUST be readable both through this `READ_STATUS` selector table and through the allocated `0x0320..0x032F` memory-mapped block, so that QSPI and i80 hosts have parity.
 
 ---
 

@@ -273,19 +273,19 @@
           "description": "Clears upload overflow sticky flag."
         },
         {
-          "name": "TXN_DROPPED",
+          "name": "RESERVED_4",
           "lsb": 4,
           "width": 1,
-          "description": "Clears dropped transaction sticky flag."
+          "description": "Reserved. Must read 0; W1C write ignored."
         },
         {
-          "name": "SHORT_FRAME",
+          "name": "RESERVED_5",
           "lsb": 5,
           "width": 1,
-          "description": "Clears short-frame sticky flag."
+          "description": "Reserved. Must read 0; W1C write ignored."
         }
       ],
-      "description": "Clears sticky host upload bridge error flags. NOTE: the current main bitstream allocates this address and the firmware helper issues the write, but the RTL clear decode is not yet implemented; writes to 0x0323 have no effect until the RTL decode lands (FULL-DOC-AUDIT-151)."
+      "description": "Clears sticky host upload bridge error flags. Bits 4 and 5 are RESERVED-0; W1C writes to those positions are ignored."
     },
     {
       "name": "WIN1_X0",

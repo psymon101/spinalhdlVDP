@@ -91,21 +91,22 @@ i80 hosts read status from the same memory-mapped registers (`0x0320`, `0x0323`)
 
 - [ ] Update `vdp_host.h` selector comments to match RTL (`0x05` sticky, `0x06` upload).
 - [ ] Align `vdp_status.h` / `vdp_i80.h` constants with canonical model.
+- [ ] Align `firmware/libvdp/mode0_regs.json` descriptions/fields with canonical contract.
 - [ ] Keep `vdp_reg_read()` active; document the P4 QSPI write-only limitation and call sites.
 - [ ] Ensure `vdp_clear_upload_status()` uses `0x0323` W1C with clear mask bits 2/3.
 - [ ] Confirm all active firmware targets build under ESP-IDF v6.0.2.
 
 ### CoralReef (docs)
 
-- [ ] Update `MODE0_REGISTER_BUS_SPEC.md` with the canonical status map.
-- [ ] Update `firmware/GOTCHAS.md` and any README contradictions.
-- [ ] Add ADR for the canonical status contract under `PROJECT_PLAN/DECISIONS/`.
+- [x] Update `MODE0_REGISTER_BUS_SPEC.md` with the canonical status map.
+- [x] Update `firmware/GOTCHAS.md` and `kb/libvdp/README.md` contradictions.
+- [x] Add ADR for the canonical status contract under `PROJECT_PLAN/DECISIONS/`.
 
 ### TopazCliff (PM)
 
 - [x] Draft action plan and Rule 19 sign-off request.
 - [x] Obtain written BrightForge + BronzeGate approval.
-- [ ] Update `STATUS.md`.
+- [x] Update `STATUS.md`.
 - [ ] Regenerate `source_bundle.md` after cleanup commits.
 - [ ] Submit regenerated bundle to external AI for final verification.
 
