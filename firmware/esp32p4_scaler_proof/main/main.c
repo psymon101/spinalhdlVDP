@@ -574,6 +574,31 @@ void app_main(void)
     ESP_LOGI(TAG, "scaler proof mode=%d magic=0x%08" PRIX32,
              SCALER_PROOF_MODE, magic);
 
+#if SCALER_PROOF_MODE == 0
+    /* Proof-only Lane 1 reconfiguration diagnostic; sel=0x0D is exposed
+     * only by the isolated diagnostic bitstream and is not a production
+     * status contract.  Retry once because the first post-config read is
+     * the transaction under investigation and may itself be garbled. */
+    uint32_t reconfig_diag = vdp_read_status(0x0Du);
+    int reconfig_diag_err = vdp_last_error();
+    if (reconfig_diag_err != VDP_HOST_ERR_NONE || magic != 0x51560002u) {
+        reconfig_diag = vdp_read_status(0x0Du);
+        reconfig_diag_err = vdp_last_error();
+    }
+    ESP_LOGI(TAG,
+             "LANE1_RECONFIG_DIAG sel=0x0D raw=0x%08" PRIX32
+             " sawCsHigh=%u csnNow=%u sawSclk=%u firstPhase=%u"
+             " firstBitc=%u txnCount=%u err=%d",
+             reconfig_diag,
+             (unsigned)((reconfig_diag >> 0) & 1u),
+             (unsigned)((reconfig_diag >> 1) & 1u),
+             (unsigned)((reconfig_diag >> 2) & 1u),
+             (unsigned)((reconfig_diag >> 3) & 0x7u),
+             (unsigned)((reconfig_diag >> 6) & 0x3Fu),
+             (unsigned)((reconfig_diag >> 12) & 0x7u),
+             reconfig_diag_err);
+#endif
+
 #if SCALER_PROOF_MODE == 9
     const uint32_t health_raw = vdp_read_status(SEL_TRANSPORT_HEALTH);
     const bool magic_ok = magic == 0x51560002u;
