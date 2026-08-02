@@ -212,6 +212,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
     val statusSticky       = out Bits(16 bits)
     // Host-visible IRQ line — asserted while any enabled sticky bit is set:
     val irq                = out Bool()
+    // Status-contract cleanup (#14638): centralized 0x0323 (UPLOAD_STATUS) write-1-to-clear.
+    // A host write to 0x0323 (QSPI or i80, via the shared reg-bus) pulses these 1-cycle clear
+    // strobes to the QspiSdramBridge sticky flags (routed in TopTang20kHdmi). Bit 2 clears
+    // upload_error; bit 3 clears fifoOverflow. Bits 0/1 (busy/done) are live; bits 4/5 RESERVED.
+    val uploadErrorClear   = out Bool()
+    val fifoOverflowClear  = out Bool()
     // Task 54 — sprite-sprite collision per-descriptor mask, addr 0x0322.
     // Width deliberately held at 8 bits per BronzeGate #10363 even though
     // descCount is now 32: each bit set indicates the corresponding
@@ -2466,6 +2472,14 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
   when(effWrite && effAddr === U(0x0320, 15 bits)) {
     statusClearMask := effData
   }
+
+  // Status-contract cleanup (#14638): centralized UPLOAD_STATUS (0x0323) write-1-to-clear.
+  // Both QSPI and i80 hosts reach this via the shared reg-bus (effWrite/effAddr/effData). Bit 2
+  // -> clear upload_error, bit 3 -> clear fifoOverflow; 1-cycle strobes to the bridge (wired in
+  // TopTang20kHdmi). Fully combinational (False when not a matching write).
+  val uploadClearHit = effWrite && (effAddr === U(0x0323, 15 bits))
+  io.uploadErrorClear  := uploadClearHit && effData(2)
+  io.fifoOverflowClear := uploadClearHit && effData(3)
 
   // Sticky update: clear the host-requested bits FIRST, then set on any event
   // this cycle. If an event AND a clear both target the same bit in the same
