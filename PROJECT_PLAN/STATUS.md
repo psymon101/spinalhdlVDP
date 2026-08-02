@@ -14,16 +14,16 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 ## Active Lanes
 
-> **Lane 1 — BLOCKED (2026-08-01):** The CS#-high reset diagnostic from #14600
+> **Lane 1 — DONE (2026-08-02):** The CS#-high reset diagnostic from #14600
 > decisively resolved the reproduced `0x22222222` anomaly on the same
 > `a5a047a2` bitstream (magic `0x51560002`, health `0x00000000`,
 > `CS_IDLE_PROOF_RESULT pass=1`). `QspiSlaveSync`'s active-high CS# async reset
-> was the mechanism; the RTL responder is correct. TopazCliff has authorized the
-> full ≥10-cycle hardware reproof with a mandatory CS#-high pre-flight on every
-> cycle: immediately after each P4 reset, drive GPIO20 high as a GPIO, hold for
-> ≥1 s, then hand the pin to SPI and continue. The earlier health/readback abort
-> gates remain in effect. BrightForge's RTL investigation for Lane 1 is closed.
-> The prior `0x22222222` blocker is preserved below as historical context.
+> was the mechanism; the RTL responder is correct. The PM-authorized discard-read
+> prime reproof then passed all 10 fresh `a5a047a2` SRAM reconfiguration cycles:
+> each cycle drove GPIO20 high and held it for 1200 ms, discarded the first
+> `0x22222222` magic read, and gated on the second read returning `0x51560002`.
+> Health-before/upload/enable, six readbacks, and 720x480 YUYV capture passed on
+> every cycle. The prior anomaly and diagnostic history are preserved below.
 
 > **Lane 1 campaign blocker (2026-08-01):** The first cycle of the PM-authorized
 > ten-cycle campaign was stopped at the mandatory magic precondition. The
@@ -79,6 +79,19 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 > 10-cycle reproof on the preserved `a5a047a2` authority bitstream with existing
 > abort gates. The robust RTL fix (CS#-reset-release synchronizer) is logged as a
 > future hardening lane, gated by Rule 19, and is not implemented now.
+
+> **Lane 1 prime reproof result (2026-08-02):** BronzeGate implemented the
+> authorized prime in firmware commit `9babcbeec436906271114cb4b146bc0234e1e4be`,
+> built/flashed it with ESP-IDF v6.0.2, and ran the preserved authority bitstream
+> through 10 fresh SRAM reconfiguration cycles. **10/10 PASS.** Every serial log
+> contains the CS#-high 1200 ms pre-flight, `LANE1_PRIME_DISCARD`, second magic
+> `0x51560002`, zero health before/upload/enable, six readback passes, and
+> `SCALER_PROOF mode=0 pass=1`; every capture is exactly 2,073,600 bytes. Proof:
+> `hardware/LANE1_PRIME_CAMPAIGN_RESULT.md`, build
+> `firmware/LANE1_PRIME_BUILD.md`, and `hashes.sha256`. Authority bitstream SHA
+> `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`; firmware
+> ELF SHA `8d7afb27b856b6f22ed82f4c21f319c965b1f32e7ac612fb51705b29de042f39`;
+> app BIN SHA `5057452cf41077f17445a883088f58fb93b2e44d7bcc9d59d0f52b450af9bef2`.
 
 > **Lane 1 post-settle magic anomaly — BLOCKED (historical, 2026-08-01):** BronzeGate ran
 > the PM-authorized controlled retry with a measured **1.2 s post-SRAM-load
@@ -218,7 +231,7 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 | Lane | Owner | Status | Since | Blocker | Next Action | Proof / Artifacts |
 |---|---|---|---|---|---|---|
 | qspi-upload-si-hardening | BrightForge + BronzeGate | DONE — mode-8 READ_DONE proof PASS; SDRAM writes clean; residual `sel=8` readback/CDC artifact documented; no production change | 2026-08-01 | None. | PM closeout complete; optional `sel=8` readback hardening may be scoped later if needed. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/` (`hardware/READ_DONE_RESULTS.md`, `hardware/READ_DONE_SERIAL.log`, `firmware/READ_DONE_BUILD.md`, `manifest.yaml`); FPGA SHA `0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2`; firmware ELF `fd592e3562e8a278b200b0c95f5a0f8ec2d2709c15ed54a441b572e48018907a`; serial SHA `b86647404db6b89d04c563879e044a22596bff147f68600d00336ad416ef3ed8`; #14573/#14575/#14576/#14577/#14578/#14581/#14583/#14584. |
-| 2bpp-bank-completion-hw-reproof | BronzeGate + BrightForge | RUNNING — PM authorized discard-read prime; config-boundary reset-release race interpreted | 2026-08-02 | Fresh diagnostic reconfigure reproduced magic `0x22222222` with `sawCsHigh=1`, `sawSclk=1`, `firstPhase=0`, `firstBitc=1`; BrightForge diagnosed a config-boundary async-reset-release race in `QspiSlaveSync`. | **BronzeGate:** implement one ignored `read_status(0x00)` after the CS#-high preflight + `vdp_host_init()`, then use the second magic read as the gate; resume the 10-cycle reproof on `a5a047a2` with abort gates. **BrightForge:** on standby; log CS#-reset-release synchronizer as a future Rule-19 hardening lane. | Diagnostic bitstream SHA `eaad44f8b012081f401b03840ea855aa50f45ad765b2c42f239a6b050ddf1b67`; result `hardware/LANE1_RECONFIG_DIAG_RESULT.md`; serial SHA `015a5cc8bd3da8f3f1b0844f75645c446fce3c10ece7e55c63858fcddf2cfb34`; loader SHA `098c64525677820e37de71d8ac40bc947dd60884fe646210cc0c205489a02b75`; firmware proof commit `f0531869` (base `48ce715a`); authority bitstream SHA `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`; combined logs `LANE1_COMBINED_LOGS.md` SHA `078525e00fcd07a933456d03797fa55ee86246f08cbf68d3ccb09244a4c30f17`; PM disposition mail #14639. |
+| 2bpp-bank-completion-hw-reproof | BronzeGate + BrightForge | DONE — 10/10 prime reproof cycles PASS; discard-read workaround validated on preserved authority bitstream | 2026-08-02 | None for this proof gate. Future RTL hardening for the config-boundary reset-release race remains separate and Rule-19 gated. | **BronzeGate:** preserve the prime + CS#-high pre-flight in future Lane 1 campaigns; hand off closeout. **BrightForge:** keep the reset-release synchronizer as future hardening only. | Proof `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/hardware/LANE1_PRIME_CAMPAIGN_RESULT.md`; build `firmware/LANE1_PRIME_BUILD.md`; source commit `9babcbeec436906271114cb4b146bc0234e1e4be`; authority bitstream SHA `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`; firmware ELF `8d7afb27b856b6f22ed82f4c21f319c965b1f32e7ac612fb51705b29de042f39`; app BIN `5057452cf41077f17445a883088f58fb93b2e44d7bcc9d59d0f52b450af9bef2`; per-cycle logs/captures and `hashes.sha256`; PM authorization #14639. |
 | upload-status-clear-rtl-decode | BrightForge + BronzeGate | PAUSED — superseded by `codebase-cleanup-status-contract`; do not commit option-1 local decode (#14619, #14620) | 2026-08-02 | External AI audit found split-brain status architecture; narrow i80-only/local decode would deepen the fracture. | **BrightForge / BronzeGate:** review and sign the Rule 19 request in `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/rule19_signoff_request.md` for the canonical cleanup lane. No RTL or firmware commits on this lane until cleanup is approved. | Original checkpoint `PROJECT_PLAN/INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md`; BrightForge sign-off #14599; BronzeGate sign-off #14601; PM pause/disposition #14619/#14620; cleanup task `PROJECT_PLAN/TASKS/codebase-cleanup-status-contract.md`. |
 | codebase-cleanup-status-contract | BrightForge + BronzeGate + CoralReef | RUNNING — Step B RTL implementation started; Rule 19 sign-off complete; CoralReef doc/ADR committed | 2026-08-02 | None. BrightForge and BronzeGate approvals recorded (#14629, #14631); External AI approval recorded. | **BrightForge:** implement Step B on `brightforge/status-contract-cleanup` (`QspiTransportCore` `sel=0x05`/`0x06`, `VdpTop` `0x0320`/`0x0323` read/W1C, `TopTang20kHdmi` wiring + i80 read mux). Files reserved: `QspiSdramBridge`, `QspiTransportCore`, `VdpTop`, `TopTang20kHdmi`, `I80HostInterface`. Report at compile+sim PASS, then gen+PnR. **BronzeGate:** align `vdp_host.h`/`vdp_status.h`/`vdp_i80.h`/`mode0_regs.json` with canonical contract after RTL checkpoint; confirm active firmware targets build. **CoralReef:** doc/ADR updates committed; finalize after RTL checkpoint. | External AI audit bundle SHA `ce2c0d4abe53a09ddd51b85a9719a07f67173b99904ddd1a7598684ed9247da9`; revised action plan `external_ai_action_plan.md`; revised Rule 19 request `rule19_signoff_request.md`; cleanup task `PROJECT_PLAN/TASKS/codebase-cleanup-status-contract.md`; approvals #14629/#14631; ADR-009; updated `MODE0_REGISTER_BUS_SPEC.md`, `firmware/GOTCHAS.md`, `kb/libvdp/README.md`, `firmware/libvdp/mode0_regs.json`; Step B start mail #14641. |
 | 720p-proof-build-script-cleanup | BrightForge | DONE — 2026-07-30; archive-all executed (PM #14502) | 2026-07-30 | — | **ARCHIVE all 5** 720p proof targets (`proof`/`bridge`/`mode0`/`linebuf`/`planar`) — none met the keep-rule (dormant since `4e3dfcf4` 2026-06-07; no doc/runbook/README/CI deps; superseded by native 640×480 production + `diagnostic`). `git mv` 15 build artifacts (5 `.tcl` + 10 `.cst/.sdc`) → `fpga/tang20k/archive/720p_proofs/`; removed 5 720p Makefile target-blocks + 5 `impl_720p_*` `.gitignore` entries; added `archive/720p_proofs/README.md`; Scala `Hdmi720p*ProofTop.scala` tops untouched (out of scope). **Verify PASS:** `make -n gen`/`gen-diagnostic`/`all` resolve + `make -n 720p-proof` → "No rule"; `sbt compile` PASS; `Hdmi720pProofTopVerilog` gen clean; production `make gen` → `hw/gen/top_tang20k.v` (sha256 `945b060b…`); `git status` clean (15 renames + `.gitignore`/`Makefile` + README). No RTL/production-CST/HW. | Task `PROJECT_PLAN/TASKS/720p-proof-build-script-cleanup.md`; closeout commit `a27e07ff`; mail #14503. |

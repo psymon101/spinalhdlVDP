@@ -1,0 +1,75 @@
+ESP-ROM:esp32p4-eco2-20240710
+Build:Jul 10 2024
+rst:0x1 (POWERON),boot:0x10f (SPI_FAST_FLASH_BOOT)
+SPI mode:DIO, clock div:1
+load:0x4ff33ce0,len:0x15e0
+load:0x4ff28ed0,len:0xe54
+load:0x4ff2bbd0,len:0x35dc
+entry 0x4ff28eda
+I (25) boot: ESP-IDF v6.0.2 2nd stage bootloader
+I (26) boot: compile time Jul 27 2026 22:15:56
+I (26) boot: Multicore bootloader
+I (27) boot: chip revision: v1.3
+I (29) boot: efuse block revision: v0.3
+I (32) boot.esp32p4: SPI Speed      : 80MHz
+I (36) boot.esp32p4: SPI Mode       : DIO
+I (40) boot.esp32p4: SPI Flash Size : 32MB
+I (44) boot: Enabling RNG early entropy source...
+I (48) boot: Partition Table:
+I (51) boot: ## Label            Usage          Type ST Offset   Length
+I (57) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (64) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (70) boot:  2 factory          factory app      00 00 00010000 00400000
+I (78) boot: End of partition table
+I (80) esp_image: segment 0: paddr=00010020 vaddr=40020020 size=0b830h ( 47152) map
+I (96) esp_image: segment 1: paddr=0001b858 vaddr=30100000 size=00088h (   136) load
+I (98) esp_image: segment 2: paddr=0001b8e8 vaddr=4ff00000 size=04730h ( 18224) load
+I (107) esp_image: segment 3: paddr=00020020 vaddr=40000020 size=1aed0h (110288) map
+I (129) esp_image: segment 4: paddr=0003aef8 vaddr=4ff04730 size=0b5e0h ( 46560) load
+I (140) esp_image: segment 5: paddr=000464e0 vaddr=4ff0fd80 size=02790h ( 10128) load
+I (147) boot: Loaded app from partition at offset 0x10000
+I (147) boot: Disabling RNG early entropy source...
+I (159) cpu_start: Multicore app
+I (168) cpu_start: GPIO 38 and 37 are used as console UART I/O pins
+I (168) cpu_start: Pro cpu start user code
+I (168) cpu_start: cpu freq: 360000000 Hz
+I (170) app_init: Application information:
+I (174) app_init: Project name:     esp32p4_scaler_proof
+I (179) app_init: App version:      v0.2.0-103-g9babcbee-dirty
+I (185) app_init: Compile time:     Aug  2 2026 18:12:17
+I (190) app_init: ELF file SHA256:  8d7afb27b...
+I (194) app_init: ESP-IDF:          v6.0.2
+I (198) efuse_init: Min chip rev:     v1.0
+I (202) efuse_init: Max chip rev:     v1.99 
+I (206) efuse_init: Chip rev:         v1.3
+I (209) heap_init: Initializing. RAM available for dynamic allocation:
+I (216) heap_init: At 4FF22DB0 len 00018210 (96 KiB): RETENT_RAM
+I (221) heap_init: At 4FF3AFC0 len 00004BF0 (18 KiB): RAM
+I (226) heap_init: At 4FF40000 len 00060000 (384 KiB): RAM
+I (232) heap_init: At 50108080 len 00007F80 (31 KiB): RTCRAM
+I (237) heap_init: At 30100088 len 00001F78 (7 KiB): SPM
+I (243) spi_flash: detected chip: gd
+I (245) spi_flash: flash io: dio
+I (249) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (255) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (262) main_task: Started on CPU0
+I (292) main_task: Calling app_main()
+I (292) p4_scaler_proof: CS_IDLE_PROOF cs_gpio=20 level=1 settle_ms=1200
+I (1492) p4_scaler_proof: CS_POST_INIT_PROBE cs_gpio=20 level=1
+I (1492) p4_scaler_proof: SPI_CONFIG cs_io_num=20 cs_ena_pretrans=2 cs_ena_posttrans=8 mode=0 clock_hz=2000000 idle_policy=driver-default
+I (1492) p4_scaler_proof: LANE1_PRIME_DISCARD raw=0x22222222 err=0
+I (1502) p4_scaler_proof: scaler proof mode=0 magic=0x51560002
+I (1512) p4_scaler_proof: scale=1x explicit logic=640x480 ctrl=0x00
+I (1512) p4_scaler_proof: HEALTH_BEFORE_UPLOAD raw=0x00000000 overflow=0 malformed=0
+I (1552) p4_scaler_proof: bitmap uploaded bytes=30720 clock=4000000
+I (1592) p4_scaler_proof: attr uploaded bytes=30720 clock=4000000
+I (1592) p4_scaler_proof: HEALTH_AFTER_UPLOAD raw=0x00000000 overflow=0 malformed=0
+I (1592) p4_scaler_proof: READBACK PASS addr=0x100000 value=0x00000000
+I (1592) p4_scaler_proof: READBACK PASS addr=0x100008 value=0x55555555
+I (1602) p4_scaler_proof: READBACK PASS addr=0x100010 value=0x00000000
+I (1612) p4_scaler_proof: READBACK PASS addr=0x101000 value=0x55555555
+I (1612) p4_scaler_proof: READBACK PASS addr=0x106400 value=0x00000000
+I (1622) p4_scaler_proof: READBACK PASS addr=0x106480 value=0x00000000
+I (1632) p4_scaler_proof: LINESTATE PASS lines=480 chunks=2
+I (1632) p4_scaler_proof: HEALTH_AFTER_ENABLE raw=0x00000000 overflow=0 malformed=0
+I (1642) p4_scaler_proof: SCALER_PROOF mode=0 pass=1
