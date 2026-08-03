@@ -232,7 +232,7 @@
           "description": "Mode select value changed."
         }
       ],
-      "description": "Sticky status and interrupt cause flags; write one to clear."
+      "description": "Readable VDP sticky status and interrupt cause flags; write one to clear selected bits. QSPI selector 0x05 and i80 register reads return the current value."
     },
     {
       "name": "STATUS_ENABLE",
@@ -285,7 +285,7 @@
           "description": "Reserved. Must read 0; W1C write ignored."
         }
       ],
-      "description": "Clears sticky host upload bridge error flags. Bits 4 and 5 are RESERVED-0; W1C writes to those positions are ignored."
+      "description": "Readable upload status; write one to clear sticky host upload bridge error flags. QSPI selector 0x06 and i80 register reads return the current value. Bits 4 and 5 are RESERVED-0; W1C writes to those positions are ignored."
     },
     {
       "name": "WIN1_X0",

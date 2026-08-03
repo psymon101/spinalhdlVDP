@@ -1,8 +1,9 @@
 /**
  * vdp_status.h — Status polling + sticky bit helpers.
  *
- * Builds on the host transport (READ_STATUS sel=5 = sticky status bank,
- * write-to-0x0320 = clear-1-to-clear). Sticky bit mapping (low byte):
+ * Builds on the host transport (QSPI READ_STATUS sel=0x05 = sticky status
+ * bank; i80 reads the same status through memory-mapped 0x0320). Writes of
+ * one to 0x0320 clear selected bits. Sticky bit mapping (low byte):
  *   bit 0 RASTER_MATCH   — fires at the raster trigger line
  *   bit 1 SPRITE_OVERFLOW
  *   bit 2 HOST_READY      — pulses on every accepted host command
@@ -17,6 +18,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define VDP_STATUS_SEL_STICKY 0x05u
+#define VDP_STATUS_SEL_UPLOAD 0x06u
 
 #define VDP_STICKY_RASTER_MATCH    0x0001
 #define VDP_STICKY_SPRITE_OVERFLOW 0x0002
