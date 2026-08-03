@@ -3,7 +3,7 @@
 **Lane ID:** `codebase-cleanup-status-contract`  
 **Owner:** TopazCliff (PM), BrightForge (RTL), BronzeGate (firmware), CoralReef (docs)  
 **Opened:** 2026-07-27  
-**Status:** MERGE PENDING — all implementation, simulation, PnR, code-to-spec, and firmware build gates PASS; awaiting external AI final verification and PM merge authorization  
+**Status:** MERGE PENDING — all implementation, simulation, PnR, code-to-spec, and firmware build gates PASS; final external-AI bundle posted; awaiting external AI final verification and PM merge authorization  
 **External AI audit bundle:** `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/source_bundle.md` (SHA-256 `ce2c0d4abe53a09ddd51b85a9719a07f67173b99904ddd1a7598684ed9247da9`)
 
 ---
@@ -107,8 +107,8 @@ i80 hosts read status from the same memory-mapped registers (`0x0320`, `0x0323`)
 - [x] Draft action plan and Rule 19 sign-off request.
 - [x] Obtain written BrightForge + BronzeGate approval.
 - [x] Update `STATUS.md`.
-- [ ] Regenerate `source_bundle.md` after cleanup commits.
-- [ ] Submit regenerated bundle to external AI for final verification.
+- [x] Regenerate final implementation bundle after cleanup commits (BrightForge `e12b37c4`).
+- [ ] Submit final bundle to external AI for final verification.
 
 ---
 
