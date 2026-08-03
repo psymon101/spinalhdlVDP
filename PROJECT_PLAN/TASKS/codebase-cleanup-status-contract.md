@@ -139,7 +139,7 @@ The following are **out of scope** for this cleanup lane:
 - [x] Cleanup branch created from current active branch (`brightforge/status-contract-cleanup`, base `main` `fd39d2b0`).
 - [x] SpinalHDL sim PASS (full affected regression suite).
 - [x] Gowin PnR PASS (TNS=0, no unexpected new BSRAM/DSP).
-- [ ] CyanPeak code-to-spec review PASS.
+- [x] CyanPeak code-to-spec review PASS (#14647).
 - [ ] Firmware builds PASS for all active targets.
 - [ ] External AI final verification PASS.
 
