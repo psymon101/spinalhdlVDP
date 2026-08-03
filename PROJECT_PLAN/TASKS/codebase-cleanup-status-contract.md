@@ -3,7 +3,7 @@
 **Lane ID:** `codebase-cleanup-status-contract`  
 **Owner:** TopazCliff (PM), BrightForge (RTL), BronzeGate (firmware), CoralReef (docs)  
 **Opened:** 2026-07-27  
-**Status:** REVIEW — Step B RTL complete and sim+PnR proven; awaiting CyanPeak code-to-spec review; BronzeGate Step C firmware/header sync in progress  
+**Status:** MERGE PENDING — all implementation, simulation, PnR, code-to-spec, and firmware build gates PASS; awaiting external AI final verification and PM merge authorization  
 **External AI audit bundle:** `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/source_bundle.md` (SHA-256 `ce2c0d4abe53a09ddd51b85a9719a07f67173b99904ddd1a7598684ed9247da9`)
 
 ---
@@ -89,12 +89,12 @@ i80 hosts read status from the same memory-mapped registers (`0x0320`, `0x0323`)
 
 ### BronzeGate (firmware)
 
-- [ ] Update `vdp_host.h` selector comments to match RTL (`0x05` sticky, `0x06` upload).
-- [ ] Align `vdp_status.h` / `vdp_i80.h` constants with canonical model.
-- [ ] Align `firmware/libvdp/mode0_regs.json` descriptions/fields with canonical contract.
-- [ ] Keep `vdp_reg_read()` active; document the P4 QSPI write-only limitation and call sites.
-- [ ] Ensure `vdp_clear_upload_status()` uses `0x0323` W1C with clear mask bits 2/3.
-- [ ] Confirm all active firmware targets build under ESP-IDF v6.0.2.
+- [x] Update `vdp_host.h` selector comments to match RTL (`0x05` sticky, `0x06` upload).
+- [x] Align `vdp_status.h` / `vdp_i80.h` constants with canonical model.
+- [x] Align `firmware/libvdp/mode0_regs.json` descriptions/fields with canonical contract.
+- [x] Keep `vdp_reg_read()` active; document the P4 QSPI write-only limitation and call sites.
+- [x] Ensure `vdp_clear_upload_status()` uses `0x0323` W1C with clear mask bits 2/3.
+- [x] Confirm all active firmware targets build under ESP-IDF v6.0.2.
 
 ### CoralReef (docs)
 
@@ -140,7 +140,7 @@ The following are **out of scope** for this cleanup lane:
 - [x] SpinalHDL sim PASS (full affected regression suite).
 - [x] Gowin PnR PASS (TNS=0, no unexpected new BSRAM/DSP).
 - [x] CyanPeak code-to-spec review PASS (#14647).
-- [ ] Firmware builds PASS for all active targets.
+- [x] Firmware builds PASS for all active targets (#14650).
 - [ ] External AI final verification PASS.
 
 ---
