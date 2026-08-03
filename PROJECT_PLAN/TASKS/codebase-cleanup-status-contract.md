@@ -3,7 +3,7 @@
 **Lane ID:** `codebase-cleanup-status-contract`  
 **Owner:** TopazCliff (PM), BrightForge (RTL), BronzeGate (firmware), CoralReef (docs)  
 **Opened:** 2026-07-27  
-**Status:** RUNNING — Rule 19 sign-off complete; RTL implementation authorized  
+**Status:** REVIEW — Step B RTL complete and sim+PnR proven; awaiting CyanPeak code-to-spec review; BronzeGate Step C firmware/header sync in progress  
 **External AI audit bundle:** `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/source_bundle.md` (SHA-256 `ce2c0d4abe53a09ddd51b85a9719a07f67173b99904ddd1a7598684ed9247da9`)
 
 ---
@@ -80,12 +80,12 @@ i80 hosts read status from the same memory-mapped registers (`0x0320`, `0x0323`)
 
 ### BrightForge (RTL)
 
-- [ ] In `QspiTransportCore.scala`: implement `sel=0x05` (sticky status) and `sel=0x06` (upload status), removing the existing tie-offs.
-- [ ] In `VdpTop.scala`: centralize `0x0320` and `0x0323` read/W1C decode.
-- [ ] In `TopTang20kHdmi.scala`: wire `VdpTop.statusStickyReg` to `QspiTransportCore`, wire `QspiSdramBridge` upload stickies to `VdpTop`/`QspiTransportCore`, and implement the `0x0320`/`0x0323` → `I80HostInterface.io.readData` mux so i80 reads return real status.
-- [ ] Add/update SpinalSim tests for `sel=0x05`, `sel=0x06`, and `0x0323` W1C (including set-wins-on-tie).
-- [ ] Run the **full affected regression suite** (`Indexed2bpp{Fine,Checker,Frame}CoSim` + QSPI/i80 sims) and Gowin PnR on a separate lane bitstream (TNS=0, no unexpected new BSRAM/DSP).
-- [ ] Record synthesis/timing/resource impact.
+- [x] In `QspiTransportCore.scala`: implement `sel=0x05` (sticky status) and `sel=0x06` (upload status), removing the existing tie-offs.
+- [x] In `VdpTop.scala`: centralize `0x0320` and `0x0323` read/W1C decode.
+- [x] In `TopTang20kHdmi.scala`: wire `VdpTop.statusStickyReg` to `QspiTransportCore`, wire `QspiSdramBridge` upload stickies to `VdpTop`/`QspiTransportCore`, and implement the `0x0320`/`0x0323` → `I80HostInterface.io.readData` mux so i80 reads return real status.
+- [x] Add/update SpinalSim tests for `sel=0x05`, `sel=0x06`, and `0x0323` W1C (including set-wins-on-tie).
+- [x] Run the **full affected regression suite** (`Indexed2bpp{Fine,Checker,Frame}CoSim` + QSPI/i80 sims) and Gowin PnR on a separate lane bitstream (TNS=0, no unexpected new BSRAM/DSP).
+- [x] Record synthesis/timing/resource impact.
 
 ### BronzeGate (firmware)
 
@@ -136,9 +136,10 @@ The following are **out of scope** for this cleanup lane:
 - [x] External AI approval recorded.
 - [x] Lane 1 explicitly paused by PM (discard-read prime authorized; campaign resumes on `a5a047a2`).
 - [x] Lane 2 officially paused/folded.
-- [ ] Cleanup branch created from current active branch.
-- [ ] SpinalHDL sim PASS (full affected regression suite).
-- [ ] Gowin PnR PASS (TNS=0, no unexpected new BSRAM/DSP).
+- [x] Cleanup branch created from current active branch (`brightforge/status-contract-cleanup`, base `main` `fd39d2b0`).
+- [x] SpinalHDL sim PASS (full affected regression suite).
+- [x] Gowin PnR PASS (TNS=0, no unexpected new BSRAM/DSP).
+- [ ] CyanPeak code-to-spec review PASS.
 - [ ] Firmware builds PASS for all active targets.
 - [ ] External AI final verification PASS.
 
