@@ -3,7 +3,7 @@
 **Lane ID:** `codebase-cleanup-status-contract`  
 **Owner:** TopazCliff (PM), BrightForge (RTL), BronzeGate (firmware), CoralReef (docs)  
 **Opened:** 2026-07-27  
-**Status:** MERGE PENDING — all implementation, simulation, PnR, code-to-spec, and firmware build gates PASS; final external-AI bundle posted; awaiting external AI final verification and PM merge authorization  
+**Status:** MERGE AUTHORIZED — all implementation, simulation, PnR, code-to-spec, firmware build, and external-AI verification gates PASS; PM merge authorization granted; awaiting merge execution  
 **External AI audit bundle:** `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/source_bundle.md` (SHA-256 `ce2c0d4abe53a09ddd51b85a9719a07f67173b99904ddd1a7598684ed9247da9`)  
 **External AI final verification package:** `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/final_verification_2026-08-03/`
 
@@ -142,7 +142,7 @@ The following are **out of scope** for this cleanup lane:
 - [x] Gowin PnR PASS (TNS=0, no unexpected new BSRAM/DSP).
 - [x] CyanPeak code-to-spec review PASS (#14647).
 - [x] Firmware builds PASS for all active targets (#14650).
-- [ ] External AI final verification PASS.
+- [x] External AI final verification PASS (user-forwarded verdict, 2026-08-04).
 
 ---
 
