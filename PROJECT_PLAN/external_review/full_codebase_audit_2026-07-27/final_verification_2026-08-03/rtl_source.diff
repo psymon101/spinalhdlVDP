@@ -1,0 +1,261 @@
+diff --git a/hw/spinal/spinalhdlvdp/Qspi0x0323StatusClearSim.scala b/hw/spinal/spinalhdlvdp/Qspi0x0323StatusClearSim.scala
+new file mode 100644
+index 00000000..81f9ef8e
+--- /dev/null
++++ b/hw/spinal/spinalhdlvdp/Qspi0x0323StatusClearSim.scala
+@@ -0,0 +1,98 @@
++package spinalhdlvdp
++
++import spinal.core._
++import spinal.core.sim._
++
++/** Status-contract cleanup (#14638) — verifies the re-added QspiSdramBridge write-1-to-clear
++  * inputs (`uploadErrorClear` / `fifoOverflowClear`) that the centralized 0x0323 W1C decode in
++  * VdpTop strobes. Proves:
++  *   - `fifoOverflow` sets on a downstream (wrCmd) stall and clears on a W1C strobe.
++  *   - `uploadError` sets on the CP-A1 watchdog abort and clears on a W1C strobe.
++  *   - SET-WINS-ON-TIE: a clear strobe pulsed WHILE the set condition is active must NOT drop
++  *     the live event (the clear `when` is sequenced before the set `when`, so the set wins).
++  *
++  * Small `stallTimeout` keeps the watchdog test short. The VdpTop 0x0323 decode, QSPI sel=5/6
++  * responder, and i80 0x0320/0x0323 read mux are combinational wiring validated by dual-top
++  * elaboration; this sim targets the only new SEQUENTIAL logic — the bridge W1C set/clear race.
++  *
++  * Run: sbt "runMain spinalhdlvdp.Qspi0x0323StatusClearSim"
++  */
++object Qspi0x0323StatusClearSim extends App {
++
++  var pass = true
++
++  Config.sim.compile(QspiSdramBridge(stallTimeout = 64)).doSim { dut =>
++    dut.clockDomain.forkStimulus(period = 10)
++
++    def quiescent(): Unit = {
++      dut.io.headerValid #= false
++      dut.io.addrInit    #= 0
++      dut.io.lenBytes    #= 0
++      dut.io.byteIn      #= 0
++      dut.io.byteValid   #= false
++      dut.io.allowUpload #= true
++      dut.io.wrCmd.ready #= true
++      dut.io.uploadErrorClear  #= false
++      dut.io.fifoOverflowClear #= false
++    }
++    quiescent()
++    dut.clockDomain.waitSampling(5)
++
++    def check(cond: Boolean, msg: String): Unit = {
++      if (!cond) { println(s"  [FAIL] $msg"); pass = false } else println(s"  [ok]   $msg")
++    }
++
++    // Fire a header + one payload byte with the downstream stalled (wrCmd.ready=false) so the
++    // bridge enters sActive and tries to emit -> wrCmd.valid && !ready sets fifoOverflow.
++    def armStall(addr: Int, data: Int): Unit = {
++      dut.io.wrCmd.ready #= false
++      dut.io.addrInit    #= addr
++      dut.io.lenBytes    #= 4
++      dut.io.headerValid #= true;  dut.clockDomain.waitSampling(); dut.io.headerValid #= false
++      dut.io.byteIn      #= data
++      dut.io.byteValid   #= true;  dut.clockDomain.waitSampling(); dut.io.byteValid #= false
++    }
++    // Drop the stall and let the bridge unwind back to idle (does NOT touch the stickies).
++    def relaxAndSettle(): Unit = {
++      dut.io.wrCmd.ready #= true
++      dut.clockDomain.waitSampling(200)   // drain / flush / return to sIdle
++    }
++
++    println("=== Qspi0x0323StatusClearSim: bridge W1C set/clear + set-wins-on-tie ===")
++
++    // --- Test 1: fifoOverflow set (downstream stall) then W1C clear ---
++    armStall(0x1000, 0xAB)
++    dut.clockDomain.waitSampling(12)
++    check(dut.io.fifoOverflow.toBoolean, "fifoOverflow SET on wrCmd downstream stall")
++    relaxAndSettle()                                   // remove the set condition first
++    dut.io.fifoOverflowClear #= true; dut.clockDomain.waitSampling(); dut.io.fifoOverflowClear #= false
++    dut.clockDomain.waitSampling(3)
++    check(!dut.io.fifoOverflow.toBoolean, "fifoOverflow CLEARED by W1C strobe")
++
++    // --- Test 2: uploadError (CP-A1 watchdog abort) then W1C clear ---
++    armStall(0x2000, 0xCD)
++    dut.clockDomain.waitSampling(120)                  // > stallTimeout(64) -> watchdog abort
++    check(dut.io.uploadError.toBoolean, "uploadError SET on watchdog stall abort")
++    relaxAndSettle()
++    dut.io.uploadErrorClear #= true; dut.clockDomain.waitSampling(); dut.io.uploadErrorClear #= false
++    dut.clockDomain.waitSampling(3)
++    check(!dut.io.uploadError.toBoolean, "uploadError CLEARED by W1C strobe")
++    // clear fifoOverflow too (the stall in Test 2 also set it) so Test 3 starts clean
++    dut.io.fifoOverflowClear #= true; dut.clockDomain.waitSampling(); dut.io.fifoOverflowClear #= false
++    dut.clockDomain.waitSampling(3)
++    check(!dut.io.fifoOverflow.toBoolean, "fifoOverflow also cleared before tie test")
++
++    // --- Test 3: SET-WINS-ON-TIE — pulse the clear WHILE the set condition is active ---
++    armStall(0x3000, 0xEF)
++    dut.clockDomain.waitSampling(8)                    // still within the pre-abort window
++    check(dut.io.fifoOverflow.toBoolean, "fifoOverflow SET (tie setup)")
++    // wrCmd.ready is still false here, so wrCmd.valid && !ready re-fires this same cycle:
++    dut.io.fifoOverflowClear #= true; dut.clockDomain.waitSampling(); dut.io.fifoOverflowClear #= false
++    dut.clockDomain.waitSampling(2)
++    check(dut.io.fifoOverflow.toBoolean, "SET-WINS-ON-TIE: fifoOverflow stays SET (clear pulsed while set active)")
++    relaxAndSettle()
++
++    println(if (pass) "Qspi0x0323StatusClearSim: PASS" else "Qspi0x0323StatusClearSim: FAIL")
++  }
++  if (!pass) { println("Qspi0x0323StatusClearSim FAILED"); sys.exit(1) }
++}
+diff --git a/hw/spinal/spinalhdlvdp/QspiSdramBridge.scala b/hw/spinal/spinalhdlvdp/QspiSdramBridge.scala
+index 89f86b1c..a739ced6 100644
+--- a/hw/spinal/spinalhdlvdp/QspiSdramBridge.scala
++++ b/hw/spinal/spinalhdlvdp/QspiSdramBridge.scala
+@@ -67,6 +67,11 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
+     // Routed to READ_STATUS sel=6 bit3 for host diagnosis. byteValid has no flow
+     // control, so this is the only signal that a byte was dropped at ingress.
+     val fifoOverflow = out Bool()
++    // Status-contract cleanup (#14638): host write-1-to-clear strobes (centralized 0x0323 W1C
++    // decode in VdpTop, routed via TopTang20kHdmi). A 1-cycle pulse clears the sticky; a concurrent
++    // set (below) wins on a same-cycle tie so a live error is never lost to a racing clear.
++    val uploadErrorClear  = in Bool() default False
++    val fifoOverflowClear = in Bool() default False
+     // DIAG #14260: temporary debug taps for sim integration diagnosis.
+     val dbgHdrPushed  = out Bool()
+     val dbgBytePushed = out Bool()
+@@ -94,6 +99,7 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
+   // full is silently lost (byteValid has no flow control); latch it so the host can
+   // read sel=6 bit3 and know the transport out-paced the drain.
+   val fifoOverflow = Reg(Bool()) init False
++  when(io.fifoOverflowClear) { fifoOverflow := False }   // #14638 W1C — set-whens below win on tie
+   when(byteFifo.io.push.valid && !byteFifo.io.push.ready) { fifoOverflow := True }
+   // CP-A5 (#11470): also latch downstream (uploadCc) backpressure — a wrCmd that can't
+   // push because the CDC FIFO is full is the tile[31] CC-overflow signature. Makes a
+@@ -122,6 +128,7 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
+   // the host clears it (or POR) so a transient wedge is observable after recovery.
+   val stallCnt    = Reg(UInt(log2Up(stallTimeout) bits)) init 0
+   val uploadError = Reg(Bool()) init False
++  when(io.uploadErrorClear) { uploadError := False }   // #14638 W1C — watchdog set (in fsm) wins on tie
+ 
+   val fsm = new StateMachine {
+     val sIdle   = new State with EntryPoint
+diff --git a/hw/spinal/spinalhdlvdp/QspiTransportCore.scala b/hw/spinal/spinalhdlvdp/QspiTransportCore.scala
+index 3bbced51..a52653de 100644
+--- a/hw/spinal/spinalhdlvdp/QspiTransportCore.scala
++++ b/hw/spinal/spinalhdlvdp/QspiTransportCore.scala
+@@ -54,6 +54,14 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
+     // via sel=8), so a 2FF BufferCC into the SCLK responder is safe — same justification as
+     // the sel=9 loopback. Lets the host split QSPI-upload corruption from downstream defects.
+     val debug_sdram_data = in Bits(32 bits)
++    // Status-contract cleanup (#14638): re-surface previously tied-off host status.
++    // status_sticky from VdpTop (READ_STATUS sel=5); upload_* from QspiSdramBridge (sel=6).
++    // Crossed sys->SCLK via BufferCC, same pattern as the sel=8/sel=11 selectors.
++    val status_sticky    = in Bits(16 bits) default B(0, 16 bits)
++    val upload_busy      = in Bool() default False
++    val upload_done      = in Bool() default False
++    val upload_error     = in Bool() default False
++    val upload_overflow  = in Bool() default False
+   }
+ 
+   // DIAG #14260 sim integration: allow a parent to supply the sys clock domain so the
+@@ -74,13 +82,13 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
+ 
+   val sys = new ClockingArea(sysCd) {
+     val dec = QspiDecoder()
+-    dec.io.status_sticky    := B(0, 16 bits)
++    dec.io.status_sticky    := io.status_sticky                 // #14638 un-tie (was B(0))
+     dec.io.live_mode        := U(0, 4 bits)
+     dec.io.debug_sdram_data := B(0, 32 bits)
+-    dec.io.upload_busy      := False
+-    dec.io.upload_done      := False
+-    dec.io.upload_error     := False
+-    dec.io.upload_overflow  := False
++    dec.io.upload_busy      := io.upload_busy                   // #14638 un-tie (was False)
++    dec.io.upload_done      := io.upload_done
++    dec.io.upload_error     := io.upload_error
++    dec.io.upload_overflow  := io.upload_overflow
+     dec.io.tx_byte_sent     := False
+     // loopback latch: last register write, so the host can verify write->read (the full
+     // SCLK->CDC->clk_sys->decoder path) by reading it back via READ_STATUS sel=9.
+@@ -119,6 +127,12 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
+     // responder via BufferCC (static once set — 2FF sync is safe, same as the sel=9 loopback).
+     val crcErrSticky = BufferCC(crcCap.errSticky, False)
+     val crcErrCount  = BufferCC(crcCap.errCount, U(0, 16 bits))
++    // #14638: host status crossed sys->SCLK for READ_STATUS sel=5 (VDP sticky) / sel=6 (upload).
++    val statusStickyCC = BufferCC(io.status_sticky,   B(0, 16 bits))
++    val upBusyCC       = BufferCC(io.upload_busy,     False)
++    val upDoneCC       = BufferCC(io.upload_done,     False)
++    val upErrorCC      = BufferCC(io.upload_error,    False)
++    val upOverflowCC   = BufferCC(io.upload_overflow, False)
+   }
+   // Read-responder switch is defined AFTER `push` (below) so sel=10 can surface the
+   // token-FIFO overflow + malformed-length sticky flags, which live in the push area.
+@@ -180,6 +194,8 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
+   rxWordSel := B(0, 32 bits)
+   switch(sel) {
+     is(U(0, 8 bits)) { rxWordSel := B"32'h51560002" }                                 // magic
++    is(U(5, 8 bits)) { rxWordSel := B(0, 16 bits) ## loop.statusStickyCC }             // #14638 VDP sticky status
++    is(U(6, 8 bits)) { rxWordSel := B(0, 28 bits) ## loop.upOverflowCC ## loop.upErrorCC ## loop.upDoneCC ## loop.upBusyCC } // #14638 upload status [3:0]=ovf,err,done,busy
+     is(U(7, 8 bits)) { rxWordSel := B(0, 15 bits) ## loop.hdrErrSticky ## loop.hdrErrCount.asBits }  // {sticky, count}
+     is(U(8, 8 bits)) { rxWordSel := loop.dbgSdramCC }                                  // SDRAM debug readback (#14246; armed via 0x0326/0x0327)
+     is(U(9, 8 bits)) { rxWordSel := loop.lastDataCC ## loop.lastAddrCC.asBits }        // loopback {data,addr}
+diff --git a/hw/spinal/spinalhdlvdp/TopTang20kHdmi.scala b/hw/spinal/spinalhdlvdp/TopTang20kHdmi.scala
+index b4ddf377..18ee8a86 100644
+--- a/hw/spinal/spinalhdlvdp/TopTang20kHdmi.scala
++++ b/hw/spinal/spinalhdlvdp/TopTang20kHdmi.scala
+@@ -583,6 +583,17 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
+     val debugSdramDataPix = Bits(32 bits)
+     qspiCore.io.debug_sdram_data := debugSdramDataPix
+ 
++    // Status-contract cleanup (#14638): wire the re-surfaced host status + centralized 0x0323 clear.
++    // QSPI reads via sel=5 (sticky) / sel=6 (upload); i80 reads via 0x0320/0x0323 (readData mux below).
++    // 0x0323 write-1-to-clear is decoded centrally in VdpTop and strobed to the bridge here.
++    qspiCore.io.status_sticky   := video.io.statusSticky
++    qspiCore.io.upload_busy     := qspiSdramBridge.io.uploadBusy
++    qspiCore.io.upload_done     := qspiSdramBridge.io.uploadDone
++    qspiCore.io.upload_error    := qspiSdramBridge.io.uploadError
++    qspiCore.io.upload_overflow := qspiSdramBridge.io.fifoOverflow
++    qspiSdramBridge.io.uploadErrorClear  := video.io.uploadErrorClear
++    qspiSdramBridge.io.fifoOverflowClear := video.io.fifoOverflowClear
++
+     // === Lane P22: i80 reg-read access to the SDRAM debug readback surface =====
+     // P21's i80 reg-read was a last-write loopback. P22 needs byte-exact SDRAM
+     // readback over i80, so reg-reads at 0x0328/0x0329 return the 32-bit one-shot
+@@ -597,6 +608,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
+       i80.io.readData := i80.io.readAddr.mux(
+         U(0x0328, 15 bits) -> debugSdramDataPix(15 downto 0),
+         U(0x0329, 15 bits) -> debugSdramDataPix(31 downto 16),
++        // Status-contract cleanup (#14638): i80 status reads. 0x0320 = VDP sticky (16b); 0x0323 =
++        // upload status [3:0]=busy,done,error,overflow (matches QSPI sel=5/sel=6). W1C via 0x0320/0x0323 writes.
++        U(0x0320, 15 bits) -> video.io.statusSticky,
++        U(0x0323, 15 bits) -> (B(0, 12 bits) ## qspiSdramBridge.io.fifoOverflow ## qspiSdramBridge.io.uploadError ## qspiSdramBridge.io.uploadDone ## qspiSdramBridge.io.uploadBusy),
+         // VDP-SOFT-RESET-135: VDP_CTRL read = loopback bits (copper enable[0]/swap[1]
+         // etc.) with bit[2] forced from the LIVE softResetBusy. CyanPeak (#12634)
+         // caught that the old `Mux(busy,0x0004,0)` zeroed bits 0/1 (broke RMW). But
+diff --git a/hw/spinal/spinalhdlvdp/VdpTop.scala b/hw/spinal/spinalhdlvdp/VdpTop.scala
+index ab187857..b7bf196c 100644
+--- a/hw/spinal/spinalhdlvdp/VdpTop.scala
++++ b/hw/spinal/spinalhdlvdp/VdpTop.scala
+@@ -212,6 +212,12 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
+     val statusSticky       = out Bits(16 bits)
+     // Host-visible IRQ line — asserted while any enabled sticky bit is set:
+     val irq                = out Bool()
++    // Status-contract cleanup (#14638): centralized 0x0323 (UPLOAD_STATUS) write-1-to-clear.
++    // A host write to 0x0323 (QSPI or i80, via the shared reg-bus) pulses these 1-cycle clear
++    // strobes to the QspiSdramBridge sticky flags (routed in TopTang20kHdmi). Bit 2 clears
++    // upload_error; bit 3 clears fifoOverflow. Bits 0/1 (busy/done) are live; bits 4/5 RESERVED.
++    val uploadErrorClear   = out Bool()
++    val fifoOverflowClear  = out Bool()
+     // Task 54 — sprite-sprite collision per-descriptor mask, addr 0x0322.
+     // Width deliberately held at 8 bits per BronzeGate #10363 even though
+     // descCount is now 32: each bit set indicates the corresponding
+@@ -2467,6 +2473,14 @@ case class VdpTop(sdramCd: ClockDomain = null, enableL1Fetch: Boolean = true, wi
+     statusClearMask := effData
+   }
+ 
++  // Status-contract cleanup (#14638): centralized UPLOAD_STATUS (0x0323) write-1-to-clear.
++  // Both QSPI and i80 hosts reach this via the shared reg-bus (effWrite/effAddr/effData). Bit 2
++  // -> clear upload_error, bit 3 -> clear fifoOverflow; 1-cycle strobes to the bridge (wired in
++  // TopTang20kHdmi). Fully combinational (False when not a matching write).
++  val uploadClearHit = effWrite && (effAddr === U(0x0323, 15 bits))
++  io.uploadErrorClear  := uploadClearHit && effData(2)
++  io.fifoOverflowClear := uploadClearHit && effData(3)
++
+   // Sticky update: clear the host-requested bits FIRST, then set on any event
+   // this cycle. If an event AND a clear both target the same bit in the same
+   // cycle, the event WINS (new state takes precedence over the stale clear) —

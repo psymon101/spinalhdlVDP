@@ -1,0 +1,19 @@
+lane: codebase-cleanup-status-contract
+task: BronzeGate Step C firmware contract synchronization
+date: 2026-08-03
+agent: BronzeGate
+source_commit: a5f2aaa93e89d3afbb4b0adf041eb19582508251
+base_commit: 2b1ecd32aaffd5fb62f28108c33f1139335b620a
+rtl_reference:
+  bitstream_sha256: be9978382fb16c463b238adc23a95275663dfdd540a3b6cff91e23a987c0fb5a
+  generated_rtl_reference: 670c9c8c
+mail_threads:
+  assignment: 14649
+  authorization: 14645
+  rtl_step_b: 14643
+  code_to_spec_pass: 14647
+decision: PASS_PENDING_EXTERNAL_AI_AND_PM_MERGE_AUTHORIZATION
+proof:
+  firmware_build: firmware/STEP_C_BUILD.md
+  source_summary: source/STEP_C_SOURCE.md
+  hashes: hashes.sha256
