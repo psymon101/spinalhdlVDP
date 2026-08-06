@@ -583,6 +583,17 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
     val debugSdramDataPix = Bits(32 bits)
     qspiCore.io.debug_sdram_data := debugSdramDataPix
 
+    // Status-contract cleanup (#14638): wire the re-surfaced host status + centralized 0x0323 clear.
+    // QSPI reads via sel=5 (sticky) / sel=6 (upload); i80 reads via 0x0320/0x0323 (readData mux below).
+    // 0x0323 write-1-to-clear is decoded centrally in VdpTop and strobed to the bridge here.
+    qspiCore.io.status_sticky   := video.io.statusSticky
+    qspiCore.io.upload_busy     := qspiSdramBridge.io.uploadBusy
+    qspiCore.io.upload_done     := qspiSdramBridge.io.uploadDone
+    qspiCore.io.upload_error    := qspiSdramBridge.io.uploadError
+    qspiCore.io.upload_overflow := qspiSdramBridge.io.fifoOverflow
+    qspiSdramBridge.io.uploadErrorClear  := video.io.uploadErrorClear
+    qspiSdramBridge.io.fifoOverflowClear := video.io.fifoOverflowClear
+
     // === Lane P22: i80 reg-read access to the SDRAM debug readback surface =====
     // P21's i80 reg-read was a last-write loopback. P22 needs byte-exact SDRAM
     // readback over i80, so reg-reads at 0x0328/0x0329 return the 32-bit one-shot
@@ -597,6 +608,10 @@ case class TopTang20kHdmi(enableL1Fetch: Boolean = true, withExtraRasterTriggers
       i80.io.readData := i80.io.readAddr.mux(
         U(0x0328, 15 bits) -> debugSdramDataPix(15 downto 0),
         U(0x0329, 15 bits) -> debugSdramDataPix(31 downto 16),
+        // Status-contract cleanup (#14638): i80 status reads. 0x0320 = VDP sticky (16b); 0x0323 =
+        // upload status [3:0]=busy,done,error,overflow (matches QSPI sel=5/sel=6). W1C via 0x0320/0x0323 writes.
+        U(0x0320, 15 bits) -> video.io.statusSticky,
+        U(0x0323, 15 bits) -> (B(0, 12 bits) ## qspiSdramBridge.io.fifoOverflow ## qspiSdramBridge.io.uploadError ## qspiSdramBridge.io.uploadDone ## qspiSdramBridge.io.uploadBusy),
         // VDP-SOFT-RESET-135: VDP_CTRL read = loopback bits (copper enable[0]/swap[1]
         // etc.) with bit[2] forced from the LIVE softResetBusy. CyanPeak (#12634)
         // caught that the old `Mux(busy,0x0004,0)` zeroed bits 0/1 (broke RMW). But

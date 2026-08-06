@@ -54,6 +54,14 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
     // via sel=8), so a 2FF BufferCC into the SCLK responder is safe — same justification as
     // the sel=9 loopback. Lets the host split QSPI-upload corruption from downstream defects.
     val debug_sdram_data = in Bits(32 bits)
+    // Status-contract cleanup (#14638): re-surface previously tied-off host status.
+    // status_sticky from VdpTop (READ_STATUS sel=5); upload_* from QspiSdramBridge (sel=6).
+    // Crossed sys->SCLK via BufferCC, same pattern as the sel=8/sel=11 selectors.
+    val status_sticky    = in Bits(16 bits) default B(0, 16 bits)
+    val upload_busy      = in Bool() default False
+    val upload_done      = in Bool() default False
+    val upload_error     = in Bool() default False
+    val upload_overflow  = in Bool() default False
   }
 
   // DIAG #14260 sim integration: allow a parent to supply the sys clock domain so the
@@ -74,13 +82,13 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
 
   val sys = new ClockingArea(sysCd) {
     val dec = QspiDecoder()
-    dec.io.status_sticky    := B(0, 16 bits)
+    dec.io.status_sticky    := io.status_sticky                 // #14638 un-tie (was B(0))
     dec.io.live_mode        := U(0, 4 bits)
     dec.io.debug_sdram_data := B(0, 32 bits)
-    dec.io.upload_busy      := False
-    dec.io.upload_done      := False
-    dec.io.upload_error     := False
-    dec.io.upload_overflow  := False
+    dec.io.upload_busy      := io.upload_busy                   // #14638 un-tie (was False)
+    dec.io.upload_done      := io.upload_done
+    dec.io.upload_error     := io.upload_error
+    dec.io.upload_overflow  := io.upload_overflow
     dec.io.tx_byte_sent     := False
     // loopback latch: last register write, so the host can verify write->read (the full
     // SCLK->CDC->clk_sys->decoder path) by reading it back via READ_STATUS sel=9.
@@ -119,6 +127,12 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
     // responder via BufferCC (static once set — 2FF sync is safe, same as the sel=9 loopback).
     val crcErrSticky = BufferCC(crcCap.errSticky, False)
     val crcErrCount  = BufferCC(crcCap.errCount, U(0, 16 bits))
+    // #14638: host status crossed sys->SCLK for READ_STATUS sel=5 (VDP sticky) / sel=6 (upload).
+    val statusStickyCC = BufferCC(io.status_sticky,   B(0, 16 bits))
+    val upBusyCC       = BufferCC(io.upload_busy,     False)
+    val upDoneCC       = BufferCC(io.upload_done,     False)
+    val upErrorCC      = BufferCC(io.upload_error,    False)
+    val upOverflowCC   = BufferCC(io.upload_overflow, False)
   }
   // Read-responder switch is defined AFTER `push` (below) so sel=10 can surface the
   // token-FIFO overflow + malformed-length sticky flags, which live in the push area.
@@ -180,6 +194,8 @@ case class QspiTransportCore(fifoDepth: Int = 512, dummyCycles: Int = 2, hdrPari
   rxWordSel := B(0, 32 bits)
   switch(sel) {
     is(U(0, 8 bits)) { rxWordSel := B"32'h51560002" }                                 // magic
+    is(U(5, 8 bits)) { rxWordSel := B(0, 16 bits) ## loop.statusStickyCC }             // #14638 VDP sticky status
+    is(U(6, 8 bits)) { rxWordSel := B(0, 28 bits) ## loop.upOverflowCC ## loop.upErrorCC ## loop.upDoneCC ## loop.upBusyCC } // #14638 upload status [3:0]=ovf,err,done,busy
     is(U(7, 8 bits)) { rxWordSel := B(0, 15 bits) ## loop.hdrErrSticky ## loop.hdrErrCount.asBits }  // {sticky, count}
     is(U(8, 8 bits)) { rxWordSel := loop.dbgSdramCC }                                  // SDRAM debug readback (#14246; armed via 0x0326/0x0327)
     is(U(9, 8 bits)) { rxWordSel := loop.lastDataCC ## loop.lastAddrCC.asBits }        // loopback {data,addr}

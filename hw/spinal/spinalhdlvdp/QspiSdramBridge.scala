@@ -67,6 +67,11 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
     // Routed to READ_STATUS sel=6 bit3 for host diagnosis. byteValid has no flow
     // control, so this is the only signal that a byte was dropped at ingress.
     val fifoOverflow = out Bool()
+    // Status-contract cleanup (#14638): host write-1-to-clear strobes (centralized 0x0323 W1C
+    // decode in VdpTop, routed via TopTang20kHdmi). A 1-cycle pulse clears the sticky; a concurrent
+    // set (below) wins on a same-cycle tie so a live error is never lost to a racing clear.
+    val uploadErrorClear  = in Bool() default False
+    val fifoOverflowClear = in Bool() default False
     // DIAG #14260: temporary debug taps for sim integration diagnosis.
     val dbgHdrPushed  = out Bool()
     val dbgBytePushed = out Bool()
@@ -94,6 +99,7 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
   // full is silently lost (byteValid has no flow control); latch it so the host can
   // read sel=6 bit3 and know the transport out-paced the drain.
   val fifoOverflow = Reg(Bool()) init False
+  when(io.fifoOverflowClear) { fifoOverflow := False }   // #14638 W1C — set-whens below win on tie
   when(byteFifo.io.push.valid && !byteFifo.io.push.ready) { fifoOverflow := True }
   // CP-A5 (#11470): also latch downstream (uploadCc) backpressure — a wrCmd that can't
   // push because the CDC FIFO is full is the tile[31] CC-overflow signature. Makes a
@@ -122,6 +128,7 @@ case class QspiSdramBridge(stallTimeout: Int = 65536) extends Component {
   // the host clears it (or POR) so a transient wedge is observable after recovery.
   val stallCnt    = Reg(UInt(log2Up(stallTimeout) bits)) init 0
   val uploadError = Reg(Bool()) init False
+  when(io.uploadErrorClear) { uploadError := False }   // #14638 W1C — watchdog set (in fsm) wins on tie
 
   val fsm = new StateMachine {
     val sIdle   = new State with EntryPoint
