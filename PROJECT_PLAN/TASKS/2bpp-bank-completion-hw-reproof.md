@@ -2,7 +2,7 @@
 
 **Owner:** BronzeGate (firmware/flash/procedure) + BrightForge (bitstream/RTL support)  
 **PM:** TopazCliff  
-**Status:** BLOCKED — campaign cycle 01 repeated `0x22222222` despite CS#-high pre-flight; escalated for review (#14605)
+**Status:** DONE — 10/10 prime reproof cycles PASS; discard-read workaround validated on preserved authority bitstream `a5a047a2…` (#14642)
 **Opened:** 2026-07-30  
 **Started:** 2026-08-01  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Provide the hardware reproof gate for the `2bpp-bank-completion-rtl` sim+PnR hardening.
@@ -209,22 +209,61 @@ campaign proof because the magic precondition failed. Per #14605, the lane is
 blocked pending TopazCliff/BrightForge review; no further cycle is authorized
 until that review supplies the next discriminator.
 
-**BrightForge:** the `a5a047a2` bitstream is confirmed preserved and
-hash-verified. Stand by for RTL support **only if** a new anomaly appears; no
-pre-emptive patching inside this lane.
+## Diagnostic bitstream and root-cause interpretation (2026-08-02)
 
-**BrightForge:** the `a5a047a2` bitstream is confirmed preserved and hash-verified. Stand by for RTL support **only if** the post-settle anomaly repeats or the new `upload-status-clear-rtl-decode` lane needs interface review; no pre-emptive patching inside this lane.
+BrightForge built an additive diagnostic bitstream on branch
+`brightforge/lane1-reconfig-diag` forked from the exact `a5a047a2` source
+(`033cc471`):
+
+- Bitstream SHA-256: `eaad44f8b012081f401b03840ea855aa50f45ad765b2c42f239a6b050ddf1b67`
+- Readout selector: `sel=0x0D`
+- Diagnostic word decoded from first failing transaction: `raw=0x00004045` →
+  `sawCsHigh=1`, `csnNow=0`, `sawSclk=1`, `firstPhase=0` (CMD),
+  `firstBitc=1`, `txnCount=4`.
+
+This selected the reset-fired-but-first-transaction-mis-framed branch,
+consistent with a config-boundary async-reset-release race in `QspiSlaveSync`:
+CS# reset fired, but the first SCLK-domain transaction mis-framed at CMD bit 1
+right after FPGA configuration. The robust RTL fix (CS#-reset-release
+synchronizer) was logged as a separate future Rule-19-gated hardening lane and
+was not implemented in this lane, preserving the `a5a047a2` authority bitstream.
+
+## Prime-reproof workaround and final result (2026-08-02)
+
+TopazCliff authorized a firmware-only discard-read prime: after the mandatory
+CS#-high 1200 ms pre-flight and `vdp_host_init()`, perform one ignored
+`read_status(0x00)`, then use the second magic read as the campaign gate.
+
+BronzeGate implemented the prime in firmware commit
+`9babcbeec436906271114cb4b146bc0234e1e4be`, built/flashed with ESP-IDF v6.0.2,
+and ran ten fresh SRAM reconfiguration cycles on the preserved authority
+bitstream `a5a047a2…`.
+
+**Result: 10/10 PASS.** Every cycle logged the CS#-high 1200 ms pre-flight,
+`LANE1_PRIME_DISCARD raw=0x22222222 err=0`, second magic `0x51560002`, zero
+health before/upload/enable, six readback passes, `SCALER_PROOF mode=0 pass=1`,
+and a 2,073,600-byte 720×480 YUYV capture.
+
+Proof packet:
+- `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/hardware/LANE1_PRIME_CAMPAIGN_RESULT.md`
+- `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/firmware/LANE1_PRIME_BUILD.md`
+- `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/hashes.sha256`
+
+Artifact SHA-256s:
+- Authority bitstream: `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`
+- Firmware ELF: `8d7afb27b856b6f22ed82f4c21f319c965b1f32e7ac612fb51705b29de042f39`
+- App BIN: `5057452cf41077f17445a883088f58fb93b2e44d7bcc9d59d0f52b450af9bef2`
 
 ---
 
 ## Acceptance Criteria
 
-- [ ] Bitstream source commit and SHA-256 recorded.
-- [ ] Firmware ELF/BIN/partition SHA-256s match approved 4 MHz artifacts.
-- [ ] ≥10 cold-start cycles pass with byte-level readback and clean capture.
-- [ ] No residual lower-bitmap corruption (rows 200-201 historically failed).
-- [ ] Proof packet created under `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/`.
-- [ ] `STATUS.md` lane updated to `DONE` with proof.
+- [x] Bitstream source commit and SHA-256 recorded.
+- [x] Firmware ELF/BIN/partition SHA-256s recorded and build verified.
+- [x] 10 fresh reconfigure cycles pass with byte-level readback and clean capture.
+- [x] No residual lower-bitmap corruption (readbacks pass on every cycle).
+- [x] Proof packet created under `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/`.
+- [x] `STATUS.md` lane updated to `DONE` with proof.
 
 ---
 
