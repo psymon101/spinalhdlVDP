@@ -1,0 +1,22 @@
+lane: 2bpp-bank-completion-hw-reproof
+owner: BronzeGate
+date: 2026-08-02
+decision: PASS
+source_commit: 9babcbeec436906271114cb4b146bc0234e1e4be
+source_parent: f0531869
+authority_bitstream: fpga/tang20k/impl/pnr/project_a5a047a2_bankcompletion.fs
+authority_bitstream_sha256: a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c
+firmware_build: firmware/LANE1_PRIME_BUILD.md
+hardware_result: hardware/LANE1_PRIME_CAMPAIGN_RESULT.md
+runner: run_ten_cycles_prime.sh
+cycles: 10
+cycle_result: 10/10 PASS
+mail:
+  authorization: 14639
+  diagnostic_interpretation: 14635
+  cleanup_lane_start: 14641
+toolchain: ESP-IDF v6.0.2
+transport: QSPI 2 MHz SCK
+board: Tang Nano 20K + ESP32-P4
+open_deviations:
+  - Config-boundary reset-release synchronizer hardening remains a future Rule-19-gated RTL lane.

@@ -19,7 +19,7 @@ void vdp_clear_sticky(uint16_t mask)
 bool vdp_wait_sticky(uint16_t bit_mask, uint32_t timeout_us)
 {
     while (true) {
-        uint32_t s = vdp_read_status(5);
+        uint32_t s = vdp_read_status(VDP_STATUS_SEL_STICKY);
         if ((s & bit_mask) == bit_mask) return true;
         if (timeout_us == 0) return false;
         uint32_t step = (timeout_us < 50u) ? timeout_us : 50u;

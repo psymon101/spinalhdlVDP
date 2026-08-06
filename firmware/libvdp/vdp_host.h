@@ -2,8 +2,8 @@
  * vdp_host.h — Transport layer for the VDP host driver library.
  *
  * Encapsulates the active host transport so application code never
- * hand-frames packets. The current Tang Nano 20K deployment uses i80;
- * legacy QSPI backends remain available through deprecated aliases.
+ * hand-frames packets. The canonical Tang Nano 20K deployment uses the
+ * ESP32-P4 QSPI backend; the i80 backend remains available for host parity.
  *
  * All functions are synchronous / blocking. Errors are reported via
  * `vdp_last_error()`; return value of `bool` APIs is `true` on success.
@@ -24,10 +24,8 @@ extern "C" {
 #define VDP_UPLOAD_STATUS_DONE      0x0002u
 #define VDP_UPLOAD_STATUS_ERROR     0x0004u
 #define VDP_UPLOAD_STATUS_OVERFLOW  0x0008u
-#define VDP_UPLOAD_STATUS_TXN_DROPPED 0x0010u
 #define VDP_UPLOAD_STATUS_CLEAR_MASK \
-    (VDP_UPLOAD_STATUS_ERROR | VDP_UPLOAD_STATUS_OVERFLOW | \
-     VDP_UPLOAD_STATUS_TXN_DROPPED)
+    (VDP_UPLOAD_STATUS_ERROR | VDP_UPLOAD_STATUS_OVERFLOW)
 
 enum {
     VDP_HOST_ERR_NONE = 0,
@@ -83,9 +81,8 @@ void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_word
  * Valid Fix B bits are VDP_UPLOAD_STATUS_ERROR (bit 2) and
  * VDP_UPLOAD_STATUS_OVERFLOW (bit 3). Pass only bits intended to clear.
  *
- * Note: the 0x0323 clear decode is not yet implemented in the current
- * bitstream; the helper issues the write, but hardware ignores it until
- * the RTL change lands (FULL-DOC-AUDIT-151).
+ * The clear mask is limited to the canonical sticky bits 2 and 3;
+ * bits 4/5 are RESERVED-0 and are never written by this helper.
  */
 void vdp_clear_upload_status(uint16_t mask);
 
@@ -93,17 +90,29 @@ void vdp_clear_upload_status(uint16_t mask);
  * Issue a READ_STATUS (CMD=0x04) transaction and return the 32-bit
  * little-endian response word for the requested selector.
  *
- * Note: READ_STATUS is implemented only on legacy QSPI builds. The i80
- * RTL decoder does not currently decode opcode 0x04, so this function
- * returns undefined data on i80 hosts (use normal register reads instead).
+ * On QSPI hosts, selectors 0x05 and 0x06 return VDP sticky status and
+ * upload status respectively. i80 hosts do not use this opcode; read their
+ * status through the memory-mapped 0x0320/0x0323 registers with
+ * `vdp_reg_read()`.
  *
- * @param sel   0 = magic 0x51560002, 1 = rx_cmd_cnt, 2 = last_addr,
- *              3 = last_data, 4 = last_error, 5 = status sticky,
- *              6 = upload status (busy/done bits), 7 = live mode,
- *              8 = diagnostic SDRAM dword readback
+ * @param sel   0 = magic 0x51560002, 1..4 = legacy diagnostics,
+ *              5 = VDP sticky status, 6 = upload status (bits 0..3),
+ *              7 = live mode, 8 = diagnostic SDRAM dword readback,
+ *              9 = last reg-write loopback, 0x0A = transport health,
+ *              0x0B = CRC8 error, 0x0C = READ_DONE
  * @return 32-bit response assembled from 4 bit-banged bytes (byte 0 = LSB)
  */
 uint32_t vdp_read_status(uint8_t sel);
+
+/**
+ * Read a memory-mapped register through a host transport.
+ *
+ * The i80 backend uses this for the status registers at 0x0320 and 0x0323.
+ * The ESP32-P4 QSPI transport is write-only for REG_BUS reads, so its backend
+ * returns 0 and sets VDP_HOST_ERR_RX. This API remains active because it is
+ * used by `vdp_mode0_soft_reset()` and
+ * `vdp_mode0_read_bitmap_swap_ctrl()` and is required by i80 parity.
+ */
 uint16_t vdp_reg_read(uint32_t addr);
 
 /**

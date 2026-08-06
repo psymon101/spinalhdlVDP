@@ -76,22 +76,25 @@ uint32_t magic = vdp_read_status(0);
 |---|---|---|---|---|
 | `vdp_reg_write` | `void vdp_reg_write(uint32_t addr, uint16_t data)` | write one 16-bit VDP register word | 15-bit register address, 16-bit payload | none |
 | `vdp_reg_write_burst` | `void vdp_reg_write_burst(uint32_t addr, const uint16_t *words, uint16_t num_words)` | write a contiguous block of register words | start address, little-endian word array, word count (1..253) | none |
-| `vdp_read_status` | `uint32_t vdp_read_status(uint8_t sel)` | read one 32-bit status selector | selector `0..7` | 32-bit little-endian response |
+| `vdp_read_status` | `uint32_t vdp_read_status(uint8_t sel)` | read one 32-bit status selector | QSPI `sel` (§5 table) | 32-bit little-endian response |
 
-> **Transport note:** `vdp_read_status()` is implemented only on the legacy SPI backend. The canonical i80 RTL decoder does not currently decode the `READ_STATUS` opcode (`0x04`); on i80/ESP32-S3 hosts, poll status through normal register reads (e.g., `0x0320` for sticky status).
+> **Transport note:** `vdp_read_status()` is implemented on the QSPI and legacy SPI backends. The i80 RTL decoder does not decode the `READ_STATUS` opcode (`0x04`); on i80 hosts, poll status through normal memory-mapped register reads (`0x0320` for sticky status, `0x0323` for upload status). See `MODE0_REGISTER_BUS_SPEC.md` §2.3 and §5.
 
-### `vdp_read_status` selectors
+### `vdp_read_status` selectors (QSPI)
 
 | `sel` | Meaning |
 |---|---|
-| `0` | magic value |
-| `1` | `rx_cmd_cnt` |
-| `2` | `last_addr` |
-| `3` | `last_data` |
-| `4` | `last_error` |
-| `5` | sticky status bits |
-| `6` | upload status |
-| `7` | committed live mode |
+| `0x00` | magic value `0x51560002` |
+| `0x01`..`0x04` | zero/unsupported |
+| `0x05` | sticky status bits (`STATUS_STICKY` @ `0x0320`) |
+| `0x06` | upload status (`UPLOAD_STATUS_CLEAR` @ `0x0323`) |
+| `0x07` | header-parity health |
+| `0x08` | SDRAM debug readback |
+| `0x09` | last reg-write loopback |
+| `0x0A` | transport health |
+| `0x0B` | CRC8 error |
+| `0x0C` | `READ_DONE` |
+| `0x0D`..`0xFF` | reserved — zero response (`0x0D` is used only by the Lane 1 diagnostic bitstream) |
 
 ## SDRAM Upload
 
@@ -145,7 +148,7 @@ python3 scripts/assets/bin_to_c_array.py build/frame.tiles.bin \
 
 | Function | Signature | Purpose | Notes |
 |---|---|---|---|
-| `vdp_wait_sticky` | `bool vdp_wait_sticky(uint16_t bit_mask, uint32_t timeout_us)` | wait until all requested sticky bits are set | polls selector `5` |
+| `vdp_wait_sticky` | `bool vdp_wait_sticky(uint16_t bit_mask, uint32_t timeout_us)` | wait until all requested sticky bits are set | polls `READ_STATUS` sel `0x05` on QSPI, or `vdp_reg_read(0x0320)` on i80 |
 | `vdp_wait_vblank` | `bool vdp_wait_vblank(uint32_t timeout_us)` | clear and wait for next raster/vblank sticky event | convenience wrapper for paced loops |
 | `vdp_clear_sticky` | `void vdp_clear_sticky(uint16_t mask)` | write-1-to-clear sticky bits | uses register `0x0320` |
 

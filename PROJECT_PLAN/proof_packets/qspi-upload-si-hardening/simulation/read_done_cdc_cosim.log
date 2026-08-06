@@ -1,0 +1,28 @@
+[info] welcome to sbt 1.10.2 (Ubuntu Java 17.0.19)
+[info] loading project definition from /home/itadmin/github/spinalhdlVDP/project
+[info] loading settings for project spinalhdlvdp from build.sbt ...
+[info] set current project to spinalhdlVDP (in build file:/home/itadmin/github/spinalhdlVDP/)
+[info] Executing in batch mode. For better performance use sbt's shell
+[success] Total time: 2 s, completed Aug 1, 2026, 9:58:35 AM
+[info] running spinalhdlvdp.ReadDoneCdcSim 
+[Runtime] SpinalHDL v1.12.3    git head : 591e64062329e5e2e2b81f4d52422948053edb97
+[Runtime] JVM max memory : 16384.0MiB
+[Runtime] Current date : 2026.08.01 09:58:36
+[Progress] at 0.000 : Elaborate components
+[Progress] at 0.521 : Checks and transforms
+[Progress] at 0.704 : Generate Verilog to ./simWorkspace/tmp/job_1
+[Done] at 0.840
+[Progress] Simulation workspace in /home/itadmin/github/spinalhdlVDP/./simWorkspace/Dut
+[Progress] Verilator compilation started
+[Progress] Verilator compilation done in 6398.995 ms
+[Progress] Start Dut test simulation with seed 1457038759
+=== ReadDoneCdcSim: arm -> complete -> poll READ_DONE -> read (hardened handshake) ===
+    white     : READ_DONE=true got=0x55555555 exp=0x55555555 pollcyc=7  OK
+    black     : READ_DONE=true got=0x00000000 exp=0x00000000 pollcyc=7  OK
+    white2    : READ_DONE=true got=0x55555555 exp=0x55555555 pollcyc=7  OK
+    sentinel  : READ_DONE=true got=0xDEADBEEF exp=0xDEADBEEF pollcyc=7  OK
+    white3    : READ_DONE=true got=0x55555555 exp=0x55555555 pollcyc=7  OK
+    stale-guard: READ_DONE=false before completion (host correctly waits)  OK
+=== ReadDoneCdcSim: ALL PASS (handshake logically correct; HW is the timing arbiter) ===
+[Done] Simulation done in 94.727 ms
+[success] Total time: 9 s, completed Aug 1, 2026, 9:58:44 AM

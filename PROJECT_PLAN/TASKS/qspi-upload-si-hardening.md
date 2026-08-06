@@ -2,7 +2,7 @@
 
 **Owner:** BrightForge (RTL) + BronzeGate (firmware)  
 **PM:** TopazCliff  
-**Status:** BLOCKED — discriminator selects stable SDRAM/write-path zeros; pending PM/BrightForge three-way scope agreement (#14509–#14512)
+**Status:** DONE — mode-8 READ_DONE hardware proof PASS (`0x55555555` at `0x100008` and `0x101000`); SDRAM writes are clean; residual `sel=8` zeros are a readback/CDC artifact. PM disposition: document the `sel=8` diagnostic caveat; no production RTL or host-interface change. Closeout commit `542e4ad5`.
 **Opened:** 2026-07-30  
 **Trigger:** Owner-directed sequence: lane 6 → lane 3 → lane 1. Address the residual intermittent silent QSPI upload corruption observed in `HAM6 removal + 2bpp indexed replacement` / `QSPI-SI-CEILING-183` at the canonical 4 MHz bulk-upload ceiling.
 
@@ -148,13 +148,13 @@ made.
 
 ## Acceptance Criteria
 
-- [ ] Approach chosen and recorded in this task file with PM approval.
-- [ ] If Option A: RTL computes CRC8 per `SDRAM_WRITE` payload, health selector exposes pass/fail per chunk, firmware performs verify+retry, `sbt compile` PASS, sim/unit-test proves detection of injected nibble error.
-- [ ] If Option B or C: procedure documented, before/after 4 MHz stress N≥30 uploads with byte-level readback, quantitative improvement shown.
-- [ ] Production `make gen` still emits `top_tang20k.v` with no unintended diff.
-- [ ] `git status` clean; all changes committed.
-- [ ] Proof packet created under `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`.
-- [ ] `STATUS.md` lane updated to `DONE` with proof.
+- [x] Approach chosen and recorded in this task file with PM approval (option-4 `READ_DONE` completion-poll discriminator, Rule-19 approved by BrightForge and BronzeGate in #14565/#14566).
+- [x] Option-4 RTL implemented (`5ef5db2a`), `sbt compile` PASS, CDC co-sim `ReadDoneCdcSim` ALL PASS (ideal-2FF caveat), 3-build STA TNS=0 all clocks, BSRAM 40/46 (no new).
+- [x] Matching proof firmware built (`SCALER_PROOF_MODE=8`, source `158b9d7c`), hardware proof run, and result recorded.
+- [x] Production `make gen` still emits `top_tang20k.v` with no unintended diff (no production path touched).
+- [x] `git status` clean; all changes committed (`542e4ad5`).
+- [x] Proof packet created under `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`.
+- [x] `STATUS.md` lane updated to `DONE` with proof.
 
 ---
 
@@ -312,9 +312,20 @@ HW test.
 
 1. **BrightForge:** implement option-4 RTL (`READ_DONE` status bit + hardened
    `dbgResultPixArea` latch), add CDC co-sim proof, build bitstream (3-build
-   STA, TNS=0, no regression).
+   STA, TNS=0, no regression). **DONE in commit `5ef5db2a` (gen `ff01ab71`);
+   `sbt compile` PASS; `ReadDoneCdcSim` ALL PASS (ideal-2FF caveat); 3-build STA
+   TNS=0 all clocks, BSRAM 40/46 (no new). Authoritative bitstream
+   `fpga/tang20k/impl/pnr/project_0c218b9a_readdone.fs` SHA-256
+   `0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2`
+   (preserved read-only). Hardware-ready gate delivered #14576; PM flash AUTHORIZED
+   (#14575). NOTE: #14575 named SHA `6fd0a81f` (a non-deterministic sibling build that
+   overwrote `project.fs` and was never preserved — confirmed absent from disk); flash
+   artifact RE-POINTED to the preserved, equivalent `project_0c218b9a_readdone.fs`
+   (`0c218b9a…`, own report TNS=0) in #14577, awaiting PM re-point confirmation.**
 2. **BronzeGate:** build proof firmware using arm → poll `READ_DONE` → read
-   result, and run HW test at `0x100008`/`0x101000`.
+   result, and run HW test at `0x100008`/`0x101000`. **Firmware `SCALER_PROOF_MODE=8`
+   built in `158b9d7c` (#14573). On PM re-point confirmation (#14577), flash the named
+   preserved file `project_0c218b9a_readdone.fs` (not bare `project.fs`) + explicit SRAM load.**
 3. **TopazCliff:** track proof and pivot lane scope based on the result:
    - `0x55555555` ⇒ SDRAM writes are clean; defect is in `sel=8`/readback.
    - `0x00000000` ⇒ reopen physical write-side investigation with the two
@@ -322,6 +333,44 @@ HW test.
 4. No production firmware/host driver uses the new surface unless PM decides.
 
 ---
+
+## Closeout (2026-08-01)
+
+### Final result
+
+The option-4 `READ_DONE` completion-poll proof was executed in hardware using:
+
+- FPGA bitstream `fpga/tang20k/impl/pnr/project_0c218b9a_readdone.fs`, SHA-256 `0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2` (RTL source `5ef5db2a`, generated `hw/gen/top_tang20k.v` SHA-256 `ff01ab71a1758b1844a60459cbfaf2f2e628bf20ed45bcb2ae77e13ede5bccb`).
+- Proof firmware `firmware/esp32p4_scaler_proof`, source commit `158b9d7c`, workspace build `70c43d7a`, ELF SHA-256 `fd592e3562e8a278b200b0c95f5a0f8ec2d2709c15ed54a441b572e48018907a`.
+
+Mode-8 sequence: write `0x0326`/`0x0327` to arm → poll `READ_STATUS` sel `0x0C` bit 0 until `1` → read result via sel `0x08`.
+
+| Check | Result |
+|---|---|
+| Bitmap upload | PASS, 30,720 bytes at 4 MHz |
+| Attribute upload | PASS, 30,720 bytes at 4 MHz |
+| `0x100008` (8 repeats) | `0x55555555` every repeat; max `READ_DONE` polls = 1 |
+| `0x101000` (8 repeats) | `0x55555555` every repeat; max `READ_DONE` polls = 1 |
+| Health before/after | `raw=0x00000000`, `overflow=0`, `malformed=0` |
+| Overall | `READ_DONE_PROOF pass=1` |
+
+### PM disposition
+
+The lag-free `READ_DONE` read returned the expected checkerboard pattern at both historically-failing target words. Therefore **SDRAM writes are clean** and the earlier `sel=8` zeros are a **readback/CDC artifact of the existing diagnostic path**, not physical QSPI/SDRAM upload corruption.
+
+- **No production RTL change.** The `READ_DONE` surface remains a proof-only selector (`0x0C`) on the `brightforge/read-done-diag` branch and is not merged to `main`.
+- **No production firmware/host-driver change.** The `memcpy`→`memmove` fix in `619f76b8` is a real hygiene fix but was not the root cause; it may be picked up later at BronzeGate's discretion.
+- **Document the caveat:** the `sel=8` SDRAM-content readback must be treated as a diagnostic-only path with a known 1-sample/CDC lag; do not use it as authoritative upload-verification evidence without the `READ_DONE` completion poll or equivalent.
+- Optional future work: harden the existing `sel=8` path to be self-completing. This is **not on the critical path** and may be scoped later with its own Rule-19 checkpoint.
+
+### Artifacts
+
+- `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/READ_DONE_RESULTS.md`
+- `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/hardware/READ_DONE_SERIAL.md`
+- `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/firmware/READ_DONE_BUILD.md`
+- `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/simulation/READ_DONE_CDC_COSIM.md`
+- `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/synthesis/STA_3BUILD_SUMMARY.md`
+- `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/manifest.yaml`
 
 ## Out of Scope
 

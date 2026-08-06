@@ -1,7 +1,7 @@
 lane: qspi-upload-si-hardening
 owners: [BrightForge, BronzeGate]
 pm: TopazCliff
-status: IN_PROGRESS_READ_DONE_PROOF
+status: REVIEW_READ_DONE_HARDWARE_PASS
 date: 2026-08-01
 source_commit: 158b9d7c
 firmware_proof_commits: [619f76b8, 3b246fc7, 2d066b5e]
@@ -14,8 +14,9 @@ firmware_build:
   project: firmware/esp32p4_scaler_proof
   tool: ESP-IDF v6.0.2
   target: ESP32-P4 v1.3
-  elf_sha256: 1c41993ee8de004be07bd5d97872651aebdf2383f6363379ace9082a08706ed5
-  bin_sha256: 91f036688621d02e3a0ca469a74837bf6b3c2d2c8233e22abd54ea92e900eb04
+  build_commit: 70c43d7a
+  elf_sha256: fd592e3562e8a278b200b0c95f5a0f8ec2d2709c15ed54a441b572e48018907a
+  bin_sha256: cb977e17bedcfe639382c6d2f16fcd79649e1aca5f66dc252b09521e0249ca8c
   partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
 double_read_proof:
   firmware_mode: 6
@@ -71,16 +72,55 @@ read_done_proof:
     clear_on: 0x0327_arm_write
     set_on: settled_pixel_domain_result_latch
     data_selector: 0x08
-  elf_sha256: 2c35c2c60d420b8820cf6a1c6d3f6ee0fca3c2cfeee9c1ea916cd36e5b04a165
-  bin_sha256: ff525e9d8011e96f99f28a879d40916a39884ad1842a6b0d93909475e2592842
+  elf_sha256: fd592e3562e8a278b200b0c95f5a0f8ec2d2709c15ed54a441b572e48018907a
+  bin_sha256: cb977e17bedcfe639382c6d2f16fcd79649e1aca5f66dc252b09521e0249ca8c
   partition_sha256: fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17
   target_addresses: [0x100008, 0x101000]
   repeats: 8
   upload_clock_hz: 4000000
   read_clock_hz: 2000000
-  hardware_status: pending_matching_bitstream_and_flash_authorization
+  hardware_status: pass_after_ftdi_driver_recovery
+  sram_load_sha256: 0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2
+  serial_log_sha256: b86647404db6b89d04c563879e044a22596bff147f68600d00336ad416ef3ed8
+  curated_serial_sha256: d3718b84bcd8060498fe672a45e87515b591ddc46ad3df97b3c007e000c76e2d
+  upload_status: PASS
+  health_after_read: raw=0x00000000,overflow=0,malformed=0
+  target_results:
+    0x100008: {expected: 0x55555555, returned: 0x55555555, repeats: 8, polls_total: 8, max_polls: 1}
+    0x101000: {expected: 0x55555555, returned: 0x55555555, repeats: 8, polls_total: 8, max_polls: 1}
+  result: pass_sdram_clean_readback_cdc_fork
+  brightforge_rtl:
+    rtl_source_commit: 5ef5db2a
+    rtl_branch: brightforge/read-done-diag
+    generated_rtl: hw/gen/top_tang20k.v
+    generated_rtl_sha256: ff01ab712a1758b1844a60459cbfaf2f2e628bf20ed45bcb2ae77e13ede5bccb
+    sbt_compile: PASS
+    cdc_cosim: ReadDoneCdcSim
+    cdc_cosim_result: ALL_PASS
+    cdc_cosim_caveat: Verilator models BufferCC as ideal 2-FF (no metastability); proves handshake logic, not real-timing margin. HW is the arbiter.
+    sta_3build:
+      task: bj9ocj9x9
+      builds: 3
+      tns_all_clocks: 0
+      bsram: 40/46
+      no_new_bsram: true
+      no_regression: true
+      build_shas:
+        - 05bc5ede09b2cbba21139dd8cae75ec2ad34f40c0fc765fcddc774f2bfcbdaeb
+        - 6fd0a81f17db852381096d0d3e491c74ae789064530dcabf016418629ebe1353
+        - 0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2
+    authoritative_bitstream: fpga/tang20k/impl/pnr/project_0c218b9a_readdone.fs
+    authoritative_bitstream_sha256: 0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2
+    fmax_tightest: clk_pixel 29.101MHz @ 25.200MHz (+15.5%)
+    tool: Gowin V1.9.12.01
+    device: GW2AR-LV18QN88C8/I7
   artifacts:
     - firmware/READ_DONE_BUILD.md
+    - hardware/READ_DONE_RESULTS.md
+    - hardware/READ_DONE_SERIAL.md
+    - simulation/READ_DONE_CDC_COSIM.md
+    - simulation/read_done_cdc_cosim.log
+    - synthesis/STA_3BUILD_SUMMARY.md
 transport:
   bulk_clock_hz: 4000000
   control_clock_hz: 2000000

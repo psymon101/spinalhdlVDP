@@ -14,6 +14,190 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 ## Active Lanes
 
+> **Lane 1 — DONE (2026-08-02):** The CS#-high reset diagnostic from #14600
+> decisively resolved the reproduced `0x22222222` anomaly on the same
+> `a5a047a2` bitstream (magic `0x51560002`, health `0x00000000`,
+> `CS_IDLE_PROOF_RESULT pass=1`). `QspiSlaveSync`'s active-high CS# async reset
+> was the mechanism; the RTL responder is correct. The PM-authorized discard-read
+> prime reproof then passed all 10 fresh `a5a047a2` SRAM reconfiguration cycles:
+> each cycle drove GPIO20 high and held it for 1200 ms, discarded the first
+> `0x22222222` magic read, and gated on the second read returning `0x51560002`.
+> Health-before/upload/enable, six readbacks, and 720x480 YUYV capture passed on
+> every cycle. The prior anomaly and diagnostic history are preserved below.
+
+> **Lane 1 campaign blocker (2026-08-01):** The first cycle of the PM-authorized
+> ten-cycle campaign was stopped at the mandatory magic precondition. The
+> explicit `a5a047a2` SRAM load completed and the mode-0 proof firmware logged
+> the required CS#-high pre-flight (`GPIO20 level=1`, 1200 ms), but the first
+> read again returned `magic=0x22222222`. The later health/readback checks were
+> clean but are invalid proof because magic failed. No second cycle was
+> attempted. Evidence is recorded in
+> `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/hardware/CAMPAIGN_CYCLE_01.md`;
+> the blocker is escalated to TopazCliff/BrightForge.
+
+> **Lane 1 PM disposition (2026-08-02):** BronzeGate's fresh-load reproof
+> (`CAMPAIGN_CYCLE_01_REPROBE.md`) confirmed the decisive fork: post-init CS# is
+> high, yet the first magic read on a fresh `a5a047a2` reconfigure is still
+> `0x22222222`. The CS#-low firmware hypothesis is refuted for this failure.
+> **TopazCliff authorizes BrightForge to build the fallback diagnostic bitstream**
+> on a separate branch/bitstream: latch responder `phase`/`bitc` at first read and
+> add a "CS# observed high-idle since FPGA config" sticky, surfaced over UART
+> and/or a spare `READ_STATUS` selector. Do not modify the `a5a047a2` authority
+> bitstream. BronzeGate preserves cycle-01 artifacts and stands by.
+
+> **Lane 1 diagnostic bitstream ready (2026-08-02):** BrightForge delivered
+> `project_eaad44f8_lane1diag.fs` (SHA-256
+> `eaad44f8b012081f401b03840ea855aa50f45ad765b2c42f239a6b050ddf1b67`) on branch
+> `brightforge/lane1-reconfig-diag`, forked from `033cc471` (the exact
+> `a5a047a2` source). The additive diagnostic uses `READ_STATUS` sel `0x0D`;
+> latched state survives CS# and is read on a recovered transaction. **TopazCliff
+> authorizes BronzeGate to flash this diagnostic on a fresh reconfigure, capture
+> `sel=0` (expected `0x2222`) + `sel=0x0D`, and report.** Interpretation fork:
+> `sawCsHigh==0` → FPGA never saw CS# high (wiring/contention/level issue);
+> `sawCsHigh==1 & firstPhase<5` → reset fired but first txn mis-framed;
+> `sawCsHigh==1 & firstPhase==5` → framed correctly, `0x2222` is launch timing.
+
+> **Lane 1 diagnostic readout result (2026-08-02):** BronzeGate flashed the
+> authorized diagnostic bitstream after a fresh reconfigure and captured the
+> first mode-0 magic plus recovered `sel=0x0D`. The first magic was again
+> `0x22222222`; diagnostic raw word was `0x00004045`, decoding to
+> `sawCsHigh=1`, `csnNow=0`, `sawSclk=1`, `firstPhase=0` (CMD),
+> `firstBitc=1`, `txnCount=4`. This selects the reset-fired but first-read
+> mis-framing/config-boundary reset-release-vs-first-SCLK branch. Proof:
+> `hardware/LANE1_RECONFIG_DIAG_RESULT.md`; serial SHA
+> `015a5cc8bd3da8f3f1b0844f75645c446fce3c10ece7e55c63858fcddf2cfb34`;
+> loader SHA `098c64525677820e37de71d8ac40bc947dd60884fe646210cc0c205489a02b75`.
+> Lane 1 remains BLOCKED pending BrightForge/TopazCliff direction; no campaign
+> cycle 02 or authority-bitstream modification was performed.
+
+> **Lane 1 PM disposition (2026-08-02):** BrightForge interpreted `0x00004045` as a
+> config-boundary async-reset-release race in `QspiSlaveSync`: CS# reset fired, but
+> the first transaction mis-framed at CMD bit 1. **TopazCliff authorizes BronzeGate**
+> to implement a discard-read prime in the mode-0 proof firmware (base `48ce715a`):
+> perform one ignored `read_status(0x00)` after the CS#-high preflight and
+> `vdp_host_init()`, then use the second magic read as the campaign gate. Resume the
+> 10-cycle reproof on the preserved `a5a047a2` authority bitstream with existing
+> abort gates. The robust RTL fix (CS#-reset-release synchronizer) is logged as a
+> future hardening lane, gated by Rule 19, and is not implemented now.
+
+> **Lane 1 prime reproof result (2026-08-02):** BronzeGate implemented the
+> authorized prime in firmware commit `9babcbeec436906271114cb4b146bc0234e1e4be`,
+> built/flashed it with ESP-IDF v6.0.2, and ran the preserved authority bitstream
+> through 10 fresh SRAM reconfiguration cycles. **10/10 PASS.** Every serial log
+> contains the CS#-high 1200 ms pre-flight, `LANE1_PRIME_DISCARD`, second magic
+> `0x51560002`, zero health before/upload/enable, six readback passes, and
+> `SCALER_PROOF mode=0 pass=1`; every capture is exactly 2,073,600 bytes. Proof:
+> `hardware/LANE1_PRIME_CAMPAIGN_RESULT.md`, build
+> `firmware/LANE1_PRIME_BUILD.md`, and `hashes.sha256`. Authority bitstream SHA
+> `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`; firmware
+> ELF SHA `8d7afb27b856b6f22ed82f4c21f319c965b1f32e7ac612fb51705b29de042f39`;
+> app BIN SHA `5057452cf41077f17445a883088f58fb93b2e44d7bcc9d59d0f52b450af9bef2`.
+
+> **Lane 1 post-settle magic anomaly — BLOCKED (historical, 2026-08-01):** BronzeGate ran
+> the PM-authorized controlled retry with a measured **1.2 s post-SRAM-load
+> settle delay**, but the first ESP32 read again returned `magic=0x22222222`
+> instead of `0x51560002` (#14593). This contradicts the post-reconfigure
+> early-read/settle hypothesis. An external review identified a testable CS#-reset
+> hypothesis: `QspiSlaveSync` uses `io.csn` as its active-high SCLK-domain
+> reset (`hw/spinal/spinalhdlvdp/QspiSlaveSync.scala:86-94`), so if the ESP32-P4
+> leaves CS# low during the settle delay, the responder FSM never resets and the
+> first `READ_STATUS` transaction is out of phase. **BronzeGate** is asked to run
+> a firmware test that drives CS# high as a GPIO immediately after boot, then
+> hands it to the SPI peripheral before the magic read. **BrightForge** is asked
+> to confirm the reset semantics and, if the firmware test fails, propose a
+> non-logic-analyzer diagnostic. No bench logic analyzer is available. The retry
+> preconditions and sticky-bit hard-abort policy remain on the books. The
+> parallel `upload-status-clear-rtl-decode` lane is independent and awaiting
+> BrightForge + BronzeGate checkpoint sign-off (#14596).
+
+> **Lane 3 closeout / Lane 1 start (2026-08-01):** `qspi-upload-si-hardening`
+> is `DONE`. The option-4 `READ_DONE` mode-8 hardware proof returned
+> `0x55555555` at both `0x100008` and `0x101000` (#14583), confirming SDRAM
+> writes are clean. The residual `sel=8` zeros are a readback/CDC artifact, not
+> physical upload corruption. PM disposition: document the `sel=8` diagnostic
+> caveat; no production RTL or host-interface change. Lane 1
+> `2bpp-bank-completion-hw-reproof` is now the active shared engineering lane.
+
+> **New lane — `codebase-cleanup-status-contract` (2026-08-02, revised):** RUNNING.
+> Triggered by external AI full-codebase audit (`source_bundle.md` SHA-256
+> `ce2c0d4abe53a09ddd51b85a9719a07f67173b99904ddd1a7598684ed9247da9`). Goal:
+> fix the split-brain status architecture by centralizing W1C decode in
+> `VdpTop.scala`, implementing the existing firmware selectors `0x05` (sticky)
+> and `0x06` (upload) in `QspiTransportCore`, and giving i80 hosts parity via
+> memory-mapped reads of `0x0320`/`0x0323`. Rule 19 sign-off is **COMPLETE**
+> (BrightForge #14629, BronzeGate #14631, External AI). RTL implementation is
+> authorized. The request was revised 2026-08-02 to use selectors `0x05`/`0x06`,
+> defer `TXN_DROPPED`, and keep `vdp_reg_read()` / `QspiSlave.scala` active. Lane 2
+> `upload-status-clear-rtl-decode` is PAUSED and folded into this lane.
+
+> **Cleanup Step B complete (2026-08-02):** BrightForge reports RTL implementation
+> complete on `brightforge/status-contract-cleanup` (base `main` `fd39d2b0`). Diff
+> = 5 files, +155/−5. `sel=0x05`/`0x06` implemented, `0x0320`/`0x0323` W1C centralized
+> in `VdpTop`, i80 read mux real (not stub). Validation: `sbt compile` PASS, both
+> tops elaborate, new `Qspi0x0323StatusClearSim` PASS 7/7 (including set-wins-on-tie),
+> full 2bpp regression PASS, Gowin PnR TNS=0 all clocks, BSRAM 40/46 (no new), DSP
+> 12/24 (no new). Preserved bitstream SHA `be9978382fb16c463b238adc23a95275663dfdd540a3b6cff91e23a987c0fb5a`;
+> generated Verilog SHA `670c9c8c`. Not merged; awaiting CyanPeak code-to-spec review.
+
+> **Cleanup Step B code-to-spec review PASS (2026-08-03):** CyanPeak audited
+> `brightforge/status-contract-cleanup` against `rule19_signoff_request.md` and
+> confirmed selector map `0x05`/`0x06`, centralized W1C, i80 read mux, no
+> collisions, and set-wins-on-tie atomicity. Review artifact:
+> `code_to_spec_verdict.md`. Lane advances to final gates.
+
+> **Cleanup Step C firmware PASS (2026-08-03):** BronzeGate synchronized
+> `vdp_host.h`, `vdp_status.h`, `vdp_status.c`, `vdp_i80.h`, and
+> `mode0_regs.json` with the approved `0x05`/`0x06` selector and `0x0323`
+> bits 2/3 contract. `vdp_reg_read()` remains active for i80 parity and its
+> QSPI write-only limitation is documented. ESP-IDF v6.0.2 builds passed for
+> `SCALER_PROOF_MODE=0`, `2`, and `3`. Source commit:
+> `a5f2aaa93e89d3afbb4b0adf041eb19582508251`; proof packet:
+> `PROJECT_PLAN/proof_packets/codebase-cleanup-status-contract/`. External AI
+> final verification and explicit PM merge authorization remain open; no merge
+> was attempted.
+
+> **Cleanup final implementation bundle posted (2026-08-03):** BrightForge
+> committed `e12b37c4` containing the final external-AI verification bundle at
+> `PROJECT_PLAN/proof_packets/codebase-cleanup-status-contract/`. The bundle
+> includes `rtl_implementation_bundle.md` (contract map, source-diff summary,
+> sim logs, PnR summary, hashes) and `rtl_source.diff` (261-line full diff
+> `main`..`brightforge/status-contract-cleanup`). All implementation, sim,
+> PnR, code-to-spec, and firmware-build gates are closed. TopazCliff copied the
+> verification materials into
+> `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/final_verification_2026-08-03/`
+> with a `README.md` index.
+
+> **External AI final verification PASS + PM merge authorization (2026-08-04):**
+> The external AI reviewer returned a **PASS** verdict on the final verification
+> package. All seven verification questions (contract conformance, host-visible
+> deviations, W1C semantics, i80 parity, dead-code reintroduction, scope
+> discipline, documentation alignment) passed. **TopazCliff authorizes merging
+> `brightforge/status-contract-cleanup` into `main`.** Merge execution is pending
+> explicit owner confirmation per the no-unauthorized-git-mutation rule.
+
+> **Pre-merge branch-scope blocker + PM disposition (2026-08-04):** CoralReef
+> identified that the cleanup lane's doc/ADR edits (`c177da3f`) and the recent
+> PM status/task-file updates live on `brightforge/read-done-diag`, not on
+> `brightforge/status-contract-cleanup`. Merging only `status-contract-cleanup`
+> would leave the canonical-contract docs and the current `STATUS.md`/task file
+> behind. **PM decision:** do not cherry-pick. Instead, merge
+> `brightforge/status-contract-cleanup` into `main` first (RTL only), then merge
+> `brightforge/read-done-diag` into `main` second to pick up the doc/ADR edits,
+> `STATUS.md`/task-file PM commits, and Lane 1 proof packet. The Lane 1
+> diagnostic bitstream branch (`brightforge/lane1-reconfig-diag`) remains
+> separate and is not part of either merge. Both merges require explicit owner
+> confirmation.
+
+> **External AI approval (2026-08-02):** The external AI reviewer formally
+> approved the revised `codebase-cleanup-status-contract` scope, including the
+> `0x05`/`0x06` selector alignment, memory-mapped i80 reads, bits 4/5 RESERVED-0,
+> and keeping `vdp_reg_read()` / `QspiSlave.scala` active.
+
+> **Rule 19 sign-off complete (2026-08-02):** BrightForge (#14629, conditional on
+> i80 read-mux implementation in `TopTang20kHdmi` and full regression suite) and
+> BronzeGate (#14631, conditional on implementation/verification gates) have both
+> approved the canonical contract.
+
 > **Lane 3 update (2026-08-01):** `qspi-upload-si-hardening` is `IN PROGRESS`.
 > BrightForge and BronzeGate both independently approved the Rule-19 option-4
 > completion-poll readback surface (#14565, #14566). BrightForge notes the
@@ -51,6 +235,31 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 > DSView, Saleae, and logic nodes absent), so option 3 physical capture is
 > infeasible here.
 
+> **BronzeGate mode-8 hardware gate update (2026-08-01):** PM-authorized
+> SRAM-load attempt for preserved READ_DONE bitstream
+> `project_0c218b9a_readdone.fs` (SHA-256
+> `0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2`)
+> failed before programming with `ftdi_usb_reset failed (-6)` / `JTAG init
+> failed`. Read-only diagnostics found the FT2232 device enumerated as
+> `0403:6010`, with no process holding `/dev/ttyUSB0` or `/dev/ttyUSB1`.
+> BronzeGate stopped after this first hardware failure per the review rule and
+> escalated the blocker to TopazCliff/BrightForge in #14580; no mode-8 serial
+> proof was produced.
+
+> **BronzeGate mode-8 hardware proof update (2026-08-01):** after the
+> authorized FTDI recovery in #14581, `openFPGALoader --detect` identified the
+> Gowin GW2A-18 and SRAM loading of preserved bitstream
+> `0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2` completed.
+> Explicit `SCALER_PROOF_MODE=8` firmware build/flash then passed. Both
+> `0x100008` and `0x101000` returned `0x55555555` for 8/8 repeats; all 16
+> completion polls reached bit 0 in one poll with reserved bits zero. Uploads
+> completed at 4 MHz and health remained `raw=0x00000000 overflow=0
+> malformed=0`. Serial raw SHA-256 is
+> `b86647404db6b89d04c563879e044a22596bff147f68600d00336ad416ef3ed8`.
+> This closes the discriminator in favor of clean SDRAM writes and the
+> existing `sel=8` readback/CDC fork; no production host-interface change was
+> made.
+
 > **Release v0.2.0 (2026-07-29):** `topazcliff/scaler-rewrite` merged into `main` at `a442707`; all external-review doc-impact items closed (F1–F9 + HDMI-TX). Tag `v0.2.0` points to `134b4d6`. Working tree clean; no active lanes remaining.
 
 > **BronzeGate 4 MHz canonical closeout packet (2026-07-21):** implemented the PM-directed 4 MHz bulk SDRAM upload policy in commit `17bdfd7` (`QSPI_SDRAM_CLOCK_HZ = 4u * 1000u * 1000u`), updated `firmware/esp32p4_checkerboard/README.md`, and documented GOTCHA-035 in `firmware/GOTCHAS.md`. Clean ESP-IDF v6.0.2 rebuild PASS: ELF `264925e16bcfcc73a19558fd703361f32d92d999fc6394f72bfa6cabd67652a7`, BIN `5a227180989c72ac2df1a00f42d054eb2e41dd98cee46cd7ba8ff2593d4ba896`, partition `fd8026bff850ca0dee41c41305160317fffe604dda30a9bd5a701ac82d96fa17`; flash/verify PASS. Explicit SRAM reload of assigned bitstream `aaa0fea2336081dfb2905246555ecc8e31d3c11528149600a56ef207ba86004` PASS. Ten MCU cold-start cycles all passed (`CHECKERBOARD_TEST PASS`), all health values were `raw=0x00000000`, and all basic plus row-200 samples passed; cycle log hashes: `8887e6ed`, `6f33a906`, `c6902684`, `80f4564a`, `58997473`, `784d3b8e`, `d534ee2e`, `0329e131`, `33abcf62`, `3c5eec24`. Final clean-build serial proof SHA `65fe1076e4f0241a2c3f405b0cd9e16256a0040677783d75927dabc14cae7f4d`. RTSP HDMI proof captured three frames showing a clean static checkerboard; frame hashes `e4100c0b`, `2226d31a`, `429e73fa`. A fresh direct `/dev/video0` YUYV capture is also clean and straight across three frames; hashes `79e17c1f`, `a1f2ccda`, `9e43e991` (single-frame retry `6aaae9ac`).
@@ -67,9 +276,22 @@ Live task status for `spinalhdlVDP`. Read this at the start of every session. Up
 
 > **Consolidated 2bpp external review handoff (2026-07-25):** external reviewer reviewed the full team-message, firmware, and Scala bundles and issued a consolidated verdict. Key decisions: (1) do **not** apply `fillLine + 4` to production fetch-line generation; (2) keep 4 MHz as the canonical bulk SDRAM upload clock for the current wiring; (3) the transport-health selector bug is already resolved (`sel=0x0A`, commit `383b00c`); (4) the display-bank advance-without-completion hazard is confirmed architectural debt and must be tested directly; (5) a new continuous-scanout backlog co-sim (`Indexed2bppBacklogCoSim`) is required. The parent `external-review-2bpp-shimmer` lane is closed to new scope; implementation work is split into the sub-lanes below.
 
+> **PM decisions (2026-08-01, updated 2026-08-02):** Lane 1 remains BLOCKED on the first-cycle magic anomaly, but the next step is the decisive firmware probe of CS# after `vdp_host_init()` — no second campaign cycle until BronzeGate reports the GPIO20 level and SPI config (mail #14610). Lane 2 `upload-status-clear-rtl-decode` i80 disposition is decided: implement BrightForge option 1 (symmetric local decode in `I80HostInterface`) on a separate lane bitstream; bits 4/5 RESERVED-0 (mail #14611).
+>
+> **PM decision (2026-08-02):** Lane 2 `upload-status-clear-rtl-decode` is **PAUSED** and superseded by a new `codebase-cleanup-status-contract` lane. An external AI audit found the status interface is split-brain; the narrow option-1 i80 decode would deepen the fracture. The cleanup lane will centralize W1C decode in `VdpTop.scala`, add `READ_STATUS` sel `0x11`/`0x12`, and archive dead code. Rule 19 sign-off is required before implementation (`PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/rule19_signoff_request.md`).
+
+> **BronzeGate probe result (2026-08-01):** PM-authorized post-init probe firmware `48ce715a` built/flashed successfully. GPIO20 remained high after `vdp_host_init()` (`CS_POST_INIT_PROBE level=1`); SPI config logged `cs_io_num=20`, `cs_ena_pretrans=2`, `cs_ena_posttrans=8`, 2 MHz, and the first magic read was `0x51560002`. The first reset then hit an attr-upload failure at offset 759 with health zero; an immediate reset/retry passed mode 0 with health zero and all readbacks. The original `vdp_host_init()`-parks-CS-low hypothesis is not reproduced; campaign cycle 2 remains paused pending PM/BrightForge disposition. Proof: `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/firmware/CS_POST_INIT_PROBE_BUILD.md`, serial SHA `854fdd503c4359e0a9f89ce9dc5d251b0974c82398a2e2a10635461a7e13b32b`.
+
+> **PM decision after probe (2026-08-01):** The CS#-after-init hypothesis is closed — CS# is high and magic reads correctly with the probe-instrumented firmware. The original cycle-01 `0x22222222` is now attributed to an unreproduced transient (likely boot-state or P4 flash/strapping timing) rather than a systematic CS#-low fault. The next discriminator is a fresh ten-cycle reproof using the probe firmware (`48ce715a`), with the existing magic/health/readback/capture abort gates. BrightForge is on standby to build the diagnostic bitstream only if the anomaly recurs cleanly. All Lane 1 logs are bundled in `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/LANE1_COMBINED_LOGS.md`.
+
+> **BronzeGate fresh-load reproof result (2026-08-02):** PM-authorized ten-cycle reproof #14615 stopped at cycle 01 on a clean wrong-magic recurrence: after explicit `a5a047a2` SRAM load and 1.2 s settle, post-init CS# was `1` with `cs_ena_pretrans=2`, but the first magic was `0x22222222`. Health remained zero and later checks were not counted because the magic gate failed; no capture or cycle 02 was attempted. Proof: `hardware/CAMPAIGN_CYCLE_01_REPROBE.md`, serial SHA `6a41e693d7ce78b6ad9cd71c24e19ceee1e7aa6d8d23568d6d0a2a5439db56ff`, loader SHA `f130c7690c698dc87ddbaadd5d181bd094106d92e7b42cbd3d99076b60b8a71b`. This is a clean recurrence with CS# high; escalate to BrightForge's PM-approved fallback diagnostic.
+
 | Lane | Owner | Status | Since | Blocker | Next Action | Proof / Artifacts |
 |---|---|---|---|---|---|---|
-| qspi-upload-si-hardening | BrightForge + BronzeGate | IN PROGRESS — mini-spec approved (#14572); proof-only READ_DONE mode 8 built PASS in `158b9d7c`; awaiting matching bitstream and PM hardware gate | 2026-08-01 | Hardware proof dependency: BrightForge must deliver the matching bitstream and TopazCliff must authorize flash/test. | **BrightForge:** complete RTL/co-sim/STA and deliver bitstream. **BronzeGate:** flash only after hardware-ready authorization, run mode 8 at `0x100008`/`0x101000`, attach serial/hash proof. **TopazCliff:** authorize hardware test and track result fork. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/`; `firmware/READ_DONE_BUILD.md`; #14563/#14570/#14571/#14572. |
+| qspi-upload-si-hardening | BrightForge + BronzeGate | DONE — mode-8 READ_DONE proof PASS; SDRAM writes clean; residual `sel=8` readback/CDC artifact documented; no production change | 2026-08-01 | None. | PM closeout complete; optional `sel=8` readback hardening may be scoped later if needed. | `PROJECT_PLAN/proof_packets/qspi-upload-si-hardening/` (`hardware/READ_DONE_RESULTS.md`, `hardware/READ_DONE_SERIAL.log`, `firmware/READ_DONE_BUILD.md`, `manifest.yaml`); FPGA SHA `0c218b9a1f6d68fa53ea26dc4e9176fd1d52751cc82ca335a3eb95f0478b31e2`; firmware ELF `fd592e3562e8a278b200b0c95f5a0f8ec2d2709c15ed54a441b572e48018907a`; serial SHA `b86647404db6b89d04c563879e044a22596bff147f68600d00336ad416ef3ed8`; #14573/#14575/#14576/#14577/#14578/#14581/#14583/#14584. |
+| 2bpp-bank-completion-hw-reproof | BronzeGate + BrightForge | DONE — 10/10 prime reproof cycles PASS; discard-read workaround validated on preserved authority bitstream | 2026-08-02 | None for this proof gate. Future RTL hardening for the config-boundary reset-release race remains separate and Rule-19 gated. | **BronzeGate:** preserve the prime + CS#-high pre-flight in future Lane 1 campaigns; hand off closeout. **BrightForge:** keep the reset-release synchronizer as future hardening only. | Proof `PROJECT_PLAN/proof_packets/2bpp-bank-completion-hw-reproof/hardware/LANE1_PRIME_CAMPAIGN_RESULT.md`; build `firmware/LANE1_PRIME_BUILD.md`; source commit `9babcbeec436906271114cb4b146bc0234e1e4be`; authority bitstream SHA `a5a047a23d98293d077f2b0bdc322f375545677ffa53d0722a91be9cf327658c`; firmware ELF `8d7afb27b856b6f22ed82f4c21f319c965b1f32e7ac612fb51705b29de042f39`; app BIN `5057452cf41077f17445a883088f58fb93b2e44d7bcc9d59d0f52b450af9bef2`; per-cycle logs/captures and `hashes.sha256`; PM authorization #14639. |
+| upload-status-clear-rtl-decode | BrightForge + BronzeGate | PAUSED — superseded by `codebase-cleanup-status-contract`; do not commit option-1 local decode (#14619, #14620) | 2026-08-02 | External AI audit found split-brain status architecture; narrow i80-only/local decode would deepen the fracture. | **BrightForge / BronzeGate:** review and sign the Rule 19 request in `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/rule19_signoff_request.md` for the canonical cleanup lane. No RTL or firmware commits on this lane until cleanup is approved. | Original checkpoint `PROJECT_PLAN/INTERFACE_CHECKPOINT_0x0323_upload_status_clear.md`; BrightForge sign-off #14599; BronzeGate sign-off #14601; PM pause/disposition #14619/#14620; cleanup task `PROJECT_PLAN/TASKS/codebase-cleanup-status-contract.md`. |
+| codebase-cleanup-status-contract | BrightForge + BronzeGate + CoralReef + CyanPeak | MERGE AUTHORIZED — all verification gates PASS; PM merge authorization granted; branch-scope alignment pending | 2026-08-04 | CoralReef #14657: doc/ADR edits and PM status/task updates are on `brightforge/read-done-diag`, not on `brightforge/status-contract-cleanup`. PM disposition below resolves this. | **TopazCliff:** execute two-step merge (`status-contract-cleanup` → `main`, then `read-done-diag` → `main`) after explicit owner confirmation. **BrightForge:** hold `status-contract-cleanup`; do not rebase/modify unless merge conflicts force it. **CoralReef:** standby; no doc rework needed. | External AI audit bundle SHA `ce2c0d4abe53a09ddd51b85a9719a07f67173b99904ddd1a7598684ed9247da9`; revised action plan `external_ai_action_plan.md`; revised Rule 19 request `rule19_signoff_request.md`; cleanup task `PROJECT_PLAN/TASKS/codebase-cleanup-status-contract.md`; approvals #14629/#14631; ADR-009; updated `MODE0_REGISTER_BUS_SPEC.md`, `firmware/GOTCHAS.md`, `kb/libvdp/README.md`, `firmware/libvdp/mode0_regs.json`; Step B complete mail #14643; CyanPeak PASS #14647; Step C source commit `a5f2aaa93e89d3afbb4b0adf041eb19582508251`; final bundle commit `e12b37c4`; final verification package `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/final_verification_2026-08-03/`; bitstream SHA `be9978382fb16c463b238adc23a95275663dfdd540a3b6cff91e23a987c0fb5a`; gen RTL SHA `670c9c8c`. |
 | 720p-proof-build-script-cleanup | BrightForge | DONE — 2026-07-30; archive-all executed (PM #14502) | 2026-07-30 | — | **ARCHIVE all 5** 720p proof targets (`proof`/`bridge`/`mode0`/`linebuf`/`planar`) — none met the keep-rule (dormant since `4e3dfcf4` 2026-06-07; no doc/runbook/README/CI deps; superseded by native 640×480 production + `diagnostic`). `git mv` 15 build artifacts (5 `.tcl` + 10 `.cst/.sdc`) → `fpga/tang20k/archive/720p_proofs/`; removed 5 720p Makefile target-blocks + 5 `impl_720p_*` `.gitignore` entries; added `archive/720p_proofs/README.md`; Scala `Hdmi720p*ProofTop.scala` tops untouched (out of scope). **Verify PASS:** `make -n gen`/`gen-diagnostic`/`all` resolve + `make -n 720p-proof` → "No rule"; `sbt compile` PASS; `Hdmi720pProofTopVerilog` gen clean; production `make gen` → `hw/gen/top_tang20k.v` (sha256 `945b060b…`); `git status` clean (15 renames + `.gitignore`/`Makefile` + README). No RTL/production-CST/HW. | Task `PROJECT_PLAN/TASKS/720p-proof-build-script-cleanup.md`; closeout commit `a27e07ff`; mail #14503. |
 | standalone-diagnostic-build | BrightForge | DONE — 2026-07-30; **merged to `main`** at `ec5c9724`; PM closeout | 2026-07-29 | — | Option A: `diagnosticMode` param → no-host/QSPI/SDRAM native 640×480 1× grid (useHostInit=false, layer0→test-pattern grid6, color-math op=00, LinestateStore all-lines L0-enabled). Module `top_tang20k_diagnostic`; generator + `build_diagnostic.tcl` + Makefile `diagnostic` target. **Production spot-check PASS** (normalized diff vs main = 0; gated → production untouched). **Diagnostic PnR PASS**: bitstream `60b23c77`, TNS=0 all clocks, Fmax 30.052 MHz, BSRAM 37/DSP 12 (no new). **HW proof PASS: 10/10 cold-POR cycles** full-frame grid (rows 480/480, cols 720/720, HDMI locked, frame byte-identical `7803de18`) + cyan canary. | Task `PROJECT_PLAN/TASKS/standalone-diagnostic-build.md`; proof packet `PROJECT_PLAN/proof_packets/standalone-diagnostic-build/`; merge commit `ec5c9724`; assignment #14496/#14497/#14498. |
 | external-review-doc-cleanup-f1-f7-stale-links | CyanPeak | DONE — 2026-07-29 | 2026-07-29 | — | Standalone diagnostic build procedure documented in [DIAGNOSTICS.md](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DIAGNOSTICS.md); BasicPatternSource async-read path documented as approved/deferred in [ADR-008](file:///home/itadmin/github/spinalhdlVDP/PROJECT_PLAN/DECISIONS/ADR-008-BASICPATTERNSOURCE-ASYNC-READS.md); stale VOODOO_ADOPTION_PLAN.md link resolved. | Task file `PROJECT_PLAN/TASKS/external-review-doc-cleanup-f1-f7-stale-links.md`; doc-impact F1 and F7 updated; closeout commit 7615718. |
