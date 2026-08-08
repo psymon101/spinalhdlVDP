@@ -3,7 +3,8 @@
  *
  * Encapsulates the active host transport so application code never
  * hand-frames packets. The canonical Tang Nano 20K deployment uses the
- * ESP32-P4 QSPI backend; the i80 backend remains available for host parity.
+ * ESP32-P4 QSPI backend. The i80 backend is retired and requires
+ * VDP_I80_ALLOW_RETIRED to compile.
  *
  * All functions are synchronous / blocking. Errors are reported via
  * `vdp_last_error()`; return value of `bool` APIs is `true` on success.

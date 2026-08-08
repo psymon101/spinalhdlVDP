@@ -8,6 +8,8 @@
 #ifndef VDP_QSPI_H
 #define VDP_QSPI_H
 
+#error "vdp_qspi.h is retired. Include firmware/libvdp/vdp_host.h and use vdp_host_init() instead."
+
 #include "vdp_host.h"
 
 #endif /* VDP_QSPI_H */

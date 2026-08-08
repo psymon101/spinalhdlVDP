@@ -8,6 +8,8 @@
 #ifndef VDP_LEGACY_SPI_H
 #define VDP_LEGACY_SPI_H
 
+#error "The legacy SPI transport is retired. Include firmware/libvdp/vdp_host.h and use vdp_host_init() with the QSPI backend instead."
+
 #include "vdp_host.h"
 
 #ifdef __cplusplus

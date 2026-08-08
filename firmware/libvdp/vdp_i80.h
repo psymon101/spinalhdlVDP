@@ -8,6 +8,9 @@
 #ifndef VDP_I80_H
 #define VDP_I80_H
 
+#error "The i80 host transport is retired. Include firmware/libvdp/vdp_host.h and use vdp_host_init() with the QSPI backend instead. " \
+       "If you are intentionally maintaining legacy ESP32-S3 i80 code, define VDP_I80_ALLOW_RETIRED before including this header."
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

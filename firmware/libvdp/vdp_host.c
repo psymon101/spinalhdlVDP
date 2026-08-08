@@ -5,6 +5,10 @@
 #include "vdp_platform.h"
 
 #if defined(VDP_HOST_BACKEND_I80_GPIO)
+#if !defined(VDP_I80_ALLOW_RETIRED)
+#error "The i80 host backend is retired. Define VDP_I80_ALLOW_RETIRED to build it anyway. " \
+       "New designs should use firmware/libvdp/vdp_host_p4.c (ESP32-P4 QSPI) or one of the SPI/QSPI backends."
+#endif
 #include <Arduino.h>
 #if defined(CONFIG_IDF_TARGET_ESP32S3)
 #include "soc/gpio_reg.h"

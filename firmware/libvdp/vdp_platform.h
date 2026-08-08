@@ -44,10 +44,10 @@
 
 #else
 
-/* ESP32-S3-DevKitC-1 8-bit i80 host harness.
+/* ESP32-S3-DevKitC-1 8-bit i80 host harness (RETIRED).
  *
- * i80 is the active ESP32-S3 backend. Include `vdp_i80.h` instead of
- * `vdp_host.h` only when intentionally building an i80 sketch.
+ * i80 is no longer an active backend. It only compiles if
+ * VDP_I80_ALLOW_RETIRED is defined before this header is processed.
  *
  *   D0..D7 GPIO4..11 -> Tang pins 25/26/27/28/29/30/31/41
  *   DC     GPIO15    -> Tang pin 85
