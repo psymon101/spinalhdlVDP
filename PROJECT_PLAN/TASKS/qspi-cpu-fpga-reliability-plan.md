@@ -2,7 +2,7 @@
 
 **Owner:** TopazCliff (PM) — BrightForge (RTL/sim/diagnostics) + BronzeGate (firmware/self-healing/HW proof) + CyanPeak (spec review) + CoralReef (docs/runbooks)  
 **Opened:** 2026-08-10  
-**Status:** ACTIVE — owner directive to pursue a solid, scalable, over-tested, self-healing/adjusting connection  
+**Status:** ACTIVE — external AI review **PASS WITH CONDITIONS**; conditions locked; BrightForge Step 1 implementation authorized  
 **Scope:** Tang Nano 20K + ESP32-P4 QSPI host interface. i80 and legacy SPI are retired and must not be re-enabled without a new Rule-19-gated lane.
 
 ## Owner directive
@@ -10,6 +10,16 @@
 > "I want every outcome and possibility thought out, both good and bad... we have been working on this for weeks off and on.. we need a solid solution, one that scales and is very reliable... and it also needs to be tested beyond what is needed to make sure it doesnt break/have issues."
 
 This plan is the engineering response. It is **not a license to gold-plate**. It means every known failure mode is either (a) prevented by design, (b) detected and reported through health/status, or (c) accepted as a documented risk with a recovery path. "Over-tested" means the test matrix must explicitly cover corner cases, error injection, and long-run stress, not just the happy path.
+
+## External AI review verdict and conditions
+
+The external AI reviewer returned a **PASS WITH CONDITIONS** verdict for this master reliability plan and the `qspi-status-done-bit-fix` Option A approach. The following conditions are now locked engineering requirements and must be tracked to closure:
+
+1. **POR-to-host boot sequencing (F13):** Add an FMEA row for FPGA power-on-reset-to-host-boot sequencing. The host must keep CS# high and enforce a settle delay before the first transaction after host boot, so the FPGA sees a clean CS#-high idle before the first SCLK edge.
+2. **Host SPI driver timeout-reset recovery:** BronzeGate must implement low-level SPI driver reset/recovery in `firmware/libvdp/vdp_host_p4.c` so the host can recover from repeated transport timeouts without a full reboot.
+3. **Gowin synthesis seed-variance tracking:** The over-test matrix must include explicit Gowin synthesis seed-variance runs and record TNS and resource deltas per seed.
+
+BrightForge is authorized to start Step 1 of `qspi-status-done-bit-fix` (sticky `DONE` lifecycle) immediately. BronzeGate Rule 19 sign-off is still required before merge.
 
 ## Reliability attributes
 
@@ -40,6 +50,7 @@ The following list must be treated as a living FMEA. Each row states the failure
 | F10 | Long-run thermal/voltage drift | None observed yet | Intermittent failures after minutes/hours | Long-run HW campaign (≥30 min, many transactions) with health checks. |
 | F11 | Host and FPGA disagree on `0x0323` W1C mask | ADR-009 vs old checkpoint wording | Firmware clears wrong bits | Reconcile all docs to one canonical contract in `qspi-status-done-bit-fix`. |
 | F12 | i80/QSPI status read parity mismatch | i80 reads `0x0320`/`0x0323`, QSPI uses `sel=0x05`/`0x06` | Same status has different values depending on transport | Centralized status source in `VdpTop`; sim must read both paths and compare after each event. |
+| F13 | FPGA POR-to-host-boot sequencing race | External AI condition #1; prior `0x22222222` config-boundary anomalies | First transaction starts before FPGA reset domain is fully settled; magic/status mis-framing or spurious CS# state | Host keeps CS# high and enforces settle delay before first transaction after boot; FPGA reset-release discipline verified; add explicit cold-POR campaign. |
 
 ## Design mechanisms to evaluate
 
@@ -74,6 +85,7 @@ These are candidates, not decisions. BrightForge and BronzeGate must evaluate ea
 
 | Check | Pass criteria |
 |---|---|
+| Gowin synthesis seed variance | Run ≥3 independent PnR seeds; record TNS, Fmax, and resource deltas for every seed; all seeds must meet TNS=0 on all clocks. |
 | Multiple builds with seed/toolchain variation | TNS=0 all clocks; no resource explosion. |
 | Timing corner analysis (fast/slow if available) | Setup/hold clean at target frequencies. |
 | Resource margin | BSRAM/DSP/Logic leave ≥10% headroom on Tang Nano 20K. |
@@ -89,17 +101,20 @@ These are candidates, not decisions. BrightForge and BronzeGate must evaluate ea
 | CRC upload validation | Silent corruption detection | Deliberately corrupt a byte; verify CRC fail + retry. |
 | Back-to-back upload race | Host protocol compliance window | Many rapid uploads; check no deadlock. |
 | Mixed status polling patterns | All `sel=0x05`/`0x06` and `0x0320`/`0x0323` combinations | Consistent results. |
+| Host SPI driver reset recovery | BronzeGate timeout-reset recovery in `vdp_host_p4.c` | Repeated timeout injected; verify CS#-high idle + driver reset returns clean magic/status. |
 
 ## Self-healing / adjusting behavior
 
 The host-side policy (BronzeGate owns) should be:
 
-1. **Before every upload:** clear prior sticky errors via `0x0323` W1C.
-2. **During upload:** if `ERROR`/`OVERFLOW` set, abort and retry up to N times.
-3. **After upload:** poll `DONE` before starting next upload.
-4. **If `DONE` not seen within timeout:** clear status, reset transport context (CS# high idle, re-init if needed), retry.
-5. **If repeated failures:** fall back to lower SCLK frequency or escalate to user.
-6. **Health logging:** after every session, log `raw`, `overflow`, `malformed`, and any CRC/timeout counts.
+1. **Before first transaction after host boot:** drive CS# high and wait the configured settle delay so the FPGA sees a clean idle before the first SCLK edge (F13).
+2. **Before every upload:** clear prior sticky errors via `0x0323` W1C.
+3. **During upload:** if `ERROR`/`OVERFLOW` set, abort and retry up to N times.
+4. **After upload:** poll `DONE` before starting next upload.
+5. **If `DONE` not seen within timeout:** clear status, reset transport context (CS# high idle, re-init if needed), retry.
+6. **If repeated timeouts occur:** perform a low-level SPI driver reset/recovery in `firmware/libvdp/vdp_host_p4.c` (external AI condition #2), then re-establish CS# high idle before retry.
+7. **If repeated failures persist:** fall back to lower SCLK frequency or escalate to user.
+8. **Health logging:** after every session, log `raw`, `overflow`, `malformed`, and any CRC/timeout counts.
 
 The FPGA-side policy (BrightForge owns) should be:
 
@@ -112,6 +127,7 @@ The FPGA-side policy (BrightForge owns) should be:
 
 - [ ] FMEA table above is reviewed and signed by BrightForge + BronzeGate.
 - [ ] Every failure mode has a design response or an accepted risk note with recovery path.
+- [ ] External AI conditions #1–#3 are closed and evidenced (FMEA row, host SPI driver reset recovery, seed-variance tracking).
 - [ ] `qspi-status-done-bit-fix` closes with sticky `DONE`, full regression, PnR, and ≥50-cycle HW sanity.
 - [ ] `qspi-transport-reliability-hardening` closes with a confirmed mechanism and a fix proven by HW reproof.
 - [ ] Host self-healing retry policy is implemented and tested via error injection.
@@ -121,14 +137,15 @@ The FPGA-side policy (BrightForge owns) should be:
 
 ## Next actions
 
-1. **BrightForge:** Review this plan, extend the FMEA with RTL-specific failure modes, and propose which design mechanisms (CRC, glitch filter, etc.) to adopt. Post branch `brightforge/qspi-status-done-bit-fix` first; keep transport-lane diagnostic in parallel if bandwidth allows.
-2. **BronzeGate:** Review this plan, extend the FMEA with host/firmware failure modes, and propose the host-side self-healing policy. Stand by for build/flash gates.
-3. **CyanPeak:** Review the FMEA and design mechanisms for spec/contract consistency; ensure no new interface change slips in without Rule 19.
-4. **CoralReef:** Capture this plan and the final FMEA in the docs/runbook; update `GOTCHAS.md` as needed.
-5. **TopazCliff:** Hold Rule 19 sign-off until the FMEA is closed and both lanes have hardware proof.
+1. **BrightForge:** Implement Step 1 of `qspi-status-done-bit-fix` on `brightforge/qspi-status-done-bit-fix`: sticky `DONE` in `QspiSdramBridge.scala` (set on completion, clear on next accepted upload start), verify `QspiTransportCore.scala` and `TopTang20kHdmi.scala` mapping, run full regression, prove PnR `TNS=0`, and post Rule 19 evidence. Do not merge without BronzeGate sign-off.
+2. **BronzeGate:** Review the updated FMEA and self-healing policy; implement SPI driver timeout-reset recovery in `firmware/libvdp/vdp_host_p4.c`; run active ESP-IDF v6.0.2 target build gate; provide Rule 19 sign-off after evidence is posted.
+3. **CyanPeak:** Review the updated FMEA and self-healing policy for spec/contract consistency; ensure no new host-visible change slips in without Rule 19.
+4. **CoralReef:** Capture the external AI verdict, locked conditions, and updated FMEA/self-healing policy in the docs/runbook; update `GOTCHAS.md` as needed.
+5. **TopazCliff:** Hold Rule 19 sign-off until the FMEA is closed and both lanes have hardware proof; track external AI conditions to closure.
 
 ## Notes
 
 - This plan is owner-directed (Rule 9). It does **not** authorize unilateral interface changes. Any new host-visible bit, register, or protocol change still requires independent BrightForge + BronzeGate Rule 19 sign-off.
+- The external AI conditions are now locked requirements, not suggestions. They are tracked as F13, host SPI driver reset recovery, and Gowin seed-variance synthesis tracking.
 - The retired i80 and legacy SPI paths remain guarded by `#error`; re-enabling them is out of scope.
 - "Over-tested" is a test-coverage requirement, not an excuse to delay indefinitely. Each test must have a pass/fail criterion and an owner.
