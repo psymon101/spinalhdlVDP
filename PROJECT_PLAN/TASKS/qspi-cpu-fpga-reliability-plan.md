@@ -51,6 +51,11 @@ The following list must be treated as a living FMEA. Each row states the failure
 | F11 | Host and FPGA disagree on `0x0323` W1C mask | ADR-009 vs old checkpoint wording | Firmware clears wrong bits | Reconcile all docs to one canonical contract in `qspi-status-done-bit-fix`. |
 | F12 | i80/QSPI status read parity mismatch | i80 reads `0x0320`/`0x0323`, QSPI uses `sel=0x05`/`0x06` | Same status has different values depending on transport | Centralized status source in `VdpTop`; sim must read both paths and compare after each event. |
 | F13 | FPGA POR-to-host-boot sequencing race | External AI condition #1; prior `0x22222222` config-boundary anomalies | First transaction starts before FPGA reset domain is fully settled; magic/status mis-framing or spurious CS# state | Host keeps CS# high and enforces settle delay before first transaction after boot; FPGA reset-release discipline verified; add explicit cold-POR campaign. |
+| F14 | Host SPI driver reset glitches CS# during timeout-reset recovery | CyanPeak #14684; `vdp_host_p4.c` `spi_bus_free()` / re-init may float or cycle CS# low | FPGA FSM sees a spurious transaction start; next real transfer is mis-framed | BronzeGate recovery routine must keep CS# driven high via GPIO or pull-up **before** releasing the SPI peripheral and re-initializing it; verify with the v2 diagnostic or scope capture. |
+| F15 | Pixel-domain pulse cannot be observed across a stopped SCLK / i80 domain | BrightForge #14685; `BufferCC` on `uploadDone`; SCLK diagnostic latch freezes across CS# idle | Status reads `0` or diagnostic captures the recovered transaction instead of the failing one; root-cause is mis-identified | All pixel→SCLK/i80 status bits must be **sticky levels**, never single-cycle pulses; diagnostic state must be latched in a free-running clock domain with single-bit CDC. |
+| F16 | CS# glitch/bounce mid-transaction re-triggers async reset → partial frame | BrightForge #14685; hypothesis from config-boundary symptoms | Transaction aborts part-way through; host sees framing error or wrong data | CS# input synchronizer / low-latency glitch filter (≤2 cycles); measure with the v2 diagnostic; consider physical hardening (series termination, SPI2 IOMUX). |
+| F17 | Multi-bit status-word CDC skew causes transient wrong reads | BrightForge #14685; simultaneous changes of multiple status bits sampled by SCLK | Host reads a transient impossible status word (e.g., DONE+BUSY+ERROR combination that never existed) | Keep status word composed of independent single-bit stickies; or add a stable-sample filter / handshake before sampling multi-bit fields. |
+| F18 | Silent signal-integrity corruption at the QSPI bulk ceiling | BrightForge #14685; historical lower-row corruption (#14266); 8 MHz 4/10 fail vs 4 MHz 3/3 pass, no health flag | Wrong SDRAM payload bytes accepted silently; display corruption with `raw=0` health | Maintain 4 MHz canonical bulk-upload ceiling; use existing CRC8-185 with host retry-on-mismatch; optional physical SI hardening (series termination, SPI2 IOMUX) in a future lane. |
 
 ## Design mechanisms to evaluate
 
@@ -112,7 +117,7 @@ The host-side policy (BronzeGate owns) should be:
 3. **During upload:** if `ERROR`/`OVERFLOW` set, abort and retry up to N times.
 4. **After upload:** poll `DONE` before starting next upload.
 5. **If `DONE` not seen within timeout:** clear status, reset transport context (CS# high idle, re-init if needed), retry.
-6. **If repeated timeouts occur:** perform a low-level SPI driver reset/recovery in `firmware/libvdp/vdp_host_p4.c` (external AI condition #2), then re-establish CS# high idle before retry.
+6. **If repeated timeouts occur:** perform a low-level SPI driver reset/recovery in `firmware/libvdp/vdp_host_p4.c` (external AI condition #2). **Keep CS# driven high via GPIO or pull-up while the SPI peripheral is released/re-initialized** (F14), then re-establish CS# high idle before retry.
 7. **If repeated failures persist:** fall back to lower SCLK frequency or escalate to user.
 8. **Health logging:** after every session, log `raw`, `overflow`, `malformed`, and any CRC/timeout counts.
 
