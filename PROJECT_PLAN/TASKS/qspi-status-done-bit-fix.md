@@ -4,7 +4,7 @@
 **Owner:** BrightForge (RTL/sim) + BronzeGate (firmware build + HW proof)  
 **PM:** TopazCliff  
 **Opened:** 2026-08-10  
-**Status:** RULE 19 SIGN-OFF PENDING (BronzeGate needs-changes — see #14674 gates below)  
+**Status:** RUNNING — Option A confirmed by BrightForge (#14676) and BronzeGate (#14677); implementation/proof authorized  
 
 ## Problem
 
@@ -51,6 +51,14 @@ In `hw/spinal/spinalhdlvdp/QspiSdramBridge.scala`:
 5. Update the ScalaDoc comment that currently says "uploadDone pulses one cycle" to describe the sticky level behavior.
 
 If any internal sim or test relies on the pulse shape (not just the level), evaluate whether to add a separate `uploadDonePulse` debug output or update the test. The existing tests that wait for `uploadDone.toBoolean` true will still pass because the sticky bit stays high.
+
+## Contract decision (Option A)
+
+After BronzeGate's needs-changes review (#14674), both BrightForge (#14676) and BronzeGate (#14677) confirm:
+
+- **`DONE` is sticky across CS# idle until the next accepted upload starts.**
+- **Bit 1 has no W1C.** The existing `0x0323` W1C mask continues to cover only bits 2 (`ERROR`) and 3 (`OVERFLOW`). Adding W1C for bit 1 would be a separate interface change requiring re-approval.
+- **Back-to-back uploads can clear `DONE` before it is polled.** Callers must poll completion before starting the next upload. This lifecycle will be explicitly stated in ADR-009, `MODE0_REGISTER_BUS_SPEC.md`, `firmware/libvdp/mode0_regs.json`, `firmware/GOTCHAS.md`, and the 0x0323 checkpoint wording.
 
 ## Acceptance criteria
 
