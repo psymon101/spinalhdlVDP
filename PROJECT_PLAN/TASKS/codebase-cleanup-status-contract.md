@@ -3,7 +3,7 @@
 **Lane ID:** `codebase-cleanup-status-contract`  
 **Owner:** TopazCliff (PM), BrightForge (RTL), BronzeGate (firmware), CoralReef (docs)  
 **Opened:** 2026-07-27  
-**Status:** MERGE AUTHORIZED — all implementation, simulation, PnR, code-to-spec, firmware build, and external-AI verification gates PASS; PM merge authorization granted; awaiting merge execution  
+**Status:** DONE — merged to `main` 2026-08-06 (commits `7bff3d65`, `bf1ea619`, `6ca34805`); post-merge compile + both top elaborations PASS. **Post-merge defect discovered (#14669/#14670):** the `DONE` bit (bit 1 of upload status, `sel=0x06` / `0x0323`) is driven by a single-cycle `donePulse` in the pixel domain and cannot be sampled by the SCLK-stopped QSPI core or by an i80 host. It is not actually sticky as the contract requires. Tracked separately as lane `qspi-status-done-bit-fix`.  
 **External AI audit bundle:** `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/source_bundle.md` (SHA-256 `ce2c0d4abe53a09ddd51b85a9719a07f67173b99904ddd1a7598684ed9247da9`)  
 **External AI final verification package:** `PROJECT_PLAN/external_review/full_codebase_audit_2026-07-27/final_verification_2026-08-03/`
 
