@@ -4,7 +4,7 @@
 **Owner:** BrightForge (RTL/sim) + BronzeGate (firmware build + HW proof)  
 **PM:** TopazCliff  
 **Opened:** 2026-08-10  
-**Status:** RULE 19 SIGN-OFF PENDING  
+**Status:** RULE 19 SIGN-OFF PENDING (BronzeGate needs-changes — see #14674 gates below)  
 
 ## Problem
 
@@ -69,6 +69,19 @@ If any internal sim or test relies on the pulse shape (not just the level), eval
 
 - Changing `uploadDone` from pulse to level may affect logic outside the status path if another module uses it as an edge. Search before editing.
 - If `DONE` is not cleared early enough, a host reading status after a previous upload could see an stale `DONE=1`. Clearing on new-upload start is sufficient because the host initiates every new upload.
+
+## BronzeGate Rule 19 needs-changes (mail #14674)
+
+Before re-requesting Rule 19 sign-off, close these gates:
+
+1. **Contract/doc reconciliation.** ADR-009 says `DONE` is "Sticky until cleared," while the proposed implementation clears it automatically when the next upload is accepted and the existing `0x0323` W1C mask covers only `ERROR`/`OVERFLOW` (bits 2/3). Explicitly state in ADR-009, `MODE0_REGISTER_BUS_SPEC.md`, `firmware/libvdp/mode0_regs.json`, `firmware/GOTCHAS.md`, and this task file whether the contract is:
+   - "sticky across CS# idle until the next accepted upload starts" (no W1C on bit 1), or
+   - "sticky until W1C-cleared" (which requires authorizing W1C on bit 1 as a separate interface decision).
+   The default fix path (clear on new-upload start) matches option A.
+
+2. **Extended simulation/proof.** Show that `DONE` goes high after upload completion, remains high across CS# idle, is observable through QSPI `sel=0x06` and i80 `0x0323` reads, and clears at the next upload start. Prove `BUSY`/`ERROR`/`OVERFLOW` behavior is unchanged. Audit `QspiTransportBridgeSim`, `QspiUploadIntegritySim`, `QspiSdramBridgeSim`, and any other consumer that may still expect an edge/pulse on `io.uploadDone`.
+
+3. **Firmware build gate.** No firmware source change is expected, but the active ESP-IDF v6.0.2 target (e.g., `firmware/esp32p4_scaler_proof`) must build cleanly with the exact artifact/toolchain result recorded.
 
 ## Artifacts
 
